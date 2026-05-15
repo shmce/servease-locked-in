@@ -1,0 +1,22 @@
+sequenceDiagram
+  actor Customer
+  participant Mobile as Expo Mobile App
+  participant Gateway as API Gateway
+  participant PaymentService as Payment Service
+  participant PaymentDb as payment
+  participant BookingService as Booking Service
+  participant BookingDb as booking
+
+  Customer->>Mobile: Reserve payment for booking
+  Mobile->>Gateway: POST /v1/payments
+  Gateway->>Gateway: Validate customer token
+  Gateway->>PaymentService: POST /internal/payments
+  PaymentService->>BookingService: Confirm booking visibility and amount
+  BookingService->>BookingDb: Read booking summary
+  BookingDb-->>BookingService: BookingSummary
+  BookingService-->>PaymentService: Booking amount and participants
+  PaymentService->>PaymentDb: Calculate fees and upsert payment reservation
+  PaymentDb-->>PaymentService: PaymentSummary
+  PaymentService-->>Gateway: PaymentSummary
+  Gateway-->>Mobile: Payment reserved
+  Mobile-->>Customer: Show payment status

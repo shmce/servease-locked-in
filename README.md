@@ -14,3 +14,8 @@ ServEase is a mobile-first service marketplace built around an Expo React Native
 - `mobile/`: Expo React Native app.
 
 Implementation follows [docs/implementation-plan.md](docs/implementation-plan.md).
+
+
+  - Customer: customer.demo@servease.test
+  - Provider: provider.demo@servease.test
+  - Password: ServEaseDemo#2026

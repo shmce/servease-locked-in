@@ -4,6 +4,8 @@ import { CatalogDependencyUnavailableError } from '../catalog.errors';
 import {
   CatalogCategory,
   CatalogServiceItem,
+  ProviderPortfolioMediaInput,
+  ProviderPortfolioMediaSummary,
   ProviderServiceListing,
 } from '../catalog.types';
 
@@ -27,15 +29,67 @@ export class CatalogServiceClient {
     );
   }
 
+  async listProviderPortfolio(
+    providerId: string,
+  ): Promise<ProviderPortfolioMediaSummary[]> {
+    return this.request<ProviderPortfolioMediaSummary[]>(
+      `/internal/providers/${providerId}/portfolio`,
+      'GET',
+    );
+  }
+
+  async addProviderPortfolioMedia(
+    userId: string,
+    input: ProviderPortfolioMediaInput,
+  ): Promise<ProviderPortfolioMediaSummary> {
+    return this.request<ProviderPortfolioMediaSummary>(
+      '/internal/providers/portfolio',
+      'POST',
+      {
+        userId,
+        ...input,
+      },
+    );
+  }
+
+  async deleteProviderPortfolioMedia(
+    userId: string,
+    mediaId: string,
+  ): Promise<void> {
+    await this.request<void>(
+      `/internal/providers/portfolio/${mediaId}`,
+      'DELETE',
+      { userId },
+    );
+  }
+
   private async get<T>(path: string): Promise<T> {
+    return this.request<T>(path, 'GET');
+  }
+
+  private async request<T>(
+    path: string,
+    method: 'DELETE' | 'GET' | 'POST',
+    body?: unknown,
+  ): Promise<T> {
     const baseUrl = this.configService.get<string>(
       'CATALOG_SERVICE_URL',
       'http://localhost:8503',
     );
-    const response = await fetch(`${baseUrl}${path}`);
+    const response = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
 
     if (!response.ok) {
       throw new CatalogDependencyUnavailableError();
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
     }
 
     const payload = (await response.json()) as { data: T };

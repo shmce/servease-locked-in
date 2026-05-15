@@ -1,0 +1,47 @@
+flowchart LR
+  customer[Customer]
+  provider[Provider]
+  admin[Admin]
+  support[Support Staff]
+
+  subgraph servease[ServEase]
+    UC1([Sign in and load profile])
+    UC2([Browse service catalog])
+    UC3([Select provider])
+    UC4([Create booking])
+    UC5([Reserve payment])
+    UC6([Message provider])
+    UC7([Track booking status])
+    UC8([Submit review])
+    UC9([Manage availability])
+    UC10([Accept or reject booking])
+    UC11([Start and complete job])
+    UC12([Open support ticket])
+    UC13([Read notifications])
+    UC14([Review support tickets])
+    UC15([Moderate payments])
+  end
+
+  customer --> UC1
+  customer --> UC2
+  customer --> UC3
+  customer --> UC4
+  customer --> UC5
+  customer --> UC6
+  customer --> UC7
+  customer --> UC8
+  customer --> UC12
+  customer --> UC13
+
+  provider --> UC1
+  provider --> UC6
+  provider --> UC7
+  provider --> UC9
+  provider --> UC10
+  provider --> UC11
+  provider --> UC12
+  provider --> UC13
+
+  admin --> UC14
+  admin --> UC15
+  support --> UC14

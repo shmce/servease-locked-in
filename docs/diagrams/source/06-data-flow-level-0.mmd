@@ -1,0 +1,59 @@
+flowchart LR
+  customer[Customer]
+  provider[Provider]
+  admin[Admin]
+
+  p1((1. Authenticate and Load Profile))
+  p2((2. Browse Catalog))
+  p3((3. Manage Bookings))
+  p4((4. Message Participants))
+  p5((5. Reserve Payment))
+  p6((6. Reviews and Support))
+  p7((7. Notifications and Admin Review))
+
+  d1[(identity_and_user)]
+  d2[(provider_catalog)]
+  d3[(booking)]
+  d4[(messages)]
+  d5[(payment)]
+  d6[(trust_and_reputation)]
+  d7[(notification_and_support)]
+
+  customer -->|credentials and token| p1
+  provider -->|credentials and token| p1
+  p1 -->|profile and role| customer
+  p1 -->|profile and role| provider
+  p1 <--> d1
+
+  customer -->|category and provider search| p2
+  p2 -->|categories, services, providers| customer
+  p2 <--> d2
+  p2 -->|provider ratings| d6
+
+  customer -->|booking request| p3
+  provider -->|availability and status updates| p3
+  p3 -->|booking summaries| customer
+  p3 -->|job queue| provider
+  p3 <--> d3
+  p3 -->|provider and service lookup| d2
+
+  customer -->|message text| p4
+  provider -->|message text| p4
+  p4 -->|conversation history| customer
+  p4 -->|conversation history| provider
+  p4 <--> d4
+
+  customer -->|payment method| p5
+  p5 -->|reservation status| customer
+  p5 <--> d5
+
+  customer -->|review or support request| p6
+  provider -->|support request| p6
+  p6 -->|review list| customer
+  p6 <--> d6
+  p6 <--> d7
+
+  admin -->|moderation actions| p7
+  p7 -->|ticket and payment queues| admin
+  p7 <--> d7
+  p7 -->|payment moderation| d5

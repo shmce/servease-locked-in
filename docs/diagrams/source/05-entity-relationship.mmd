@@ -1,0 +1,161 @@
+erDiagram
+  USER ||--o| CUSTOMER_PROFILE : has
+  USER ||--o{ USER_ADDRESS : stores
+  USER ||--o| PROVIDER_PROFILE : may_have
+  SERVICE_CATEGORY ||--o{ SERVICE : groups
+  SERVICE ||--o{ PROVIDER_SERVICE : offered_as
+  PROVIDER_PROFILE ||--o{ PROVIDER_SERVICE : lists
+  PROVIDER_PROFILE ||--o{ AVAILABILITY_WINDOW : defines
+  PROVIDER_PROFILE ||--o{ PROVIDER_DAY_OFF : blocks
+  USER ||--o{ BOOKING : requests
+  PROVIDER_PROFILE ||--o{ BOOKING : receives
+  SERVICE ||--o{ BOOKING : references
+  BOOKING ||--o{ BOOKING_TIMELINE_EVENT : records
+  BOOKING ||--o| BOOKING_CANCELLATION : may_have
+  BOOKING ||--o{ CONVERSATION : opens
+  CONVERSATION ||--o{ MESSAGE : contains
+  BOOKING ||--o{ PAYMENT : paid_by
+  BOOKING ||--o| REVIEW : receives
+  USER ||--o{ NOTIFICATION : receives
+  USER ||--o{ SUPPORT_TICKET : opens
+
+  USER {
+    uuid id PK
+    text email
+    text full_name
+    text contact_number
+    text role
+    text status
+  }
+
+  CUSTOMER_PROFILE {
+    uuid id PK
+    uuid user_id FK
+    text address
+  }
+
+  USER_ADDRESS {
+    uuid id PK
+    uuid user_id FK
+    text address
+    boolean is_default
+  }
+
+  PROVIDER_PROFILE {
+    uuid id PK
+    uuid user_id FK
+    text business_name
+    text verification_status
+    decimal average_rating
+    int review_count
+  }
+
+  SERVICE_CATEGORY {
+    uuid id PK
+    text name
+    text description
+  }
+
+  SERVICE {
+    uuid id PK
+    uuid category_id FK
+    text name
+    decimal price
+    text pricing_mode
+  }
+
+  PROVIDER_SERVICE {
+    uuid id PK
+    uuid provider_id FK
+    uuid service_id FK
+    text title
+    decimal price
+  }
+
+  AVAILABILITY_WINDOW {
+    uuid id PK
+    uuid provider_id FK
+    text day_of_week
+    time start_time
+    time end_time
+  }
+
+  PROVIDER_DAY_OFF {
+    uuid id PK
+    uuid provider_id FK
+    date off_date
+    text reason
+  }
+
+  BOOKING {
+    uuid id PK
+    text booking_reference
+    uuid customer_id
+    uuid provider_id
+    uuid service_id
+    timestamptz scheduled_at
+    text status
+    decimal total_amount
+  }
+
+  BOOKING_TIMELINE_EVENT {
+    uuid id PK
+    uuid booking_id FK
+    text status
+    text actor_role
+  }
+
+  BOOKING_CANCELLATION {
+    uuid id PK
+    uuid booking_id FK
+    text reason
+  }
+
+  CONVERSATION {
+    uuid id PK
+    uuid booking_id
+    uuid customer_id
+    uuid provider_id
+    timestamptz last_message_at
+  }
+
+  MESSAGE {
+    uuid id PK
+    uuid conversation_id FK
+    uuid sender_id
+    text sender_role
+    text content
+  }
+
+  PAYMENT {
+    uuid id PK
+    uuid booking_id
+    uuid customer_id
+    uuid provider_id
+    decimal amount
+    text status
+  }
+
+  REVIEW {
+    uuid id PK
+    uuid booking_id
+    uuid provider_id
+    uuid reviewer_id
+    int rating
+  }
+
+  NOTIFICATION {
+    uuid id PK
+    uuid user_id
+    text type
+    text title
+    boolean is_read
+  }
+
+  SUPPORT_TICKET {
+    uuid id PK
+    uuid user_id
+    text subject
+    text category
+    text status
+  }

@@ -1,0 +1,24 @@
+sequenceDiagram
+  actor Provider
+  participant Mobile as Expo Mobile App
+  participant Gateway as API Gateway
+  participant BookingService as Booking Service
+  participant BookingDb as booking
+  participant NotificationService as Notification Service
+  participant NotificationDb as notification_and_support
+
+  Provider->>Mobile: Tap accept, start, complete, or reject
+  Mobile->>Gateway: PATCH /v1/bookings/:bookingId/status
+  Gateway->>Gateway: Validate provider token and role
+  Gateway->>BookingService: PATCH /internal/bookings/:bookingId/status
+  BookingService->>BookingDb: Read current booking status
+  BookingDb-->>BookingService: Current status
+  BookingService->>BookingService: Validate transition
+  BookingService->>BookingDb: Update status and insert timeline event
+  BookingDb-->>BookingService: Updated booking
+  BookingService-->>Gateway: BookingSummary
+  Gateway->>NotificationService: POST /internal/notifications
+  NotificationService->>NotificationDb: Insert notification
+  NotificationDb-->>NotificationService: Notification saved
+  Gateway-->>Mobile: Updated booking
+  Mobile-->>Provider: Refresh job details

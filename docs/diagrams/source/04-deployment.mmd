@@ -1,0 +1,54 @@
+flowchart TB
+  subgraph device[User Mobile Device]
+    expo[Expo React Native App]
+  end
+
+  subgraph backend[Backend Runtime]
+    gateway[API Gateway Port 5001]
+    auth[Auth Service Port 8501]
+    user[User Service Port 8502]
+    catalog[Catalog Service Port 8503]
+    booking[Booking Service Port 8504]
+    availability[Availability Service Port 8505]
+    messaging[Messaging Service Port 8506]
+    payment[Payment Service Port 8507]
+    review[Review Service Port 8508]
+    notification[Notification Service Port 8509]
+    support[Support Service Port 8510]
+    admin[Admin Service Port 8511]
+  end
+
+  subgraph supabase[Supabase Project]
+    authProvider[Supabase Auth]
+    db[(Postgres Schemas)]
+    storage[Supabase Storage]
+  end
+
+  expo -->|HTTPS JSON /v1| gateway
+  expo -->|Auth token request| authProvider
+
+  gateway -->|AUTH_SERVICE_URL| auth
+  gateway -->|USER_SERVICE_URL| user
+  gateway -->|CATALOG_SERVICE_URL| catalog
+  gateway -->|BOOKING_SERVICE_URL| booking
+  gateway -->|AVAILABILITY_SERVICE_URL| availability
+  gateway -->|MESSAGING_SERVICE_URL| messaging
+  gateway -->|PAYMENT_SERVICE_URL| payment
+  gateway -->|REVIEW_SERVICE_URL| review
+  gateway -->|NOTIFICATION_SERVICE_URL| notification
+  gateway -->|SUPPORT_SERVICE_URL| support
+  gateway -->|ADMIN_SERVICE_URL| admin
+
+  auth --> db
+  user --> db
+  catalog --> db
+  booking --> db
+  availability --> db
+  messaging --> db
+  payment --> db
+  review --> db
+  notification --> db
+  support --> db
+  gateway -->|upload workflows| storage
+  admin -->|HTTP delegation| payment
+  admin -->|HTTP delegation| support

@@ -21,6 +21,7 @@ describe('SupportController', () => {
       subject: 'Need help',
       message: 'Details',
       category: 'booking',
+      attachments: [],
     });
 
     expect(supportGatewayService.createTicket).toHaveBeenCalledWith({
@@ -28,6 +29,7 @@ describe('SupportController', () => {
       subject: 'Need help',
       message: 'Details',
       category: 'booking',
+      attachments: [],
     });
     expect(response.data.id).toBe('ticket-1');
   });

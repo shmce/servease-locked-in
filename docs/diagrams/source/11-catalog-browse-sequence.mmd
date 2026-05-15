@@ -1,0 +1,37 @@
+sequenceDiagram
+  actor Customer
+  participant Mobile as Expo Mobile App
+  participant Gateway as API Gateway
+  participant CatalogService as Catalog Service
+  participant ReviewService as Review Service
+  participant CatalogDb as provider_catalog
+  participant ReviewDb as trust_and_reputation
+
+  Customer->>Mobile: Open Explore tab
+  Mobile->>Gateway: GET /v1/catalog/categories
+  Gateway->>CatalogService: GET /internal/catalog/categories
+  CatalogService->>CatalogDb: Read service categories
+  CatalogDb-->>CatalogService: Categories
+  CatalogService-->>Gateway: Categories
+  Gateway-->>Mobile: Category list
+
+  Customer->>Mobile: Select category
+  Mobile->>Gateway: GET /v1/catalog/services?categoryId
+  Gateway->>CatalogService: GET /internal/catalog/services
+  CatalogService->>CatalogDb: Read services
+  CatalogDb-->>CatalogService: Services
+  Gateway-->>Mobile: Service list
+
+  Customer->>Mobile: Select service
+  Mobile->>Gateway: GET /v1/catalog/providers?serviceId
+  Gateway->>CatalogService: GET /internal/catalog/providers
+  CatalogService->>CatalogDb: Read provider listings
+  CatalogDb-->>CatalogService: Providers
+  Gateway-->>Mobile: Provider listings
+
+  Customer->>Mobile: Open provider details
+  Mobile->>Gateway: GET /v1/reviews?providerId
+  Gateway->>ReviewService: GET /internal/reviews?providerId
+  ReviewService->>ReviewDb: Read provider reviews
+  ReviewDb-->>ReviewService: Reviews
+  Gateway-->>Mobile: Review summaries

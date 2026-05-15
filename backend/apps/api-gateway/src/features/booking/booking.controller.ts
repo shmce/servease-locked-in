@@ -24,7 +24,16 @@ import {
   ProviderUnavailableError,
 } from './booking.errors';
 import { BookingGatewayService } from './booking.service';
-import { BookingStatus, BookingSummary, CreateBookingRequest } from './booking.types';
+import {
+  AddBookingAttachmentRequest,
+  BookingAttachmentSummary,
+  BookingServiceUpdateSummary,
+  BookingStatus,
+  BookingSummary,
+  BookingTimelineEventSummary,
+  CreateBookingServiceUpdateRequest,
+  CreateBookingRequest,
+} from './booking.types';
 
 @Controller('v1/bookings')
 export class BookingController {
@@ -107,6 +116,12 @@ export class BookingController {
         throw new InvalidBookingRequestError();
       }
       const userId = await this.authTokenService.authenticate(authorization);
+      const providerId = await this.resolveOptionalProviderId(userId);
+      await this.bookingGatewayService.findBooking(
+        bookingId,
+        userId,
+        providerId,
+      );
       return {
         data: await this.bookingGatewayService.transitionStatus(
           bookingId,
@@ -122,8 +137,126 @@ export class BookingController {
     }
   }
 
+  @Post(':bookingId/attachments')
+  async addAttachment(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+    @Body() body: AddBookingAttachmentRequest,
+  ): Promise<{ data: BookingAttachmentSummary }> {
+    try {
+      this.validateAttachmentRequest(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      const providerId = await this.resolveOptionalProviderId(userId);
+      return {
+        data: await this.bookingGatewayService.addAttachment(
+          bookingId,
+          userId,
+          userId,
+          providerId,
+          body,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':bookingId/service-updates')
+  async listServiceUpdates(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+  ): Promise<{ data: BookingServiceUpdateSummary[] }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      const providerId = await this.resolveOptionalProviderId(userId);
+      return {
+        data: await this.bookingGatewayService.listServiceUpdates(
+          bookingId,
+          userId,
+          providerId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':bookingId/timeline')
+  async listTimelineEvents(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+  ): Promise<{ data: BookingTimelineEventSummary[] }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      const providerId = await this.resolveOptionalProviderId(userId);
+      return {
+        data: await this.bookingGatewayService.listTimelineEvents(
+          bookingId,
+          userId,
+          providerId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':bookingId/service-updates')
+  async createServiceUpdate(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+    @Body() body: CreateBookingServiceUpdateRequest,
+  ): Promise<{ data: BookingServiceUpdateSummary }> {
+    try {
+      this.validateServiceUpdateRequest(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      const providerId = await this.resolveRequiredProviderId(userId);
+      return {
+        data: await this.bookingGatewayService.createServiceUpdate(
+          bookingId,
+          userId,
+          providerId,
+          body,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private validateCreateRequest(body: CreateBookingRequest): void {
     if (!body.providerId || !body.serviceAddress || !body.scheduledAt) {
+      throw new InvalidBookingRequestError();
+    }
+
+    body.attachments?.forEach((attachment) => {
+      if (!attachment.fileUrl?.trim()) {
+        throw new InvalidBookingRequestError();
+      }
+    });
+  }
+
+  private validateAttachmentRequest(body: AddBookingAttachmentRequest): void {
+    if (
+      !body.fileUrl?.trim() ||
+      !['booking_reference', 'provider_progress'].includes(body.mediaKind)
+    ) {
+      throw new InvalidBookingRequestError();
+    }
+  }
+
+  private validateServiceUpdateRequest(
+    body: CreateBookingServiceUpdateRequest,
+  ): void {
+    if (!['checklist', 'progress', 'completion'].includes(body.updateType)) {
+      throw new InvalidBookingRequestError();
+    }
+
+    if (
+      body.updateType !== 'checklist' &&
+      !body.message?.trim() &&
+      !body.attachmentId
+    ) {
       throw new InvalidBookingRequestError();
     }
   }

@@ -40,6 +40,8 @@ export interface BookingSummary {
   id: string;
   bookingReference: string;
   customerId: string;
+  customerFullName?: string | null;
+  customerContactNumber?: string | null;
   providerId: string;
   serviceId: string | null;
   serviceTitle: string | null;
@@ -47,6 +49,7 @@ export interface BookingSummary {
   scheduledAt: string;
   status: BookingStatus;
   totalAmount: number;
+  attachments?: BookingAttachmentSummary[];
 }
 
 export interface ConversationSummary {
@@ -116,12 +119,14 @@ export interface SupportTicketSummary {
   category: string | null;
   status: SupportTicketStatus;
   createdAt: string | null;
+  attachments?: SupportTicketAttachmentSummary[];
 }
 
 export interface CreateSupportTicketRequest {
   subject: string;
   message?: string | null;
   category?: string | null;
+  attachments?: MediaAttachmentInput[];
 }
 
 export interface NotificationSummary {
@@ -197,6 +202,139 @@ export interface CurrentUserProfile {
   } | null;
 }
 
+export interface RegisterAccountRequest {
+  role: 'customer' | 'provider';
+  email: string;
+  password: string;
+  fullName: string;
+  contactNumber?: string | null;
+  address?: string | null;
+  businessName?: string | null;
+  serviceDescription?: string | null;
+  serviceArea?: string | null;
+}
+
+export interface RegisteredAccountResponse extends CurrentUserProfile {}
+
+export interface UpdateCurrentUserProfileRequest {
+  fullName: string;
+  contactNumber?: string | null;
+  address?: string | null;
+  businessName?: string | null;
+}
+
+export type UploadKind =
+  | 'booking_reference'
+  | 'support_evidence'
+  | 'provider_portfolio'
+  | 'provider_progress';
+
+export interface UploadSummary {
+  bucket: string;
+  path: string;
+  publicUrl: string;
+  kind: UploadKind;
+  contentType: string;
+  size: number;
+}
+
+export interface UploadMediaRequest {
+  kind: UploadKind;
+  uri: string;
+  name?: string | null;
+  contentType?: string | null;
+}
+
+export interface MediaAttachmentInput {
+  fileUrl: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  storagePath?: string | null;
+  fileSize?: number | null;
+  caption?: string | null;
+}
+
+export type BookingAttachmentKind = 'booking_reference' | 'provider_progress';
+
+export interface BookingAttachmentInput extends MediaAttachmentInput {
+  mediaKind: BookingAttachmentKind;
+}
+
+export interface BookingAttachmentSummary {
+  id: string;
+  bookingId: string;
+  uploadedBy: string | null;
+  mediaKind: BookingAttachmentKind;
+  fileUrl: string;
+  fileName: string | null;
+  mimeType: string | null;
+  storagePath: string | null;
+  fileSize: number | null;
+  caption: string | null;
+  createdAt: string | null;
+}
+
+export type BookingServiceUpdateType = 'checklist' | 'progress' | 'completion';
+
+export interface BookingServiceChecklist {
+  scopeConfirmed?: boolean;
+  toolsReady?: boolean;
+  instructionsReviewed?: boolean;
+}
+
+export interface CreateBookingServiceUpdateRequest {
+  updateType: BookingServiceUpdateType;
+  message?: string | null;
+  checklist?: BookingServiceChecklist | null;
+  attachmentId?: string | null;
+}
+
+export interface BookingServiceUpdateSummary {
+  id: string;
+  bookingId: string;
+  actorId: string;
+  updateType: BookingServiceUpdateType;
+  message: string | null;
+  checklist: BookingServiceChecklist | null;
+  attachmentId: string | null;
+  createdAt: string | null;
+}
+
+export interface BookingTimelineEventSummary {
+  id: string;
+  bookingId: string;
+  eventType: string;
+  label: string | null;
+  icon: string | null;
+  createdAt: string | null;
+}
+
+export interface SupportTicketAttachmentSummary {
+  id: string;
+  ticketId: string;
+  uploadedBy: string | null;
+  fileUrl: string;
+  fileName: string | null;
+  mimeType: string | null;
+  storagePath: string | null;
+  fileSize: number | null;
+  createdAt: string | null;
+}
+
+export interface ProviderPortfolioMediaSummary {
+  id: string;
+  providerId: string;
+  uploadedBy: string | null;
+  fileUrl: string;
+  fileName: string | null;
+  mimeType: string | null;
+  storagePath: string | null;
+  fileSize: number | null;
+  caption: string | null;
+  sortOrder: number;
+  createdAt: string | null;
+}
+
 export interface CreateBookingRequest {
   providerId: string;
   serviceId?: string | null;
@@ -210,6 +348,7 @@ export interface CreateBookingRequest {
   pricingMode?: 'flat' | 'hourly' | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
+  attachments?: BookingAttachmentInput[];
 }
 
 export interface ApiOptions {
@@ -256,12 +395,74 @@ export function listProviderListings(
   });
 }
 
+export function listProviderPortfolioMedia(
+  providerId: string,
+  options: ApiOptions = {},
+): Promise<ProviderPortfolioMediaSummary[]> {
+  return request<ProviderPortfolioMediaSummary[]>(
+    `/v1/catalog/providers/${encodeURIComponent(providerId)}/portfolio`,
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+}
+
+export function addProviderPortfolioMedia(
+  body: MediaAttachmentInput,
+  options: ApiOptions = {},
+): Promise<ProviderPortfolioMediaSummary> {
+  return request<ProviderPortfolioMediaSummary>('/v1/catalog/provider/portfolio', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function deleteProviderPortfolioMedia(
+  mediaId: string,
+  options: ApiOptions = {},
+): Promise<void> {
+  return request<void>(
+    `/v1/catalog/provider/portfolio/${encodeURIComponent(mediaId)}`,
+    {
+      ...options,
+      method: 'DELETE',
+      requiresAuth: true,
+    },
+  );
+}
+
 export function getCurrentUser(
   options: ApiOptions = {},
 ): Promise<CurrentUserProfile> {
   return request<CurrentUserProfile>('/v1/me', {
     ...options,
     method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function registerAccount(
+  body: RegisterAccountRequest,
+  options: ApiOptions = {},
+): Promise<RegisteredAccountResponse> {
+  return request<RegisteredAccountResponse>('/v1/auth/register', {
+    ...options,
+    method: 'POST',
+    body,
+  });
+}
+
+export function updateCurrentUserProfile(
+  body: UpdateCurrentUserProfileRequest,
+  options: ApiOptions = {},
+): Promise<CurrentUserProfile> {
+  return request<CurrentUserProfile>('/v1/me', {
+    ...options,
+    method: 'PATCH',
+    body,
     requiresAuth: true,
   });
 }
@@ -276,6 +477,66 @@ export function createBooking(
     body,
     requiresAuth: true,
   });
+}
+
+export function createBookingAttachment(
+  bookingId: string,
+  body: BookingAttachmentInput,
+  options: ApiOptions = {},
+): Promise<BookingAttachmentSummary> {
+  return request<BookingAttachmentSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/attachments`,
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
+}
+
+export function listBookingServiceUpdates(
+  bookingId: string,
+  options: ApiOptions = {},
+): Promise<BookingServiceUpdateSummary[]> {
+  return request<BookingServiceUpdateSummary[]>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/service-updates`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function listBookingTimelineEvents(
+  bookingId: string,
+  options: ApiOptions = {},
+): Promise<BookingTimelineEventSummary[]> {
+  return request<BookingTimelineEventSummary[]>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/timeline`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function createBookingServiceUpdate(
+  bookingId: string,
+  body: CreateBookingServiceUpdateRequest,
+  options: ApiOptions = {},
+): Promise<BookingServiceUpdateSummary> {
+  return request<BookingServiceUpdateSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/service-updates`,
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
 }
 
 export function listCustomerBookings(
@@ -472,6 +733,19 @@ export function getProviderAvailability(
   });
 }
 
+export function getPublicProviderAvailability(
+  providerId: string,
+  options: ApiOptions = {},
+): Promise<ProviderAvailabilitySchedule> {
+  return request<ProviderAvailabilitySchedule>(
+    `/v1/provider/availability/${encodeURIComponent(providerId)}`,
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+}
+
 export function replaceProviderAvailabilityWindows(
   windows: AvailabilityWindowInput[],
   options: ApiOptions = {},
@@ -510,6 +784,41 @@ export function removeProviderDayOff(
   );
 }
 
+export async function uploadMedia(
+  body: UploadMediaRequest,
+  {
+    baseUrl = DEFAULT_BASE_URL,
+    token,
+    fetcher = fetch,
+  }: ApiOptions = {},
+): Promise<UploadSummary> {
+  if (!token?.trim()) {
+    throw new Error('Paste an access token before uploading files.');
+  }
+
+  const formData = new FormData();
+  formData.append('kind', body.kind);
+  formData.append(
+    'file',
+    {
+      uri: body.uri,
+      name: body.name?.trim() || `servease-${body.kind}.jpg`,
+      type: body.contentType?.trim() || 'image/jpeg',
+    } as unknown as Blob,
+  );
+
+  const response = await fetcher(`${baseUrl.replace(/\/$/, '')}/v1/uploads`, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${token.trim()}`,
+    },
+    body: formData,
+  });
+
+  return readGatewayResponse<UploadSummary>(response);
+}
+
 interface RequestOptions extends ApiOptions {
   method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
   body?: unknown;
@@ -540,13 +849,10 @@ async function request<T>(
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  const payload = (await response.json()) as {
-    data?: T;
-    error?: {
-      code?: string;
-      message?: string;
-    };
-  };
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  const payload = await readGatewayPayload<T>(response);
 
   if (!response.ok) {
     const message =
@@ -561,4 +867,38 @@ async function request<T>(
   }
 
   return payload.data as T;
+}
+
+async function readGatewayResponse<T>(response: Response): Promise<T> {
+  const payload = await readGatewayPayload<T>(response);
+
+  if (!response.ok) {
+    const message =
+      payload.error?.message ??
+      payload.error?.code ??
+      `Gateway request failed with ${response.status}`;
+    throw new Error(message);
+  }
+
+  if (!('data' in payload)) {
+    throw new Error('Gateway response did not include data.');
+  }
+
+  return payload.data as T;
+}
+
+async function readGatewayPayload<T>(response: Response): Promise<{
+  data?: T;
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}> {
+  return (await response.json()) as {
+    data?: T;
+    error?: {
+      code?: string;
+      message?: string;
+    };
+  };
 }

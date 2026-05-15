@@ -1,0 +1,11 @@
+import { InternalUserResponse, UserRole } from '../internal-user/user.types';
+
+export interface RegisterUserInput {
+  email: string;
+  password: string;
+  fullName: string;
+  contactNumber?: string | null;
+  role: Exclude<UserRole, 'admin'>;
+}
+
+export type RegisteredUserResponse = InternalUserResponse;

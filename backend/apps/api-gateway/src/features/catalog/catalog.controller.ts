@@ -1,4 +1,20 @@
-import { Controller, Get, HttpException, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpCode,
+  HttpException,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
+import { AuthTokenService } from '../current-user/auth-token.service';
+import {
+  AuthRequiredError,
+  InvalidAuthTokenError,
+} from '../current-user/current-user.errors';
 import {
   CatalogDependencyUnavailableError,
   InvalidCatalogFilterError,
@@ -7,6 +23,8 @@ import { CatalogGatewayService } from './catalog.service';
 import {
   CatalogCategory,
   CatalogServiceItem,
+  ProviderPortfolioMediaInput,
+  ProviderPortfolioMediaSummary,
   ProviderServiceListing,
 } from './catalog.types';
 
@@ -15,7 +33,10 @@ const UUID_PATTERN =
 
 @Controller('v1/catalog')
 export class CatalogController {
-  constructor(private readonly catalogGatewayService: CatalogGatewayService) {}
+  constructor(
+    private readonly catalogGatewayService: CatalogGatewayService,
+    private readonly authTokenService: AuthTokenService,
+  ) {}
 
   @Get('categories')
   async categories(): Promise<{ data: CatalogCategory[] }> {
@@ -56,8 +77,62 @@ export class CatalogController {
     }
   }
 
+  @Get('providers/:providerId/portfolio')
+  async providerPortfolio(
+    @Param('providerId') providerId: string,
+  ): Promise<{ data: ProviderPortfolioMediaSummary[] }> {
+    try {
+      this.validateOptionalUuid(providerId);
+      return {
+        data: await this.catalogGatewayService.listProviderPortfolio(providerId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('provider/portfolio')
+  async addProviderPortfolioMedia(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: ProviderPortfolioMediaInput,
+  ): Promise<{ data: ProviderPortfolioMediaSummary }> {
+    try {
+      this.validatePortfolioMedia(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.catalogGatewayService.addProviderPortfolioMedia(
+          userId,
+          body,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete('provider/portfolio/:mediaId')
+  @HttpCode(204)
+  async deleteProviderPortfolioMedia(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('mediaId') mediaId: string,
+  ): Promise<void> {
+    try {
+      this.validateOptionalUuid(mediaId);
+      const userId = await this.authTokenService.authenticate(authorization);
+      await this.catalogGatewayService.deleteProviderPortfolioMedia(userId, mediaId);
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private validateOptionalUuid(value?: string): void {
     if (value && !UUID_PATTERN.test(value)) {
+      throw new InvalidCatalogFilterError();
+    }
+  }
+
+  private validatePortfolioMedia(body: ProviderPortfolioMediaInput): void {
+    if (!body.fileUrl?.trim()) {
       throw new InvalidCatalogFilterError();
     }
   }
@@ -73,6 +148,32 @@ export class CatalogController {
           },
         },
         400,
+      );
+    }
+
+    if (error instanceof AuthRequiredError) {
+      return new HttpException(
+        {
+          error: {
+            code: 'auth_required',
+            message: 'Authentication is required.',
+            details: {},
+          },
+        },
+        401,
+      );
+    }
+
+    if (error instanceof InvalidAuthTokenError) {
+      return new HttpException(
+        {
+          error: {
+            code: 'invalid_auth_token',
+            message: 'Authentication token is invalid.',
+            details: {},
+          },
+        },
+        401,
       );
     }
 

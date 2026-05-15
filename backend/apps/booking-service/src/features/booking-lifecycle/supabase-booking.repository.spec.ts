@@ -53,6 +53,7 @@ describe('SupabaseBookingRepository', () => {
       scheduledAt: '2026-05-20T08:00:00.000Z',
       status: 'pending',
       totalAmount: 1200,
+      attachments: [],
     });
     expect(rpc).toHaveBeenCalledWith('servease_create_booking', {
       p_customer_id: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
@@ -149,6 +150,7 @@ describe('SupabaseBookingRepository', () => {
         scheduledAt: '2026-05-20T08:00:00.000Z',
         status: 'pending',
         totalAmount: 1200,
+        attachments: [],
       },
     ]);
     expect(rpc).toHaveBeenCalledWith('servease_list_visible_bookings', {
@@ -173,5 +175,175 @@ describe('SupabaseBookingRepository', () => {
         null,
       ),
     ).rejects.toBeInstanceOf(BookingNotFoundError);
+  });
+
+  it('adds booking attachments with booking visibility ids', async () => {
+    const rpc = jest.fn().mockReturnValue({
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: {
+          id: 'attachment-1',
+          booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          uploaded_by: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+          media_kind: 'booking_reference',
+          file_url: 'https://storage.test/photo.jpg',
+          file_name: 'photo.jpg',
+          mime_type: 'image/jpeg',
+          storage_path: 'booking_reference/user/photo.jpg',
+          file_size: 120,
+          caption: null,
+          created_at: '2026-05-16T00:00:00.000Z',
+        },
+        error: null,
+      }),
+    });
+    const repository = new SupabaseBookingRepository({ rpc });
+
+    await expect(
+      repository.addAttachment({
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        actorId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        customerId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        providerId: null,
+        mediaKind: 'booking_reference',
+        fileUrl: 'https://storage.test/photo.jpg',
+        fileName: 'photo.jpg',
+        mimeType: 'image/jpeg',
+        storagePath: 'booking_reference/user/photo.jpg',
+        fileSize: 120,
+      }),
+    ).resolves.toEqual({
+      id: 'attachment-1',
+      bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      uploadedBy: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      mediaKind: 'booking_reference',
+      fileUrl: 'https://storage.test/photo.jpg',
+      fileName: 'photo.jpg',
+      mimeType: 'image/jpeg',
+      storagePath: 'booking_reference/user/photo.jpg',
+      fileSize: 120,
+      caption: null,
+      createdAt: '2026-05-16T00:00:00.000Z',
+    });
+    expect(rpc).toHaveBeenCalledWith('servease_add_booking_attachment', {
+      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      p_customer_id: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      p_provider_id: null,
+      p_uploaded_by: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      p_media_kind: 'booking_reference',
+      p_file_url: 'https://storage.test/photo.jpg',
+      p_file_name: 'photo.jpg',
+      p_mime_type: 'image/jpeg',
+      p_storage_path: 'booking_reference/user/photo.jpg',
+      p_file_size: 120,
+      p_caption: null,
+    });
+  });
+
+  it('creates and lists provider service updates through booking RPCs', async () => {
+    const rpc = jest
+      .fn()
+      .mockReturnValueOnce({
+        maybeSingle: jest.fn().mockResolvedValue({
+          data: {
+            id: 'update-1',
+            booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+            actor_id: 'provider-user-1',
+            update_type: 'progress',
+            message: 'Halfway done.',
+            checklist: null,
+            attachment_id: null,
+            created_at: '2026-05-16T00:00:00.000Z',
+          },
+          error: null,
+        }),
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'update-1',
+            booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+            actor_id: 'provider-user-1',
+            update_type: 'progress',
+            message: 'Halfway done.',
+            checklist: null,
+            attachment_id: null,
+            created_at: '2026-05-16T00:00:00.000Z',
+          },
+        ],
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        data: [
+          {
+            id: 'timeline-1',
+            booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+            event_type: 'created',
+            label: 'Booking requested',
+            icon: 'calendar',
+            created_at: '2026-05-16T00:00:00.000Z',
+          },
+        ],
+        error: null,
+      });
+    const repository = new SupabaseBookingRepository({ rpc });
+
+    const update = await repository.createServiceUpdate({
+      bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      actorId: 'provider-user-1',
+      providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      updateType: 'progress',
+      message: 'Halfway done.',
+    });
+    const updates = await repository.listServiceUpdates(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      null,
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    );
+    const timeline = await repository.listTimelineEvents(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      null,
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    );
+
+    expect(update).toEqual({
+      id: 'update-1',
+      bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      actorId: 'provider-user-1',
+      updateType: 'progress',
+      message: 'Halfway done.',
+      checklist: null,
+      attachmentId: null,
+      createdAt: '2026-05-16T00:00:00.000Z',
+    });
+    expect(updates).toEqual([update]);
+    expect(rpc).toHaveBeenNthCalledWith(1, 'servease_add_booking_service_update', {
+      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      p_actor_id: 'provider-user-1',
+      p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      p_update_type: 'progress',
+      p_message: 'Halfway done.',
+      p_checklist: null,
+      p_attachment_id: null,
+    });
+    expect(rpc).toHaveBeenNthCalledWith(2, 'servease_list_booking_service_updates', {
+      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      p_customer_id: null,
+      p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    });
+    expect(timeline).toEqual([
+      {
+        id: 'timeline-1',
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        eventType: 'created',
+        label: 'Booking requested',
+        icon: 'calendar',
+        createdAt: '2026-05-16T00:00:00.000Z',
+      },
+    ]);
+    expect(rpc).toHaveBeenNthCalledWith(3, 'servease_list_booking_timeline_events', {
+      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      p_customer_id: null,
+      p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    });
   });
 });

@@ -100,6 +100,91 @@ describe('BookingServiceClient', () => {
       },
     );
   });
+
+  it('sends booking service update requests to the booking service', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          id: 'update-1',
+          bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          actorId: 'provider-user-1',
+          updateType: 'progress',
+          message: 'Halfway done.',
+          checklist: null,
+          attachmentId: null,
+          createdAt: '2026-05-16T00:00:00.000Z',
+        },
+      }),
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const client = new BookingServiceClient(configService());
+      await client.createServiceUpdate(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        {
+          actorId: 'provider-user-1',
+          providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+          updateType: 'progress',
+          message: 'Halfway done.',
+        },
+      );
+      await client.listServiceUpdates(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        null,
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      );
+      await client.listTimelineEvents(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        null,
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      );
+
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        1,
+        'http://booking-service.test/internal/bookings/0ec2c525-63e0-4a39-9f81-60b8585f45dc/service-updates',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            actorId: 'provider-user-1',
+            providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+            updateType: 'progress',
+            message: 'Halfway done.',
+          }),
+        },
+      );
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        'http://booking-service.test/internal/bookings/0ec2c525-63e0-4a39-9f81-60b8585f45dc/service-updates?providerId=b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        {
+          method: 'GET',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: undefined,
+        },
+      );
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        3,
+        'http://booking-service.test/internal/bookings/0ec2c525-63e0-4a39-9f81-60b8585f45dc/timeline?providerId=b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        {
+          method: 'GET',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: undefined,
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      jest.restoreAllMocks();
+    }
+  });
 });
 
 async function withFetchResponse(

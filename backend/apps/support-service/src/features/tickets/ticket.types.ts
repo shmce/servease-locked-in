@@ -8,6 +8,7 @@ export interface SupportTicketSummary {
   category: string | null;
   status: SupportTicketStatus;
   createdAt: string | null;
+  attachments: SupportTicketAttachmentSummary[];
 }
 
 export interface CreateSupportTicketInput {
@@ -15,4 +16,25 @@ export interface CreateSupportTicketInput {
   subject: string;
   message?: string | null;
   category?: string | null;
+  attachments?: SupportTicketAttachmentInput[];
+}
+
+export interface SupportTicketAttachmentInput {
+  fileUrl: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  storagePath?: string | null;
+  fileSize?: number | null;
+}
+
+export interface SupportTicketAttachmentSummary {
+  id: string;
+  ticketId: string;
+  uploadedBy: string | null;
+  fileUrl: string;
+  fileName: string | null;
+  mimeType: string | null;
+  storagePath: string | null;
+  fileSize: number | null;
+  createdAt: string | null;
 }

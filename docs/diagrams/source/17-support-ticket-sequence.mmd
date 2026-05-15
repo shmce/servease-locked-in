@@ -1,0 +1,33 @@
+sequenceDiagram
+  actor User
+  actor Admin
+  participant Mobile as Expo Mobile App
+  participant Gateway as API Gateway
+  participant SupportService as Support Service
+  participant SupportDb as notification_and_support
+  participant AdminService as Admin Service
+
+  User->>Mobile: Open support form
+  Mobile->>Gateway: POST /v1/support/tickets
+  Gateway->>Gateway: Validate bearer token
+  Gateway->>SupportService: POST /internal/support/tickets
+  SupportService->>SupportDb: Insert support ticket
+  SupportDb-->>SupportService: SupportTicketSummary
+  SupportService-->>Gateway: SupportTicketSummary
+  Gateway-->>Mobile: Created support ticket
+
+  Admin->>Gateway: GET /v1/admin/support/tickets
+  Gateway->>AdminService: GET /internal/admin/support/tickets
+  AdminService->>SupportService: GET /internal/admin/support/tickets
+  SupportService->>SupportDb: Read support queue
+  SupportDb-->>SupportService: Tickets
+  SupportService-->>AdminService: Tickets
+  AdminService-->>Gateway: Tickets
+  Gateway-->>Admin: Ticket queue
+
+  Admin->>Gateway: PATCH /v1/admin/support/tickets/:id/status
+  Gateway->>AdminService: PATCH internal admin ticket status
+  AdminService->>SupportService: PATCH internal support ticket status
+  SupportService->>SupportDb: Update status
+  SupportDb-->>SupportService: Updated ticket
+  Gateway-->>Admin: Updated ticket

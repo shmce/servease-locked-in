@@ -37,6 +37,10 @@ import { SupportServiceClient } from './features/support/clients/support-service
 import { SupportController } from './features/support/support.controller';
 import { SupportGatewayService } from './features/support/support.service';
 import { RateLimitMiddleware } from './features/rate-limit/rate-limit.middleware';
+import { RegistrationController } from './features/registration/registration.controller';
+import { RegistrationGatewayService } from './features/registration/registration.service';
+import { UploadController } from './features/uploads/upload.controller';
+import { UploadGatewayService } from './features/uploads/upload.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
@@ -53,6 +57,8 @@ import { RateLimitMiddleware } from './features/rate-limit/rate-limit.middleware
     NotificationController,
     AdminSupportController,
     AdminPaymentController,
+    RegistrationController,
+    UploadController,
   ],
   providers: [
     AdminServiceClient,
@@ -78,6 +84,8 @@ import { RateLimitMiddleware } from './features/rate-limit/rate-limit.middleware
     UserServiceClient,
     CatalogServiceClient,
     CurrentUserService,
+    RegistrationGatewayService,
+    UploadGatewayService,
     RateLimitMiddleware,
     {
       provide: AuthTokenService,

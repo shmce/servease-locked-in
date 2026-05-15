@@ -10,11 +10,21 @@ import {
 } from '@nestjs/common';
 import {
   BookingNotFoundError,
+  InvalidBookingRequestError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
 } from './booking.errors';
 import { BookingLifecycleService } from './booking-lifecycle.service';
-import { BookingStatus, BookingSummary, CreateBookingInput } from './booking.types';
+import {
+  AddBookingAttachmentInput,
+  BookingAttachmentSummary,
+  BookingServiceUpdateSummary,
+  BookingStatus,
+  BookingSummary,
+  BookingTimelineEventSummary,
+  CreateBookingServiceUpdateInput,
+  CreateBookingInput,
+} from './booking.types';
 
 @Controller('internal/bookings')
 export class BookingLifecycleController {
@@ -95,6 +105,78 @@ export class BookingLifecycleController {
     }
   }
 
+  @Post(':bookingId/attachments')
+  async addAttachment(
+    @Param('bookingId') bookingId: string,
+    @Body() body: Omit<AddBookingAttachmentInput, 'bookingId'>,
+  ): Promise<{ data: BookingAttachmentSummary }> {
+    try {
+      return {
+        data: await this.bookingLifecycleService.addAttachment({
+          ...body,
+          bookingId,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':bookingId/service-updates')
+  async listServiceUpdates(
+    @Param('bookingId') bookingId: string,
+    @Query('customerId') customerId?: string,
+    @Query('providerId') providerId?: string,
+  ): Promise<{ data: BookingServiceUpdateSummary[] }> {
+    try {
+      return {
+        data: await this.bookingLifecycleService.listServiceUpdates(
+          bookingId,
+          customerId ?? null,
+          providerId ?? null,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':bookingId/timeline')
+  async listTimelineEvents(
+    @Param('bookingId') bookingId: string,
+    @Query('customerId') customerId?: string,
+    @Query('providerId') providerId?: string,
+  ): Promise<{ data: BookingTimelineEventSummary[] }> {
+    try {
+      return {
+        data: await this.bookingLifecycleService.listTimelineEvents(
+          bookingId,
+          customerId ?? null,
+          providerId ?? null,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':bookingId/service-updates')
+  async createServiceUpdate(
+    @Param('bookingId') bookingId: string,
+    @Body() body: Omit<CreateBookingServiceUpdateInput, 'bookingId'>,
+  ): Promise<{ data: BookingServiceUpdateSummary }> {
+    try {
+      return {
+        data: await this.bookingLifecycleService.createServiceUpdate({
+          ...body,
+          bookingId,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private toHttpException(error: unknown): HttpException {
     if (error instanceof InvalidBookingTransitionError) {
       return new HttpException(
@@ -106,6 +188,19 @@ export class BookingLifecycleController {
           },
         },
         409,
+      );
+    }
+
+    if (error instanceof InvalidBookingRequestError) {
+      return new HttpException(
+        {
+          error: {
+            code: 'invalid_booking_request',
+            message: 'Booking request is invalid.',
+            details: {},
+          },
+        },
+        400,
       );
     }
 

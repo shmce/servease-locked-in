@@ -1,0 +1,231 @@
+export type BackendSupportStatus = "wired" | "partial" | "local" | "blocked";
+
+export interface BackendSupportItem {
+  area: string;
+  screen: string;
+  status: BackendSupportStatus;
+  currentSupport: string;
+  existingEndpoints: string[];
+  backendNeeded: string[];
+  notes: string;
+}
+
+export const backendSupportMatrix: BackendSupportItem[] = [
+  {
+    area: "Authentication",
+    screen: "Login",
+    status: "wired",
+    currentSupport: "Supabase password sign-in followed by gateway admin validation.",
+    existingEndpoints: ["POST /auth/v1/token?grant_type=password", "GET /v1/me"],
+    backendNeeded: [],
+    notes: "Non-admin or inactive users are rejected in the admin frontend.",
+  },
+  {
+    area: "Dashboard",
+    screen: "Overview",
+    status: "partial",
+    currentSupport: "Live payments, support tickets, catalog counts, provider listing counts, and derived activity.",
+    existingEndpoints: [
+      "GET /v1/admin/payments",
+      "GET /v1/admin/support/tickets",
+      "GET /v1/catalog/categories",
+      "GET /v1/catalog/services",
+      "GET /v1/catalog/providers",
+    ],
+    backendNeeded: [
+      "GET /v1/admin/bookings/summary",
+      "GET /v1/admin/users/summary",
+      "GET /v1/admin/operations/alerts",
+    ],
+    notes: "Any booking/customer/dispute figures not covered by gateway data remain demo-derived.",
+  },
+  {
+    area: "Finance",
+    screen: "Transactions",
+    status: "wired",
+    currentSupport: "Lists payments, filters records, exports CSV, and updates payment status.",
+    existingEndpoints: [
+      "GET /v1/admin/payments",
+      "PATCH /v1/admin/payments/:paymentId/status",
+    ],
+    backendNeeded: ["GET /v1/admin/payments/:paymentId"],
+    notes: "Detail view is built from list rows until a payment detail endpoint exists.",
+  },
+  {
+    area: "Finance",
+    screen: "Failed Payments",
+    status: "partial",
+    currentSupport: "Derives refunded/cancelled payment exceptions from admin payments.",
+    existingEndpoints: ["GET /v1/admin/payments"],
+    backendNeeded: ["GET /v1/admin/payments/failures"],
+    notes: "Failure reason, gateway code, retry history, and dispute linkage need backend support.",
+  },
+  {
+    area: "Support",
+    screen: "Support",
+    status: "wired",
+    currentSupport: "Lists support tickets, filters records, exports CSV, and updates ticket status.",
+    existingEndpoints: [
+      "GET /v1/admin/support/tickets",
+      "PATCH /v1/admin/support/tickets/:ticketId/status",
+    ],
+    backendNeeded: [
+      "GET /v1/admin/support/tickets/:ticketId",
+      "POST /v1/admin/support/tickets/:ticketId/replies",
+      "PATCH /v1/admin/support/tickets/:ticketId/assignee",
+    ],
+    notes: "Thread replies and assignment are blocked by missing endpoints.",
+  },
+  {
+    area: "Marketplace",
+    screen: "Categories",
+    status: "partial",
+    currentSupport: "Read-only live catalog categories with derived service counts.",
+    existingEndpoints: ["GET /v1/catalog/categories", "GET /v1/catalog/services"],
+    backendNeeded: [
+      "POST /v1/admin/catalog/categories",
+      "PATCH /v1/admin/catalog/categories/:id",
+      "DELETE /v1/admin/catalog/categories/:id",
+    ],
+    notes: "Public catalog endpoints do not expose admin status or mutation controls.",
+  },
+  {
+    area: "Marketplace",
+    screen: "Services",
+    status: "partial",
+    currentSupport: "Read-only live catalog services with category context.",
+    existingEndpoints: ["GET /v1/catalog/services", "GET /v1/catalog/categories"],
+    backendNeeded: [
+      "POST /v1/admin/catalog/services",
+      "PATCH /v1/admin/catalog/services/:id",
+      "DELETE /v1/admin/catalog/services/:id",
+    ],
+    notes: "Create/update/delete/status actions require admin catalog endpoints.",
+  },
+  {
+    area: "Providers",
+    screen: "Service Providers",
+    status: "partial",
+    currentSupport: "Read-only provider service listings with service filters and verification status.",
+    existingEndpoints: ["GET /v1/catalog/providers", "GET /v1/catalog/services"],
+    backendNeeded: [
+      "GET /v1/admin/providers",
+      "GET /v1/admin/providers/:id",
+      "PATCH /v1/admin/providers/:id/status",
+    ],
+    notes: "Current endpoint returns listings, not full admin provider profiles.",
+  },
+  {
+    area: "Providers",
+    screen: "Provider Applications",
+    status: "blocked",
+    currentSupport: "Visible review UI only; actions report backend requirements.",
+    existingEndpoints: [],
+    backendNeeded: [
+      "GET /v1/admin/provider-applications",
+      "GET /v1/admin/provider-applications/:id",
+      "POST /v1/admin/provider-applications/:id/approve",
+      "POST /v1/admin/provider-applications/:id/reject",
+      "GET /v1/admin/provider-applications/:id/documents/:documentId",
+    ],
+    notes: "Approval, rejection, document preview, and KYC verification cannot be made real from admin alone.",
+  },
+  {
+    area: "Operations",
+    screen: "Bookings and Ongoing Services",
+    status: "blocked",
+    currentSupport: "Monitoring UI remains visible; force-cancel/escalate/message actions report backend requirements.",
+    existingEndpoints: [],
+    backendNeeded: [
+      "GET /v1/admin/bookings",
+      "GET /v1/admin/bookings/:id",
+      "POST /v1/admin/bookings/:id/cancel",
+      "POST /v1/admin/bookings/:id/escalate",
+      "POST /v1/admin/bookings/:id/provider-messages",
+    ],
+    notes: "No platform-wide admin booking endpoint is currently exposed to admin.",
+  },
+  {
+    area: "Finance",
+    screen: "Payouts, Refunds, Settlements, Commission",
+    status: "blocked",
+    currentSupport: "Screens remain navigable; mutations are marked as backend-required.",
+    existingEndpoints: [],
+    backendNeeded: [
+      "GET /v1/admin/payout-requests",
+      "POST /v1/admin/payout-requests/:id/approve",
+      "POST /v1/admin/refunds/:id/approve",
+      "POST /v1/admin/settlements/:id/approve",
+      "PATCH /v1/admin/commission-rules/:id",
+    ],
+    notes: "Financial workflow mutation needs backend ownership and audit logging.",
+  },
+  {
+    area: "Marketing",
+    screen: "Promotions and Broadcasts",
+    status: "blocked",
+    currentSupport: "Forms are present but mutations are marked as backend-required.",
+    existingEndpoints: [],
+    backendNeeded: [
+      "GET /v1/admin/promotions",
+      "POST /v1/admin/promotions",
+      "PATCH /v1/admin/promotions/:id",
+      "POST /v1/admin/broadcasts",
+    ],
+    notes: "Audience targeting, scheduling, and delivery need backend contracts.",
+  },
+  {
+    area: "Account",
+    screen: "Settings",
+    status: "local",
+    currentSupport: "Preferences save to localStorage on this browser.",
+    existingEndpoints: [],
+    backendNeeded: ["GET /v1/me/settings", "PATCH /v1/me/settings"],
+    notes: "Local-only settings do not affect the account on other devices.",
+  },
+  {
+    area: "Account",
+    screen: "Profile and Security",
+    status: "blocked",
+    currentSupport: "Validation works; password/profile/2FA actions report backend requirements.",
+    existingEndpoints: ["GET /v1/me"],
+    backendNeeded: [
+      "PATCH /v1/me",
+      "PATCH /v1/me/password",
+      "POST /v1/me/two-factor/enable",
+      "POST /v1/me/two-factor/disable",
+      "GET /v1/me/sessions",
+    ],
+    notes: "Security-sensitive changes should be implemented server-side with audit trails.",
+  },
+  {
+    area: "Reports",
+    screen: "Reports and Analytics",
+    status: "partial",
+    currentSupport: "Revenue report can export live payment rows; other report generation actions are marked backend-required.",
+    existingEndpoints: ["GET /v1/admin/payments"],
+    backendNeeded: [
+      "GET /v1/admin/reports/revenue.pdf",
+      "GET /v1/admin/reports/bookings.csv",
+      "POST /v1/admin/reports/:type",
+      "POST /v1/admin/reports/:type/schedules",
+    ],
+    notes: "CSV can be built from existing rows; PDFs and scheduled reports need backend workers or report rendering.",
+  },
+  {
+    area: "Platform",
+    screen: "Admin Roles, Audit Trail, Integrations",
+    status: "blocked",
+    currentSupport: "Controls are visible but unsupported mutations report backend requirements.",
+    existingEndpoints: [],
+    backendNeeded: [
+      "GET /v1/admin/users",
+      "POST /v1/admin/users",
+      "GET /v1/admin/audit-logs",
+      "GET /v1/admin/audit-logs/export",
+      "PATCH /v1/admin/integrations/:provider/credentials",
+      "POST /v1/admin/integrations/:provider/test",
+    ],
+    notes: "These features require backend RBAC, secret storage, and audit logging.",
+  },
+];

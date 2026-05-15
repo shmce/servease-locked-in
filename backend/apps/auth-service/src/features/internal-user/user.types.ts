@@ -19,3 +19,9 @@ export interface InternalUserResponse {
   role: UserRole;
   status: UserStatus;
 }
+
+export interface UpdateInternalUserInput {
+  userId: string;
+  fullName: string;
+  contactNumber?: string | null;
+}

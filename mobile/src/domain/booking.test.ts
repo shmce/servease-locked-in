@@ -3,8 +3,10 @@ import { describe, it } from 'node:test';
 import {
   activeBookingCount,
   bookingStatusChip,
+  buildProviderBookingSlots,
   nextBookingStatuses,
   providerPayoutTotal,
+  toManilaBookingIso,
 } from './booking';
 
 describe('booking domain helpers', () => {
@@ -68,5 +70,46 @@ describe('booking domain helpers', () => {
       ]),
       850,
     );
+  });
+
+  it('converts form date-time values to Manila booking instants', () => {
+    assert.equal(
+      toManilaBookingIso('2026-05-20T10:00'),
+      '2026-05-20T02:00:00.000Z',
+    );
+    assert.equal(toManilaBookingIso('not-a-date'), null);
+  });
+
+  it('builds bookable slots from active provider windows and days off', () => {
+    const slots = buildProviderBookingSlots(
+      {
+        providerId: 'provider-1',
+        windows: [
+          {
+            id: 'window-1',
+            dayOfWeek: 'wednesday',
+            startTime: '08:00',
+            endTime: '12:00',
+            isActive: true,
+            sortOrder: 1,
+          },
+        ],
+        daysOff: [
+          {
+            id: 'day-off-1',
+            offDate: '2026-05-20',
+            reason: null,
+          },
+        ],
+      },
+      2,
+      ['08:00', '10:00', '11:00'],
+      new Date(2026, 4, 20),
+    );
+
+    assert.deepEqual(slots.map((slot) => slot.value), [
+      '2026-05-27T08:00',
+      '2026-05-27T10:00',
+    ]);
   });
 });

@@ -40,10 +40,20 @@ export class SupportController {
       subject?: string;
       message?: string | null;
       category?: string | null;
+      attachments?: Array<{
+        fileUrl: string;
+        fileName?: string | null;
+        mimeType?: string | null;
+        storagePath?: string | null;
+        fileSize?: number | null;
+      }>;
     },
   ): Promise<{ data: SupportTicketSummary }> {
     try {
-      if (!body.subject?.trim()) {
+      if (
+        !body.subject?.trim() ||
+        body.attachments?.some((attachment) => !attachment.fileUrl?.trim())
+      ) {
         throw new InvalidSupportTicketRequestError();
       }
 
@@ -54,6 +64,7 @@ export class SupportController {
           subject: body.subject,
           message: body.message ?? null,
           category: body.category ?? null,
+          attachments: body.attachments ?? [],
         }),
       };
     } catch (error) {

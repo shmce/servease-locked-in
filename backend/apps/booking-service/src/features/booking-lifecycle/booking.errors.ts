@@ -4,6 +4,12 @@ export class InvalidBookingTransitionError extends Error {
   }
 }
 
+export class InvalidBookingRequestError extends Error {
+  constructor() {
+    super('invalid_booking_request');
+  }
+}
+
 export class BookingNotFoundError extends Error {
   constructor() {
     super('booking_not_found');

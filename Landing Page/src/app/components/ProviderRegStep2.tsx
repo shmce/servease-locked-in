@@ -1,0 +1,337 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Tag, Award, ArrowRight, ArrowLeft, Briefcase } from "lucide-react";
+
+const serviceCategories = [
+  "Home Maintenance & Repair",
+  "Beauty, Wellness & Personal Care",
+  "Education & Professional Services",
+  "Domestic & Cleaning Services",
+  "Pet Services",
+  "Events & Entertainment",
+  "Automotive & Tech Support",
+];
+
+const subCategories: Record<string, string[]> = {
+  "Home Maintenance & Repair": ["Plumbing", "Electrical", "Carpentry", "Painting", "Other"],
+  "Beauty, Wellness & Personal Care": ["Hair Styling", "Makeup Artist", "Massage Therapy", "Nails", "Other"],
+  "Education & Professional Services": ["Academic Tutor", "Language Teacher", "Music Lessons", "Other"],
+  "Domestic & Cleaning Services": ["House Cleaning", "Laundry", "Ironing", "Deep Cleaning", "Other"],
+  "Pet Services": ["Pet Grooming", "Dog Walking", "Pet Sitting", "Other"],
+  "Events & Entertainment": ["Photography", "Hosting/MC", "Catering", "DJ/Live Music", "Other"],
+  "Automotive & Tech Support": ["Car Repair", "Car Wash", "IT/Gadget Repair", "Other"],
+};
+
+const experienceLevels = [
+  "Less than 1 year",
+  "1–2 years",
+  "3–5 years",
+  "6–10 years",
+  "10+ years",
+];
+
+export function ProviderRegStep2() {
+  const router = useRouter();
+  const [formData, setFormData] = useState({
+    primaryCategory: "",
+    subCategory: "",
+    experienceYears: "",
+  });
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Autocomplete states
+  const [categoryInput, setCategoryInput] = useState("");
+  const [experienceInput, setExperienceInput] = useState("");
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showExperienceDropdown, setShowExperienceDropdown] = useState(false);
+  
+  const categoryInputRef = useRef<HTMLInputElement>(null);
+  const experienceInputRef = useRef<HTMLInputElement>(null);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  const experienceDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Filter categories based on input
+  const filteredCategories = serviceCategories.filter(category =>
+    category.toLowerCase().includes(categoryInput.toLowerCase())
+  );
+
+  // Filter experience levels based on input
+  const filteredExperience = experienceLevels.filter(level =>
+    level.toLowerCase().includes(experienceInput.toLowerCase())
+  );
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        categoryInputRef.current &&
+        categoryDropdownRef.current &&
+        !categoryInputRef.current.contains(event.target as Node) &&
+        !categoryDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowCategoryDropdown(false);
+      }
+      if (
+        experienceInputRef.current &&
+        experienceDropdownRef.current &&
+        !experienceInputRef.current.contains(event.target as Node) &&
+        !experienceDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowExperienceDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    // Category validation
+    if (!formData.primaryCategory) {
+      newErrors.primaryCategory = "Please select a service category";
+    }
+
+    // Experience validation
+    if (!formData.experienceYears) {
+      newErrors.experienceYears = "Please select your experience level";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleNext = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validateForm()) {
+      sessionStorage.setItem("providerRegStep2", JSON.stringify(formData));
+      router.push("/provider-registration/step-3");
+    }
+  };
+
+  const handleBack = () => {
+    router.push("/provider-registration/step-1");
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
+  };
+
+  const handleCategorySelect = (category: string) => {
+    setFormData((prev) => ({ ...prev, primaryCategory: category, subCategory: "" }));
+    setCategoryInput(category);
+    setShowCategoryDropdown(false);
+  };
+
+  const handleExperienceSelect = (level: string) => {
+    setFormData((prev) => ({ ...prev, experienceYears: level }));
+    setExperienceInput(level);
+    setShowExperienceDropdown(false);
+  };
+
+  return (
+    <div className="bg-gray-50 min-h-screen py-12 px-6">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="font-['Poppins',sans-serif] text-3xl md:text-4xl text-gray-900 mb-3">
+            Join ServEase as a Service Worker
+          </h1>
+          <p className="font-['Poppins',sans-serif] text-base text-gray-600">
+            Complete your registration to start offering your services
+          </p>
+        </div>
+
+        {/* Progress Indicator */}
+        <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-['Poppins',sans-serif] text-sm text-gray-600">Step 2 of 4</span>
+            <span className="font-['Poppins',sans-serif] text-sm text-[#00BF63] font-semibold">50%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="bg-[#00BF63] h-2 rounded-full transition-all duration-300" style={{ width: "50%" }}></div>
+          </div>
+          <div className="flex justify-between mt-3">
+            <span className="font-['Poppins',sans-serif] text-xs text-gray-400">Personal Info</span>
+            <span className="font-['Poppins',sans-serif] text-xs text-[#00BF63] font-semibold">Profile</span>
+            <span className="font-['Poppins',sans-serif] text-xs text-gray-400">Location</span>
+            <span className="font-['Poppins',sans-serif] text-xs text-gray-400">Documents</span>
+          </div>
+        </div>
+
+        {/* Form Card */}
+        <div className="bg-white rounded-2xl shadow-md p-8">
+          <h2 className="font-['Poppins',sans-serif] text-2xl text-gray-900 mb-6">
+            Service Provider Profile
+          </h2>
+
+          <form onSubmit={handleNext} className="space-y-5">
+            {/* Primary Category */}
+            <div>
+              <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">
+                Primary Service Category <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={20} />
+                <input
+                  type="text"
+                  name="primaryCategory"
+                  value={categoryInput}
+                  onChange={(e) => {
+                    setCategoryInput(e.target.value);
+                    setFormData((prev) => ({ ...prev, primaryCategory: e.target.value }));
+                    setShowCategoryDropdown(true);
+                    if (errors.primaryCategory) {
+                      setErrors((prev) => ({ ...prev, primaryCategory: "" }));
+                    }
+                  }}
+                  onFocus={() => setShowCategoryDropdown(true)}
+                  className={`w-full pl-11 pr-4 py-3 border ${errors.primaryCategory ? 'border-red-500' : 'border-gray-300'} rounded-lg font-['Poppins',sans-serif] text-sm focus:outline-none focus:ring-2 focus:ring-[#00BF63]/50 focus:border-[#00BF63]`}
+                  placeholder="Select a service category"
+                  ref={categoryInputRef}
+                  required
+                />
+                {showCategoryDropdown && (
+                  <div
+                    className="absolute left-0 top-full w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-20"
+                    ref={categoryDropdownRef}
+                  >
+                    {filteredCategories.length > 0 ? (
+                      filteredCategories.map((category) => (
+                        <div
+                          key={category}
+                          className="px-4 py-2 cursor-pointer hover:bg-gray-100 font-['Poppins',sans-serif] text-sm text-gray-700 transition-colors"
+                          onClick={() => handleCategorySelect(category)}
+                        >
+                          {category}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-gray-500 font-['Poppins',sans-serif]">
+                        No results found
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {errors.primaryCategory && (
+                <p className="font-['Poppins',sans-serif] text-xs text-red-500 mt-1">{errors.primaryCategory}</p>
+              )}
+            </div>
+
+            {/* Sub Category Dropdown */}
+            {formData.primaryCategory && subCategories[formData.primaryCategory] && (
+              <div>
+                <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">
+                  Specific Service <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={20} />
+                  <select
+                    name="subCategory"
+                    value={formData.subCategory}
+                    onChange={handleInputChange}
+                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg font-['Poppins',sans-serif] text-sm focus:outline-none focus:ring-2 focus:ring-[#00BF63]/50 focus:border-[#00BF63] appearance-none bg-white cursor-pointer"
+                    required
+                  >
+                    <option value="">Select a specific service</option>
+                    {subCategories[formData.primaryCategory].map((subCat) => (
+                      <option key={subCat} value={subCat}>
+                        {subCat}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Experience Level */}
+            <div>
+              <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">
+                Experience Level <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Award className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={20} />
+                <input
+                  type="text"
+                  name="experienceYears"
+                  value={experienceInput}
+                  onChange={(e) => {
+                    setExperienceInput(e.target.value);
+                    setFormData((prev) => ({ ...prev, experienceYears: e.target.value }));
+                    setShowExperienceDropdown(true);
+                    if (errors.experienceYears) {
+                      setErrors((prev) => ({ ...prev, experienceYears: "" }));
+                    }
+                  }}
+                  onFocus={() => setShowExperienceDropdown(true)}
+                  className={`w-full pl-11 pr-4 py-3 border ${errors.experienceYears ? 'border-red-500' : 'border-gray-300'} rounded-lg font-['Poppins',sans-serif] text-sm focus:outline-none focus:ring-2 focus:ring-[#00BF63]/50 focus:border-[#00BF63]`}
+                  placeholder="Select years of experience"
+                  ref={experienceInputRef}
+                  required
+                />
+                {showExperienceDropdown && (
+                  <div
+                    className="absolute left-0 top-full w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto z-20"
+                    ref={experienceDropdownRef}
+                  >
+                    {filteredExperience.length > 0 ? (
+                      filteredExperience.map((level) => (
+                        <div
+                          key={level}
+                          className="px-4 py-2 cursor-pointer hover:bg-gray-100 font-['Poppins',sans-serif] text-sm text-gray-700 transition-colors"
+                          onClick={() => handleExperienceSelect(level)}
+                        >
+                          {level}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="px-4 py-3 text-sm text-gray-500 font-['Poppins',sans-serif]">
+                        No results found
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {errors.experienceYears && (
+                <p className="font-['Poppins',sans-serif] text-xs text-red-500 mt-1">{errors.experienceYears}</p>
+              )}
+            </div>
+
+            {/* Buttons */}
+            <div className="pt-4 flex gap-4">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 font-['Poppins',sans-serif] font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <ArrowLeft size={20} />
+                Back
+              </button>
+              <button
+                type="submit"
+                className="flex-1 bg-[#00BF63] hover:bg-[#00a855] text-white font-['Poppins',sans-serif] font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                Continue
+                <ArrowRight size={20} />
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}

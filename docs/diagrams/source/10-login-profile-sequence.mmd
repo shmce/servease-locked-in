@@ -1,0 +1,28 @@
+sequenceDiagram
+  actor User
+  participant Mobile as Expo Mobile App
+  participant SupabaseAuth as Supabase Auth
+  participant Gateway as API Gateway
+  participant AuthService as Auth Service
+  participant UserService as User Service
+  participant CatalogService as Catalog Service
+  participant IdentityDb as identity_and_user
+  participant CatalogDb as provider_catalog
+
+  User->>Mobile: Enter email and password
+  Mobile->>SupabaseAuth: POST auth token request
+  SupabaseAuth-->>Mobile: Access token
+  Mobile->>Gateway: GET /v1/me with bearer token
+  Gateway->>Gateway: Validate token and user context
+  Gateway->>AuthService: GET /internal/users/:userId
+  AuthService->>IdentityDb: Load user
+  IdentityDb-->>AuthService: User record
+  AuthService-->>Gateway: User context
+  Gateway->>UserService: GET /internal/users/:userId/customer-profile
+  UserService->>IdentityDb: Load customer profile
+  IdentityDb-->>UserService: Customer profile
+  Gateway->>CatalogService: GET /internal/providers/by-user/:userId
+  CatalogService->>CatalogDb: Load provider profile
+  CatalogDb-->>CatalogService: Provider profile
+  Gateway-->>Mobile: CurrentUserProfile
+  Mobile-->>User: Route to customer or provider experience

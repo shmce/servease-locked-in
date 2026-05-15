@@ -29,6 +29,7 @@ describe('SupabaseSupportTicketRepository', () => {
       p_subject: 'Need help',
       p_message: 'Details',
       p_category: 'booking',
+      p_attachments: [],
     });
     expect(ticket.status).toBe('open');
   });

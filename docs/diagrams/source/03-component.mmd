@@ -1,0 +1,72 @@
+flowchart TB
+  subgraph mobile[Expo React Native Mobile App]
+    app[App.tsx Screens and State]
+    apiClient[services/serveaseApi.ts]
+    authClient[services/supabaseAuth.ts]
+    domain[src/domain/booking.ts]
+    app --> apiClient
+    app --> authClient
+    app --> domain
+  end
+
+  subgraph gateway[API Gateway :5001]
+    authBoundary[Auth Boundary]
+    rateLimit[Rate Limit and CORS]
+    publicRoutes[v1 Public Controllers]
+    serviceClients[HTTP Service Clients]
+    authBoundary --> publicRoutes
+    rateLimit --> publicRoutes
+    publicRoutes --> serviceClients
+  end
+
+  subgraph services[NestJS HTTP Microservices]
+    authSvc[Auth Service :8501]
+    userSvc[User Service :8502]
+    catalogSvc[Catalog Service :8503]
+    bookingSvc[Booking Service :8504]
+    availabilitySvc[Availability Service :8505]
+    messagingSvc[Messaging Service :8506]
+    paymentSvc[Payment Service :8507]
+    reviewSvc[Review Service :8508]
+    notificationSvc[Notification Service :8509]
+    supportSvc[Support Service :8510]
+    adminSvc[Admin Service :8511]
+  end
+
+  subgraph supabase[Supabase Service-Owned Schemas]
+    identity[(identity_and_user)]
+    catalog[(provider_catalog)]
+    booking[(booking)]
+    payment[(payment)]
+    messages[(messages)]
+    notification[(notification_and_support)]
+    reputation[(trust_and_reputation)]
+    storage[(Storage Buckets)]
+  end
+
+  apiClient -->|HTTPS JSON /v1| gateway
+  authClient -->|Supabase auth token| authBoundary
+  serviceClients -->|HTTP internal/users| authSvc
+  serviceClients -->|HTTP internal/users| userSvc
+  serviceClients -->|HTTP internal/catalog| catalogSvc
+  serviceClients -->|HTTP internal/bookings| bookingSvc
+  serviceClients -->|HTTP internal/providers availability| availabilitySvc
+  serviceClients -->|HTTP internal/conversations| messagingSvc
+  serviceClients -->|HTTP internal/payments| paymentSvc
+  serviceClients -->|HTTP internal/reviews| reviewSvc
+  serviceClients -->|HTTP internal/notifications| notificationSvc
+  serviceClients -->|HTTP internal/support| supportSvc
+  serviceClients -->|HTTP internal/admin| adminSvc
+
+  authSvc --> identity
+  userSvc --> identity
+  catalogSvc --> catalog
+  bookingSvc --> booking
+  availabilitySvc --> booking
+  messagingSvc --> messages
+  paymentSvc --> payment
+  reviewSvc --> reputation
+  notificationSvc --> notification
+  supportSvc --> notification
+  adminSvc -->|delegates to payment and support services| services
+  publicRoutes -->|uploads only| storage

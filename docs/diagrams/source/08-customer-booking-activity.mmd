@@ -1,0 +1,23 @@
+flowchart TD
+  start([Start])
+  login[Sign in or paste access token]
+  profile[Load current profile]
+  browse[Browse categories and services]
+  providers[Select provider listing]
+  availability[Review provider availability]
+  details[Enter service address, date, and notes]
+  submit[Confirm booking]
+  validate{Provider available?}
+  created[Booking saved as pending]
+  payment[Reserve payment]
+  message[Open conversation]
+  track[Track booking status and notifications]
+  review{Booking completed?}
+  submitReview[Submit review]
+  finish([End])
+
+  start --> login --> profile --> browse --> providers --> availability --> details --> submit --> validate
+  validate -->|Yes| created --> payment --> message --> track --> review
+  validate -->|No| details
+  review -->|Yes| submitReview --> finish
+  review -->|No| track

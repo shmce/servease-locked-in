@@ -1,0 +1,22 @@
+flowchart TD
+  start([Start])
+  login[Sign in as provider]
+  profile[Load provider profile]
+  availability[Manage weekly windows and days off]
+  list[View pending and confirmed bookings]
+  inspect[Open booking details]
+  decide{Accept job?}
+  reject[Reject booking]
+  confirm[Confirm booking]
+  arrive[Start job]
+  complete[Complete job]
+  payout[Review payment and payout status]
+  support{Issue reported?}
+  ticket[Open support ticket]
+  finish([End])
+
+  start --> login --> profile --> availability --> list --> inspect --> decide
+  decide -->|No| reject --> finish
+  decide -->|Yes| confirm --> arrive --> complete --> payout --> support
+  support -->|Yes| ticket --> finish
+  support -->|No| finish

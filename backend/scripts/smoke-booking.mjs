@@ -67,6 +67,7 @@ async function main() {
   await seedAvailability(catalogSeed.providerId, scheduledAt);
   const accessToken = await signIn(email, password);
 
+  await startService('auth-service', 8501);
   await startService('catalog-service', 8503);
   await startService('booking-service', 8504);
   await startService('api-gateway', 5001);

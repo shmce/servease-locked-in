@@ -6,7 +6,16 @@ import {
   InvalidBookingTransitionError,
   ProviderUnavailableError,
 } from '../booking.errors';
-import { BookingStatus, BookingSummary, CreateBookingRequest } from '../booking.types';
+import {
+  AddBookingAttachmentRequest,
+  BookingAttachmentSummary,
+  BookingServiceUpdateSummary,
+  BookingStatus,
+  BookingSummary,
+  BookingTimelineEventSummary,
+  CreateBookingServiceUpdateRequest,
+  CreateBookingRequest,
+} from '../booking.types';
 
 @Injectable()
 export class BookingServiceClient {
@@ -75,6 +84,71 @@ export class BookingServiceClient {
         reason,
         explanation,
       },
+    );
+  }
+
+  async addAttachment(
+    bookingId: string,
+    input: AddBookingAttachmentRequest & {
+      actorId: string;
+      customerId?: string | null;
+      providerId?: string | null;
+    },
+  ): Promise<BookingAttachmentSummary> {
+    return this.request<BookingAttachmentSummary>(
+      `/internal/bookings/${bookingId}/attachments`,
+      'POST',
+      input,
+    );
+  }
+
+  async listServiceUpdates(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+  ): Promise<BookingServiceUpdateSummary[]> {
+    const searchParams = new URLSearchParams();
+    if (customerId) {
+      searchParams.set('customerId', customerId);
+    }
+    if (providerId) {
+      searchParams.set('providerId', providerId);
+    }
+    return this.request<BookingServiceUpdateSummary[]>(
+      `/internal/bookings/${bookingId}/service-updates?${searchParams.toString()}`,
+      'GET',
+    );
+  }
+
+  async listTimelineEvents(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+  ): Promise<BookingTimelineEventSummary[]> {
+    const searchParams = new URLSearchParams();
+    if (customerId) {
+      searchParams.set('customerId', customerId);
+    }
+    if (providerId) {
+      searchParams.set('providerId', providerId);
+    }
+    return this.request<BookingTimelineEventSummary[]>(
+      `/internal/bookings/${bookingId}/timeline?${searchParams.toString()}`,
+      'GET',
+    );
+  }
+
+  async createServiceUpdate(
+    bookingId: string,
+    input: CreateBookingServiceUpdateRequest & {
+      actorId: string;
+      providerId: string;
+    },
+  ): Promise<BookingServiceUpdateSummary> {
+    return this.request<BookingServiceUpdateSummary>(
+      `/internal/bookings/${bookingId}/service-updates`,
+      'POST',
+      input,
     );
   }
 

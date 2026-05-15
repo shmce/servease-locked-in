@@ -27,3 +27,26 @@ export interface ProviderServiceListing {
   reviewCount: number;
   verificationStatus: 'pending' | 'approved' | 'rejected';
 }
+
+export interface ProviderPortfolioMediaInput {
+  fileUrl: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  storagePath?: string | null;
+  fileSize?: number | null;
+  caption?: string | null;
+}
+
+export interface ProviderPortfolioMediaSummary {
+  id: string;
+  providerId: string;
+  uploadedBy: string | null;
+  fileUrl: string;
+  fileName: string | null;
+  mimeType: string | null;
+  storagePath: string | null;
+  fileSize: number | null;
+  caption: string | null;
+  sortOrder: number;
+  createdAt: string | null;
+}

@@ -1,0 +1,32 @@
+sequenceDiagram
+  actor Sender
+  participant Mobile as Expo Mobile App
+  participant Gateway as API Gateway
+  participant MessagingService as Messaging Service
+  participant MessageDb as messages
+  participant NotificationService as Notification Service
+  participant NotificationDb as notification_and_support
+
+  Sender->>Mobile: Open messages from a booking
+  Mobile->>Gateway: POST /v1/conversations
+  Gateway->>MessagingService: POST /internal/conversations
+  MessagingService->>MessageDb: Get or create conversation by bookingId
+  MessageDb-->>MessagingService: Conversation
+  MessagingService-->>Gateway: ConversationSummary
+  Gateway-->>Mobile: ConversationSummary
+
+  Mobile->>Gateway: GET /v1/conversations/:id/messages
+  Gateway->>MessagingService: GET /internal/conversations/:id/messages
+  MessagingService->>MessageDb: Read messages
+  MessageDb-->>MessagingService: Message list
+  Gateway-->>Mobile: Message list
+
+  Sender->>Mobile: Send message
+  Mobile->>Gateway: POST /v1/conversations/:id/messages
+  Gateway->>MessagingService: POST /internal/conversations/:id/messages
+  MessagingService->>MessageDb: Insert message and update lastMessageAt
+  MessageDb-->>MessagingService: ConversationMessage
+  MessagingService-->>Gateway: ConversationMessage
+  Gateway->>NotificationService: POST /internal/notifications
+  NotificationService->>NotificationDb: Insert message notification
+  Gateway-->>Mobile: Sent message

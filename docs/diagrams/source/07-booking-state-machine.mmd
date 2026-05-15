@@ -1,0 +1,12 @@
+stateDiagram-v2
+  [*] --> pending: Customer creates booking
+  pending --> confirmed: Provider accepts
+  pending --> rejected: Provider rejects
+  pending --> cancelled: Customer cancels
+  confirmed --> in_progress: Provider starts job
+  confirmed --> cancelled: Customer or provider cancels
+  in_progress --> completed: Provider completes job
+  in_progress --> cancelled: Cancellation approved
+  completed --> [*]
+  cancelled --> [*]
+  rejected --> [*]

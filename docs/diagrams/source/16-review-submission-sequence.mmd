@@ -1,0 +1,25 @@
+sequenceDiagram
+  actor Customer
+  participant Mobile as Expo Mobile App
+  participant Gateway as API Gateway
+  participant ReviewService as Review Service
+  participant ReviewDb as trust_and_reputation
+  participant BookingService as Booking Service
+  participant BookingDb as booking
+  participant CatalogService as Catalog Service
+  participant CatalogDb as provider_catalog
+
+  Customer->>Mobile: Submit rating and review
+  Mobile->>Gateway: POST /v1/reviews
+  Gateway->>Gateway: Validate customer token
+  Gateway->>ReviewService: POST /internal/reviews
+  ReviewService->>BookingService: Verify completed booking and participants
+  BookingService->>BookingDb: Read booking
+  BookingDb-->>BookingService: Completed booking
+  BookingService-->>ReviewService: Review is allowed
+  ReviewService->>ReviewDb: Insert or update review
+  ReviewDb-->>ReviewService: ReviewSummary
+  ReviewService->>CatalogService: Update provider rating summary
+  CatalogService->>CatalogDb: Store average rating and review count
+  ReviewService-->>Gateway: ReviewSummary
+  Gateway-->>Mobile: Saved review

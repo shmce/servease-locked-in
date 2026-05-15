@@ -4,6 +4,8 @@ import {
   Headers,
   HttpException,
   HttpStatus,
+  Patch,
+  Body,
 } from '@nestjs/common';
 import {
   AccountInactiveError,
@@ -14,7 +16,10 @@ import {
 } from './current-user.errors';
 import { AuthTokenService } from './auth-token.service';
 import { CurrentUserService } from './current-user.service';
-import { CurrentUserProfile } from './current-user.types';
+import {
+  CurrentUserProfile,
+  UpdateCurrentUserProfileInput,
+} from './current-user.types';
 
 @Controller('v1/me')
 export class CurrentUserController {
@@ -36,7 +41,37 @@ export class CurrentUserController {
     }
   }
 
+  @Patch()
+  async update(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: UpdateCurrentUserProfileInput,
+  ): Promise<{ data: CurrentUserProfile }> {
+    try {
+      if (!body.fullName?.trim()) {
+        throw this.error(
+          'invalid_profile_update_request',
+          'Profile update request is invalid.',
+          400,
+        );
+      }
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.updateCurrentUser(userId, {
+        fullName: body.fullName.trim(),
+        contactNumber: body.contactNumber?.trim() || null,
+        address: body.address?.trim() || null,
+        businessName: body.businessName?.trim() || null,
+      });
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private toHttpException(error: unknown): HttpException {
+    if (error instanceof HttpException) {
+      return error;
+    }
+
     if (error instanceof AuthRequiredError) {
       return this.error('auth_required', 'Authentication is required.', 401);
     }

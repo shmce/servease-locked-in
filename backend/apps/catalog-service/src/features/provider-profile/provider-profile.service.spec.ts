@@ -13,6 +13,11 @@ describe('ProviderProfileService', () => {
         averageRating: 4.8,
         reviewCount: 12,
       }),
+      create: jest.fn(),
+      update: jest.fn(),
+      listPortfolioMedia: jest.fn(),
+      addPortfolioMedia: jest.fn(),
+      deletePortfolioMedia: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
 
@@ -24,6 +29,66 @@ describe('ProviderProfileService', () => {
       verificationStatus: 'approved',
       averageRating: 4.8,
       reviewCount: 12,
+    });
+  });
+
+  it('creates provider profile data for registration', async () => {
+    const repository: ProviderProfileRepository = {
+      findByUserId: jest.fn(),
+      create: jest.fn().mockResolvedValue({
+        id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+        businessName: 'Reliable Repairs',
+        verificationStatus: 'pending',
+        averageRating: 0,
+        reviewCount: 0,
+      }),
+      update: jest.fn(),
+      listPortfolioMedia: jest.fn(),
+      addPortfolioMedia: jest.fn(),
+      deletePortfolioMedia: jest.fn(),
+    };
+    const service = new ProviderProfileService(repository);
+
+    await service.create({
+      userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      businessName: 'Reliable Repairs',
+      serviceArea: 'Metro Manila',
+      serviceDescription: 'Home repair services',
+    });
+
+    expect(repository.create).toHaveBeenCalledWith({
+      userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      businessName: 'Reliable Repairs',
+      serviceArea: 'Metro Manila',
+      serviceDescription: 'Home repair services',
+    });
+  });
+
+  it('updates provider profile data', async () => {
+    const repository: ProviderProfileRepository = {
+      findByUserId: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn().mockResolvedValue({
+        id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+        businessName: 'Updated Repairs',
+        verificationStatus: 'pending',
+        averageRating: 0,
+        reviewCount: 0,
+      }),
+      listPortfolioMedia: jest.fn(),
+      addPortfolioMedia: jest.fn(),
+      deletePortfolioMedia: jest.fn(),
+    };
+    const service = new ProviderProfileService(repository);
+
+    await service.update({
+      userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      businessName: 'Updated Repairs',
+    });
+
+    expect(repository.update).toHaveBeenCalledWith({
+      userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      businessName: 'Updated Repairs',
     });
   });
 });

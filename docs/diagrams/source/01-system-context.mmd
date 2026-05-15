@@ -1,0 +1,20 @@
+flowchart LR
+  customer[Customer]
+  provider[Service Provider]
+  admin[Administrator]
+  support[Support Staff]
+
+  system([ServEase Mobile Service Marketplace])
+
+  supabase[(Supabase Auth, Storage, and Database)]
+  email[Email SMS Push Channels]
+  payment[Payment Provider Future Integration]
+
+  customer -->|Books services, pays, reviews, messages| system
+  provider -->|Manages availability and jobs| system
+  admin -->|Moderates support and payments| system
+  support -->|Handles tickets and disputes| system
+
+  system -->|Auth, storage, owned service data| supabase
+  system -->|Dispatch notifications| email
+  system -->|Reserve or settle payments| payment

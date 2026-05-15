@@ -16,6 +16,9 @@ import {
   ProviderAvailabilitySchedule,
 } from './availability.types';
 
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 @Controller('v1/provider/availability')
 export class AvailabilityController {
   constructor(
@@ -30,6 +33,20 @@ export class AvailabilityController {
   ): Promise<{ data: ProviderAvailabilitySchedule }> {
     try {
       const providerId = await this.resolveProviderId(authorization);
+      return {
+        data: await this.availabilityGatewayService.getSchedule(providerId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':providerId')
+  async publicShow(
+    @Param('providerId') providerId: string,
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      this.validateProviderId(providerId);
       return {
         data: await this.availabilityGatewayService.getSchedule(providerId),
       };
@@ -105,6 +122,12 @@ export class AvailabilityController {
     }
 
     return providerProfile.id;
+  }
+
+  private validateProviderId(providerId: string): void {
+    if (!UUID_PATTERN.test(providerId)) {
+      throw new InvalidAvailabilityRequestError();
+    }
   }
 
   private toHttpException(error: unknown): HttpException {

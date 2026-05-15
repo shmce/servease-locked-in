@@ -3,6 +3,7 @@ import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import { SupportTicketNotFoundError } from './ticket.errors';
 import {
   CreateSupportTicketInput,
+  SupportTicketAttachmentSummary,
   SupportTicketStatus,
   SupportTicketSummary,
 } from './ticket.types';
@@ -10,7 +11,7 @@ import {
 interface SupabaseRpcClient {
   rpc(
     functionName: string,
-    args: Record<string, string | null>,
+    args: Record<string, unknown>,
   ): PromiseLike<{
     data: TicketRow[] | null;
     error: { message: string; code?: string } | null;
@@ -30,6 +31,27 @@ interface TicketRow {
   category: string | null;
   status: SupportTicketStatus;
   created_at: string | null;
+  attachments?: unknown;
+}
+
+interface TicketAttachmentRow {
+  id: string;
+  ticket_id?: string;
+  ticketId?: string;
+  uploaded_by?: string | null;
+  uploadedBy?: string | null;
+  file_url?: string;
+  fileUrl?: string;
+  file_name?: string | null;
+  fileName?: string | null;
+  mime_type?: string | null;
+  mimeType?: string | null;
+  storage_path?: string | null;
+  storagePath?: string | null;
+  file_size?: number | null;
+  fileSize?: number | null;
+  created_at?: string | null;
+  createdAt?: string | null;
 }
 
 @Injectable()
@@ -50,6 +72,7 @@ export class SupabaseSupportTicketRepository {
         p_subject: input.subject,
         p_message: input.message ?? null,
         p_category: input.category ?? null,
+        p_attachments: input.attachments ?? [],
       })
       .maybeSingle();
 
@@ -124,6 +147,29 @@ export class SupabaseSupportTicketRepository {
       category: row.category,
       status: row.status,
       createdAt: row.created_at,
+      attachments: this.mapAttachments(row.attachments),
+    };
+  }
+
+  private mapAttachments(value: unknown): SupportTicketAttachmentSummary[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.map((item) => this.mapAttachment(item as TicketAttachmentRow));
+  }
+
+  private mapAttachment(row: TicketAttachmentRow): SupportTicketAttachmentSummary {
+    return {
+      id: row.id,
+      ticketId: row.ticket_id ?? row.ticketId ?? '',
+      uploadedBy: row.uploaded_by ?? row.uploadedBy ?? null,
+      fileUrl: row.file_url ?? row.fileUrl ?? '',
+      fileName: row.file_name ?? row.fileName ?? null,
+      mimeType: row.mime_type ?? row.mimeType ?? null,
+      storagePath: row.storage_path ?? row.storagePath ?? null,
+      fileSize: row.file_size ?? row.fileSize ?? null,
+      createdAt: row.created_at ?? row.createdAt ?? null,
     };
   }
 }

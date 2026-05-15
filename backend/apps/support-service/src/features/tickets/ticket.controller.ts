@@ -29,6 +29,13 @@ export class SupportTicketController {
       subject: string;
       message?: string | null;
       category?: string | null;
+      attachments?: Array<{
+        fileUrl: string;
+        fileName?: string | null;
+        mimeType?: string | null;
+        storagePath?: string | null;
+        fileSize?: number | null;
+      }>;
     },
   ): Promise<{ data: SupportTicketSummary }> {
     try {

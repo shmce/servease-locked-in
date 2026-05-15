@@ -30,6 +30,7 @@ export function resolveGatewayCorsOrigins(
     'http://localhost:8081',
     'http://localhost:8082',
     'http://localhost:8083',
+    'http://localhost:8084',
     'http://localhost:19006',
   ];
 }

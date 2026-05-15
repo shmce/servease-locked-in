@@ -2,17 +2,24 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createBooking,
+  createBookingServiceUpdate,
   createConversationMessage,
   createPayment,
   createSupportTicket,
+  getPublicProviderAvailability,
   getProviderAvailability,
   getCurrentUser,
   listCatalogCategories,
   listNotifications,
+  listBookingServiceUpdates,
+  listBookingTimelineEvents,
   listCustomerBookings,
   markNotificationRead,
   openConversation,
+  registerAccount,
   replaceProviderAvailabilityWindows,
+  updateCurrentUserProfile,
+  uploadMedia,
 } from './serveaseApi';
 
 describe('serveaseApi', () => {
@@ -89,6 +96,109 @@ describe('serveaseApi', () => {
     });
   });
 
+  it('creates and lists booking service updates with authenticated requests', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      if (url.endsWith('/timeline')) {
+        return jsonResponse({
+          data: [
+            {
+              id: 'timeline-1',
+              bookingId: 'booking-1',
+              eventType: 'created',
+              label: 'Booking requested',
+              icon: 'calendar',
+              createdAt: '2026-05-16T00:00:00.000Z',
+            },
+          ],
+        });
+      }
+
+      if (init?.method === 'POST') {
+        return jsonResponse({
+          data: {
+            id: 'update-1',
+            bookingId: 'booking-1',
+            actorId: 'provider-user-1',
+            updateType: 'progress',
+            message: 'Halfway done.',
+            checklist: null,
+            attachmentId: null,
+            createdAt: '2026-05-16T00:00:00.000Z',
+          },
+        });
+      }
+
+      return jsonResponse({
+        data: [
+          {
+            id: 'update-1',
+            bookingId: 'booking-1',
+            actorId: 'provider-user-1',
+            updateType: 'progress',
+            message: 'Halfway done.',
+            checklist: null,
+            attachmentId: null,
+            createdAt: '2026-05-16T00:00:00.000Z',
+          },
+        ],
+      });
+    };
+
+    const created = await createBookingServiceUpdate(
+      'booking-1',
+      {
+        updateType: 'progress',
+        message: 'Halfway done.',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+    const updates = await listBookingServiceUpdates('booking-1', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    const timeline = await listBookingTimelineEvents('booking-1', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/bookings/booking-1/service-updates',
+        method: 'POST',
+        body: {
+          updateType: 'progress',
+          message: 'Halfway done.',
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/bookings/booking-1/service-updates',
+        method: 'GET',
+        body: null,
+      },
+      {
+        url: 'http://gateway.test/v1/bookings/booking-1/timeline',
+        method: 'GET',
+        body: null,
+      },
+    ]);
+    assert.equal(created.message, 'Halfway done.');
+    assert.equal(updates[0]?.updateType, 'progress');
+    assert.equal(timeline[0]?.eventType, 'created');
+  });
+
   it('returns useful gateway error messages', async () => {
     const fetcher = async () =>
       jsonResponse(
@@ -148,6 +258,108 @@ describe('serveaseApi', () => {
     assert.equal(authorization, 'Bearer access-token');
     assert.equal(profile.user.email, 'customer@example.com');
     assert.equal(profile.customerProfile?.address, '123 Test St');
+  });
+
+  it('registers a customer account through the gateway', async () => {
+    let requestBody: unknown = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/auth/register');
+      assert.equal(init?.method, 'POST');
+      requestBody = JSON.parse(String(init?.body));
+
+      return jsonResponse({
+        data: {
+          user: {
+            id: 'user-1',
+            email: 'new.customer@example.com',
+            fullName: 'New Customer',
+            contactNumber: '+639000000001',
+            role: 'customer',
+            status: 'active',
+          },
+          customerProfile: {
+            id: 'customer-profile-1',
+            address: '123 New Street',
+          },
+          providerProfile: null,
+        },
+      });
+    };
+
+    const profile = await registerAccount(
+      {
+        role: 'customer',
+        email: 'new.customer@example.com',
+        password: 'Password#2026',
+        fullName: 'New Customer',
+        contactNumber: '+639000000001',
+        address: '123 New Street',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        fetcher,
+      },
+    );
+
+    assert.equal(profile.user.role, 'customer');
+    assert.deepEqual(requestBody, {
+      role: 'customer',
+      email: 'new.customer@example.com',
+      password: 'Password#2026',
+      fullName: 'New Customer',
+      contactNumber: '+639000000001',
+      address: '123 New Street',
+    });
+  });
+
+  it('updates the current user profile through the gateway', async () => {
+    let authorization: string | null = null;
+    let requestBody: unknown = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/me');
+      assert.equal(init?.method, 'PATCH');
+      authorization = new Headers(init?.headers).get('authorization');
+      requestBody = JSON.parse(String(init?.body));
+
+      return jsonResponse({
+        data: {
+          user: {
+            id: 'user-1',
+            email: 'customer@example.com',
+            fullName: 'Updated Customer',
+            contactNumber: '+639000000001',
+            role: 'customer',
+            status: 'active',
+          },
+          customerProfile: {
+            id: 'customer-profile-1',
+            address: 'Updated address',
+          },
+          providerProfile: null,
+        },
+      });
+    };
+
+    const profile = await updateCurrentUserProfile(
+      {
+        fullName: 'Updated Customer',
+        contactNumber: '+639000000001',
+        address: 'Updated address',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.equal(authorization, 'Bearer access-token');
+    assert.equal(profile.user.fullName, 'Updated Customer');
+    assert.deepEqual(requestBody, {
+      fullName: 'Updated Customer',
+      contactNumber: '+639000000001',
+      address: 'Updated address',
+    });
   });
 
   it('opens a conversation and sends a message through the gateway', async () => {
@@ -274,6 +486,47 @@ describe('serveaseApi', () => {
     assert.equal(ticket.status, 'open');
   });
 
+  it('uploads media through the authenticated gateway endpoint', async () => {
+    let authorization: string | null = null;
+    let bodyWasFormData = false;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/uploads');
+      assert.equal(init?.method, 'POST');
+      authorization = new Headers(init?.headers).get('authorization');
+      bodyWasFormData = init?.body instanceof FormData;
+      assert.equal(new Headers(init?.headers).get('content-type'), null);
+
+      return jsonResponse({
+        data: {
+          bucket: 'servease-uploads',
+          path: 'booking_reference/user-1/file.jpg',
+          publicUrl: 'https://storage.test/file.jpg',
+          kind: 'booking_reference',
+          contentType: 'image/jpeg',
+          size: 12,
+        },
+      });
+    };
+
+    const upload = await uploadMedia(
+      {
+        kind: 'booking_reference',
+        uri: 'file:///photo.jpg',
+        name: 'photo.jpg',
+        contentType: 'image/jpeg',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.equal(authorization, 'Bearer access-token');
+    assert.equal(bodyWasFormData, true);
+    assert.equal(upload.publicUrl, 'https://storage.test/file.jpg');
+  });
+
   it('lists notifications and marks one read with PATCH', async () => {
     const methods: string[] = [];
     const fetcher = async (url: string, init?: RequestInit) => {
@@ -326,7 +579,7 @@ describe('serveaseApi', () => {
     assert.deepEqual(methods, ['GET', 'PATCH']);
   });
 
-  it('loads and replaces provider availability through the gateway', async () => {
+  it('loads public/provider availability and replaces provider-owned windows through the gateway', async () => {
     const calls: Array<{ url: string; method: string; body: unknown }> = [];
     const schedule = {
       providerId: 'provider-1',
@@ -356,6 +609,10 @@ describe('serveaseApi', () => {
       token: 'access-token',
       fetcher,
     });
+    await getPublicProviderAvailability('provider-1', {
+      baseUrl: 'http://gateway.test',
+      fetcher,
+    });
     await replaceProviderAvailabilityWindows(
       [
         {
@@ -371,6 +628,11 @@ describe('serveaseApi', () => {
     assert.deepEqual(calls, [
       {
         url: 'http://gateway.test/v1/provider/availability',
+        method: 'GET',
+        body: null,
+      },
+      {
+        url: 'http://gateway.test/v1/provider/availability/provider-1',
         method: 'GET',
         body: null,
       },

@@ -14,7 +14,11 @@ export class SupportTicketService {
     input: CreateSupportTicketInput,
   ): Promise<SupportTicketSummary> {
     const subject = input.subject.trim();
-    if (!input.userId || !subject) {
+    if (
+      !input.userId ||
+      !subject ||
+      input.attachments?.some((attachment) => !attachment.fileUrl?.trim())
+    ) {
       throw new InvalidSupportTicketRequestError();
     }
 
@@ -23,6 +27,7 @@ export class SupportTicketService {
       subject,
       message: input.message?.trim() || null,
       category: input.category?.trim() || null,
+      attachments: input.attachments ?? [],
     });
   }
 

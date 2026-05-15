@@ -136,7 +136,7 @@ export function TabBar<T extends string>({
   activeTab,
   onChange,
 }: {
-  tabs: Array<{ key: T; label: string; badge?: number }>;
+  tabs: { key: T; label: string; badge?: number }[];
   activeTab: T;
   onChange: (tab: T) => void;
 }) {

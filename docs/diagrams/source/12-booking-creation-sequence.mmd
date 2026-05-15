@@ -1,0 +1,28 @@
+sequenceDiagram
+  actor Customer
+  participant Mobile as Expo Mobile App
+  participant Gateway as API Gateway
+  participant BookingService as Booking Service
+  participant CatalogService as Catalog Service
+  participant AvailabilityService as Availability Service
+  participant BookingDb as booking
+  participant CatalogDb as provider_catalog
+
+  Customer->>Mobile: Confirm booking details
+  Mobile->>Gateway: POST /v1/bookings
+  Gateway->>Gateway: Validate bearer token and role
+  Gateway->>BookingService: POST /internal/bookings
+  BookingService->>CatalogService: GET provider and service details
+  CatalogService->>CatalogDb: Read provider service listing
+  CatalogDb-->>CatalogService: Provider service data
+  CatalogService-->>BookingService: Provider and service summary
+  BookingService->>AvailabilityService: Validate provider schedule
+  AvailabilityService->>BookingDb: Check availability windows and days off
+  AvailabilityService->>BookingDb: Check conflicting bookings
+  BookingDb-->>AvailabilityService: Availability result
+  AvailabilityService-->>BookingService: Available
+  BookingService->>BookingDb: Insert booking and timeline event
+  BookingDb-->>BookingService: BookingSummary
+  BookingService-->>Gateway: BookingSummary
+  Gateway-->>Mobile: Created booking
+  Mobile-->>Customer: Show pending project

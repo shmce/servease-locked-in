@@ -31,6 +31,9 @@ describe('gateway CORS config', () => {
     expect(resolveGatewayCorsOrigins({ NODE_ENV: 'development' })).toContain(
       'http://localhost:8082',
     );
+    expect(resolveGatewayCorsOrigins({ NODE_ENV: 'development' })).toContain(
+      'http://localhost:8084',
+    );
   });
 
   it('allows auth and json headers on gateway requests', () => {

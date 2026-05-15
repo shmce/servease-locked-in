@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CurrentUserIdentity,
+  UpdateCurrentUserProfileInput,
   UserRole,
   UserStatus,
 } from '../current-user.types';
@@ -9,6 +10,12 @@ import {
   ProfileDependencyUnavailableError,
   UserNotFoundError,
 } from '../current-user.errors';
+import {
+  InvalidRegistrationRequestError,
+  RegistrationConflictError,
+  RegistrationDependencyUnavailableError,
+} from '../../registration/registration.errors';
+import { RegisterAccountRequest } from '../../registration/registration.types';
 
 @Injectable()
 export class AuthServiceClient {
@@ -38,5 +45,95 @@ export class AuthServiceClient {
       role: payload.data.role as UserRole,
       status: payload.data.status as UserStatus,
     };
+  }
+
+  async registerUser(input: RegisterAccountRequest): Promise<CurrentUserIdentity> {
+    const response = await fetch(`${this.baseUrl()}/internal/auth/registrations`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: input.email,
+        password: input.password,
+        fullName: input.fullName,
+        contactNumber: input.contactNumber ?? null,
+        role: input.role,
+      }),
+    });
+
+    if (!response.ok) {
+      const code = await this.readErrorCode(response);
+      if (code === 'invalid_registration_request') {
+        throw new InvalidRegistrationRequestError();
+      }
+      if (code === 'registration_conflict') {
+        throw new RegistrationConflictError();
+      }
+      throw new RegistrationDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as { data: CurrentUserIdentity };
+    return payload.data;
+  }
+
+  async deleteRegisteredUser(userId: string): Promise<void> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/auth/registrations/${userId}`,
+      {
+        method: 'DELETE',
+      },
+    );
+
+    if (!response.ok) {
+      throw new RegistrationDependencyUnavailableError();
+    }
+  }
+
+  async updateUser(
+    userId: string,
+    input: UpdateCurrentUserProfileInput,
+  ): Promise<CurrentUserIdentity> {
+    const response = await fetch(`${this.baseUrl()}/internal/users/${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        fullName: input.fullName,
+        contactNumber: input.contactNumber ?? null,
+      }),
+    });
+
+    if (response.status === 404) {
+      throw new UserNotFoundError();
+    }
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as { data: CurrentUserIdentity };
+    return payload.data;
+  }
+
+  private baseUrl(): string {
+    return this.configService.get<string>(
+      'AUTH_SERVICE_URL',
+      'http://localhost:8501',
+    );
+  }
+
+  private async readErrorCode(response: Response): Promise<string | null> {
+    try {
+      const payload = (await response.json()) as {
+        error?: {
+          code?: string;
+        };
+      };
+      return payload.error?.code ?? null;
+    } catch {
+      return null;
+    }
   }
 }

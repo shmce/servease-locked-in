@@ -42,6 +42,8 @@ const authClient = createClient(
 const processes = [];
 const cleanupState = {
   userId: null,
+  otherUserId: null,
+  providerUserId: null,
   adminUserId: null,
   bookingId: null,
   conversationId: null,
@@ -56,21 +58,31 @@ const cleanupState = {
 
 async function main() {
   const customerEmail = `servease-extended-smoke-${randomUUID()}@example.test`;
+  const otherCustomerEmail = `servease-other-smoke-${randomUUID()}@example.test`;
+  const providerEmail = `servease-provider-smoke-${randomUUID()}@example.test`;
   const adminEmail = `servease-admin-smoke-${randomUUID()}@example.test`;
   const password = `Smoke-${randomUUID()}-A1!`;
 
   const customer = await createAuthUser(customerEmail, password);
+  const otherCustomer = await createAuthUser(otherCustomerEmail, password);
+  const provider = await createAuthUser(providerEmail, password);
   const admin = await createAuthUser(adminEmail, password);
   cleanupState.userId = customer.id;
+  cleanupState.otherUserId = otherCustomer.id;
+  cleanupState.providerUserId = provider.id;
   cleanupState.adminUserId = admin.id;
 
   await seedCustomer(customer.id, customerEmail);
+  await seedCustomer(otherCustomer.id, otherCustomerEmail);
   await seedAdmin(admin.id, adminEmail);
   const catalogSeed = await seedCatalog();
+  await bindProviderUser(catalogSeed.providerId, provider.id, providerEmail);
   const scheduledAt = nextManilaSlotIso(10);
   await seedAvailability(catalogSeed.providerId, scheduledAt);
 
   const customerToken = await signIn(customerEmail, password);
+  const otherCustomerToken = await signIn(otherCustomerEmail, password);
+  const providerToken = await signIn(providerEmail, password);
   const adminToken = await signIn(adminEmail, password);
 
   await startService('auth-service', 8501);
@@ -100,6 +112,74 @@ async function main() {
     customerNotes: 'Extended smoke test booking',
   });
   cleanupState.bookingId = booking.id;
+
+  await expectJsonError(
+    `http://localhost:5001/v1/bookings/${booking.id}`,
+    'GET',
+    otherCustomerToken,
+    undefined,
+    404,
+    'booking_not_found',
+  );
+  await expectJsonError(
+    `http://localhost:5001/v1/bookings/${booking.id}/status`,
+    'PATCH',
+    otherCustomerToken,
+    {
+      currentStatus: 'pending',
+      nextStatus: 'confirmed',
+    },
+    404,
+    'booking_not_found',
+  );
+  await expectJsonError(
+    `http://localhost:5001/v1/bookings/${booking.id}/service-updates`,
+    'POST',
+    customerToken,
+    {
+      updateType: 'progress',
+      message: 'Customer must not be able to create provider progress.',
+    },
+    403,
+    'provider_profile_required',
+  );
+
+  const serviceUpdate = await postJson(
+    `http://localhost:5001/v1/bookings/${booking.id}/service-updates`,
+    providerToken,
+    {
+      updateType: 'progress',
+      message: 'Extended smoke provider progress update.',
+    },
+  );
+  const [customerUpdates, providerUpdates, otherCustomerUpdates] = await Promise.all([
+    getJson(`http://localhost:5001/v1/bookings/${booking.id}/service-updates`, customerToken),
+    getJson(`http://localhost:5001/v1/bookings/${booking.id}/service-updates`, providerToken),
+    getJson(
+      `http://localhost:5001/v1/bookings/${booking.id}/service-updates`,
+      otherCustomerToken,
+    ),
+  ]);
+  if (
+    !customerUpdates.some((item) => item.id === serviceUpdate.id) ||
+    !providerUpdates.some((item) => item.id === serviceUpdate.id) ||
+    otherCustomerUpdates.length !== 0
+  ) {
+    throw new Error('Service update visibility smoke check failed');
+  }
+
+  const [customerTimeline, providerTimeline, otherCustomerTimeline] = await Promise.all([
+    getJson(`http://localhost:5001/v1/bookings/${booking.id}/timeline`, customerToken),
+    getJson(`http://localhost:5001/v1/bookings/${booking.id}/timeline`, providerToken),
+    getJson(`http://localhost:5001/v1/bookings/${booking.id}/timeline`, otherCustomerToken),
+  ]);
+  if (
+    !customerTimeline.some((item) => item.eventType === 'created') ||
+    !providerTimeline.some((item) => item.eventType === 'created') ||
+    otherCustomerTimeline.length !== 0
+  ) {
+    throw new Error('Timeline visibility smoke check failed');
+  }
 
   const conversation = await postJson(
     'http://localhost:5001/v1/conversations',
@@ -160,18 +240,25 @@ async function main() {
     throw new Error('Admin payment status update failed');
   }
 
-  await patchJson(`http://localhost:5001/v1/bookings/${booking.id}/status`, customerToken, {
+  await patchJson(`http://localhost:5001/v1/bookings/${booking.id}/status`, providerToken, {
     currentStatus: 'pending',
     nextStatus: 'confirmed',
   });
-  await patchJson(`http://localhost:5001/v1/bookings/${booking.id}/status`, customerToken, {
+  await patchJson(`http://localhost:5001/v1/bookings/${booking.id}/status`, providerToken, {
     currentStatus: 'confirmed',
     nextStatus: 'in_progress',
   });
-  await patchJson(`http://localhost:5001/v1/bookings/${booking.id}/status`, customerToken, {
+  await patchJson(`http://localhost:5001/v1/bookings/${booking.id}/status`, providerToken, {
     currentStatus: 'in_progress',
     nextStatus: 'completed',
   });
+  const completedTimeline = await getJson(
+    `http://localhost:5001/v1/bookings/${booking.id}/timeline`,
+    customerToken,
+  );
+  if (completedTimeline.length < 4) {
+    throw new Error('Completed booking timeline did not include status events');
+  }
 
   const review = await postJson('http://localhost:5001/v1/reviews', customerToken, {
     bookingId: booking.id,
@@ -248,6 +335,8 @@ async function main() {
     JSON.stringify({
       ok: true,
       routes: [
+        '/v1/bookings/:id/service-updates',
+        '/v1/bookings/:id/timeline',
         '/v1/conversations',
         '/v1/payments',
         '/v1/reviews',
@@ -257,6 +346,8 @@ async function main() {
         '/v1/admin/support/tickets',
       ],
       bookingId: booking.id,
+      serviceUpdateId: serviceUpdate.id,
+      timelineEvents: completedTimeline.length,
       conversationId: conversation.id,
       paymentStatus: paid.status,
       reviewId: review.id,
@@ -297,6 +388,17 @@ async function seedAdmin(userId, email) {
   });
   if (error) {
     throw new Error(`Failed to seed smoke admin: ${error.message}`);
+  }
+}
+
+async function bindProviderUser(providerId, userId, email) {
+  const { error } = await serviceClient.rpc('servease_smoke_bind_provider_user', {
+    p_provider_id: providerId,
+    p_user_id: userId,
+    p_email: email,
+  });
+  if (error) {
+    throw new Error(`Failed to bind smoke provider user: ${error.message}`);
   }
 }
 
@@ -497,8 +599,28 @@ async function cleanup() {
     });
   }
 
+  if (cleanupState.otherUserId) {
+    await serviceClient.rpc('servease_smoke_cleanup_extended', {
+      p_user_id: cleanupState.otherUserId,
+    });
+  }
+
+  if (cleanupState.providerUserId) {
+    await serviceClient.rpc('servease_smoke_cleanup_extended', {
+      p_user_id: cleanupState.providerUserId,
+    });
+  }
+
   if (cleanupState.userId) {
     await serviceClient.auth.admin.deleteUser(cleanupState.userId);
+  }
+
+  if (cleanupState.otherUserId) {
+    await serviceClient.auth.admin.deleteUser(cleanupState.otherUserId);
+  }
+
+  if (cleanupState.providerUserId) {
+    await serviceClient.auth.admin.deleteUser(cleanupState.providerUserId);
   }
 
   if (cleanupState.adminUserId) {

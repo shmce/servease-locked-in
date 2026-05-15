@@ -168,7 +168,7 @@ npm run build
 - Write booking feature spec.
 - Define booking states and allowed transitions.
 - Add idempotent booking creation.
-- Add provider accept, decline, reschedule, cancel, start, and complete actions as needed for the first release.
+- Add provider accept, decline, cancel, start, and complete actions as needed for the first release.
 - Add workflow tests for state transitions.
 
 ### Acceptance Criteria
@@ -254,7 +254,7 @@ npm run web
 
 ### Tasks
 
-- Implement provider job list, request detail, accept/decline, reschedule, start, and complete flows.
+- Implement provider booking list, request detail, accept/decline, start, and complete flows.
 - Add status history display.
 - Add provider availability entry points.
 - Add tests for state-dependent actions.

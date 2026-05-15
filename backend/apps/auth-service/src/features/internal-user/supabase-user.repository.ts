@@ -1,12 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import { UserRepository } from './internal-user.service';
-import { StoredUserRecord, UserRole, UserStatus } from './user.types';
+import {
+  StoredUserRecord,
+  UpdateInternalUserInput,
+  UserRole,
+  UserStatus,
+} from './user.types';
 
 interface SupabaseQueryClient {
   rpc(
     functionName: string,
-    args: Record<string, string>,
+    args: Record<string, string | null>,
   ): {
     maybeSingle(): PromiseLike<{
       data: SupabaseUserRow | null;
@@ -43,6 +48,34 @@ export class SupabaseUserRepository implements UserRepository {
 
     if (error) {
       throw new Error(`Failed to load user: ${error.message}`);
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    return {
+      id: data.id,
+      email: data.email,
+      passwordHash: data.password_hash,
+      fullName: data.full_name,
+      contactNumber: data.contact_number,
+      role: data.role,
+      status: data.status,
+    };
+  }
+
+  async update(input: UpdateInternalUserInput): Promise<StoredUserRecord | null> {
+    const { data, error } = await this.client
+      .rpc('servease_update_internal_user', {
+        p_user_id: input.userId,
+        p_full_name: input.fullName,
+        p_contact_number: input.contactNumber ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to update user: ${error.message}`);
     }
 
     if (!data) {

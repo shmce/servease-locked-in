@@ -1,0 +1,145 @@
+classDiagram
+  class User {
+    id
+    email
+    fullName
+    contactNumber
+    role
+    status
+  }
+
+  class CustomerProfile {
+    id
+    userId
+    address
+  }
+
+  class ProviderProfile {
+    id
+    userId
+    businessName
+    verificationStatus
+    averageRating
+    reviewCount
+  }
+
+  class ServiceCategory {
+    id
+    name
+    description
+  }
+
+  class ServiceItem {
+    id
+    categoryId
+    name
+    price
+    pricingMode
+  }
+
+  class ProviderListing {
+    id
+    providerId
+    serviceId
+    title
+    price
+    verificationStatus
+  }
+
+  class Booking {
+    id
+    bookingReference
+    customerId
+    providerId
+    serviceId
+    scheduledAt
+    status
+    totalAmount
+  }
+
+  class AvailabilityWindow {
+    id
+    providerId
+    dayOfWeek
+    startTime
+    endTime
+    isActive
+  }
+
+  class ProviderDayOff {
+    id
+    providerId
+    offDate
+    reason
+  }
+
+  class Conversation {
+    id
+    bookingId
+    customerId
+    providerId
+    lastMessageAt
+  }
+
+  class Message {
+    id
+    conversationId
+    senderId
+    senderRole
+    content
+    deliveryStatus
+  }
+
+  class Payment {
+    id
+    bookingId
+    customerId
+    providerId
+    amount
+    platformFee
+    providerPayout
+    status
+  }
+
+  class Review {
+    id
+    bookingId
+    providerId
+    reviewerId
+    rating
+    reviewText
+  }
+
+  class Notification {
+    id
+    userId
+    type
+    title
+    body
+    isRead
+  }
+
+  class SupportTicket {
+    id
+    userId
+    subject
+    category
+    status
+  }
+
+  User "1" --> "0..1" CustomerProfile
+  User "1" --> "0..1" ProviderProfile
+  ServiceCategory "1" --> "0..*" ServiceItem
+  ProviderProfile "1" --> "0..*" ProviderListing
+  ServiceItem "1" --> "0..*" ProviderListing
+  ProviderProfile "1" --> "0..*" AvailabilityWindow
+  ProviderProfile "1" --> "0..*" ProviderDayOff
+  User "1" --> "0..*" Booking : customer
+  ProviderProfile "1" --> "0..*" Booking : provider
+  ServiceItem "1" --> "0..*" Booking
+  Booking "1" --> "0..*" Conversation
+  Conversation "1" --> "0..*" Message
+  Booking "1" --> "0..*" Payment
+  Booking "1" --> "0..1" Review
+  User "1" --> "0..*" Notification
+  User "1" --> "0..*" SupportTicket

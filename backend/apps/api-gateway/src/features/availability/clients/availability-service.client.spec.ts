@@ -3,6 +3,41 @@ import { InvalidAvailabilityRequestError } from '../availability.errors';
 import { AvailabilityServiceClient } from './availability-service.client';
 
 describe('AvailabilityServiceClient', () => {
+  it('loads provider availability from the availability service', async () => {
+    const fetchMock = await withFetchResponse(
+      {
+        data: {
+          providerId: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+          windows: [],
+          daysOff: [],
+        },
+      },
+      true,
+      async () => {
+        const client = new AvailabilityServiceClient(configService());
+
+        await expect(
+          client.getSchedule('f87b3f7e-6b54-4cef-852f-854983780c7b'),
+        ).resolves.toEqual({
+          providerId: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+          windows: [],
+          daysOff: [],
+        });
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://availability-service.test/internal/providers/f87b3f7e-6b54-4cef-852f-854983780c7b/availability',
+      {
+        method: 'GET',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: undefined,
+      },
+    );
+  });
+
   it('maps invalid request responses to the gateway domain error', async () => {
     await withFetchResponse(
       {
@@ -25,16 +60,25 @@ describe('AvailabilityServiceClient', () => {
 
 async function withFetchResponse(
   payload: unknown,
-  action: () => Promise<void>,
-): Promise<void> {
+  okOrAction: boolean | (() => Promise<void>),
+  maybeAction?: () => Promise<void>,
+): Promise<jest.MockedFunction<typeof fetch>> {
+  const ok = typeof okOrAction === 'boolean' ? okOrAction : false;
+  const action = typeof okOrAction === 'function' ? okOrAction : maybeAction;
+  if (!action) {
+    throw new Error('Missing action for fetch response helper.');
+  }
+
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = jest.fn().mockResolvedValue({
-    ok: false,
+  const fetchMock = jest.fn().mockResolvedValue({
+    ok,
     json: jest.fn().mockResolvedValue(payload),
-  }) as unknown as typeof fetch;
+  }) as unknown as jest.MockedFunction<typeof fetch>;
+  globalThis.fetch = fetchMock;
 
   try {
     await action();
+    return fetchMock;
   } finally {
     globalThis.fetch = originalFetch;
     jest.restoreAllMocks();

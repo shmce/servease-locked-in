@@ -2,19 +2,28 @@ import { Injectable } from '@nestjs/common';
 import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import {
   BookingNotFoundError,
+  InvalidBookingRequestError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
 } from './booking.errors';
 import {
+  AddBookingAttachmentInput,
+  BookingAttachmentKind,
+  BookingAttachmentSummary,
+  BookingServiceChecklist,
+  BookingServiceUpdateSummary,
+  BookingServiceUpdateType,
   BookingStatus,
   BookingSummary,
+  BookingTimelineEventSummary,
+  CreateBookingServiceUpdateInput,
   CreateBookingInput,
 } from './booking.types';
 
 interface SupabaseRpcClient {
   rpc(
     functionName: string,
-    args: Record<string, string | number | null>,
+    args: Record<string, unknown>,
   ): PromiseLike<{
     data: BookingRow[] | null;
     error: { message: string; code?: string } | null;
@@ -37,6 +46,50 @@ interface BookingRow {
   scheduled_at: string;
   status: BookingStatus;
   total_amount: string | number | null;
+  attachments?: unknown;
+}
+
+interface BookingAttachmentRow {
+  id: string;
+  booking_id?: string;
+  bookingId?: string;
+  uploaded_by?: string | null;
+  uploadedBy?: string | null;
+  media_kind?: BookingAttachmentKind;
+  mediaKind?: BookingAttachmentKind;
+  file_url?: string;
+  fileUrl?: string;
+  file_name?: string | null;
+  fileName?: string | null;
+  mime_type?: string | null;
+  mimeType?: string | null;
+  storage_path?: string | null;
+  storagePath?: string | null;
+  file_size?: number | null;
+  fileSize?: number | null;
+  caption?: string | null;
+  created_at?: string | null;
+  createdAt?: string | null;
+}
+
+interface BookingServiceUpdateRow {
+  id: string;
+  booking_id: string;
+  actor_id: string;
+  update_type: BookingServiceUpdateType;
+  message: string | null;
+  checklist: BookingServiceChecklist | null;
+  attachment_id: string | null;
+  created_at: string | null;
+}
+
+interface BookingTimelineEventRow {
+  id: string;
+  booking_id: string;
+  event_type: string;
+  label: string | null;
+  icon: string | null;
+  created_at: string | null;
 }
 
 @Injectable()
@@ -78,7 +131,140 @@ export class SupabaseBookingRepository {
       throw new Error('Failed to create booking: missing booking row');
     }
 
-    return this.mapBooking(data);
+    const booking = this.mapBooking(data);
+    const attachments = await Promise.all(
+      (input.attachments ?? []).map((attachment) =>
+        this.addAttachment({
+          bookingId: booking.id,
+          actorId: input.customerId,
+          customerId: input.customerId,
+          providerId: null,
+          mediaKind: attachment.mediaKind ?? 'booking_reference',
+          fileUrl: attachment.fileUrl,
+          fileName: attachment.fileName,
+          mimeType: attachment.mimeType,
+          storagePath: attachment.storagePath,
+          fileSize: attachment.fileSize,
+          caption: attachment.caption,
+        }),
+      ),
+    );
+
+    return {
+      ...booking,
+      attachments,
+    };
+  }
+
+  async addAttachment(
+    input: AddBookingAttachmentInput,
+  ): Promise<BookingAttachmentSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_add_booking_attachment', {
+        p_booking_id: input.bookingId,
+        p_customer_id: input.customerId ?? null,
+        p_provider_id: input.providerId ?? null,
+        p_uploaded_by: input.actorId,
+        p_media_kind: input.mediaKind,
+        p_file_url: input.fileUrl,
+        p_file_name: input.fileName ?? null,
+        p_mime_type: input.mimeType ?? null,
+        p_storage_path: input.storagePath ?? null,
+        p_file_size: input.fileSize ?? null,
+        p_caption: input.caption ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('booking_not_found')) {
+        throw new BookingNotFoundError();
+      }
+      throw new Error(`Failed to add booking attachment: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Failed to add booking attachment: missing attachment row');
+    }
+
+    return this.mapAttachment(data as unknown as BookingAttachmentRow);
+  }
+
+  async createServiceUpdate(
+    input: CreateBookingServiceUpdateInput,
+  ): Promise<BookingServiceUpdateSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_add_booking_service_update', {
+        p_booking_id: input.bookingId,
+        p_actor_id: input.actorId,
+        p_provider_id: input.providerId,
+        p_update_type: input.updateType,
+        p_message: input.message ?? null,
+        p_checklist: input.checklist ?? null,
+        p_attachment_id: input.attachmentId ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('booking_not_found')) {
+        throw new BookingNotFoundError();
+      }
+      if (error.message.includes('invalid_booking_service_update_request')) {
+        throw new InvalidBookingRequestError();
+      }
+      throw new Error(`Failed to create booking service update: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Failed to create booking service update: missing update row');
+    }
+
+    return this.mapServiceUpdate(data as unknown as BookingServiceUpdateRow);
+  }
+
+  async listServiceUpdates(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+  ): Promise<BookingServiceUpdateSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_list_booking_service_updates',
+      {
+        p_booking_id: bookingId,
+        p_customer_id: customerId,
+        p_provider_id: providerId,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list booking service updates: ${error.message}`);
+    }
+
+    return (data ?? []).map((row) =>
+      this.mapServiceUpdate(row as unknown as BookingServiceUpdateRow),
+    );
+  }
+
+  async listTimelineEvents(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+  ): Promise<BookingTimelineEventSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_list_booking_timeline_events',
+      {
+        p_booking_id: bookingId,
+        p_customer_id: customerId,
+        p_provider_id: providerId,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list booking timeline events: ${error.message}`);
+    }
+
+    return (data ?? []).map((row) =>
+      this.mapTimelineEvent(row as unknown as BookingTimelineEventRow),
+    );
   }
 
   async listVisibleBookings(
@@ -167,6 +353,59 @@ export class SupabaseBookingRepository {
       scheduledAt: row.scheduled_at,
       status: row.status,
       totalAmount: Number(row.total_amount ?? 0),
+      attachments: this.mapAttachments(row.attachments),
+    };
+  }
+
+  private mapAttachments(value: unknown): BookingAttachmentSummary[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value.map((item) => this.mapAttachment(item as BookingAttachmentRow));
+  }
+
+  private mapAttachment(row: BookingAttachmentRow): BookingAttachmentSummary {
+    return {
+      id: row.id,
+      bookingId: row.booking_id ?? row.bookingId ?? '',
+      uploadedBy: row.uploaded_by ?? row.uploadedBy ?? null,
+      mediaKind: row.media_kind ?? row.mediaKind ?? 'booking_reference',
+      fileUrl: row.file_url ?? row.fileUrl ?? '',
+      fileName: row.file_name ?? row.fileName ?? null,
+      mimeType: row.mime_type ?? row.mimeType ?? null,
+      storagePath: row.storage_path ?? row.storagePath ?? null,
+      fileSize: row.file_size ?? row.fileSize ?? null,
+      caption: row.caption ?? null,
+      createdAt: row.created_at ?? row.createdAt ?? null,
+    };
+  }
+
+  private mapServiceUpdate(
+    row: BookingServiceUpdateRow,
+  ): BookingServiceUpdateSummary {
+    return {
+      id: row.id,
+      bookingId: row.booking_id,
+      actorId: row.actor_id,
+      updateType: row.update_type,
+      message: row.message,
+      checklist: row.checklist,
+      attachmentId: row.attachment_id,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapTimelineEvent(
+    row: BookingTimelineEventRow,
+  ): BookingTimelineEventSummary {
+    return {
+      id: row.id,
+      bookingId: row.booking_id,
+      eventType: row.event_type,
+      label: row.label,
+      icon: row.icon,
+      createdAt: row.created_at,
     };
   }
 }
