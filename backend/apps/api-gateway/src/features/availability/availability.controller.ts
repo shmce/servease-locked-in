@@ -1,0 +1,162 @@
+import { Body, Controller, Delete, Get, Headers, HttpException, Param, Post, Put } from '@nestjs/common';
+import { AuthTokenService } from '../current-user/auth-token.service';
+import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
+import {
+  AuthRequiredError,
+  InvalidAuthTokenError,
+} from '../current-user/current-user.errors';
+import {
+  AvailabilityDependencyUnavailableError,
+  InvalidAvailabilityRequestError,
+  ProviderProfileRequiredError,
+} from './availability.errors';
+import { AvailabilityGatewayService } from './availability.service';
+import {
+  AvailabilityWindowInput,
+  ProviderAvailabilitySchedule,
+} from './availability.types';
+
+@Controller('v1/provider/availability')
+export class AvailabilityController {
+  constructor(
+    private readonly availabilityGatewayService: AvailabilityGatewayService,
+    private readonly authTokenService: AuthTokenService,
+    private readonly catalogServiceClient: CatalogServiceClient,
+  ) {}
+
+  @Get()
+  async show(
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      const providerId = await this.resolveProviderId(authorization);
+      return {
+        data: await this.availabilityGatewayService.getSchedule(providerId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Put('windows')
+  async replaceWindows(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { windows: AvailabilityWindowInput[] },
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      const providerId = await this.resolveProviderId(authorization);
+      return {
+        data: await this.availabilityGatewayService.replaceWindows(
+          providerId,
+          body.windows,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('days-off')
+  async addDayOff(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { offDate: string; reason?: string | null },
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      const providerId = await this.resolveProviderId(authorization);
+      return {
+        data: await this.availabilityGatewayService.addDayOff(
+          providerId,
+          body.offDate,
+          body.reason,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete('days-off/:offDate')
+  async removeDayOff(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('offDate') offDate: string,
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      const providerId = await this.resolveProviderId(authorization);
+      return {
+        data: await this.availabilityGatewayService.removeDayOff(
+          providerId,
+          offDate,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  private async resolveProviderId(
+    authorization: string | undefined,
+  ): Promise<string> {
+    const userId = await this.authTokenService.authenticate(authorization);
+    const providerProfile =
+      await this.catalogServiceClient.findProviderProfileByUserId(userId);
+
+    if (!providerProfile) {
+      throw new ProviderProfileRequiredError();
+    }
+
+    return providerProfile.id;
+  }
+
+  private toHttpException(error: unknown): HttpException {
+    if (error instanceof AuthRequiredError) {
+      return this.error('auth_required', 'Authentication is required.', 401);
+    }
+
+    if (error instanceof InvalidAuthTokenError) {
+      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+    }
+
+    if (error instanceof ProviderProfileRequiredError) {
+      return this.error(
+        'provider_profile_required',
+        'A provider profile is required.',
+        403,
+      );
+    }
+
+    if (error instanceof InvalidAvailabilityRequestError) {
+      return this.error(
+        'invalid_availability_request',
+        'Availability request is invalid.',
+        400,
+      );
+    }
+
+    if (error instanceof AvailabilityDependencyUnavailableError) {
+      return this.error(
+        'availability_dependency_unavailable',
+        'Availability service is unavailable.',
+        503,
+      );
+    }
+
+    return this.error(
+      'availability_dependency_unavailable',
+      'Availability request failed.',
+      503,
+    );
+  }
+
+  private error(code: string, message: string, status: number): HttpException {
+    return new HttpException(
+      {
+        error: {
+          code,
+          message,
+          details: {},
+        },
+      },
+      status,
+    );
+  }
+}

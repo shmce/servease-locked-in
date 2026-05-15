@@ -1,0 +1,1 @@
+drop index if exists trust_and_reputation.reviews_booking_reviewer_unique;

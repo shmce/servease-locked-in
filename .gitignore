@@ -1,0 +1,12 @@
+.DS_Store
+node_modules/
+dist/
+coverage/
+.expo/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

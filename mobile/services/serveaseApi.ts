@@ -1,0 +1,564 @@
+export type BookingStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'rejected';
+
+export interface CatalogCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+}
+
+export interface CatalogServiceItem {
+  id: string;
+  categoryId: string | null;
+  name: string;
+  description: string | null;
+  price: number | null;
+  pricingMode: 'flat' | 'hourly';
+}
+
+export interface ProviderListing {
+  id: string;
+  providerId: string;
+  providerBusinessName: string | null;
+  serviceId: string | null;
+  title: string;
+  description: string | null;
+  price: number | null;
+  pricingMode: 'flat' | 'hourly';
+  averageRating: number;
+  reviewCount: number;
+  verificationStatus: 'pending' | 'approved' | 'rejected';
+}
+
+export interface BookingSummary {
+  id: string;
+  bookingReference: string;
+  customerId: string;
+  providerId: string;
+  serviceId: string | null;
+  serviceTitle: string | null;
+  serviceAddress: string | null;
+  scheduledAt: string;
+  status: BookingStatus;
+  totalAmount: number;
+}
+
+export interface ConversationSummary {
+  id: string;
+  bookingId: string | null;
+  customerId: string | null;
+  providerId: string | null;
+  lastMessageAt: string | null;
+  createdAt: string | null;
+}
+
+export interface ConversationMessage {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderRole: 'customer' | 'provider';
+  content: string;
+  deliveryStatus: string | null;
+  createdAt: string | null;
+}
+
+export type PaymentStatus = 'pending' | 'paid' | 'cancelled' | 'refunded';
+
+export interface PaymentSummary {
+  id: string;
+  bookingId: string;
+  customerId: string | null;
+  providerId: string | null;
+  amount: number;
+  platformFee: number;
+  providerPayout: number;
+  status: PaymentStatus;
+  paymentMethod: string | null;
+  paidAt: string | null;
+  createdAt: string | null;
+}
+
+export interface CreatePaymentRequest {
+  bookingId: string;
+  paymentMethod: string;
+}
+
+export interface ReviewSummary {
+  id: string;
+  bookingId: string;
+  providerId: string;
+  reviewerId: string;
+  rating: number;
+  reviewText: string | null;
+  isFlagged: boolean;
+  createdAt: string | null;
+}
+
+export interface CreateReviewRequest {
+  bookingId: string;
+  rating: number;
+  reviewText?: string | null;
+}
+
+export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+export interface SupportTicketSummary {
+  id: string;
+  userId: string;
+  subject: string;
+  message: string | null;
+  category: string | null;
+  status: SupportTicketStatus;
+  createdAt: string | null;
+}
+
+export interface CreateSupportTicketRequest {
+  subject: string;
+  message?: string | null;
+  category?: string | null;
+}
+
+export interface NotificationSummary {
+  id: string;
+  userId: string;
+  type: string;
+  title: string | null;
+  body: string | null;
+  isRead: boolean;
+  metadata: Record<string, unknown> | null;
+  createdAt: string | null;
+}
+
+export type DayOfWeek =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+export interface AvailabilityWindowInput {
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  endTime: string;
+  isActive?: boolean | null;
+}
+
+export interface AvailabilityWindow {
+  id: string;
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface ProviderDayOff {
+  id: string;
+  offDate: string;
+  reason: string | null;
+}
+
+export interface ProviderAvailabilitySchedule {
+  providerId: string;
+  windows: AvailabilityWindow[];
+  daysOff: ProviderDayOff[];
+}
+
+export type UserRole = 'customer' | 'provider' | 'admin';
+export type UserStatus = 'active' | 'suspended' | 'inactive';
+
+export interface CurrentUserProfile {
+  user: {
+    id: string;
+    email: string;
+    fullName: string | null;
+    contactNumber: string | null;
+    role: UserRole;
+    status: UserStatus;
+  };
+  customerProfile: {
+    id: string;
+    address: string | null;
+  } | null;
+  providerProfile: {
+    id: string;
+    businessName: string | null;
+    verificationStatus: 'pending' | 'approved' | 'rejected';
+    averageRating: number;
+    reviewCount: number;
+  } | null;
+}
+
+export interface CreateBookingRequest {
+  providerId: string;
+  serviceId?: string | null;
+  serviceTitle?: string | null;
+  serviceName?: string | null;
+  serviceDescription?: string | null;
+  serviceAddress: string;
+  scheduledAt: string;
+  hoursRequired?: number | null;
+  serviceAmount?: number | null;
+  pricingMode?: 'flat' | 'hourly' | null;
+  paymentMethod?: string | null;
+  customerNotes?: string | null;
+}
+
+export interface ApiOptions {
+  baseUrl?: string;
+  token?: string;
+  fetcher?: (url: string, init?: RequestInit) => Promise<Response>;
+}
+
+const DEFAULT_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:5001';
+
+export function listCatalogCategories(
+  options: ApiOptions = {},
+): Promise<CatalogCategory[]> {
+  return request<CatalogCategory[]>('/v1/catalog/categories', {
+    ...options,
+    method: 'GET',
+  });
+}
+
+export function listCatalogServices(
+  categoryId: string | null,
+  options: ApiOptions = {},
+): Promise<CatalogServiceItem[]> {
+  const path = categoryId
+    ? `/v1/catalog/services?categoryId=${encodeURIComponent(categoryId)}`
+    : '/v1/catalog/services';
+  return request<CatalogServiceItem[]>(path, {
+    ...options,
+    method: 'GET',
+  });
+}
+
+export function listProviderListings(
+  serviceId: string | null,
+  options: ApiOptions = {},
+): Promise<ProviderListing[]> {
+  const path = serviceId
+    ? `/v1/catalog/providers?serviceId=${encodeURIComponent(serviceId)}`
+    : '/v1/catalog/providers';
+  return request<ProviderListing[]>(path, {
+    ...options,
+    method: 'GET',
+  });
+}
+
+export function getCurrentUser(
+  options: ApiOptions = {},
+): Promise<CurrentUserProfile> {
+  return request<CurrentUserProfile>('/v1/me', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function createBooking(
+  body: CreateBookingRequest,
+  options: ApiOptions = {},
+): Promise<BookingSummary> {
+  return request<BookingSummary>('/v1/bookings', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function listCustomerBookings(
+  options: ApiOptions = {},
+): Promise<BookingSummary[]> {
+  return request<BookingSummary[]>('/v1/bookings', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function listProviderBookings(
+  options: ApiOptions = {},
+): Promise<BookingSummary[]> {
+  return request<BookingSummary[]>('/v1/bookings?scope=provider', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function transitionBookingStatus(
+  bookingId: string,
+  body: {
+    currentStatus: BookingStatus;
+    nextStatus: BookingStatus;
+    reason?: string | null;
+    explanation?: string | null;
+  },
+  options: ApiOptions = {},
+): Promise<BookingSummary> {
+  return request<BookingSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/status`,
+    {
+      ...options,
+      method: 'PATCH',
+      body,
+      requiresAuth: true,
+    },
+  );
+}
+
+export function listConversations(
+  options: ApiOptions = {},
+): Promise<ConversationSummary[]> {
+  return request<ConversationSummary[]>('/v1/conversations', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function openConversation(
+  bookingId: string,
+  options: ApiOptions = {},
+): Promise<ConversationSummary> {
+  return request<ConversationSummary>('/v1/conversations', {
+    ...options,
+    method: 'POST',
+    body: { bookingId },
+    requiresAuth: true,
+  });
+}
+
+export function listConversationMessages(
+  conversationId: string,
+  options: ApiOptions = {},
+): Promise<ConversationMessage[]> {
+  return request<ConversationMessage[]>(
+    `/v1/conversations/${encodeURIComponent(conversationId)}/messages`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function createConversationMessage(
+  conversationId: string,
+  content: string,
+  options: ApiOptions = {},
+): Promise<ConversationMessage> {
+  return request<ConversationMessage>(
+    `/v1/conversations/${encodeURIComponent(conversationId)}/messages`,
+    {
+      ...options,
+      method: 'POST',
+      body: { content },
+      requiresAuth: true,
+    },
+  );
+}
+
+export function listPayments(options: ApiOptions = {}): Promise<PaymentSummary[]> {
+  return request<PaymentSummary[]>('/v1/payments', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function createPayment(
+  body: CreatePaymentRequest,
+  options: ApiOptions = {},
+): Promise<PaymentSummary> {
+  return request<PaymentSummary>('/v1/payments', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function listProviderReviews(
+  providerId: string,
+  options: ApiOptions = {},
+): Promise<ReviewSummary[]> {
+  return request<ReviewSummary[]>(
+    `/v1/reviews?providerId=${encodeURIComponent(providerId)}`,
+    {
+      ...options,
+      method: 'GET',
+    },
+  );
+}
+
+export function createReview(
+  body: CreateReviewRequest,
+  options: ApiOptions = {},
+): Promise<ReviewSummary> {
+  return request<ReviewSummary>('/v1/reviews', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function listSupportTickets(
+  options: ApiOptions = {},
+): Promise<SupportTicketSummary[]> {
+  return request<SupportTicketSummary[]>('/v1/support/tickets', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function createSupportTicket(
+  body: CreateSupportTicketRequest,
+  options: ApiOptions = {},
+): Promise<SupportTicketSummary> {
+  return request<SupportTicketSummary>('/v1/support/tickets', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function listNotifications(
+  options: ApiOptions = {},
+): Promise<NotificationSummary[]> {
+  return request<NotificationSummary[]>('/v1/notifications', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function markNotificationRead(
+  notificationId: string,
+  options: ApiOptions = {},
+): Promise<NotificationSummary> {
+  return request<NotificationSummary>(
+    `/v1/notifications/${encodeURIComponent(notificationId)}/read`,
+    {
+      ...options,
+      method: 'PATCH',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function getProviderAvailability(
+  options: ApiOptions = {},
+): Promise<ProviderAvailabilitySchedule> {
+  return request<ProviderAvailabilitySchedule>('/v1/provider/availability', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function replaceProviderAvailabilityWindows(
+  windows: AvailabilityWindowInput[],
+  options: ApiOptions = {},
+): Promise<ProviderAvailabilitySchedule> {
+  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/windows', {
+    ...options,
+    method: 'PUT',
+    body: { windows },
+    requiresAuth: true,
+  });
+}
+
+export function addProviderDayOff(
+  body: { offDate: string; reason?: string | null },
+  options: ApiOptions = {},
+): Promise<ProviderAvailabilitySchedule> {
+  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/days-off', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function removeProviderDayOff(
+  offDate: string,
+  options: ApiOptions = {},
+): Promise<ProviderAvailabilitySchedule> {
+  return request<ProviderAvailabilitySchedule>(
+    `/v1/provider/availability/days-off/${encodeURIComponent(offDate)}`,
+    {
+      ...options,
+      method: 'DELETE',
+      requiresAuth: true,
+    },
+  );
+}
+
+interface RequestOptions extends ApiOptions {
+  method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
+  body?: unknown;
+  requiresAuth?: boolean;
+}
+
+async function request<T>(
+  path: string,
+  {
+    baseUrl = DEFAULT_BASE_URL,
+    token,
+    fetcher = fetch,
+    method,
+    body,
+    requiresAuth = false,
+  }: RequestOptions,
+): Promise<T> {
+  if (requiresAuth && !token?.trim()) {
+    throw new Error('Paste an access token before using booking routes.');
+  }
+
+  const response = await fetcher(`${baseUrl.replace(/\/$/, '')}${path}`, {
+    method,
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      ...(token?.trim() ? { authorization: `Bearer ${token.trim()}` } : {}),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const payload = (await response.json()) as {
+    data?: T;
+    error?: {
+      code?: string;
+      message?: string;
+    };
+  };
+
+  if (!response.ok) {
+    const message =
+      payload.error?.message ??
+      payload.error?.code ??
+      `Gateway request failed with ${response.status}`;
+    throw new Error(message);
+  }
+
+  if (!('data' in payload)) {
+    throw new Error('Gateway response did not include data.');
+  }
+
+  return payload.data as T;
+}
