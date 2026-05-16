@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router";
 import { 
   Search, 
   ChevronDown,
@@ -18,6 +19,7 @@ import {
   type SupportTicketReplySummary,
   type SupportTicketSummary,
 } from "../../services/serveaseProviderApi";
+import { pickQueryItemId } from "../utils/providerDeeplinks";
 
 const styles = {
   container: {
@@ -305,6 +307,7 @@ function statusLabel(status: SupportTicketSummary["status"]): string {
 }
 
 export function ProviderHelpCenterPage() {
+  const location = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
   const [activeTab, setActiveTab] = useState("All");
@@ -338,7 +341,14 @@ export function ProviderHelpCenterPage() {
     try {
       const nextTickets = await listSupportTickets(token);
       setTickets(nextTickets);
-      setSelectedTicketId((current) => current ?? nextTickets[0]?.id ?? null);
+      setSelectedTicketId((current) =>
+        pickQueryItemId(
+          location.search,
+          "ticketId",
+          nextTickets.map((ticket) => ticket.id),
+          current ?? nextTickets[0]?.id ?? null,
+        ) as string | null,
+      );
     } catch (error) {
       setTicketError(
         error instanceof Error ? error.message : "Unable to load support tickets.",
@@ -350,7 +360,7 @@ export function ProviderHelpCenterPage() {
 
   useEffect(() => {
     void loadTickets();
-  }, []);
+  }, [location.search]);
 
   useEffect(() => {
     const loadReplies = async () => {

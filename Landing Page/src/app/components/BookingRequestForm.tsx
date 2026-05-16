@@ -36,7 +36,7 @@ export function BookingRequestForm({
   const [serviceAddress, setServiceAddress] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [hoursRequired, setHoursRequired] = useState("1");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentMethod, setPaymentMethod] = useState("cash_on_service");
   const [customerNotes, setCustomerNotes] = useState("");
   const [feedback, setFeedback] = useState(setupError);
   const [isError, setIsError] = useState(Boolean(setupError));
@@ -91,7 +91,7 @@ export function BookingRequestForm({
       setServiceAddress("");
       setScheduledAt("");
       setHoursRequired("1");
-      setPaymentMethod("cash");
+      setPaymentMethod("cash_on_service");
       setCustomerNotes("");
       setFeedback(
         `Booking request ${booking.bookingReference} was created and is pending.`,
@@ -167,8 +167,9 @@ export function BookingRequestForm({
             onChange={(event) => setPaymentMethod(event.target.value)}
             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 font-['Poppins',sans-serif] text-sm focus:border-[#00BF63] focus:outline-none"
           >
-            <option value="cash">Cash</option>
+            <option value="cash_on_service">Cash on service</option>
             <option value="gcash">GCash</option>
+            <option value="paymaya">PayMaya</option>
             <option value="card">Card</option>
           </select>
         </label>

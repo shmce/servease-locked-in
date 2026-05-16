@@ -8,6 +8,7 @@ import {
   markProviderNotificationRead,
   type NotificationSummary,
 } from '../../services/serveaseProviderApi';
+import { getProviderNotificationHref } from '../utils/providerNotifications';
 
 function formatNotificationTime(value: string | null): string {
   if (!value) {
@@ -83,6 +84,7 @@ export function Layout() {
   useEffect(() => {
     const loadNotifications = async () => {
       if (!accessToken) {
+        setNotifications([]);
         return;
       }
 
@@ -97,6 +99,9 @@ export function Layout() {
     };
 
     void loadNotifications();
+    const intervalId = window.setInterval(loadNotifications, 30000);
+
+    return () => window.clearInterval(intervalId);
   }, [accessToken]);
 
   const markNotificationRead = async (notificationId: string) => {
@@ -116,6 +121,18 @@ export function Layout() {
       setNotificationError(
         error instanceof Error ? error.message : 'Unable to update notification.',
       );
+    }
+  };
+
+  const openNotification = async (notification: NotificationSummary) => {
+    if (!notification.isRead) {
+      await markNotificationRead(notification.id);
+    }
+
+    const href = getProviderNotificationHref(notification);
+    if (href) {
+      setIsNotificationsOpen(false);
+      navigate(href);
     }
   };
 
@@ -209,9 +226,7 @@ export function Layout() {
                             notification.isRead ? 'bg-white' : 'bg-green-50/70'
                           }`}
                           onClick={() => {
-                            if (!notification.isRead) {
-                              void markNotificationRead(notification.id);
-                            }
+                            void openNotification(notification);
                           }}
                         >
                           <div className="flex items-start gap-3">

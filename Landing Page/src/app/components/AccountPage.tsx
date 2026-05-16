@@ -5,10 +5,15 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
+  Bell,
+  CheckCircle2,
+  CreditCard,
   Edit3,
+  Gift,
   LogOut,
   RefreshCw,
   Save,
+  Send,
   ShieldCheck,
   CalendarCheck,
   Ticket,
@@ -27,9 +32,28 @@ import {
   type CurrentUserProfile,
 } from "../lib/current-user";
 import {
+  createSupportTicketReply,
+  listSupportTicketReplies,
   listSupportTickets,
+  type SupportTicketReplySummary,
   type SupportTicketSummary,
 } from "../lib/support-tickets";
+import {
+  listNotifications,
+  markNotificationRead,
+  type NotificationSummary,
+} from "../lib/notifications";
+import {
+  getReferralSummary,
+  type ReferralSummary,
+} from "../lib/referrals";
+import {
+  deleteCustomerPaymentMethod,
+  listCustomerPaymentMethods,
+  upsertCustomerPaymentMethod,
+  type CustomerPaymentMethodSummary,
+  type CustomerPaymentMethodType,
+} from "../lib/payments";
 
 interface ProfileFormState {
   fullName: string;
@@ -42,6 +66,14 @@ interface PasswordFormState {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
+}
+
+interface PaymentMethodFormState {
+  methodType: CustomerPaymentMethodType;
+  label: string;
+  brand: string;
+  last4: string;
+  isDefault: boolean;
 }
 
 function createSupabaseState() {
@@ -76,6 +108,10 @@ export function AccountPage() {
   const [profile, setProfile] = useState<CurrentUserProfile | null>(null);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [tickets, setTickets] = useState<SupportTicketSummary[]>([]);
+  const [ticketReplies, setTicketReplies] = useState<SupportTicketReplySummary[]>([]);
+  const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
+  const [referral, setReferral] = useState<ReferralSummary | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<CustomerPaymentMethodSummary[]>([]);
   const [form, setForm] = useState<ProfileFormState>({
     fullName: "",
     contactNumber: "",
@@ -89,13 +125,31 @@ export function AccountPage() {
   });
   const [error, setError] = useState(setupError);
   const [supportError, setSupportError] = useState("");
+  const [replyError, setReplyError] = useState("");
   const [bookingError, setBookingError] = useState("");
+  const [notificationError, setNotificationError] = useState("");
+  const [referralError, setReferralError] = useState("");
+  const [paymentError, setPaymentError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(!setupError);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [markingNotificationId, setMarkingNotificationId] = useState("");
+  const [selectedTicketId, setSelectedTicketId] = useState("");
+  const [replyMessage, setReplyMessage] = useState("");
+  const [isLoadingReplies, setIsLoadingReplies] = useState(false);
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [paymentForm, setPaymentForm] = useState<PaymentMethodFormState>({
+    methodType: "cash_on_service",
+    label: "Cash on service",
+    brand: "",
+    last4: "",
+    isDefault: true,
+  });
+  const [isSavingPaymentMethod, setIsSavingPaymentMethod] = useState(false);
+  const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState("");
 
   const loadAccount = async () => {
     if (!supabase) {
@@ -107,7 +161,11 @@ export function AccountPage() {
     setIsLoading(true);
     setError("");
     setSupportError("");
+    setReplyError("");
     setBookingError("");
+    setNotificationError("");
+    setReferralError("");
+    setPaymentError("");
     setPasswordError("");
     setSuccess("");
 
@@ -119,7 +177,14 @@ export function AccountPage() {
     }
 
     const accessToken = sessionData.session.access_token;
-    const [profileResponse, ticketsResponse, bookingsResponse] = await Promise.all([
+    const [
+      profileResponse,
+      ticketsResponse,
+      bookingsResponse,
+      notificationsResponse,
+      referralResponse,
+      paymentMethodsResponse,
+    ] = await Promise.all([
       getCurrentUserProfile(accessToken)
         .then((data) => ({ data }))
         .catch((error: unknown) => ({ error })),
@@ -127,6 +192,15 @@ export function AccountPage() {
         .then((data) => ({ data }))
         .catch((error: unknown) => ({ error })),
       listCustomerBookings(accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
+      listNotifications(accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
+      getReferralSummary(accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
+      listCustomerPaymentMethods(accessToken)
         .then((data) => ({ data }))
         .catch((error: unknown) => ({ error })),
     ]);
@@ -164,6 +238,39 @@ export function AccountPage() {
       setBookings([]);
     } else {
       setBookings(bookingsResponse.data);
+    }
+
+    if ("error" in notificationsResponse) {
+      setNotificationError(
+        notificationsResponse.error instanceof Error
+          ? notificationsResponse.error.message
+          : "Could not load your notifications.",
+      );
+      setNotifications([]);
+    } else {
+      setNotifications(notificationsResponse.data);
+    }
+
+    if ("error" in referralResponse) {
+      setReferralError(
+        referralResponse.error instanceof Error
+          ? referralResponse.error.message
+          : "Could not load your referral summary.",
+      );
+      setReferral(null);
+    } else {
+      setReferral(referralResponse.data);
+    }
+
+    if ("error" in paymentMethodsResponse) {
+      setPaymentError(
+        paymentMethodsResponse.error instanceof Error
+          ? paymentMethodsResponse.error.message
+          : "Could not load your payment methods.",
+      );
+      setPaymentMethods([]);
+    } else {
+      setPaymentMethods(paymentMethodsResponse.data);
     }
 
     setIsLoading(false);
@@ -281,6 +388,222 @@ export function AccountPage() {
       await supabase.auth.signOut();
     }
     router.push("/login");
+  };
+
+  const handleMarkNotificationRead = async (notificationId: string) => {
+    if (!supabase) {
+      setNotificationError(setupError || "Supabase login is not configured.");
+      return;
+    }
+
+    setMarkingNotificationId(notificationId);
+    setNotificationError("");
+
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.access_token) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const updated = await markNotificationRead(
+        sessionData.session.access_token,
+        notificationId,
+      );
+      setNotifications((current) =>
+        current.map((notification) =>
+          notification.id === notificationId ? updated : notification,
+        ),
+      );
+    } catch (error) {
+      setNotificationError(
+        error instanceof Error
+          ? error.message
+          : "Could not mark this notification as read.",
+      );
+    } finally {
+      setMarkingNotificationId("");
+    }
+  };
+
+  const handleSelectTicket = async (ticketId: string) => {
+    if (selectedTicketId === ticketId) {
+      setSelectedTicketId("");
+      setTicketReplies([]);
+      setReplyMessage("");
+      setReplyError("");
+      return;
+    }
+
+    if (!supabase) {
+      setReplyError(setupError || "Supabase login is not configured.");
+      return;
+    }
+
+    setSelectedTicketId(ticketId);
+    setTicketReplies([]);
+    setReplyMessage("");
+    setReplyError("");
+    setIsLoadingReplies(true);
+
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.access_token) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const replies = await listSupportTicketReplies(
+        sessionData.session.access_token,
+        ticketId,
+      );
+      setTicketReplies(replies);
+    } catch (error) {
+      setReplyError(
+        error instanceof Error
+          ? error.message
+          : "Could not load support ticket replies.",
+      );
+    } finally {
+      setIsLoadingReplies(false);
+    }
+  };
+
+  const handleSendTicketReply = async () => {
+    if (!selectedTicketId || !replyMessage.trim()) {
+      setReplyError("Write a reply before sending.");
+      return;
+    }
+
+    if (!supabase) {
+      setReplyError(setupError || "Supabase login is not configured.");
+      return;
+    }
+
+    setIsSendingReply(true);
+    setReplyError("");
+
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.access_token) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const reply = await createSupportTicketReply(
+        sessionData.session.access_token,
+        selectedTicketId,
+        replyMessage.trim(),
+      );
+      setTicketReplies((current) => [...current, reply]);
+      setReplyMessage("");
+    } catch (error) {
+      setReplyError(
+        error instanceof Error ? error.message : "Could not send your reply.",
+      );
+    } finally {
+      setIsSendingReply(false);
+    }
+  };
+
+  const handleSavePaymentMethod = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!supabase) {
+      setPaymentError(setupError || "Supabase login is not configured.");
+      return;
+    }
+
+    if (!paymentForm.label.trim()) {
+      setPaymentError("Payment method label is required.");
+      return;
+    }
+
+    setIsSavingPaymentMethod(true);
+    setPaymentError("");
+    setSuccess("");
+
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.access_token) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const method = await upsertCustomerPaymentMethod(
+        sessionData.session.access_token,
+        {
+          methodType: paymentForm.methodType,
+          label: paymentForm.label,
+          brand: paymentForm.brand || null,
+          last4: paymentForm.last4 || null,
+          isDefault: paymentForm.isDefault,
+        },
+      );
+      setPaymentMethods((current) => [
+        method,
+        ...current.filter((item) => item.id !== method.id),
+      ]);
+      setPaymentForm({
+        methodType: "cash_on_service",
+        label: "Cash on service",
+        brand: "",
+        last4: "",
+        isDefault: true,
+      });
+      setSuccess("Payment method saved.");
+    } catch (error) {
+      setPaymentError(
+        error instanceof Error
+          ? error.message
+          : "Could not save your payment method.",
+      );
+    } finally {
+      setIsSavingPaymentMethod(false);
+    }
+  };
+
+  const handleDeletePaymentMethod = async (methodId: string) => {
+    if (!supabase) {
+      setPaymentError(setupError || "Supabase login is not configured.");
+      return;
+    }
+
+    setDeletingPaymentMethodId(methodId);
+    setPaymentError("");
+    setSuccess("");
+
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.access_token) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      await deleteCustomerPaymentMethod(sessionData.session.access_token, methodId);
+      setPaymentMethods((current) =>
+        current.filter((method) => method.id !== methodId),
+      );
+      setSuccess("Payment method removed.");
+    } catch (error) {
+      setPaymentError(
+        error instanceof Error
+          ? error.message
+          : "Could not remove this payment method.",
+      );
+    } finally {
+      setDeletingPaymentMethodId("");
+    }
   };
 
   return (
@@ -473,6 +796,97 @@ export function AccountPage() {
             </div>
 
             <section className="bg-white rounded-2xl shadow-md p-6">
+              <div className="flex items-center justify-between gap-4 mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-[#00BF63]/10 flex items-center justify-center">
+                    <Bell className="text-[#00BF63]" size={24} />
+                  </div>
+                  <div>
+                    <h2 className="font-['Poppins',sans-serif] text-xl text-gray-900">
+                      Notifications
+                    </h2>
+                    <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                      Account and booking updates from ServEase.
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full bg-[#00BF63]/10 px-3 py-1 font-['Poppins',sans-serif] text-xs text-[#007A3F]">
+                  {notifications.filter((notification) => !notification.isRead).length} unread
+                </span>
+              </div>
+
+              {notificationError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="font-['Poppins',sans-serif] text-sm text-red-700">
+                    {notificationError}
+                  </p>
+                </div>
+              ) : notifications.length === 0 ? (
+                <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
+                  No notifications yet.
+                </p>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {notifications.slice(0, 8).map((notification) => {
+                    const href = getNotificationHref(notification);
+                    const content = (
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-['Poppins',sans-serif] text-base text-gray-900">
+                            {notification.title ?? "ServEase update"}
+                          </h3>
+                          {!notification.isRead && (
+                            <span className="rounded-full bg-black px-2 py-0.5 font-['Poppins',sans-serif] text-[11px] text-white">
+                              New
+                            </span>
+                          )}
+                        </div>
+                        {notification.body && (
+                          <p className="mt-1 font-['Poppins',sans-serif] text-sm text-gray-600">
+                            {notification.body}
+                          </p>
+                        )}
+                        <p className="mt-1 font-['Poppins',sans-serif] text-xs text-gray-400">
+                          {formatDate(notification.createdAt)}
+                        </p>
+                      </div>
+                    );
+
+                    return (
+                      <article
+                        key={notification.id}
+                        className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 md:flex-row md:items-center md:justify-between"
+                      >
+                        {href ? (
+                          <Link href={href} className="flex-1">
+                            {content}
+                          </Link>
+                        ) : (
+                          <div className="flex-1">{content}</div>
+                        )}
+                        {!notification.isRead && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleMarkNotificationRead(notification.id)
+                            }
+                            disabled={markingNotificationId === notification.id}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 font-['Poppins',sans-serif] text-sm text-gray-700 disabled:opacity-60"
+                          >
+                            <CheckCircle2 size={16} />
+                            {markingNotificationId === notification.id
+                              ? "Saving..."
+                              : "Mark Read"}
+                          </button>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            <section className="bg-white rounded-2xl shadow-md p-6">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-12 h-12 rounded-xl bg-[#00BF63]/10 flex items-center justify-center">
                   <ShieldCheck className="text-[#00BF63]" size={24} />
@@ -528,6 +942,181 @@ export function AccountPage() {
                   </button>
                 </div>
               </form>
+            </section>
+
+            <section className="bg-white rounded-2xl shadow-md p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-12 h-12 rounded-xl bg-[#00BF63]/10 flex items-center justify-center">
+                  <Gift className="text-[#00BF63]" size={24} />
+                </div>
+                <div>
+                  <h2 className="font-['Poppins',sans-serif] text-xl text-gray-900">
+                    Referrals
+                  </h2>
+                  <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                    Invite customers with your ServEase referral link.
+                  </p>
+                </div>
+              </div>
+
+              {referralError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="font-['Poppins',sans-serif] text-sm text-red-700">
+                    {referralError}
+                  </p>
+                </div>
+              ) : !referral ? (
+                <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
+                  Referral summary is not available yet.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                    <ReferralMetric label="Code" value={referral.referralCode} />
+                    <ReferralMetric
+                      label="Completed"
+                      value={String(referral.completedReferrals)}
+                    />
+                    <ReferralMetric
+                      label="Pending"
+                      value={String(referral.pendingReferrals)}
+                    />
+                    <ReferralMetric
+                      label="Rewards"
+                      value={formatPrice(referral.totalRewards)}
+                    />
+                  </div>
+                  <div className="rounded-xl border border-gray-200 p-4">
+                    <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                      Referral Link
+                    </p>
+                    <p className="mt-1 break-all font-['Poppins',sans-serif] text-sm text-gray-900">
+                      {getReferralLink(referral)}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="bg-white rounded-2xl shadow-md p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-12 h-12 rounded-xl bg-[#00BF63]/10 flex items-center justify-center">
+                  <CreditCard className="text-[#00BF63]" size={24} />
+                </div>
+                <div>
+                  <h2 className="font-['Poppins',sans-serif] text-xl text-gray-900">
+                    Payment Methods
+                  </h2>
+                  <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                    Manage payment options used for web booking reservations.
+                  </p>
+                </div>
+              </div>
+
+              {paymentError && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="font-['Poppins',sans-serif] text-sm text-red-700">
+                    {paymentError}
+                  </p>
+                </div>
+              )}
+
+              <form
+                onSubmit={handleSavePaymentMethod}
+                className="mb-6 grid gap-4 md:grid-cols-[180px_1fr_1fr_120px_auto]"
+              >
+                <label className="block">
+                  <span className="font-['Poppins',sans-serif] text-sm text-gray-700 block mb-1">
+                    Type
+                  </span>
+                  <select
+                    value={paymentForm.methodType}
+                    onChange={(event) =>
+                      setPaymentForm({
+                        ...paymentForm,
+                        methodType: event.target.value as CustomerPaymentMethodType,
+                      })
+                    }
+                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 font-['Poppins',sans-serif] text-sm focus:border-[#00BF63] focus:outline-none"
+                  >
+                    <option value="cash_on_service">Cash</option>
+                    <option value="gcash">GCash</option>
+                    <option value="paymaya">PayMaya</option>
+                    <option value="card">Card</option>
+                  </select>
+                </label>
+                <TextInput
+                  label="Label"
+                  value={paymentForm.label}
+                  onChange={(value) =>
+                    setPaymentForm({ ...paymentForm, label: value })
+                  }
+                  required
+                />
+                <TextInput
+                  label="Brand"
+                  value={paymentForm.brand}
+                  onChange={(value) =>
+                    setPaymentForm({ ...paymentForm, brand: value })
+                  }
+                />
+                <TextInput
+                  label="Last 4"
+                  value={paymentForm.last4}
+                  onChange={(value) =>
+                    setPaymentForm({ ...paymentForm, last4: value })
+                  }
+                />
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingPaymentMethod}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#00BF63] px-4 py-3 font-['Poppins',sans-serif] text-sm text-white disabled:opacity-70"
+                  >
+                    <Save size={16} />
+                    {isSavingPaymentMethod ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </form>
+
+              {paymentMethods.length === 0 ? (
+                <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
+                  No payment methods yet.
+                </p>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {paymentMethods.map((method) => (
+                    <div
+                      key={method.id}
+                      className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 md:flex-row md:items-center md:justify-between"
+                    >
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-['Poppins',sans-serif] text-base text-gray-900">
+                            {method.label}
+                          </h3>
+                          {method.isDefault && <StatusBadge status="default" />}
+                        </div>
+                        <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                          {formatPaymentMethodType(method.methodType)}
+                          {method.last4 ? ` ending in ${method.last4}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePaymentMethod(method.id)}
+                        disabled={deletingPaymentMethodId === method.id}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 font-['Poppins',sans-serif] text-sm text-gray-700 disabled:opacity-60"
+                      >
+                        <X size={16} />
+                        {deletingPaymentMethodId === method.id
+                          ? "Removing..."
+                          : "Remove"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="bg-white rounded-2xl shadow-md p-6">
@@ -613,22 +1202,86 @@ export function AccountPage() {
                   {tickets.map((ticket) => (
                     <div
                       key={ticket.id}
-                      className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 py-4 first:pt-0 last:pb-0"
+                      className="py-4 first:pt-0 last:pb-0"
                     >
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-['Poppins',sans-serif] text-base text-gray-900">
-                            {ticket.subject}
-                          </h3>
-                          <StatusBadge status={ticket.status} />
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-['Poppins',sans-serif] text-base text-gray-900">
+                              {ticket.subject}
+                            </h3>
+                            <StatusBadge status={ticket.status} />
+                          </div>
+                          <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                            {ticket.category ?? "general"} - {formatDate(ticket.createdAt)}
+                          </p>
                         </div>
-                        <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
-                          {ticket.category ?? "general"} - {formatDate(ticket.createdAt)}
-                        </p>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectTicket(ticket.id)}
+                          className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 font-['Poppins',sans-serif] text-sm text-gray-700"
+                        >
+                          <Ticket size={16} />
+                          {selectedTicketId === ticket.id ? "Hide Replies" : "View Replies"}
+                        </button>
                       </div>
-                      <p className="font-['Poppins',sans-serif] text-xs text-gray-400">
-                        {ticket.id}
-                      </p>
+
+                      {selectedTicketId === ticket.id && (
+                        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          {replyError && (
+                            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                              <p className="font-['Poppins',sans-serif] text-sm text-red-700">
+                                {replyError}
+                              </p>
+                            </div>
+                          )}
+
+                          {isLoadingReplies ? (
+                            <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
+                              Loading replies...
+                            </p>
+                          ) : ticketReplies.length === 0 ? (
+                            <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
+                              No replies yet.
+                            </p>
+                          ) : (
+                            <div className="mb-4 space-y-3">
+                              {ticketReplies.map((reply) => (
+                                <div
+                                  key={reply.id}
+                                  className="rounded-lg bg-white p-3"
+                                >
+                                  <p className="font-['Poppins',sans-serif] text-sm text-gray-700">
+                                    {reply.message}
+                                  </p>
+                                  <p className="mt-1 font-['Poppins',sans-serif] text-xs text-gray-400">
+                                    {formatDate(reply.createdAt)}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+                            <textarea
+                              value={replyMessage}
+                              onChange={(event) => setReplyMessage(event.target.value)}
+                              rows={3}
+                              className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 font-['Poppins',sans-serif] text-sm focus:border-[#00BF63] focus:outline-none"
+                              placeholder="Add a reply"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleSendTicketReply}
+                              disabled={isSendingReply}
+                              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#00BF63] px-4 py-2 font-['Poppins',sans-serif] text-sm text-white disabled:opacity-70"
+                            >
+                              <Send size={16} />
+                              {isSendingReply ? "Sending..." : "Send"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -704,10 +1357,21 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ReferralMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-gray-200 p-4">
+      <p className="font-['Poppins',sans-serif] text-sm text-gray-500">{label}</p>
+      <p className="mt-1 font-['Poppins',sans-serif] text-sm text-gray-900">
+        {value}
+      </p>
+    </div>
+  );
+}
+
 function StatusBadge({
   status,
 }: {
-  status: SupportTicketSummary["status"] | BookingSummary["status"];
+  status: SupportTicketSummary["status"] | BookingSummary["status"] | "default";
 }) {
   const label = status.replace("_", " ");
   return (
@@ -715,6 +1379,24 @@ function StatusBadge({
       {label}
     </span>
   );
+}
+
+function getNotificationHref(notification: NotificationSummary) {
+  const bookingId = notification.metadata?.bookingId;
+
+  if (typeof bookingId === "string" && bookingId) {
+    return `/bookings/${encodeURIComponent(bookingId)}`;
+  }
+
+  return null;
+}
+
+function getReferralLink(referral: ReferralSummary) {
+  if (typeof window === "undefined") {
+    return referral.referralLinkPath;
+  }
+
+  return new URL(referral.referralLinkPath, window.location.origin).toString();
 }
 
 function formatDate(value: string | null) {
@@ -735,4 +1417,8 @@ function formatPrice(value: number) {
     currency: "PHP",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatPaymentMethodType(methodType: CustomerPaymentMethodType) {
+  return methodType.replace("_", " ");
 }

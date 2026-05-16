@@ -1,9 +1,11 @@
 import {
   fetchCatalogServices,
   fetchGatewayData,
+  fetchProviderAvailability,
   fetchProviderListings,
   fetchProviderPortfolio,
   type CatalogServiceItem,
+  type ProviderAvailabilitySchedule,
   type ProviderPortfolioMediaSummary,
   type ProviderServiceListing,
 } from './catalog';
@@ -14,6 +16,7 @@ export interface ProviderDetailData {
   service: CatalogServiceItem | null;
   relatedListings: ProviderServiceListing[];
   portfolio: ProviderPortfolioMediaSummary[];
+  availability: ProviderAvailabilitySchedule | null;
   reviews: ReviewSummary[];
 }
 
@@ -36,8 +39,9 @@ export async function fetchProviderDetail(
   const relatedListings = listings.filter(
     (item) => item.providerId === listing.providerId && item.id !== listing.id,
   );
-  const [portfolio, reviews] = await Promise.all([
+  const [portfolio, availability, reviews] = await Promise.all([
     fetchProviderPortfolio(listing.providerId).catch(() => []),
+    fetchProviderAvailability(listing.providerId).catch(() => null),
     fetchGatewayData<ReviewSummary[]>(
       `/v1/reviews?providerId=${encodeURIComponent(listing.providerId)}`,
     ).catch(() => []),
@@ -48,6 +52,7 @@ export async function fetchProviderDetail(
     service,
     relatedListings,
     portfolio,
+    availability,
     reviews,
   };
 }

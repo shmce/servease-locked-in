@@ -42,6 +42,36 @@ export interface ProviderPortfolioMediaSummary {
   createdAt: string | null;
 }
 
+export type DayOfWeek =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+export interface AvailabilityWindow {
+  id: string;
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+  sortOrder: number;
+}
+
+export interface ProviderDayOff {
+  id: string;
+  offDate: string;
+  reason: string | null;
+}
+
+export interface ProviderAvailabilitySchedule {
+  providerId: string;
+  windows: AvailabilityWindow[];
+  daysOff: ProviderDayOff[];
+}
+
 export interface LandingCatalogData {
   categories: CatalogCategory[];
   services: CatalogServiceItem[];
@@ -88,6 +118,14 @@ export async function fetchProviderPortfolio(
 ): Promise<ProviderPortfolioMediaSummary[]> {
   return fetchGatewayData<ProviderPortfolioMediaSummary[]>(
     `/v1/catalog/providers/${encodeURIComponent(providerId)}/portfolio`,
+  );
+}
+
+export async function fetchProviderAvailability(
+  providerId: string,
+): Promise<ProviderAvailabilitySchedule> {
+  return fetchGatewayData<ProviderAvailabilitySchedule>(
+    `/v1/provider/availability/${encodeURIComponent(providerId)}`,
   );
 }
 

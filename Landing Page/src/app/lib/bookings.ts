@@ -38,6 +38,36 @@ export interface BookingSummary {
   attachments?: BookingAttachmentSummary[];
 }
 
+export type BookingTrackingPhase =
+  | 'awaiting_confirmation'
+  | 'scheduled'
+  | 'on_the_way'
+  | 'completed'
+  | 'cancelled'
+  | 'rejected';
+
+export type BookingTrackingTrafficLevel = 'light' | 'moderate' | 'heavy';
+
+export interface BookingTrackingLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export interface BookingTrackingSnapshot {
+  bookingId: string;
+  bookingReference: string;
+  status: BookingStatus;
+  phase: BookingTrackingPhase;
+  etaMinutes: number | null;
+  distanceKm: number | null;
+  trafficLevel: BookingTrackingTrafficLevel | null;
+  destinationAddress: string | null;
+  destinationLocation: BookingTrackingLocation | null;
+  providerLocation: BookingTrackingLocation | null;
+  scheduledAt: string;
+  lastUpdatedAt: string;
+}
+
 export interface BookingStatusTransitionInput {
   bookingId: string;
   currentStatus: BookingStatus;
@@ -102,6 +132,18 @@ export function getCustomerBooking(
 ): Promise<BookingSummary> {
   return fetchBookingApi<BookingSummary>(
     `/api/bookings/${encodeURIComponent(bookingId)}`,
+    {
+      accessToken,
+    },
+  );
+}
+
+export function getBookingTrackingSnapshot(
+  bookingId: string,
+  accessToken: string,
+): Promise<BookingTrackingSnapshot> {
+  return fetchBookingApi<BookingTrackingSnapshot>(
+    `/api/bookings/${encodeURIComponent(bookingId)}/tracking`,
     {
       accessToken,
     },

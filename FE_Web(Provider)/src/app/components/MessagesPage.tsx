@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router';
 import { Search, Send, Paperclip, ExternalLink, Star } from 'lucide-react';
 import {
   getStoredProviderAccessToken,
@@ -8,6 +9,7 @@ import {
   type ConversationMessage,
   type ConversationSummary,
 } from '../../services/serveaseProviderApi';
+import { pickQueryItemId } from '../utils/providerDeeplinks';
 
 // Styles object for reusability across provider dashboard pages.
 const styles = {
@@ -233,7 +235,8 @@ function toUiConversation(conversation: ConversationSummary): Conversation {
 }
 
 export function MessagesPage() {
-  const [selectedConversation, setSelectedConversation] = useState<number | string | null>(1);
+  const location = useLocation();
+  const [selectedConversation, setSelectedConversation] = useState<number | string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'all' | 'booking' | 'general'>('all');
@@ -278,81 +281,15 @@ export function MessagesPage() {
     return () => window.removeEventListener('resize', measure);
   }, []);
 
-  // Mock conversations data - using state to allow message updates
-  const [conversations, setConversations] = useState<Conversation[]>([
-    {
-      id: 1,
-      name: 'Maria Santos',
-      avatar: 'MS',
-      lastMessage: 'Thank you for the excellent service!',
-      timestamp: '10:30 AM',
-      unread: 2,
-      rating: 5,
-      bookingRef: 'BK-2024-001',
-      category: 'booking',
-      booking: {
-        serviceType: 'House Cleaning',
-        date: 'March 25, 2026',
-        time: '9:00 AM',
-        status: 'Confirmed',
-      },
-      messages: [
-        { id: 1, text: 'Hi! I would like to book your services for next week.', timestamp: '10:15 AM', sender: 'customer' },
-        { id: 2, text: 'Hello! I\'d be happy to help. What service are you looking for?', timestamp: '10:17 AM', sender: 'provider' },
-        { id: 3, text: 'I need house cleaning for a 3-bedroom apartment.', timestamp: '10:20 AM', sender: 'customer' },
-        { id: 4, text: 'Perfect! I can do that. When would you prefer?', timestamp: '10:22 AM', sender: 'provider' },
-        { id: 5, text: 'How about this Saturday at 9 AM?', timestamp: '10:25 AM', sender: 'customer' },
-        { id: 6, text: 'Saturday at 9 AM works great for me. I\'ll see you then!', timestamp: '10:27 AM', sender: 'provider' },
-        { id: 7, text: 'Thank you for the excellent service!', timestamp: '10:30 AM', sender: 'customer' },
-      ],
-    },
-    {
-      id: 2,
-      name: 'John Reyes',
-      avatar: 'JR',
-      lastMessage: 'Can you send me the invoice?',
-      timestamp: 'Yesterday',
-      unread: 0,
-      rating: 4,
-      bookingRef: 'BK-2024-002',
-      category: 'booking',
-      booking: {
-        serviceType: 'Plumbing Repair',
-        date: 'March 23, 2026',
-        time: '2:00 PM',
-        status: 'Completed',
-      },
-      messages: [
-        { id: 1, text: 'Hi, I saw your profile and I\'m interested in your plumbing services.', timestamp: 'Yesterday 3:00 PM', sender: 'customer' },
-        { id: 2, text: 'Hello! I\'d be glad to help. What seems to be the issue?', timestamp: 'Yesterday 3:05 PM', sender: 'provider' },
-        { id: 3, text: 'I have a leaking pipe in the bathroom.', timestamp: 'Yesterday 3:10 PM', sender: 'customer' },
-        { id: 4, text: 'I can come by tomorrow to take a look. Does 2 PM work for you?', timestamp: 'Yesterday 3:15 PM', sender: 'provider' },
-        { id: 5, text: 'Can you send me the invoice?', timestamp: 'Yesterday 4:00 PM', sender: 'customer' },
-      ],
-    },
-    {
-      id: 3,
-      name: 'Anna Cruz',
-      avatar: 'AC',
-      lastMessage: 'What time can you come tomorrow?',
-      timestamp: '2 days ago',
-      unread: 0,
-      category: 'general',
-      messages: [
-        { id: 1, text: 'Hello! Do you do electrical repairs?', timestamp: '2 days ago 11:00 AM', sender: 'customer' },
-        { id: 2, text: 'Yes, I do! What do you need help with?', timestamp: '2 days ago 11:10 AM', sender: 'provider' },
-        { id: 3, text: 'My ceiling fan stopped working.', timestamp: '2 days ago 11:15 AM', sender: 'customer' },
-        { id: 4, text: 'I can check that for you. When are you available?', timestamp: '2 days ago 11:20 AM', sender: 'provider' },
-        { id: 5, text: 'What time can you come tomorrow?', timestamp: '2 days ago 11:25 AM', sender: 'customer' },
-      ],
-    },
-  ]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
 
   useEffect(() => {
     const loadConversations = async () => {
       const token = getStoredProviderAccessToken();
 
       if (!token) {
+        setConversations([]);
+        setSelectedConversation(null);
         return;
       }
 
@@ -363,7 +300,16 @@ export function MessagesPage() {
         const gatewayConversations = await listProviderConversations(token);
         const mappedConversations = gatewayConversations.map(toUiConversation);
         setConversations(mappedConversations);
-        setSelectedConversation(mappedConversations[0]?.id ?? null);
+        setSelectedConversation((current) =>
+          pickQueryItemId(
+            location.search,
+            'conversationId',
+            mappedConversations.map((conversation) => conversation.id),
+            current && mappedConversations.some((conversation) => conversation.id === current)
+              ? current
+              : mappedConversations[0]?.id ?? null,
+          ),
+        );
       } catch (error) {
         setMessageError(
           error instanceof Error ? error.message : 'Unable to load conversations.',
@@ -374,7 +320,10 @@ export function MessagesPage() {
     };
 
     void loadConversations();
-  }, []);
+    const intervalId = window.setInterval(loadConversations, 30000);
+
+    return () => window.clearInterval(intervalId);
+  }, [location.search]);
 
   useEffect(() => {
     const loadMessages = async () => {
@@ -414,6 +363,16 @@ export function MessagesPage() {
     };
 
     void loadMessages();
+    const intervalId =
+      selectedConversation !== null && typeof selectedConversation === 'string'
+        ? window.setInterval(loadMessages, 10000)
+        : null;
+
+    return () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+    };
   }, [selectedConversation]);
 
   const quickReplies = ['On my way', 'Running 5 mins late', 'Completed'];
@@ -635,6 +594,11 @@ export function MessagesPage() {
                 {isLoadingConversations && (
                   <div style={{ color: '#6B7280', fontSize: '14px', padding: '16px 20px' }}>
                     Loading conversations...
+                  </div>
+                )}
+                {!isLoadingConversations && filteredConversations.length === 0 && (
+                  <div style={{ color: '#6B7280', fontSize: '14px', padding: '16px 20px' }}>
+                    No conversations found.
                   </div>
                 )}
                 {filteredConversations.map((conv) => (

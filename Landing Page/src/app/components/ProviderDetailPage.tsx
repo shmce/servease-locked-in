@@ -1,10 +1,25 @@
 import Link from "next/link";
-import { ArrowLeft, BadgeCheck, BriefcaseBusiness, Images, Star } from "lucide-react";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  BriefcaseBusiness,
+  CalendarDays,
+  Images,
+  Star,
+} from "lucide-react";
 import type { ProviderDetailData } from "../lib/provider-detail";
 import { BookingRequestForm } from "./BookingRequestForm";
 
 export function ProviderDetailPage({ detail }: { detail: ProviderDetailData }) {
-  const { listing, service, portfolio, relatedListings, reviews } = detail;
+  const { listing, service, portfolio, availability, relatedListings, reviews } = detail;
+  const activeAvailabilityWindows =
+    availability?.windows
+      .filter((window) => window.isActive)
+      .sort((a, b) => a.sortOrder - b.sortOrder) ?? [];
+  const upcomingDaysOff =
+    availability?.daysOff
+      .filter((dayOff) => isTodayOrFuture(dayOff.offDate))
+      .sort((a, b) => a.offDate.localeCompare(b.offDate)) ?? [];
 
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -110,6 +125,69 @@ export function ProviderDetailPage({ detail }: { detail: ProviderDetailData }) {
                       )}
                     </figure>
                   ))}
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl bg-white p-6 shadow-sm">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#00BF63]/10">
+                  <CalendarDays className="text-[#00BF63]" size={24} />
+                </div>
+                <div>
+                  <h2 className="font-['Poppins',sans-serif] text-xl text-gray-900">
+                    Availability
+                  </h2>
+                  <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                    Public working hours from the provider schedule.
+                  </p>
+                </div>
+              </div>
+
+              {!availability ? (
+                <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
+                  Availability is not published yet.
+                </p>
+              ) : activeAvailabilityWindows.length === 0 ? (
+                <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
+                  No active working hours are currently listed.
+                </p>
+              ) : (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {activeAvailabilityWindows.map((window) => (
+                      <div
+                        key={window.id}
+                        className="rounded-xl border border-gray-200 p-4"
+                      >
+                        <p className="font-['Poppins',sans-serif] text-sm font-semibold capitalize text-gray-900">
+                          {window.dayOfWeek}
+                        </p>
+                        <p className="mt-1 font-['Poppins',sans-serif] text-sm text-gray-600">
+                          {formatTime(window.startTime)} - {formatTime(window.endTime)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {upcomingDaysOff.length > 0 && (
+                    <div className="rounded-xl bg-gray-50 p-4">
+                      <h3 className="font-['Poppins',sans-serif] text-sm font-semibold text-gray-900">
+                        Upcoming unavailable dates
+                      </h3>
+                      <div className="mt-3 space-y-2">
+                        {upcomingDaysOff.slice(0, 4).map((dayOff) => (
+                          <p
+                            key={dayOff.id}
+                            className="font-['Poppins',sans-serif] text-sm text-gray-600"
+                          >
+                            {formatDate(dayOff.offDate)}
+                            {dayOff.reason ? ` - ${dayOff.reason}` : ""}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -249,4 +327,25 @@ function formatDate(value: string | null) {
     day: "numeric",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function formatTime(value: string) {
+  const [hour = "0", minute = "0"] = value.split(":");
+  const date = new Date();
+  date.setHours(Number(hour), Number(minute), 0, 0);
+
+  return new Intl.DateTimeFormat("en", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function isTodayOrFuture(value: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const target = new Date(value);
+  target.setHours(0, 0, 0, 0);
+
+  return target >= today;
 }

@@ -23,10 +23,24 @@ export interface SupportTicketAttachmentSummary {
   createdAt: string | null;
 }
 
+export interface SupportTicketReplySummary {
+  id: string;
+  ticketId: string;
+  repliedBy: string;
+  message: string;
+  createdAt: string | null;
+}
+
 export interface CreateSupportTicketInput {
   subject: string;
   message: string;
   category?: string | null;
+}
+
+export interface CreateBookingIssueSupportTicketInput {
+  bookingId: string;
+  bookingReference: string;
+  message: string;
 }
 
 interface ApiResponse<T> {
@@ -53,6 +67,44 @@ export function createSupportTicket(
     method: 'POST',
     body: input,
   });
+}
+
+export function createBookingIssueSupportTicket(
+  accessToken: string,
+  input: CreateBookingIssueSupportTicketInput,
+): Promise<SupportTicketSummary> {
+  return createSupportTicket(accessToken, {
+    subject: `Booking issue: ${input.bookingReference}`,
+    message: `Booking: ${input.bookingId}\nReference: ${input.bookingReference}\n\n${input.message}`,
+    category: 'booking_issue',
+  });
+}
+
+export function listSupportTicketReplies(
+  accessToken: string,
+  ticketId: string,
+): Promise<SupportTicketReplySummary[]> {
+  return fetchSupportTicketApi<SupportTicketReplySummary[]>(
+    `/api/support-tickets/${encodeURIComponent(ticketId)}/replies`,
+    {
+      accessToken,
+    },
+  );
+}
+
+export function createSupportTicketReply(
+  accessToken: string,
+  ticketId: string,
+  message: string,
+): Promise<SupportTicketReplySummary> {
+  return fetchSupportTicketApi<SupportTicketReplySummary>(
+    `/api/support-tickets/${encodeURIComponent(ticketId)}/replies`,
+    {
+      accessToken,
+      method: 'POST',
+      body: { message },
+    },
+  );
 }
 
 async function fetchSupportTicketApi<T>(

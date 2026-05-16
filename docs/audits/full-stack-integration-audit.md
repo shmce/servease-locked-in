@@ -99,7 +99,7 @@ Service module `serveaseProviderApi.ts` exposes a near-complete API surface, but
 | Component | Mock backing | Live API exists |
 | --- | --- | --- |
 | `PortfolioManagementPage.tsx` | Now loads the current provider portfolio from `/v1/provider/profile` and uses gateway add/delete endpoints. Remaining local-only behavior: ordering and replacing existing media URLs. | Add `PUT /v1/catalog/provider/portfolio/order` and a media replacement/upload flow if ordering and replacement are required on web. |
-| `MessagesPage.tsx` | Seeds a mock fallback, then loads gateway conversations/messages and sends text messages when a provider token exists. Image attachments remain local preview only. | Add booking/customer display enrichment and a real attachment upload contract for message media. |
+| `MessagesPage.tsx` | Loads gateway conversations/messages, polls for updates, sends text messages when a provider token exists, and honors `conversationId` deep links. Image attachments remain local preview only. | Add booking/customer display enrichment and a real attachment upload contract for message media. |
 | `EditProfilePage.tsx` | Saves business name, bio/description, service area, and years of experience through `PATCH /v1/me`, then refreshes local context from the gateway response. Social links, photos, licenses, and certifications remain local-only fields. | Add explicit provider social/profile-media/license contracts before persisting those optional fields. |
 | `ProviderProfilePage.tsx` | Renders the provider profile context, which is hydrated from `/v1/provider/profile` on app load and updated by Edit Profile for the backend-backed fields. Cover/profile photos and languages still use local fallback/context values. | Add profile media and language contracts if those should be cross-device. |
 | `ProviderHelpCenterPage.tsx` | Now lists provider support tickets, creates new tickets, and reads/posts ticket replies through `/v1/support/tickets`. Static FAQ remains as help content. | Attachments and status changes stay with support/admin contracts. |
@@ -122,7 +122,7 @@ Only `availability` and partial `profile` data ever get overwritten by API respo
 
 ### Provider features missing entirely
 
-- **Notifications bell** — `Layout.tsx` imports `listNotifications` / `markNotificationRead`, but per-notification deep-link is not wired (mobile app has this; provider web doesn't).
+- **Notifications bell** — `Layout.tsx` now polls `/v1/notifications`, marks items read, and routes booking/ticket/review/message/payment metadata to the relevant provider page. Help center and messages select exact `ticketId` / `conversationId` query targets when present; bookings/reviews/earnings still land at the relevant page.
 - **Review reply UI** — `ProviderReviewsPage.tsx` calls `listProviderReviews` + `replyToReview` but doesn't surface a "Flag review" button despite `flagReview` existing.
 - **In-progress service actions** — there is no equivalent of the mobile provider's "Start service / Submit completion photo" flow on web.
 - **Pre/Progress/Completion photo uploads** — `addProviderPortfolioMedia` exists but no booking-level media uploads are exposed to web.
@@ -153,15 +153,15 @@ Only `availability` and partial `profile` data ever get overwritten by API respo
 | **Password reset** | `/forgot-password` now submits to `/api/password-reset`, which proxies `POST /v1/auth/password-reset`. | Wired. |
 | **Profile edit / password change** | AccountPage saves profile fields through `/api/me` and updates passwords through `/api/me/password`, both proxied to the gateway. | Wired. |
 | **Booking creation** | `BookingRequestForm.tsx` exists but only POSTs via `/api/bookings` proxy with limited fields (no attachments, no payment method) | Mobile uses richer `CreateBookingRequest` shape. |
-| **Payment methods + reserve payment** | Not present at all | `/v1/payments/methods`, `/v1/payments` exist. |
-| **Reviews** | Read-only; cannot leave a review from the website | `POST /v1/reviews` exists. |
-| **Notifications** | No notifications surface | `/v1/notifications` exists. |
+| **Payment methods + reserve payment** | Account page manages payment methods through `/api/payments/methods`; booking detail reserves payment through `/api/payments`. | Wired. |
+| **Reviews** | Completed booking detail now submits through `/api/reviews` to `POST /v1/reviews`. | Wired. |
+| **Notifications** | Account page lists notifications through `/api/notifications` and marks items read through `/api/notifications/:id/read`. | Wired for Landing account. |
 | **Conversations / messaging** | Not present | `/v1/conversations` exists. |
-| **Booking tracking / live progress** | `BookingDetailPage` shows service updates but no live tracking UI | `/v1/bookings/:id/tracking` exists (mobile uses it). |
-| **Referrals** | Not present | `/v1/referrals` exists. |
-| **Provider portfolio / availability viewer** | Not surfaced on the public provider page | `/v1/catalog/providers/:id/portfolio`, `/v1/provider/availability/:id` are public. |
-| **Cancel / report-issue from website** | Not present | Supported via `/v1/bookings/:id` transitions + `/v1/support/tickets`. |
-| **Support ticket replies** | Not present | `/v1/support/tickets/:id/replies` (added in this session) exists. |
+| **Booking tracking / live progress** | `BookingDetailPage` shows service updates and a tracking panel from `/api/bookings/:id/tracking`. | Wired. |
+| **Referrals** | Account page loads referral code, share path, counts, and rewards through `/api/referrals`. | Wired. |
+| **Provider portfolio / availability viewer** | Public provider page shows portfolio media and provider availability from `/v1/catalog/providers/:id/portfolio` + `/v1/provider/availability/:id`. | Wired. |
+| **Cancel / report-issue from website** | Booking detail supports customer cancellation through status transitions and issue reporting through `/api/support-tickets` with `booking_issue`. | Wired. |
+| **Support ticket replies** | Account support tickets expand into reply threads and post follow-ups through `/api/support-tickets/:id/replies`. | Wired. |
 
 ### Mock or placeholder UI
 
@@ -178,7 +178,7 @@ This folder is the most complete. Most remaining gaps are integration with the o
 ### Internal gaps
 
 - **No native push notifications** — only foreground polling (`setInterval` on notifications/messages/tracking). The `support_reply`, `support_ticket_resolved`, `booking_cancelled_by_admin` payloads are written to the DB but never delivered via APN/FCM.
-- **`renderCustomerHelp` cannot post a reply directly from the help-screen panel** — replies UI was added to the inline support card but the dedicated `customerHelp` screen still uses the original create-ticket form layout.
+- **`renderCustomerHelp` cannot post a reply directly from the help-screen panel** — replies UI was added to the inline support card and Landing account, but the dedicated `customerHelp` screen still uses the original create-ticket form layout.
 - **Provider portfolio uploader** uploads a single image then attaches via metadata. No multi-image flow or reordering exists on the device.
 - **In-progress timer** only ticks while screen `providerServiceInProgress` is mounted; if the user leaves and returns the timer restarts from the booking's recorded start time (which is correct, but visually jumps).
 - **Booking attachments uploaded via `pickAndUploadImage`** rely on the Supabase storage bucket; there's no progress indicator and no retry on transient failure.
@@ -188,16 +188,16 @@ This folder is the most complete. Most remaining gaps are integration with the o
 | Mobile creates | Admin sees | Provider web sees | Landing sees |
 | --- | --- | --- | --- |
 | Booking | yes | yes | yes (in account) |
-| Review | yes (wired this session) | yes (list+reply) | yes (read-only on provider page) |
+| Review | yes (wired this session) | yes (list+reply) | yes (read on provider page + author from completed booking detail) |
 | Support ticket + reply | yes | n/a | yes |
 | Portfolio media | yes (moderation, wired this session) | yes for load/add/delete; reorder/replacement still missing | yes (read-only on provider page) |
 | Conversation messages | by design, no | **NO — provider web is mocked** | NO |
-| Notification | by design, no | **NO — Layout polls but rendering minimal** | NO |
-| Provider availability | yes (read-only, wired this session) | yes (own page only) | **NO — not on public provider page** |
+| Notification | by design, no | **NO — Layout polls but rendering minimal** | yes (account list + mark read) |
+| Provider availability | yes (read-only, wired this session) | yes (own page only) | yes (public provider page) |
 | Provider payout method | n/a | yes | n/a |
 | Provider payout request | yes | yes | n/a |
-| Customer payment method | n/a | n/a | **NO — Landing has no payments UI** |
-| Referral activity | n/a | n/a | NO |
+| Customer payment method | n/a | n/a | yes (account methods + booking payment reservation) |
+| Referral activity | n/a | n/a | yes (account summary) |
 
 ---
 
@@ -206,9 +206,9 @@ This folder is the most complete. Most remaining gaps are integration with the o
 These are the **bridges** that have to be built for "one product" feel.
 
 1. **Customer signup on Landing Page.** Mobile can register, web cannot. A customer who books from the marketplace homepage today has to install the app first.
-2. **Customer payments on Landing Page.** Without payment methods + reserve-payment flow on the web, every web booking is implicitly cash-on-service.
-3. **Reviews authoring on Landing Page.** Mobile is the only place reviews are written.
-4. **Live notification feed on Landing Page and FE_Web(Provider).** The bell + drop-down both need to call `/v1/notifications` and respect the deep-link metadata (`ticketId`, `bookingId`) that mobile and admin already write.
+2. **Customer payments on Landing Page.** Landing now manages payment methods and can reserve payment from booking detail; richer promotion previews remain a possible enhancement.
+3. **Reviews authoring on Landing Page.** Completed web bookings can now post reviews through the gateway; duplicate-review messaging still depends on the review service response.
+4. **Live notification feed on FE_Web(Provider).** Landing account and provider web now call `/v1/notifications`; provider web routes deep-link metadata to the relevant page, with exact selection for help tickets and conversations.
 5. **Conversations on FE_Web(Provider).** Currently mocked — providers can't actually message customers from the laptop.
 6. **Portfolio editing on FE_Web(Provider).** Local-state-only; providers manage real portfolio media on mobile only.
 7. **Real-time push (APN/FCM) on mobile.** Today the loop closes via polling; remote delivery is missing.
@@ -231,8 +231,8 @@ These are the **bridges** that have to be built for "one product" feel.
    - Remaining: add `PUT /v1/catalog/provider/portfolio/order` for reorder and a storage-backed replacement/upload UI for existing media.
 
 3. **Wire `FE_Web(Provider)` Messages**
-   - Current status: thread list, message list, and text sending are gateway-backed when signed in.
-   - Remaining: replace fallback mock state entirely, add polling, enrich customer/booking labels, and support real message attachments.
+   - Current status: thread list, message list, text sending, polling, and `conversationId` notification deep links are gateway-backed when signed in.
+   - Remaining: enrich customer/booking labels and support real message attachments.
 
 4. **Wire `FE_Web(Provider)` Help center & profile**
    - Current status: `ProviderHelpCenterPage` lists/creates tickets and lists/posts replies through the gateway.
@@ -242,16 +242,19 @@ These are the **bridges** that have to be built for "one product" feel.
 ### P1 — Closes the customer loop on the web
 
 5. **Customer payment methods + reserve payment on Landing**
-   - New `/account/payment-methods` page + booking flow → `/v1/payments/methods` and `/v1/payments`.
+   - Current status: `AccountPage` lists/adds/removes methods through `/v1/payments/methods`; `BookingDetailPage` reserves payment through `/v1/payments`.
 
 6. **Reviews authoring on Landing**
-   - "Leave a review" button on completed booking → `POST /v1/reviews`.
+   - Current status: completed booking detail shows a review form and calls `/api/reviews`, which proxies `POST /v1/reviews`.
 
 7. **Notifications surface on Landing + FE_Web(Provider)**
-   - Bell drop-down using `/v1/notifications` and the deep-link metadata mobile already writes.
+   - Current status: Landing `AccountPage` lists notifications and marks them read through `/v1/notifications`.
+   - Current status: FE_Web(Provider) bell polls `/v1/notifications`, marks items read, and routes metadata to bookings/help/reviews/messages/earnings.
+   - Current status: Provider help center and messages auto-select `ticketId` / `conversationId` query targets.
+   - Remaining: bookings, reviews, and earnings can optionally auto-select exact ids from the query string.
 
 8. **Provider availability/portfolio on Landing public profile page**
-   - Show open hours and recent media so customers can pick a slot before booking.
+   - Current status: public provider page shows recent media and active availability windows with upcoming unavailable dates.
 
 ### P2 — Backend contracts to unblock current admin UI
 
