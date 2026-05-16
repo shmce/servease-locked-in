@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -52,6 +52,15 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { notifyBackendRequired } from "../utils/backendRequired";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  getAdminBookingsSummary,
+  getAdminUsersSummary,
+  listAdminPayments,
+  AdminBookingsSummaryStats,
+  AdminUsersSummaryStats,
+  AdminPaymentSummary,
+} from "../../services/serveaseAdminApi";
 
 // Revenue Data
 const revenueOverTimeData = [
@@ -192,6 +201,7 @@ function KPICard({ label, value, change, icon: Icon, changeType }: any) {
 }
 
 export function ReportsInsights() {
+  const { accessToken } = useAuth();
   const [activeTab, setActiveTab] = useState("revenue");
   const [dateRange, setDateRange] = useState("last-30-days");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -200,6 +210,22 @@ export function ReportsInsights() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [bookingsSummary, setBookingsSummary] = useState<AdminBookingsSummaryStats | null>(null);
+  const [usersSummary, setUsersSummary] = useState<AdminUsersSummaryStats | null>(null);
+  const [payments, setPayments] = useState<AdminPaymentSummary[]>([]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    Promise.all([
+      getAdminBookingsSummary(accessToken).catch(() => null),
+      getAdminUsersSummary(accessToken).catch(() => null),
+      listAdminPayments(accessToken).catch(() => [] as AdminPaymentSummary[]),
+    ]).then(([bSum, uSum, pays]) => {
+      setBookingsSummary(bSum);
+      setUsersSummary(uSum);
+      setPayments(pays);
+    });
+  }, [accessToken]);
 
   const handleExportCSV = () => {
     notifyBackendRequired(`Exporting ${activeTab} CSV`, `GET /v1/admin/reports/${activeTab}.csv`);
@@ -336,14 +362,24 @@ export function ReportsInsights() {
         {/* REVENUE TAB */}
         <TabsContent value="revenue" className="space-y-6 mt-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-            <KPICard label="Gross Revenue" value="₱2.41M" change="+12.5%" changeType="up" icon={DollarSign} />
-            <KPICard label="Net Revenue" value="₱2.02M" change="+10.8%" changeType="up" icon={TrendingUp} />
-            <KPICard label="Total Commission" value="₱396K" change="+11.2%" changeType="up" icon={DollarSign} />
-            <KPICard label="Refund Amount" value="₱55.1K" change="-8.2%" changeType="down" icon={TrendingUp} />
-            <KPICard label="Completed Bookings" value="2,326" change="+14.2%" changeType="up" icon={CheckCircle} />
-            <KPICard label="Average Order Value" value="₱1,037" change="+5.3%" changeType="up" icon={Package} />
-          </div>
+          {(() => {
+            const grossRevenue = payments.reduce((s, p) => s + p.amount, 0);
+            const commission = payments.reduce((s, p) => s + p.platformFee, 0);
+            const completed = bookingsSummary?.byStatus?.completed ?? 0;
+            const totalRev = bookingsSummary?.totalRevenue ?? grossRevenue;
+            const avgOrder = completed > 0 ? Math.round(totalRev / completed) : 0;
+            const fmtM = (n: number) => n >= 1_000_000 ? `₱${(n / 1_000_000).toFixed(2)}M` : `₱${(n / 1000).toFixed(0)}K`;
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <KPICard label="Gross Revenue" value={fmtM(grossRevenue)} icon={DollarSign} />
+                <KPICard label="Net Revenue" value={fmtM(totalRev)} icon={TrendingUp} />
+                <KPICard label="Total Commission" value={fmtM(commission)} icon={DollarSign} />
+                <KPICard label="Completed Bookings" value={completed.toLocaleString()} icon={CheckCircle} />
+                <KPICard label="Avg Order Value" value={`₱${avgOrder.toLocaleString()}`} icon={Package} />
+                <KPICard label="Total Payments" value={payments.length.toLocaleString()} icon={Star} />
+              </div>
+            );
+          })()}
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -481,14 +517,25 @@ export function ReportsInsights() {
         {/* BOOKING ANALYTICS TAB */}
         <TabsContent value="bookings" className="space-y-6 mt-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-            <KPICard label="Total Bookings" value="2,326" change="+14.2%" changeType="up" icon={Package} />
-            <KPICard label="Completed" value="2,205" change="+15.1%" changeType="up" icon={CheckCircle} />
-            <KPICard label="Cancelled" value="45" change="-12%" changeType="down" icon={Package} />
-            <KPICard label="Completion Rate" value="94.8%" change="+2.1%" changeType="up" icon={TrendingUp} />
-            <KPICard label="Avg Booking Value" value="₱1,037" change="+5.3%" changeType="up" icon={DollarSign} />
-            <KPICard label="Avg Lead Time" value="3.2 days" change="-0.4 days" changeType="down" icon={Clock} />
-          </div>
+          {(() => {
+            const total = bookingsSummary?.totalCount ?? 0;
+            const completed = bookingsSummary?.byStatus?.completed ?? 0;
+            const cancelled = bookingsSummary?.byStatus?.cancelled ?? 0;
+            const rate = total > 0 ? ((completed / total) * 100).toFixed(1) : "0.0";
+            const avgVal = completed > 0
+              ? Math.round((bookingsSummary?.totalRevenue ?? 0) / completed)
+              : 0;
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <KPICard label="Total Bookings" value={total.toLocaleString()} icon={Package} />
+                <KPICard label="Completed" value={completed.toLocaleString()} icon={CheckCircle} />
+                <KPICard label="Cancelled" value={cancelled.toLocaleString()} icon={Package} />
+                <KPICard label="Completion Rate" value={`${rate}%`} icon={TrendingUp} />
+                <KPICard label="Avg Booking Value" value={`₱${avgVal.toLocaleString()}`} icon={DollarSign} />
+                <KPICard label="Recent Bookings" value={(bookingsSummary?.recentCount ?? 0).toLocaleString()} icon={Clock} />
+              </div>
+            );
+          })()}
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -641,14 +688,20 @@ export function ReportsInsights() {
         {/* PROVIDER PERFORMANCE TAB */}
         <TabsContent value="providers" className="space-y-6 mt-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-            <KPICard label="Active Providers" value="1,234" change="+8.3%" changeType="up" icon={Users} />
-            <KPICard label="New Providers" value="67" change="+12%" changeType="up" icon={Users} />
-            <KPICard label="Avg Provider Rating" value="4.82" change="+0.05" changeType="up" icon={Star} />
-            <KPICard label="Acceptance Rate" value="87.3%" change="+2.1%" changeType="up" icon={CheckCircle} />
-            <KPICard label="Completion Rate" value="96.2%" change="+1.8%" changeType="up" icon={CheckCircle} />
-            <KPICard label="Provider Cancellations" value="87" change="-15%" changeType="down" icon={Package} />
-          </div>
+          {(() => {
+            const providerCount = usersSummary?.byRole?.provider ?? 0;
+            const newThisMonth = usersSummary?.newThisMonth ?? 0;
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <KPICard label="Total Providers" value={providerCount.toLocaleString()} icon={Users} />
+                <KPICard label="New This Month" value={newThisMonth.toLocaleString()} icon={Users} />
+                <KPICard label="Active Providers" value={(usersSummary?.byStatus?.active ?? 0).toLocaleString()} icon={CheckCircle} />
+                <KPICard label="Suspended" value={(usersSummary?.byStatus?.suspended ?? 0).toLocaleString()} icon={Package} />
+                <KPICard label="Total Bookings" value={(bookingsSummary?.totalCount ?? 0).toLocaleString()} icon={TrendingUp} />
+                <KPICard label="Completed" value={(bookingsSummary?.byStatus?.completed ?? 0).toLocaleString()} icon={Star} />
+              </div>
+            );
+          })()}
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -796,14 +849,23 @@ export function ReportsInsights() {
         {/* CUSTOMER GROWTH TAB */}
         <TabsContent value="customers" className="space-y-6 mt-6">
           {/* KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-            <KPICard label="New Customers" value="248" change="+18.5%" changeType="up" icon={Users} />
-            <KPICard label="Active Customers" value="2,145" change="+9.2%" changeType="up" icon={Users} />
-            <KPICard label="Repeat Customers" value="918" change="+12.8%" changeType="up" icon={CheckCircle} />
-            <KPICard label="Repeat Rate" value="42.8%" change="+3.2%" changeType="up" icon={TrendingUp} />
-            <KPICard label="Total Bookings" value="5,234" change="+15.6%" changeType="up" icon={Package} />
-            <KPICard label="Total Spend (LTV)" value="₱5.42M" change="+14.3%" changeType="up" icon={DollarSign} />
-          </div>
+          {(() => {
+            const customerCount = usersSummary?.byRole?.customer ?? 0;
+            const activeCustomers = usersSummary?.byStatus?.active ?? 0;
+            const newThisMonth = usersSummary?.newThisMonth ?? 0;
+            const totalSpend = payments.reduce((s, p) => s + p.amount, 0);
+            const fmtM = (n: number) => n >= 1_000_000 ? `₱${(n / 1_000_000).toFixed(2)}M` : `₱${(n / 1000).toFixed(0)}K`;
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <KPICard label="Total Customers" value={customerCount.toLocaleString()} icon={Users} />
+                <KPICard label="Active Customers" value={activeCustomers.toLocaleString()} icon={Users} />
+                <KPICard label="New This Month" value={newThisMonth.toLocaleString()} icon={CheckCircle} />
+                <KPICard label="Total Bookings" value={(bookingsSummary?.totalCount ?? 0).toLocaleString()} icon={Package} />
+                <KPICard label="Total Spend" value={fmtM(totalSpend)} icon={DollarSign} />
+                <KPICard label="Recent Signups" value={(usersSummary?.recentCount ?? 0).toLocaleString()} icon={TrendingUp} />
+              </div>
+            );
+          })()}
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

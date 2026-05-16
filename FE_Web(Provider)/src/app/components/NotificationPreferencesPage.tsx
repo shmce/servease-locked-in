@@ -1,5 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Bell, DollarSign, Settings, Clock, CheckCircle } from 'lucide-react';
+import {
+  getStoredProviderAccessToken,
+  getUserPreferences,
+  updateUserPreferences,
+} from '../../services/serveaseProviderApi';
 
 // Styles object for reusability
 const styles = {
@@ -156,22 +161,56 @@ interface NotificationSettings {
   preferredTime: string;
 }
 
+const defaultNotificationSettings: NotificationSettings = {
+  newBookingRequests: true,
+  bookingConfirmations: true,
+  bookingCancellations: true,
+  bookingModifications: true,
+  customerMessages: true,
+  paymentReceived: true,
+  payoutProcessed: true,
+  promotionalOffers: false,
+  platformUpdates: true,
+  dailySummary: false,
+  preferredTime: '09:00',
+};
+
 export function NotificationPreferencesPage() {
-  const [settings, setSettings] = useState<NotificationSettings>({
-    newBookingRequests: true,
-    bookingConfirmations: true,
-    bookingCancellations: true,
-    bookingModifications: true,
-    customerMessages: true,
-    paymentReceived: true,
-    payoutProcessed: true,
-    promotionalOffers: false,
-    platformUpdates: true,
-    dailySummary: false,
-    preferredTime: '09:00',
-  });
+  const [settings, setSettings] = useState<NotificationSettings>(
+    defaultNotificationSettings,
+  );
 
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      setSaveError('Sign in to load notification preferences from the backend.');
+      return;
+    }
+
+    setIsLoading(true);
+    setSaveError(null);
+
+    void getUserPreferences(token)
+      .then((preferences) => {
+        setSettings((current) => ({
+          ...current,
+          ...readNotificationPreferences(preferences.notificationPreferences),
+        }));
+      })
+      .catch((error) => {
+        setSaveError(
+          error instanceof Error
+            ? error.message
+            : 'Unable to load notification preferences.',
+        );
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
 
   const toggleSetting = (key: keyof NotificationSettings) => {
     if (key === 'preferredTime') return; // Don't toggle time input
@@ -188,13 +227,35 @@ export function NotificationPreferencesPage() {
     }));
   };
 
-  const handleSave = () => {
-    // Here you would typically save to your backend
-    console.log('Saving notification preferences:', settings);
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-    }, 3000);
+  const handleSave = async () => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      setSaveError('Sign in to save notification preferences.');
+      return;
+    }
+
+    setIsLoading(true);
+    setSaveError(null);
+
+    try {
+      await updateUserPreferences(token, {
+        pushNotificationsEnabled: hasEnabledNotification(settings),
+        notificationPreferences: { ...settings },
+      });
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 3000);
+    } catch (error) {
+      setSaveError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to save notification preferences.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
@@ -222,6 +283,16 @@ export function NotificationPreferencesPage() {
         <div style={styles.pageHeader}>
           <h1 style={styles.pageTitle}>Notification Preferences</h1>
           <p style={styles.pageSubtitle}>Manage how you receive updates and alerts from the platform</p>
+          {saveError && (
+            <p style={{ fontSize: '14px', color: '#B91C1C', marginTop: '12px' }}>
+              {saveError}
+            </p>
+          )}
+          {isLoading && (
+            <p style={{ fontSize: '14px', color: '#6B7280', marginTop: '12px' }}>
+              Syncing notification preferences...
+            </p>
+          )}
         </div>
 
         {/* Section 1 - Booking Notifications */}
@@ -407,6 +478,7 @@ export function NotificationPreferencesPage() {
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '32px', marginBottom: '32px' }}>
           <button
             onClick={handleSave}
+            disabled={isLoading}
             style={styles.button}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = '#059669';
@@ -420,7 +492,7 @@ export function NotificationPreferencesPage() {
             }}
           >
             <CheckCircle style={{ width: '18px', height: '18px' }} />
-            <span>Save Preferences</span>
+            <span>{isLoading ? 'Saving...' : 'Save Preferences'}</span>
           </button>
         </div>
 
@@ -450,4 +522,34 @@ export function NotificationPreferencesPage() {
       </style>
     </div>
   );
+}
+
+function readNotificationPreferences(
+  value: Record<string, unknown>,
+): Partial<NotificationSettings> {
+  const next: Partial<NotificationSettings> = {};
+
+  for (const key of Object.keys(defaultNotificationSettings) as Array<
+    keyof NotificationSettings
+  >) {
+    const current = value[key];
+    if (key === 'preferredTime') {
+      if (typeof current === 'string') {
+        next[key] = current;
+      }
+      continue;
+    }
+
+    if (typeof current === 'boolean') {
+      next[key] = current;
+    }
+  }
+
+  return next;
+}
+
+function hasEnabledNotification(settings: NotificationSettings): boolean {
+  return Object.entries(settings).some(([key, value]) => {
+    return key !== 'preferredTime' && value === true;
+  });
 }

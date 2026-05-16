@@ -164,6 +164,39 @@ describe('BookingGatewayService', () => {
     );
     expect(timeline[0]?.eventType).toBe('created');
   });
+
+  it('forwards booking tracking reads with booking visibility ids', async () => {
+    const client = {
+      getTrackingSnapshot: jest.fn().mockResolvedValue({
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        bookingReference: 'SE-ABC123',
+        status: 'in_progress',
+        phase: 'on_the_way',
+        etaMinutes: 18,
+        distanceKm: 5.2,
+        trafficLevel: 'moderate',
+        destinationAddress: '123 Test St',
+        destinationLocation: null,
+        providerLocation: null,
+        scheduledAt: '2026-05-20T08:00:00.000Z',
+        lastUpdatedAt: '2026-05-16T00:00:00.000Z',
+      }),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    const snapshot = await service.getTrackingSnapshot(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      null,
+    );
+
+    expect(client.getTrackingSnapshot).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      null,
+    );
+    expect(snapshot.phase).toBe('on_the_way');
+  });
 });
 
 function createAuthClient(): AuthServiceClient {

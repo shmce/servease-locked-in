@@ -1,5 +1,6 @@
 import { CurrentUserService } from '../current-user/current-user.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
+import { AdminAuditGatewayService } from './admin-audit.service';
 import { AdminPaymentController } from './admin-payment.controller';
 import { AdminPaymentGatewayService } from './admin-payment.service';
 
@@ -12,6 +13,8 @@ describe('AdminPaymentController', () => {
       getCurrentUser: jest.fn().mockResolvedValue({
         user: {
           id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
           role: 'admin',
           status: 'active',
         },
@@ -20,17 +23,23 @@ describe('AdminPaymentController', () => {
     const adminPaymentGatewayService = {
       updatePaymentStatus: jest.fn().mockResolvedValue({
         id: 'payment-1',
+        bookingId: 'booking-1',
         status: 'paid',
       }),
     } as unknown as AdminPaymentGatewayService;
+    const adminAuditGatewayService = {
+      createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+    } as unknown as AdminAuditGatewayService;
     const controller = new AdminPaymentController(
       adminPaymentGatewayService,
+      adminAuditGatewayService,
       authTokenService,
       currentUserService,
     );
 
     const response = await controller.updatePaymentStatus(
       'Bearer token',
+      { headers: {}, socket: {} },
       'payment-1',
       { status: 'paid' },
     );
@@ -51,6 +60,8 @@ describe('AdminPaymentController', () => {
       getCurrentUser: jest.fn().mockResolvedValue({
         user: {
           id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
           role: 'admin',
           status: 'active',
         },
@@ -59,16 +70,25 @@ describe('AdminPaymentController', () => {
     const adminPaymentGatewayService = {
       updatePaymentStatus: jest.fn(),
     } as unknown as AdminPaymentGatewayService;
+    const adminAuditGatewayService = {
+      createAuditLog: jest.fn(),
+    } as unknown as AdminAuditGatewayService;
     const controller = new AdminPaymentController(
       adminPaymentGatewayService,
+      adminAuditGatewayService,
       authTokenService,
       currentUserService,
     );
 
     await expect(
-      controller.updatePaymentStatus('Bearer token', 'payment-1', {
-        status: 'archived',
-      }),
+      controller.updatePaymentStatus(
+        'Bearer token',
+        { headers: {}, socket: {} },
+        'payment-1',
+        {
+          status: 'archived',
+        },
+      ),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
         error: expect.objectContaining({

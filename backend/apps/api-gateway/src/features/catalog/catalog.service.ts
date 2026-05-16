@@ -3,6 +3,8 @@ import { CatalogServiceClient } from './clients/catalog-service.client';
 import {
   CatalogCategory,
   CatalogServiceItem,
+  ProviderOwnedServiceInput,
+  ProviderOwnedServiceSummary,
   ProviderPortfolioMediaInput,
   ProviderPortfolioMediaSummary,
   ProviderServiceListing,
@@ -20,8 +22,11 @@ export class CatalogGatewayService {
     return this.catalogServiceClient.listServices(categoryId);
   }
 
-  listProviderListings(serviceId?: string): Promise<ProviderServiceListing[]> {
-    return this.catalogServiceClient.listProviderListings(serviceId);
+  listProviderListings(
+    serviceId?: string,
+    providerId?: string,
+  ): Promise<ProviderServiceListing[]> {
+    return this.catalogServiceClient.listProviderListings(serviceId, providerId);
   }
 
   listProviderPortfolio(
@@ -39,5 +44,18 @@ export class CatalogGatewayService {
 
   deleteProviderPortfolioMedia(userId: string, mediaId: string): Promise<void> {
     return this.catalogServiceClient.deleteProviderPortfolioMedia(userId, mediaId);
+  }
+
+  listProviderOwnedServices(
+    userId: string,
+  ): Promise<ProviderOwnedServiceSummary[]> {
+    return this.catalogServiceClient.listProviderOwnedServices(userId);
+  }
+
+  replaceProviderOwnedServices(
+    userId: string,
+    services: ProviderOwnedServiceInput[],
+  ): Promise<ProviderOwnedServiceSummary[]> {
+    return this.catalogServiceClient.replaceProviderOwnedServices(userId, services);
   }
 }

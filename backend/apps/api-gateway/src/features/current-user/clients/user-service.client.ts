@@ -3,6 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { ProfileDependencyUnavailableError } from '../current-user.errors';
 import { CustomerProfileSummary } from '../current-user.types';
 import { RegistrationDependencyUnavailableError } from '../../registration/registration.errors';
+import { ReferralDependencyUnavailableError } from '../../referrals/referral.errors';
+import { ReferralSummary } from '../../referrals/referral.types';
+import { UserPreferencesDependencyUnavailableError } from '../../preferences/preference.errors';
+import {
+  UpdateUserPreferencesRequest,
+  UserPreferenceSummary,
+} from '../../preferences/preference.types';
 
 @Injectable()
 export class UserServiceClient {
@@ -75,6 +82,61 @@ export class UserServiceClient {
 
     const payload = (await response.json()) as {
       data: CustomerProfileSummary;
+    };
+    return payload.data;
+  }
+
+  async getReferralSummary(userId: string): Promise<ReferralSummary> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/referral-summary`,
+    );
+
+    if (!response.ok) {
+      throw new ReferralDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: ReferralSummary;
+    };
+    return payload.data;
+  }
+
+  async getUserPreferences(userId: string): Promise<UserPreferenceSummary> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/preferences`,
+    );
+
+    if (!response.ok) {
+      throw new UserPreferencesDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: UserPreferenceSummary;
+    };
+    return payload.data;
+  }
+
+  async updateUserPreferences(
+    userId: string,
+    input: UpdateUserPreferencesRequest,
+  ): Promise<UserPreferenceSummary> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/preferences`,
+      {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(input),
+      },
+    );
+
+    if (!response.ok) {
+      throw new UserPreferencesDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: UserPreferenceSummary;
     };
     return payload.data;
   }

@@ -389,89 +389,7 @@ export function UnifiedBookingsPage() {
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterService, setFilterService] = useState("");
 
-  // Fallback data keeps the Figma flow usable when backend auth is not configured.
-  const mockItems: Item[] = [
-    {
-      id: "1",
-      backendStatus: "pending",
-      customerName: "Maria Santos",
-      serviceType: "Plumbing Repair",
-      date: "March 25, 2024",
-      time: "2:00 PM",
-      location: "123 Quezon Ave, Quezon City",
-      price: 1500,
-      status: "new-requests",
-    },
-    {
-      id: "2",
-      backendStatus: "pending",
-      customerName: "Juan dela Cruz",
-      serviceType: "Pipe Installation",
-      date: "March 26, 2024",
-      time: "10:00 AM",
-      location: "456 Taft Avenue, Manila",
-      price: 3500,
-      status: "new-requests",
-    },
-    {
-      id: "3",
-      backendStatus: "confirmed",
-      customerName: "Anna Reyes",
-      serviceType: "Toilet Repair",
-      date: "March 27, 2024",
-      time: "9:00 AM",
-      location: "789 Rizal Street, Makati",
-      distance: "2.5 km",
-      price: 800,
-      status: "upcoming",
-    },
-    {
-      id: "4",
-      backendStatus: "in_progress",
-      customerName: "Carlos Mendoza",
-      serviceType: "Water Heater Installation",
-      date: "March 24, 2024",
-      time: "1:00 PM",
-      location: "321 EDSA, Pasig City",
-      price: 4200,
-      status: "in-progress",
-    },
-    {
-      id: "5",
-      backendStatus: "completed",
-      customerName: "Sofia Garcia",
-      serviceType: "Drain Cleaning",
-      date: "March 22, 2024",
-      time: "3:00 PM",
-      location: "555 Aurora Blvd, San Juan",
-      price: 600,
-      status: "completed",
-    },
-    {
-      id: "6",
-      backendStatus: "cancelled",
-      customerName: "Roberto Cruz",
-      serviceType: "Pipe Leak Repair",
-      date: "March 21, 2024",
-      time: "11:00 AM",
-      location: "888 Shaw Blvd, Mandaluyong",
-      price: 1000,
-      status: "cancelled",
-    },
-    {
-      id: "7",
-      backendStatus: "rejected",
-      customerName: "Linda Torres",
-      serviceType: "Faucet Installation",
-      date: "March 23, 2024",
-      time: "4:00 PM",
-      location: "999 Ortigas Ave, Pasig",
-      price: 750,
-      status: "declined",
-    },
-  ];
-
-  const [items, setItems] = useState<Item[]>(mockItems);
+  const [items, setItems] = useState<Item[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
@@ -481,6 +399,7 @@ export function UnifiedBookingsPage() {
       const token = getStoredProviderAccessToken();
 
       if (!token) {
+        setError("Sign in to load provider bookings from the backend.");
         return;
       }
 
@@ -575,7 +494,6 @@ export function UnifiedBookingsPage() {
   const transitionItem = async (
     itemId: string,
     nextStatus: BookingStatus,
-    fallbackTab: TabType,
   ) => {
     const item = items.find((item) => item.id === itemId);
 
@@ -588,30 +506,20 @@ export function UnifiedBookingsPage() {
     setError(null);
 
     try {
-      if (token) {
-        const booking = await updateProviderBookingStatus(
-          token,
-          itemId,
-          item.backendStatus,
-          nextStatus,
-        );
-        const updatedItem = toItem(booking);
-        setItems((prev) =>
-          prev.map((current) => (current.id === itemId ? updatedItem : current)),
-        );
-      } else {
-        setItems((prev) =>
-          prev.map((current) =>
-            current.id === itemId
-              ? {
-                  ...current,
-                  backendStatus: nextStatus,
-                  status: fallbackTab,
-                }
-              : current,
-          ),
-        );
+      if (!token) {
+        throw new Error("Sign in to update bookings through the backend.");
       }
+
+      const booking = await updateProviderBookingStatus(
+        token,
+        itemId,
+        item.backendStatus,
+        nextStatus,
+      );
+      const updatedItem = toItem(booking);
+      setItems((prev) =>
+        prev.map((current) => (current.id === itemId ? updatedItem : current)),
+      );
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Unable to update booking status.",
@@ -623,12 +531,12 @@ export function UnifiedBookingsPage() {
 
   const handleAccept = (itemId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    void transitionItem(itemId, "confirmed", "upcoming");
+    void transitionItem(itemId, "confirmed");
   };
 
   const handleReject = (itemId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    void transitionItem(itemId, "rejected", "declined");
+    void transitionItem(itemId, "rejected");
   };
 
   const renderCard = (item: Item) => {

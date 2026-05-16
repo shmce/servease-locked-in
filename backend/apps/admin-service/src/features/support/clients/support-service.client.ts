@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SupportTicketSummary } from '../admin-support.types';
+import { SupportTicketReplySummary, SupportTicketSummary } from '../admin-support.types';
 
 @Injectable()
 export class SupportServiceClient {
@@ -17,22 +17,47 @@ export class SupportServiceClient {
     );
   }
 
-  updateTicketStatus(
-    ticketId: string,
-    status: string,
-  ): Promise<SupportTicketSummary> {
+  getTicket(ticketId: string): Promise<SupportTicketSummary> {
+    return this.request<SupportTicketSummary>(
+      `/internal/admin/support/tickets/${ticketId}`,
+      'GET',
+    );
+  }
+
+  updateTicketStatus(ticketId: string, status: string): Promise<SupportTicketSummary> {
     return this.request<SupportTicketSummary>(
       `/internal/admin/support/tickets/${ticketId}/status`,
       'PATCH',
-      {
-        status,
-      },
+      { status },
+    );
+  }
+
+  listReplies(ticketId: string): Promise<SupportTicketReplySummary[]> {
+    return this.request<SupportTicketReplySummary[]>(
+      `/internal/admin/support/tickets/${ticketId}/replies`,
+      'GET',
+    );
+  }
+
+  addReply(ticketId: string, repliedBy: string, message: string): Promise<SupportTicketReplySummary> {
+    return this.request<SupportTicketReplySummary>(
+      `/internal/admin/support/tickets/${ticketId}/replies`,
+      'POST',
+      { repliedBy, message },
+    );
+  }
+
+  assignTicket(ticketId: string, assigneeId: string | null): Promise<SupportTicketSummary> {
+    return this.request<SupportTicketSummary>(
+      `/internal/admin/support/tickets/${ticketId}/assignee`,
+      'PATCH',
+      { assigneeId },
     );
   }
 
   private async request<T>(
     path: string,
-    method: 'GET' | 'PATCH',
+    method: 'GET' | 'PATCH' | 'POST',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(

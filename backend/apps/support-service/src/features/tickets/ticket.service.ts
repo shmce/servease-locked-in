@@ -31,6 +31,14 @@ export class SupportTicketService {
     });
   }
 
+  async getTicket(userId: string, ticketId: string): Promise<SupportTicketSummary> {
+    if (!userId || !ticketId) {
+      throw new InvalidSupportTicketRequestError();
+    }
+
+    return this.ticketRepository.getTicket(userId, ticketId);
+  }
+
   async listTickets(userId: string): Promise<SupportTicketSummary[]> {
     if (!userId) {
       throw new InvalidSupportTicketRequestError();

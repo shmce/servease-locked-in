@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -12,86 +12,83 @@ import {
   TableRow,
 } from "../components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
-import {
   DollarSign,
   TrendingUp,
   Clock,
   CheckCircle,
   Search,
-  CreditCard,
   Eye,
 } from "lucide-react";
-import { useData } from "../../contexts/DataContext";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  listAdminManagedProviders,
+  listAdminPayouts,
+  AdminProviderSummary,
+  AdminPayoutSummary,
+} from "../../services/serveaseAdminApi";
 
 export function ProviderEarnings() {
-  const { serviceProviders, calculateProviderEarnings, getCategoryById, getBookingsByProvider } = useData();
+  const { accessToken } = useAuth();
+  const [providers, setProviders] = useState<AdminProviderSummary[]>([]);
+  const [payouts, setPayouts] = useState<AdminPayoutSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (!accessToken) return;
+    Promise.all([
+      listAdminManagedProviders(accessToken).catch(() => [] as AdminProviderSummary[]),
+      listAdminPayouts(accessToken).catch(() => [] as AdminPayoutSummary[]),
+    ]).then(([provs, pays]) => {
+      setProviders(provs);
+      setPayouts(pays);
+    });
+  }, [accessToken]);
+
+  const payoutsByProvider = useMemo(() => {
+    const map = new Map<string, AdminPayoutSummary[]>();
+    for (const p of payouts) {
+      const existing = map.get(p.providerId) ?? [];
+      map.set(p.providerId, [...existing, p]);
+    }
+    return map;
+  }, [payouts]);
 
   const providerEarningsData = useMemo(() => {
-    return serviceProviders.map((provider) => {
-      const earnings = calculateProviderEarnings(provider.id);
-      const category = getCategoryById(provider.categoryId);
-      const bookings = getBookingsByProvider(provider.id);
-      const completedBookings = bookings.filter((b) => b.status === "Completed");
-
-      return {
-        provider,
-        earnings,
-        category: category?.name || "N/A",
-        completedBookingsCount: completedBookings.length,
-      };
+    return providers.map((provider) => {
+      const provPayouts = payoutsByProvider.get(provider.id) ?? [];
+      const totalEarnings = provPayouts.reduce((s, p) => s + p.amount, 0);
+      const pendingEarnings = provPayouts
+        .filter((p) => p.status === "requested")
+        .reduce((s, p) => s + p.amount, 0);
+      const paidEarnings = provPayouts
+        .filter((p) => p.status === "paid")
+        .reduce((s, p) => s + p.amount, 0);
+      const lastPayout = provPayouts
+        .filter((p) => p.paidAt)
+        .sort((a, b) => new Date(b.paidAt!).getTime() - new Date(a.paidAt!).getTime())[0]
+        ?.paidAt ?? null;
+      return { provider, totalEarnings, pendingEarnings, paidEarnings, lastPayout };
     });
-  }, [serviceProviders, calculateProviderEarnings, getCategoryById, getBookingsByProvider]);
+  }, [providers, payoutsByProvider]);
 
-  const filteredProviders = useMemo(() => {
+  const filteredData = useMemo(() => {
     return providerEarningsData.filter((item) => {
-      const matchesSearch =
-        item.provider.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.provider.id.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesCategory =
-        categoryFilter === "all" || item.provider.categoryId === categoryFilter;
-
-      return matchesSearch && matchesCategory;
+      return (
+        (item.provider.businessName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.provider.id.toLowerCase().includes(searchTerm.toLowerCase())
+      );
     });
-  }, [providerEarningsData, searchTerm, categoryFilter]);
+  }, [providerEarningsData, searchTerm]);
 
-  const stats = useMemo(() => {
-    const totalEarnings = providerEarningsData.reduce(
-      (sum, item) => sum + item.earnings.totalEarnings,
-      0
-    );
-    const totalPending = providerEarningsData.reduce(
-      (sum, item) => sum + item.earnings.pendingEarnings,
-      0
-    );
-    const totalPaid = providerEarningsData.reduce(
-      (sum, item) => sum + item.earnings.paidEarnings,
-      0
-    );
-    const totalBookings = providerEarningsData.reduce(
-      (sum, item) => sum + item.earnings.totalBookings,
-      0
-    );
+  const totalEarnings = payouts.reduce((s, p) => s + p.amount, 0);
+  const totalPending = payouts.filter((p) => p.status === "requested").reduce((s, p) => s + p.amount, 0);
+  const totalPaid = payouts.filter((p) => p.status === "paid").reduce((s, p) => s + p.amount, 0);
+  const totalPayoutCount = payouts.length;
 
-    return {
-      totalEarnings,
-      totalPending,
-      totalPaid,
-      totalBookings,
-    };
-  }, [providerEarningsData]);
+  const fmt = (n: number) => `₱${(n / 1000).toFixed(1)}K`;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Service Provider Earnings</h1>
         <p className="text-gray-500 mt-1">
@@ -106,9 +103,7 @@ export function ProviderEarnings() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">Total Earnings</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  ₱{(stats.totalEarnings / 1000).toFixed(1)}K
-                </p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{fmt(totalEarnings)}</p>
                 <p className="text-xs text-gray-400 mt-1">All providers</p>
               </div>
               <div className="p-3 rounded-lg bg-[#DCFCE7]">
@@ -122,11 +117,9 @@ export function ProviderEarnings() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Pending Earnings</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  ₱{(stats.totalPending / 1000).toFixed(1)}K
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Not yet paid</p>
+                <p className="text-sm text-gray-500">Pending Payouts</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{fmt(totalPending)}</p>
+                <p className="text-xs text-gray-400 mt-1">Awaiting processing</p>
               </div>
               <div className="p-3 rounded-lg bg-yellow-50">
                 <Clock className="w-6 h-6 text-yellow-600" />
@@ -139,11 +132,9 @@ export function ProviderEarnings() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Paid Earnings</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
-                  ₱{(stats.totalPaid / 1000).toFixed(1)}K
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Already settled</p>
+                <p className="text-sm text-gray-500">Paid Out</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{fmt(totalPaid)}</p>
+                <p className="text-xs text-gray-400 mt-1">Successfully settled</p>
               </div>
               <div className="p-3 rounded-lg bg-[#DCFCE7]">
                 <CheckCircle className="w-6 h-6 text-[#16A34A]" />
@@ -156,9 +147,9 @@ export function ProviderEarnings() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Bookings</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalBookings}</p>
-                <p className="text-xs text-gray-400 mt-1">Completed</p>
+                <p className="text-sm text-gray-500">Total Payouts</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{totalPayoutCount}</p>
+                <p className="text-xs text-gray-400 mt-1">All-time transactions</p>
               </div>
               <div className="p-3 rounded-lg bg-blue-50">
                 <TrendingUp className="w-6 h-6 text-blue-600" />
@@ -168,107 +159,81 @@ export function ProviderEarnings() {
         </Card>
       </div>
 
-      {/* Filters and Table */}
+      {/* Table */}
       <Card>
         <CardHeader>
           <CardTitle>Provider Earnings Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {/* Search */}
-            <div className="relative">
+          <div className="mb-6">
+            <div className="relative max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="Search by provider name or ID..."
+                placeholder="Search by provider name or ID…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
               />
             </div>
-
-            {/* Category Filter */}
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="CAT-001">Home Maintenance & Repair</SelectItem>
-                <SelectItem value="CAT-002">Beauty, Wellness & Personal Care</SelectItem>
-                <SelectItem value="CAT-003">Domestic & Cleaning Services</SelectItem>
-                <SelectItem value="CAT-004">Pet Services</SelectItem>
-                <SelectItem value="CAT-005">Events & Entertainment</SelectItem>
-                <SelectItem value="CAT-006">Automotive & Tech Support</SelectItem>
-                <SelectItem value="CAT-007">Education & Professional Services</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
-          {/* Table */}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Provider ID</TableHead>
-                  <TableHead>Business Name</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Service Area</TableHead>
                   <TableHead>Total Earnings</TableHead>
-                  <TableHead>Pending Earnings</TableHead>
-                  <TableHead>Paid Earnings</TableHead>
-                  <TableHead>Completed Bookings</TableHead>
+                  <TableHead>Pending</TableHead>
+                  <TableHead>Paid</TableHead>
+                  <TableHead>Reviews</TableHead>
                   <TableHead>Last Payout</TableHead>
                   <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredProviders.length === 0 ? (
+                {filteredData.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       No providers found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredProviders.map(({ provider, earnings, category, completedBookingsCount }) => (
+                  filteredData.map(({ provider, totalEarnings, pendingEarnings, paidEarnings, lastPayout }) => (
                     <TableRow key={provider.id}>
                       <TableCell>
-                        <span className="font-mono font-semibold text-[#16A34A]">
-                          {provider.id}
-                        </span>
-                      </TableCell>
-                      <TableCell>
                         <div>
-                          <p className="font-medium text-gray-900">{provider.businessName}</p>
-                          <p className="text-xs text-gray-500">{provider.contactPerson}</p>
+                          <p className="font-medium text-gray-900">{provider.businessName ?? "—"}</p>
+                          <p className="text-xs text-gray-500 font-mono">{provider.id.slice(0, 8)}…</p>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm text-gray-600">{category}</span>
+                        <span className="text-sm text-gray-600">{provider.serviceArea ?? "—"}</span>
                       </TableCell>
                       <TableCell>
                         <span className="font-bold text-gray-900">
-                          ₱{earnings.totalEarnings.toLocaleString()}
+                          ₱{totalEarnings.toLocaleString()}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="font-semibold text-yellow-600">
-                          ₱{earnings.pendingEarnings.toLocaleString()}
+                          ₱{pendingEarnings.toLocaleString()}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="font-semibold text-[#16A34A]">
-                          ₱{earnings.paidEarnings.toLocaleString()}
+                          ₱{paidEarnings.toLocaleString()}
                         </span>
                       </TableCell>
                       <TableCell>
                         <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                          {completedBookingsCount} bookings
+                          {provider.reviewCount} reviews
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {earnings.lastPayoutDate ? (
+                        {lastPayout ? (
                           <span className="text-sm text-gray-600">
-                            {new Date(earnings.lastPayoutDate).toLocaleDateString("en-US", {
+                            {new Date(lastPayout).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               year: "numeric",

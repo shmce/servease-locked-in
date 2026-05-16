@@ -59,7 +59,7 @@ describe('SupabaseCatalogBrowseRepository', () => {
     });
   });
 
-  it('maps provider listing summaries', async () => {
+  it('forwards filters and maps provider listing summaries', async () => {
     const rpc = jest.fn().mockResolvedValue({
       data: [
         {
@@ -81,7 +81,10 @@ describe('SupabaseCatalogBrowseRepository', () => {
     const repository = new SupabaseCatalogBrowseRepository({ rpc });
 
     await expect(
-      repository.listProviderListings('14e09a89-b7ad-483b-bfb6-6c49d8923197'),
+      repository.listProviderListings(
+        '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      ),
     ).resolves.toEqual([
       {
         id: '416dbd36-967d-43f8-9ca7-e0fa0441a1fa',
@@ -97,5 +100,9 @@ describe('SupabaseCatalogBrowseRepository', () => {
         verificationStatus: 'approved',
       },
     ]);
+    expect(rpc).toHaveBeenCalledWith('servease_list_provider_service_listings', {
+      p_service_id: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+      p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    });
   });
 });

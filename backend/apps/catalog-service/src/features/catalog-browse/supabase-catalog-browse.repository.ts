@@ -94,11 +94,15 @@ export class SupabaseCatalogBrowseRepository {
     }));
   }
 
-  async listProviderListings(serviceId?: string): Promise<ProviderServiceListing[]> {
+  async listProviderListings(
+    serviceId?: string,
+    providerId?: string,
+  ): Promise<ProviderServiceListing[]> {
     const { data, error } = await this.client.rpc(
       'servease_list_provider_service_listings',
       {
         p_service_id: serviceId ?? null,
+        p_provider_id: providerId ?? null,
       },
     );
 

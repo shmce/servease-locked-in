@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ReviewDependencyUnavailableError } from '../review.errors';
-import { CreateReviewRequest, ReviewSummary } from '../review.types';
+import { CreateReviewRequest, ReviewResponseSummary, ReviewSummary } from '../review.types';
 
 @Injectable()
 export class ReviewServiceClient {
@@ -15,6 +15,30 @@ export class ReviewServiceClient {
     return this.request<ReviewSummary[]>(
       `/internal/reviews?providerId=${encodeURIComponent(providerId)}`,
       'GET',
+    );
+  }
+
+  createReviewResponse(
+    reviewId: string,
+    providerId: string,
+    responseText: string,
+  ): Promise<ReviewResponseSummary> {
+    return this.request<ReviewResponseSummary>(
+      `/internal/reviews/${encodeURIComponent(reviewId)}/reply`,
+      'POST',
+      { providerId, responseText },
+    );
+  }
+
+  flagReview(
+    reviewId: string,
+    reporterId: string,
+    reason: string,
+  ): Promise<ReviewSummary> {
+    return this.request<ReviewSummary>(
+      `/internal/reviews/${encodeURIComponent(reviewId)}/flag`,
+      'POST',
+      { reporterId, reason },
     );
   }
 

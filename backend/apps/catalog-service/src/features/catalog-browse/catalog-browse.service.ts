@@ -20,7 +20,13 @@ export class CatalogBrowseService {
     return this.catalogBrowseRepository.listServices(categoryId);
   }
 
-  listProviderListings(serviceId?: string): Promise<ProviderServiceListing[]> {
-    return this.catalogBrowseRepository.listProviderListings(serviceId);
+  listProviderListings(
+    serviceId?: string,
+    providerId?: string,
+  ): Promise<ProviderServiceListing[]> {
+    return this.catalogBrowseRepository.listProviderListings(
+      serviceId,
+      providerId,
+    );
   }
 }

@@ -1,5 +1,6 @@
 import { CurrentUserService } from '../current-user/current-user.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
+import { AdminAuditGatewayService } from './admin-audit.service';
 import { AdminSupportController } from './admin-support.controller';
 import { AdminSupportGatewayService } from './admin-support.service';
 
@@ -12,6 +13,8 @@ describe('AdminSupportController', () => {
       getCurrentUser: jest.fn().mockResolvedValue({
         user: {
           id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
           role: 'admin',
           status: 'active',
         },
@@ -23,14 +26,19 @@ describe('AdminSupportController', () => {
         status: 'resolved',
       }),
     } as unknown as AdminSupportGatewayService;
+    const adminAuditGatewayService = {
+      createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+    } as unknown as AdminAuditGatewayService;
     const controller = new AdminSupportController(
       adminSupportGatewayService,
+      adminAuditGatewayService,
       authTokenService,
       currentUserService,
     );
 
     const response = await controller.updateTicketStatus(
       'Bearer token',
+      { headers: {}, socket: {} },
       'ticket-1',
       { status: 'resolved' },
     );
@@ -51,6 +59,8 @@ describe('AdminSupportController', () => {
       getCurrentUser: jest.fn().mockResolvedValue({
         user: {
           id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
           role: 'admin',
           status: 'active',
         },
@@ -59,16 +69,25 @@ describe('AdminSupportController', () => {
     const adminSupportGatewayService = {
       updateTicketStatus: jest.fn(),
     } as unknown as AdminSupportGatewayService;
+    const adminAuditGatewayService = {
+      createAuditLog: jest.fn(),
+    } as unknown as AdminAuditGatewayService;
     const controller = new AdminSupportController(
       adminSupportGatewayService,
+      adminAuditGatewayService,
       authTokenService,
       currentUserService,
     );
 
     await expect(
-      controller.updateTicketStatus('Bearer token', 'ticket-1', {
-        status: 'waiting',
-      }),
+      controller.updateTicketStatus(
+        'Bearer token',
+        { headers: {}, socket: {} },
+        'ticket-1',
+        {
+          status: 'waiting',
+        },
+      ),
     ).rejects.toMatchObject({
       response: expect.objectContaining({
         error: expect.objectContaining({

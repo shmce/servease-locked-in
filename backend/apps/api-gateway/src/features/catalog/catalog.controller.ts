@@ -66,11 +66,16 @@ export class CatalogController {
   @Get('providers')
   async providers(
     @Query('serviceId') serviceId?: string,
+    @Query('providerId') providerId?: string,
   ): Promise<{ data: ProviderServiceListing[] }> {
     try {
       this.validateOptionalUuid(serviceId);
+      this.validateOptionalUuid(providerId);
       return {
-        data: await this.catalogGatewayService.listProviderListings(serviceId),
+        data: await this.catalogGatewayService.listProviderListings(
+          serviceId,
+          providerId,
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);

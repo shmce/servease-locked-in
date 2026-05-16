@@ -7,6 +7,18 @@ import {
   USER_REPOSITORY,
 } from './features/internal-user/internal-user.service';
 import { SupabaseUserRepository } from './features/internal-user/supabase-user.repository';
+import { PasswordResetController } from './features/password-reset/password-reset.controller';
+import {
+  PASSWORD_RESET_REPOSITORY,
+  PasswordResetService,
+} from './features/password-reset/password-reset.service';
+import { SupabasePasswordResetRepository } from './features/password-reset/supabase-password-reset.repository';
+import { PasswordChangeController } from './features/password-change/password-change.controller';
+import {
+  PASSWORD_CHANGE_REPOSITORY,
+  PasswordChangeService,
+} from './features/password-change/password-change.service';
+import { SupabasePasswordChangeRepository } from './features/password-change/supabase-password-change.repository';
 import { RegistrationController } from './features/registration/registration.controller';
 import {
   REGISTRATION_REPOSITORY,
@@ -16,10 +28,18 @@ import { SupabaseRegistrationRepository } from './features/registration/supabase
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
-  controllers: [HealthController, InternalUserController, RegistrationController],
+  controllers: [
+    HealthController,
+    InternalUserController,
+    RegistrationController,
+    PasswordResetController,
+    PasswordChangeController,
+  ],
   providers: [
     InternalUserService,
     RegistrationService,
+    PasswordResetService,
+    PasswordChangeService,
     {
       provide: USER_REPOSITORY,
       useFactory: () => new SupabaseUserRepository(),
@@ -27,6 +47,14 @@ import { SupabaseRegistrationRepository } from './features/registration/supabase
     {
       provide: REGISTRATION_REPOSITORY,
       useFactory: () => new SupabaseRegistrationRepository(),
+    },
+    {
+      provide: PASSWORD_RESET_REPOSITORY,
+      useFactory: () => new SupabasePasswordResetRepository(),
+    },
+    {
+      provide: PASSWORD_CHANGE_REPOSITORY,
+      useFactory: () => new SupabasePasswordChangeRepository(),
     },
   ],
 })

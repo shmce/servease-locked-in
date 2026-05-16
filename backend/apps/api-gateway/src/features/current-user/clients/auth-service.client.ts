@@ -12,10 +12,22 @@ import {
 } from '../current-user.errors';
 import {
   InvalidRegistrationRequestError,
+  InvalidPasswordResetRequestError,
+  InvalidPasswordChangeRequestError,
+  PasswordChangeDependencyUnavailableError,
+  PasswordResetDependencyUnavailableError,
   RegistrationConflictError,
   RegistrationDependencyUnavailableError,
 } from '../../registration/registration.errors';
-import { RegisterAccountRequest } from '../../registration/registration.types';
+import {
+  PasswordResetRequest,
+  PasswordResetResponse,
+  RegisterAccountRequest,
+} from '../../registration/registration.types';
+import {
+  UpdateCurrentUserPasswordInput,
+  UpdateCurrentUserPasswordResponse,
+} from '../current-user.types';
 
 @Injectable()
 export class AuthServiceClient {
@@ -88,6 +100,64 @@ export class AuthServiceClient {
     if (!response.ok) {
       throw new RegistrationDependencyUnavailableError();
     }
+  }
+
+  async requestPasswordReset(
+    input: PasswordResetRequest,
+  ): Promise<PasswordResetResponse> {
+    const response = await fetch(`${this.baseUrl()}/internal/auth/password-reset`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: input.email,
+        redirectTo: input.redirectTo ?? null,
+      }),
+    });
+
+    if (!response.ok) {
+      const code = await this.readErrorCode(response);
+      if (code === 'invalid_password_reset_request') {
+        throw new InvalidPasswordResetRequestError();
+      }
+      throw new PasswordResetDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as { data: PasswordResetResponse };
+    return payload.data;
+  }
+
+  async updatePassword(
+    userId: string,
+    email: string,
+    input: UpdateCurrentUserPasswordInput,
+  ): Promise<UpdateCurrentUserPasswordResponse> {
+    const response = await fetch(`${this.baseUrl()}/internal/auth/password-change`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        userId,
+        email,
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+      }),
+    });
+
+    if (!response.ok) {
+      const code = await this.readErrorCode(response);
+      if (code === 'invalid_password_change_request') {
+        throw new InvalidPasswordChangeRequestError();
+      }
+      throw new PasswordChangeDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: UpdateCurrentUserPasswordResponse;
+    };
+    return payload.data;
   }
 
   async updateUser(

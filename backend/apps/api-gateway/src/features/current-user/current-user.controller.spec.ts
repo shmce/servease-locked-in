@@ -104,4 +104,33 @@ describe('CurrentUserController', () => {
       },
     );
   });
+
+  it('uses the bearer token to update the current user password', async () => {
+    const currentUserService = {
+      updateCurrentUserPassword: jest.fn().mockResolvedValue({ ok: true }),
+    } as unknown as CurrentUserService;
+    const authTokenService = {
+      authenticate: jest
+        .fn()
+        .mockResolvedValue('9b6ed52b-8a97-4b89-b6a8-364c65f8736b'),
+    } as unknown as AuthTokenService;
+    const controller = new CurrentUserController(
+      currentUserService,
+      authTokenService,
+    );
+
+    await expect(
+      controller.updatePassword('Bearer valid-token', {
+        currentPassword: 'OldPassword#2026',
+        newPassword: 'NewPassword#2026',
+      }),
+    ).resolves.toEqual({ data: { ok: true } });
+    expect(currentUserService.updateCurrentUserPassword).toHaveBeenCalledWith(
+      '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      {
+        currentPassword: 'OldPassword#2026',
+        newPassword: 'NewPassword#2026',
+      },
+    );
+  });
 });

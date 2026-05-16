@@ -141,6 +141,11 @@ describe('BookingServiceClient', () => {
         null,
         'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
       );
+      await client.getTrackingSnapshot(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        null,
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      );
 
       expect(fetchMock).toHaveBeenNthCalledWith(
         1,
@@ -172,6 +177,17 @@ describe('BookingServiceClient', () => {
       expect(fetchMock).toHaveBeenNthCalledWith(
         3,
         'http://booking-service.test/internal/bookings/0ec2c525-63e0-4a39-9f81-60b8585f45dc/timeline?providerId=b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        {
+          method: 'GET',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: undefined,
+        },
+      );
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        4,
+        'http://booking-service.test/internal/bookings/0ec2c525-63e0-4a39-9f81-60b8585f45dc/tracking?providerId=b60d73f9-a5f2-41bb-90c7-7272c6af8821',
         {
           method: 'GET',
           headers: {

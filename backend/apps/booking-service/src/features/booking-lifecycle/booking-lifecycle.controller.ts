@@ -22,6 +22,7 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingSnapshot,
   CreateBookingServiceUpdateInput,
   CreateBookingInput,
 } from './booking.types';
@@ -49,6 +50,25 @@ export class BookingLifecycleController {
     try {
       return {
         data: await this.bookingLifecycleService.listBookings(
+          customerId ?? null,
+          providerId ?? null,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':bookingId/tracking')
+  async tracking(
+    @Param('bookingId') bookingId: string,
+    @Query('customerId') customerId?: string,
+    @Query('providerId') providerId?: string,
+  ): Promise<{ data: BookingTrackingSnapshot }> {
+    try {
+      return {
+        data: await this.bookingLifecycleService.getTrackingSnapshot(
+          bookingId,
           customerId ?? null,
           providerId ?? null,
         ),

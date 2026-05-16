@@ -36,6 +36,7 @@ type AuthScreensProps = {
   navigate: (screen: AppScreen, nextRole?: AppRole | null) => void;
   signIn: (role: AppRole) => Promise<void>;
   signUp: (role: AppRole) => Promise<void>;
+  requestPasswordReset: () => Promise<void>;
 };
 
 export function AuthScreens({
@@ -62,6 +63,7 @@ export function AuthScreens({
   navigate,
   signIn,
   signUp,
+  requestPasswordReset,
 }: AuthScreensProps) {
   const [isAgreed, setIsAgreed] = useState(false);
 
@@ -230,9 +232,9 @@ export function AuthScreens({
           />
           <Text
             style={styles.forgotLink}
-            onPress={() => setNotice('Password reset is not connected to the backend yet.')}
+            onPress={() => void requestPasswordReset()}
           >
-            Forgot Password?
+            {busyAction === 'password-reset' ? 'Sending reset link...' : 'Forgot Password?'}
           </Text>
           <View style={styles.dividerRow}>
             <View style={styles.divider} />

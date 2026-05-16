@@ -1,13 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../app/contexts/AuthContext";
 import {
+  getAdminBookingsSummary,
+  getAdminOperationsAlerts,
+  getAdminUsersSummary,
+  listAdminDisputes,
   listAdminPayments,
   listAdminSupportTickets,
   listCatalogCategories,
   listCatalogServices,
   listProviderListings,
+  type AdminBookingsSummaryStats,
+  type AdminDisputeSummary,
+  type AdminOperationsAlerts,
   type AdminPaymentSummary,
   type AdminSupportTicketSummary,
+  type AdminUsersSummaryStats,
   type CatalogCategory,
   type CatalogServiceItem,
   type ProviderServiceListing,
@@ -15,20 +23,28 @@ import {
 
 interface AdminGatewayData {
   payments: AdminPaymentSummary[];
+  disputes: AdminDisputeSummary[];
   supportTickets: AdminSupportTicketSummary[];
   categories: CatalogCategory[];
   services: CatalogServiceItem[];
   providerListings: ProviderServiceListing[];
+  bookingsSummary: AdminBookingsSummaryStats | null;
+  usersSummary: AdminUsersSummaryStats | null;
+  operationsAlerts: AdminOperationsAlerts | null;
 }
 
 type LoadKey = keyof AdminGatewayData;
 
 const emptyData: AdminGatewayData = {
   payments: [],
+  disputes: [],
   supportTickets: [],
   categories: [],
   services: [],
   providerListings: [],
+  bookingsSummary: null,
+  usersSummary: null,
+  operationsAlerts: null,
 };
 
 export function useAdminGatewayData() {
@@ -49,9 +65,19 @@ export function useAdminGatewayData() {
         services: listCatalogServices(),
         providerListings: listProviderListings(),
         payments: accessToken ? listAdminPayments(accessToken) : Promise.resolve([]),
+        disputes: accessToken ? listAdminDisputes(accessToken) : Promise.resolve([]),
         supportTickets: accessToken
           ? listAdminSupportTickets(accessToken)
           : Promise.resolve([]),
+        bookingsSummary: accessToken
+          ? getAdminBookingsSummary(accessToken)
+          : Promise.resolve(null),
+        usersSummary: accessToken
+          ? getAdminUsersSummary(accessToken)
+          : Promise.resolve(null),
+        operationsAlerts: accessToken
+          ? getAdminOperationsAlerts(accessToken)
+          : Promise.resolve(null),
       } satisfies Record<LoadKey, Promise<AdminGatewayData[LoadKey]>>;
 
       const nextData: AdminGatewayData = { ...emptyData };
@@ -122,10 +148,22 @@ export function useAdminGatewayData() {
       exceptionPaymentCount: exceptionPayments.length,
       supportTicketCount: data.supportTickets.length,
       openSupportTicketCount: openTickets.length,
+      disputeCount: data.disputes.length,
+      openDisputeCount: data.disputes.filter((dispute) => dispute.status === "open")
+        .length,
       categoryCount: data.categories.length,
       serviceCount: data.services.length,
       providerListingCount: data.providerListings.length,
       approvedProviderListingCount: approvedProviderListings.length,
+      totalBookings: data.bookingsSummary?.totalCount ?? 0,
+      bookingsByStatus: data.bookingsSummary?.byStatus ?? null,
+      bookingsRevenue: data.bookingsSummary?.totalRevenue ?? 0,
+      recentBookings: data.bookingsSummary?.recentCount ?? 0,
+      totalUsers: data.usersSummary?.totalCount ?? 0,
+      usersByRole: data.usersSummary?.byRole ?? null,
+      usersByStatus: data.usersSummary?.byStatus ?? null,
+      newUsersThisMonth: data.usersSummary?.newThisMonth ?? 0,
+      operationsAlerts: data.operationsAlerts,
     };
   }, [data]);
 

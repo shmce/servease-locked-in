@@ -29,9 +29,13 @@ export class CatalogBrowseController {
   @Get('providers')
   async providers(
     @Query('serviceId') serviceId?: string,
+    @Query('providerId') providerId?: string,
   ): Promise<{ data: ProviderServiceListing[] }> {
     return {
-      data: await this.catalogBrowseService.listProviderListings(serviceId),
+      data: await this.catalogBrowseService.listProviderListings(
+        serviceId,
+        providerId,
+      ),
     };
   }
 }

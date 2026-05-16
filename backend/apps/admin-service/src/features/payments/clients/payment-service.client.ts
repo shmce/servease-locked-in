@@ -1,10 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PaymentSummary } from '../admin-payment.types';
+import {
+  PaymentSummary,
+  CommissionRuleSummary,
+  PromotionSummary,
+  PayoutSummary,
+  RefundSummary,
+  UpsertPromotionRequest,
+  UpdateCommissionRuleRequest,
+} from '../admin-payment.types';
 
 @Injectable()
 export class PaymentServiceClient {
   constructor(private readonly configService: ConfigService) {}
+
+  getPayment(paymentId: string): Promise<PaymentSummary> {
+    return this.request<PaymentSummary>(
+      `/internal/admin/payments/${paymentId}`,
+      'GET',
+    );
+  }
 
   listPayments(status?: string | null): Promise<PaymentSummary[]> {
     const searchParams = new URLSearchParams();
@@ -30,9 +45,129 @@ export class PaymentServiceClient {
     );
   }
 
+  listPromotions(status?: string | null): Promise<PromotionSummary[]> {
+    const searchParams = new URLSearchParams();
+    if (status) {
+      searchParams.set('status', status);
+    }
+    return this.request<PromotionSummary[]>(
+      `/internal/admin/payments/promotions?${searchParams.toString()}`,
+      'GET',
+    );
+  }
+
+  createPromotion(input: UpsertPromotionRequest): Promise<PromotionSummary> {
+    return this.request<PromotionSummary>(
+      '/internal/admin/payments/promotions',
+      'POST',
+      input,
+    );
+  }
+
+  updatePromotion(
+    promotionId: string,
+    input: UpsertPromotionRequest,
+  ): Promise<PromotionSummary> {
+    return this.request<PromotionSummary>(
+      `/internal/admin/payments/promotions/${promotionId}`,
+      'PATCH',
+      input,
+    );
+  }
+
+  deletePromotion(promotionId: string): Promise<PromotionSummary> {
+    return this.request<PromotionSummary>(
+      `/internal/admin/payments/promotions/${promotionId}`,
+      'DELETE',
+    );
+  }
+
+  listPayouts(status?: string | null): Promise<PayoutSummary[]> {
+    const searchParams = new URLSearchParams();
+    if (status) {
+      searchParams.set('status', status);
+    }
+    return this.request<PayoutSummary[]>(
+      `/internal/admin/payments/payouts?${searchParams.toString()}`,
+      'GET',
+    );
+  }
+
+  updatePayoutStatus(
+    payoutId: string,
+    status: string,
+  ): Promise<PayoutSummary> {
+    return this.request<PayoutSummary>(
+      `/internal/admin/payments/payouts/${payoutId}/status`,
+      'PATCH',
+      {
+        status,
+      },
+    );
+  }
+
+  listRefunds(status?: string | null): Promise<RefundSummary[]> {
+    const searchParams = new URLSearchParams();
+    if (status) {
+      searchParams.set('status', status);
+    }
+    return this.request<RefundSummary[]>(
+      `/internal/admin/payments/refunds?${searchParams.toString()}`,
+      'GET',
+    );
+  }
+
+  approveRefund(
+    refundId: string,
+    adminUserId: string,
+    reason?: string | null,
+  ): Promise<RefundSummary> {
+    return this.request<RefundSummary>(
+      `/internal/admin/payments/refunds/${refundId}/approve`,
+      'POST',
+      {
+        adminUserId,
+        reason: reason ?? null,
+      },
+    );
+  }
+
+  rejectRefund(
+    refundId: string,
+    adminUserId: string,
+    reason: string,
+  ): Promise<RefundSummary> {
+    return this.request<RefundSummary>(
+      `/internal/admin/payments/refunds/${refundId}/reject`,
+      'POST',
+      {
+        adminUserId,
+        reason,
+      },
+    );
+  }
+
+  listCommissionRules(): Promise<CommissionRuleSummary[]> {
+    return this.request<CommissionRuleSummary[]>(
+      '/internal/admin/payments/commission-rules',
+      'GET',
+    );
+  }
+
+  updateCommissionRule(
+    ruleId: string,
+    input: UpdateCommissionRuleRequest,
+  ): Promise<CommissionRuleSummary> {
+    return this.request<CommissionRuleSummary>(
+      `/internal/admin/payments/commission-rules/${ruleId}`,
+      'PATCH',
+      input,
+    );
+  }
+
   private async request<T>(
     path: string,
-    method: 'GET' | 'PATCH',
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -32,263 +32,68 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  listAdminManagedProviders,
+  updateAdminManagedProviderStatus,
+  AdminProviderSummary,
+} from "../../services/serveaseAdminApi";
 
-const providers = [
-  {
-    id: "SE-HM-001",
-    providerName: "Juan Carlos Reyes",
-    businessName: "HomeFixPro Manila",
-    serviceCategory: "Home Maintenance & Repair",
-    approvalStatus: "approved",
-    rating: 4.9,
-    completedJobs: 1247,
-    location: "Makati City, Metro Manila",
-    dateJoined: "2024-01-15",
-    revenue: "₱2,456,780",
-    commission: "₱245,678",
-  },
-  {
-    id: "SE-BW-002",
-    providerName: "Maria Elena Santos",
-    businessName: "Glow Beauty Spa",
-    serviceCategory: "Beauty Wellness & Personal Care",
-    approvalStatus: "approved",
-    rating: 4.8,
-    completedJobs: 982,
-    location: "Quezon City, Metro Manila",
-    dateJoined: "2024-02-20",
-    revenue: "₱1,892,340",
-    commission: "₱189,234",
-  },
-  {
-    id: "SE-ED-003",
-    providerName: "Roberto Miguel Cruz",
-    businessName: "Tutor Excellence Hub",
-    serviceCategory: "Education & Professional Services",
-    approvalStatus: "pending",
-    rating: 0,
-    completedJobs: 0,
-    location: "Taguig City, Metro Manila",
-    dateJoined: "2026-03-01",
-    revenue: "₱0",
-    commission: "₱0",
-  },
-  {
-    id: "SE-DC-004",
-    providerName: "Angela Rose Fernandez",
-    businessName: "Sparkle Clean Services",
-    serviceCategory: "Domestic & Cleaning Services",
-    approvalStatus: "approved",
-    rating: 4.7,
-    completedJobs: 756,
-    location: "Pasig City, Metro Manila",
-    dateJoined: "2024-03-10",
-    revenue: "₱1,567,890",
-    commission: "₱156,789",
-  },
-  {
-    id: "SE-PS-005",
-    providerName: "Ricardo Antonio Garcia",
-    businessName: "Pawsome Pet Care",
-    serviceCategory: "Pet Services",
-    approvalStatus: "suspended",
-    rating: 3.9,
-    completedJobs: 234,
-    location: "Mandaluyong City, Metro Manila",
-    dateJoined: "2023-11-05",
-    revenue: "₱678,900",
-    commission: "₱67,890",
-  },
-  {
-    id: "SE-EE-006",
-    providerName: "Sofia Isabella Ramos",
-    businessName: "Celebrate Events Co.",
-    serviceCategory: "Events & Entertainment",
-    approvalStatus: "approved",
-    rating: 4.9,
-    completedJobs: 1456,
-    location: "Pasay City, Metro Manila",
-    dateJoined: "2023-12-18",
-    revenue: "₱2,890,450",
-    commission: "₱289,045",
-  },
-  {
-    id: "SE-AT-007",
-    providerName: "Miguel Angelo Torres",
-    businessName: "TechFix Auto Solutions",
-    serviceCategory: "Automotive & Tech Support",
-    approvalStatus: "approved",
-    rating: 4.6,
-    completedJobs: 634,
-    location: "Caloocan City, Metro Manila",
-    dateJoined: "2024-01-22",
-    revenue: "₱1,234,560",
-    commission: "₱123,456",
-  },
-  {
-    id: "SE-HM-008",
-    providerName: "Jose Emmanuel Diaz",
-    businessName: "QuickFix Plumbing",
-    serviceCategory: "Home Maintenance & Repair",
-    approvalStatus: "approved",
-    rating: 4.8,
-    completedJobs: 892,
-    location: "Paranaque City, Metro Manila",
-    dateJoined: "2024-02-15",
-    revenue: "₱1,678,900",
-    commission: "₱167,890",
-  },
-  {
-    id: "SE-BW-009",
-    providerName: "Carmen Grace Alvarez",
-    businessName: "Wellness Massage Therapy",
-    serviceCategory: "Beauty Wellness & Personal Care",
-    approvalStatus: "pending",
-    rating: 0,
-    completedJobs: 0,
-    location: "Manila City, Metro Manila",
-    dateJoined: "2026-03-03",
-    revenue: "₱0",
-    commission: "₱0",
-  },
-  {
-    id: "SE-ED-010",
-    providerName: "Daniel Francisco Mendoza",
-    businessName: "SkillUp Training Center",
-    serviceCategory: "Education & Professional Services",
-    approvalStatus: "approved",
-    rating: 4.7,
-    completedJobs: 543,
-    location: "Marikina City, Metro Manila",
-    dateJoined: "2024-03-20",
-    revenue: "₱1,123,450",
-    commission: "₱112,345",
-  },
-  {
-    id: "SE-DC-011",
-    providerName: "Patricia Ann Morales",
-    businessName: "Crystal Clear Housekeeping",
-    serviceCategory: "Domestic & Cleaning Services",
-    approvalStatus: "approved",
-    rating: 4.9,
-    completedJobs: 1124,
-    location: "Las Pinas City, Metro Manila",
-    dateJoined: "2023-12-05",
-    revenue: "₱2,234,670",
-    commission: "₱223,467",
-  },
-  {
-    id: "SE-PS-012",
-    providerName: "Gabriel Luis Sanchez",
-    businessName: "Happy Tails Grooming",
-    serviceCategory: "Pet Services",
-    approvalStatus: "approved",
-    rating: 4.8,
-    completedJobs: 678,
-    location: "Muntinlupa City, Metro Manila",
-    dateJoined: "2024-01-30",
-    revenue: "₱987,650",
-    commission: "₱98,765",
-  },
-  {
-    id: "SE-EE-013",
-    providerName: "Isabella Marie Aquino",
-    businessName: "Party Perfect Planners",
-    serviceCategory: "Events & Entertainment",
-    approvalStatus: "approved",
-    rating: 4.6,
-    completedJobs: 445,
-    location: "San Juan City, Metro Manila",
-    dateJoined: "2024-02-28",
-    revenue: "₱1,567,890",
-    commission: "₱156,789",
-  },
-  {
-    id: "SE-AT-014",
-    providerName: "Rafael Vicente Castillo",
-    businessName: "GadgetFix Tech Services",
-    serviceCategory: "Automotive & Tech Support",
-    approvalStatus: "suspended",
-    rating: 3.5,
-    completedJobs: 189,
-    location: "Valenzuela City, Metro Manila",
-    dateJoined: "2023-10-12",
-    revenue: "₱456,780",
-    commission: "₱45,678",
-  },
-  {
-    id: "SE-HM-015",
-    providerName: "Antonio Carlos Rivera",
-    businessName: "ElectroPro Electricians",
-    serviceCategory: "Home Maintenance & Repair",
-    approvalStatus: "approved",
-    rating: 4.9,
-    completedJobs: 1678,
-    location: "Malabon City, Metro Manila",
-    dateJoined: "2023-11-20",
-    revenue: "₱3,456,780",
-    commission: "₱345,678",
-  },
-];
-
-const stats = [
-  {
-    title: "Total Providers",
-    value: "2,456",
-    change: "+124 this month",
-    icon: Package,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-  },
-  {
-    title: "Total Revenue",
-    value: "₱45.2M",
-    change: "+18% from last month",
-    icon: DollarSign,
-    color: "text-green-600",
-    bgColor: "bg-green-50",
-  },
-  {
-    title: "Completed Jobs",
-    value: "156,789",
-    change: "+12,345 this month",
-    icon: TrendingUp,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50",
-  },
-];
 
 export function MarketplaceSellers() {
   const navigate = useNavigate();
+  const { accessToken } = useAuth();
+  const [providers, setProviders] = useState<AdminProviderSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [sortBy, setSortBy] = useState("date-desc");
 
-  // Filter to show only approved or suspended providers (exclude pending)
-  const approvedProviders = providers.filter(
-    (provider) => provider.approvalStatus !== "pending"
-  );
+  useEffect(() => {
+    if (!accessToken) return;
+    listAdminManagedProviders(accessToken).then(setProviders).catch(() => {});
+  }, [accessToken]);
 
-  let filteredProviders = approvedProviders.filter((provider) => {
+  const getApprovalStatus = (p: AdminProviderSummary) => {
+    if (!p.isActive) return "suspended";
+    if (p.verificationStatus === "approved") return "approved";
+    if (p.verificationStatus === "pending") return "pending";
+    return "suspended";
+  };
+
+  const handleStatusChange = async (
+    providerId: string,
+    status: "active" | "suspended",
+  ) => {
+    if (!accessToken) return;
+    try {
+      const updated = await updateAdminManagedProviderStatus(accessToken, providerId, status);
+      setProviders((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    } catch {
+      // silently ignore; user sees no change
+    }
+  };
+
+  let filteredProviders = providers.filter((provider) => {
+    const approvalStatus = getApprovalStatus(provider);
     const matchesSearch =
-      provider.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (provider.businessName ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       provider.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus =
-      statusFilter === "all" || provider.approvalStatus === statusFilter;
+      statusFilter === "all" || approvalStatus === statusFilter;
     const matchesCategory =
-      categoryFilter === "all" || provider.serviceCategory === categoryFilter;
+      categoryFilter === "all";
     return matchesSearch && matchesStatus && matchesCategory;
   });
 
   // Sort providers
   filteredProviders = [...filteredProviders].sort((a, b) => {
-    if (sortBy === "rating-desc") return b.rating - a.rating;
-    if (sortBy === "rating-asc") return a.rating - b.rating;
-    if (sortBy === "jobs-desc") return b.completedJobs - a.completedJobs;
-    if (sortBy === "jobs-asc") return a.completedJobs - b.completedJobs;
-    if (sortBy === "date-desc") return new Date(b.dateJoined).getTime() - new Date(a.dateJoined).getTime();
-    if (sortBy === "date-asc") return new Date(a.dateJoined).getTime() - new Date(b.dateJoined).getTime();
+    if (sortBy === "rating-desc") return b.averageRating - a.averageRating;
+    if (sortBy === "rating-asc") return a.averageRating - b.averageRating;
+    if (sortBy === "jobs-desc") return b.reviewCount - a.reviewCount;
+    if (sortBy === "jobs-asc") return a.reviewCount - b.reviewCount;
+    if (sortBy === "date-desc") return new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime();
+    if (sortBy === "date-asc") return new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime();
     return 0;
   });
 
@@ -352,22 +157,56 @@ export function MarketplaceSellers() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                  <p className="text-xs text-gray-400 mt-1">{stat.change}</p>
-                </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-blue-50">
+                <Package className="w-6 h-6 text-blue-600" />
               </div>
-            </CardContent>
-          </Card>
-        ))}
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Total Providers</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{providers.length.toLocaleString()}</p>
+                <p className="text-xs text-gray-400 mt-1">{providers.filter((p) => p.isActive).length} active</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-green-50">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Verified Providers</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {providers.filter((p) => p.verificationStatus === "approved").length.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {providers.filter((p) => p.verificationStatus === "pending").length} pending verification
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-purple-50">
+                <TrendingUp className="w-6 h-6 text-purple-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Avg Rating</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {providers.length > 0
+                    ? (providers.reduce((s, p) => s + p.averageRating, 0) / providers.length).toFixed(1)
+                    : "—"}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">across all providers</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filters */}
@@ -447,85 +286,98 @@ export function MarketplaceSellers() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredProviders.map((provider) => (
+                  filteredProviders.map((provider) => {
+                    const approvalStatus = getApprovalStatus(provider);
+                    return (
                     <TableRow key={provider.id}>
                       <TableCell>
-                        <span className="font-mono font-semibold text-gray-900">{provider.id}</span>
+                        <span className="font-mono font-semibold text-gray-900 text-xs">{provider.id.slice(0, 8)}…</span>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-semibold text-gray-900">{provider.businessName}</p>
-                          <p className="text-xs text-gray-500">{provider.revenue} revenue</p>
+                          <p className="font-semibold text-gray-900">{provider.businessName ?? "—"}</p>
+                          <p className="text-xs text-gray-500">{provider.userFullName ?? provider.userEmail ?? ""}</p>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm text-gray-700">{provider.serviceCategory}</span>
+                        <span className="text-sm text-gray-700">{provider.serviceArea ?? "—"}</span>
                       </TableCell>
-                      <TableCell>{getStatusBadge(provider.approvalStatus)}</TableCell>
+                      <TableCell>{getStatusBadge(approvalStatus)}</TableCell>
                       <TableCell>
-                        {provider.rating > 0 ? (
+                        {provider.averageRating > 0 ? (
                           <div className="flex items-center gap-1">
                             <span className="text-yellow-600">★</span>
-                            <span className="font-medium">{provider.rating}</span>
+                            <span className="font-medium">{provider.averageRating.toFixed(1)}</span>
                           </div>
                         ) : (
                           <span className="text-gray-400 text-sm">No rating</span>
                         )}
                       </TableCell>
                       <TableCell>
-                        <span className="font-medium">{provider.completedJobs.toLocaleString()}</span>
+                        <span className="font-medium">{provider.reviewCount.toLocaleString()}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm text-gray-600">{provider.location}</span>
+                        <span className="text-sm text-gray-600">{provider.serviceArea ?? "—"}</span>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-gray-600">
-                          {new Date(provider.dateJoined).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
+                          {provider.createdAt
+                            ? new Date(provider.createdAt).toLocaleDateString("en-US", {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                              })
+                            : "—"}
                         </span>
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
+                          <Button
+                            size="sm"
+                            variant="outline"
                             title="View Details"
                             onClick={() => navigate(`/sellers/marketplace/${provider.id}`)}
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          {provider.approvalStatus === "approved" && (
-                            <Button size="sm" variant="outline" className="text-orange-600 hover:text-orange-700" title="Suspend">
+                          {approvalStatus === "approved" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-orange-600 hover:text-orange-700"
+                              title="Suspend"
+                              onClick={() => handleStatusChange(provider.id, "suspended")}
+                            >
                               <Ban className="w-4 h-4" />
                             </Button>
                           )}
-                          {provider.approvalStatus === "suspended" && (
-                            <Button size="sm" variant="outline" className="text-green-600 hover:text-green-700" title="Reactivate">
+                          {approvalStatus === "suspended" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-green-600 hover:text-green-700"
+                              title="Reactivate"
+                              onClick={() => handleStatusChange(provider.id, "active")}
+                            >
                               <CheckCircle className="w-4 h-4" />
                             </Button>
                           )}
-                          {provider.approvalStatus !== "pending" && (
-                            <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" title="Deactivate">
+                          {approvalStatus !== "pending" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 hover:text-red-700"
+                              title="Deactivate"
+                              onClick={() => handleStatusChange(provider.id, "suspended")}
+                            >
                               <UserX className="w-4 h-4" />
                             </Button>
-                          )}
-                          {provider.approvalStatus === "pending" && (
-                            <>
-                              <Button size="sm" variant="default" className="bg-green-600 hover:bg-green-700" title="Approve">
-                                <CheckCircle className="w-4 h-4" />
-                              </Button>
-                              <Button size="sm" variant="destructive" title="Reject">
-                                <XCircle className="w-4 h-4" />
-                              </Button>
-                            </>
                           )}
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))
+                    );
+                  })
                 )}
               </TableBody>
             </Table>

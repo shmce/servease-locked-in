@@ -21,6 +21,23 @@ export class AdminSupportController {
     }
   }
 
+  @Get(':ticketId')
+  async get(
+    @Param('ticketId') ticketId: string,
+  ): Promise<{ data: SupportTicketSummary }> {
+    try {
+      return {
+        data: await this.adminSupportService.getTicket(ticketId),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin support workflow failed.',
+        503,
+      );
+    }
+  }
+
   @Patch(':ticketId/status')
   async updateStatus(
     @Param('ticketId') ticketId: string,

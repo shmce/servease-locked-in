@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpException, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, Param, Post, Query } from '@nestjs/common';
 import { BookingNotFoundError } from '../booking/booking.errors';
 import { BookingGatewayService } from '../booking/booking.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
@@ -11,7 +11,7 @@ import {
   ReviewDependencyUnavailableError,
 } from './review.errors';
 import { ReviewGatewayService } from './review.service';
-import { ReviewSummary } from './review.types';
+import { ReviewResponseSummary, ReviewSummary } from './review.types';
 
 @Controller('v1/reviews')
 export class ReviewController {
@@ -64,6 +64,52 @@ export class ReviewController {
           rating: body.rating,
           reviewText: body.reviewText ?? null,
         }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':reviewId/reply')
+  async reply(
+    @Param('reviewId') reviewId: string,
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { responseText?: string },
+  ): Promise<{ data: ReviewResponseSummary }> {
+    try {
+      if (!body.responseText?.trim()) {
+        throw new InvalidReviewRequestError();
+      }
+
+      const userId = await this.authTokenService.authenticate(authorization);
+
+      return {
+        data: await this.reviewGatewayService.createReviewResponse(
+          reviewId,
+          userId,
+          body.responseText.trim(),
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':reviewId/flag')
+  async flag(
+    @Param('reviewId') reviewId: string,
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { reason?: string },
+  ): Promise<{ data: ReviewSummary }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+
+      return {
+        data: await this.reviewGatewayService.flagReview(
+          reviewId,
+          userId,
+          body.reason?.trim() ?? '',
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);

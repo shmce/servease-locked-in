@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpException, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, Param, Post, Query } from '@nestjs/common';
 import {
   InvalidSupportTicketRequestError,
   SupportTicketNotFoundError,
@@ -15,6 +15,20 @@ export class SupportTicketController {
     try {
       return {
         data: await this.ticketService.listTickets(userId ?? ''),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':ticketId')
+  async show(
+    @Query('userId') userId: string,
+    @Param('ticketId') ticketId: string,
+  ): Promise<{ data: SupportTicketSummary }> {
+    try {
+      return {
+        data: await this.ticketService.getTicket(userId ?? '', ticketId),
       };
     } catch (error) {
       throw this.toHttpException(error);

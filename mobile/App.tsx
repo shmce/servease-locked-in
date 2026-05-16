@@ -25,8 +25,10 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  Trash2,
   Upload,
   User,
+  Wallet,
 } from 'lucide-react-native';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
 import {
@@ -114,15 +116,24 @@ import {
   BookingSummary,
   BookingServiceUpdateSummary,
   BookingTimelineEventSummary,
+  BookingTrackingSnapshot,
   CatalogCategory,
   CatalogServiceItem,
   ConversationMessage,
   ConversationSummary,
   CurrentUserProfile,
   CreateBookingRequest,
+  CustomerPaymentMethodSummary,
+  CustomerPaymentMethodType,
   DayOfWeek,
   NotificationSummary,
   PaymentSummary,
+  PromotionValidationSummary,
+  PayoutAccountSummary,
+  PayoutMethodSummary,
+  PayoutSummary,
+  ReferralSummary,
+  UserPreferenceSummary,
   ProviderAvailabilitySchedule,
   ProviderListing,
   ProviderPortfolioMediaSummary,
@@ -139,7 +150,21 @@ import {
   createPayment,
   createReview,
   createSupportTicket,
+  replyToReview,
+  flagReview,
+  getProviderDashboard,
+  listProviderOwnedServices,
+  replaceProviderServices,
+  ProviderDashboardSummary,
+  ProviderOwnedServiceSummary,
+  ProviderOwnedServiceInput,
+  deleteCustomerPaymentMethod,
+  deleteProviderPortfolioMedia,
   getCurrentUser,
+  getBookingTrackingSnapshot,
+  getProviderPayoutAccount,
+  getReferralSummary,
+  getUserPreferences,
   getPublicProviderAvailability,
   getProviderAvailability,
   listCatalogCategories,
@@ -147,10 +172,13 @@ import {
   listConversations,
   listConversationMessages,
   listCustomerBookings,
+  listCustomerPaymentMethods,
   listNotifications,
   listPayments,
   listProviderBookings,
   listProviderListings,
+  listProviderPayoutMethods,
+  listProviderPayouts,
   listProviderPortfolioMedia,
   listProviderReviews,
   listBookingServiceUpdates,
@@ -161,9 +189,15 @@ import {
   registerAccount,
   removeProviderDayOff,
   replaceProviderAvailabilityWindows,
+  requestPasswordReset,
+  requestProviderPayout,
   transitionBookingStatus,
+  updateCurrentUserPassword,
   updateCurrentUserProfile,
+  upsertCustomerPaymentMethod,
+  updateUserPreferences,
   uploadMedia,
+  validatePromotion,
 } from './services/serveaseApi';
 import { AuthSession, signInWithPassword } from './services/supabaseAuth';
 
@@ -182,6 +216,8 @@ export default function App() {
   );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [signupFullName, setSignupFullName] = useState('');
   const [signupContactNumber, setSignupContactNumber] = useState('');
   const [signupAddress, setSignupAddress] = useState('');
@@ -201,6 +237,15 @@ export default function App() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [payments, setPayments] = useState<PaymentSummary[]>([]);
+  const [customerPaymentMethods, setCustomerPaymentMethods] = useState<
+    CustomerPaymentMethodSummary[]
+  >([]);
+  const [payoutAccount, setPayoutAccount] = useState<PayoutAccountSummary | null>(null);
+  const [payoutMethods, setPayoutMethods] = useState<PayoutMethodSummary[]>([]);
+  const [providerPayouts, setProviderPayouts] = useState<PayoutSummary[]>([]);
+  const [referralSummary, setReferralSummary] = useState<ReferralSummary | null>(null);
+  const [userPreferences, setUserPreferences] =
+    useState<UserPreferenceSummary | null>(null);
   const [reviews, setReviews] = useState<ReviewSummary[]>([]);
   const [supportTickets, setSupportTickets] = useState<SupportTicketSummary[]>([]);
   const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
@@ -210,7 +255,12 @@ export default function App() {
   const [selectedBookingTimelineEvents, setSelectedBookingTimelineEvents] = useState<
     BookingTimelineEventSummary[]
   >([]);
+  const [selectedBookingTracking, setSelectedBookingTracking] =
+    useState<BookingTrackingSnapshot | null>(null);
   const [selectedProviderPortfolioMedia, setSelectedProviderPortfolioMedia] = useState<
+    ProviderPortfolioMediaSummary[]
+  >([]);
+  const [providerPortfolioMedia, setProviderPortfolioMedia] = useState<
     ProviderPortfolioMediaSummary[]
   >([]);
   const [availability, setAvailability] =
@@ -232,6 +282,9 @@ export default function App() {
   const [bookingReferencePhotoUri, setBookingReferencePhotoUri] = useState<string | null>(null);
   const [bookingReferencePhotoUrl, setBookingReferencePhotoUrl] = useState<string | null>(null);
   const [bookingReferenceUpload, setBookingReferenceUpload] = useState<UploadSummary | null>(null);
+  const [promoCode, setPromoCode] = useState('');
+  const [promotionValidation, setPromotionValidation] =
+    useState<PromotionValidationSummary | null>(null);
   const [messageDraft, setMessageDraft] = useState('');
   const [reviewText, setReviewText] = useState('');
   const [rating, setRating] = useState('5');
@@ -275,11 +328,26 @@ export default function App() {
   const [providerPortfolioPhotoUrl, setProviderPortfolioPhotoUrl] = useState<string | null>(null);
   const [providerProgressMessage, setProviderProgressMessage] = useState('');
   const [completionNotes, setCompletionNotes] = useState('');
+  const [ownReviews, setOwnReviews] = useState<ReviewSummary[]>([]);
+  const [reviewReplyText, setReviewReplyText] = useState('');
+  const [replyingToReviewId, setReplyingToReviewId] = useState<string | null>(null);
+  const [providerDashboard, setProviderDashboard] = useState<ProviderDashboardSummary | null>(null);
+  const [ownedServices, setOwnedServices] = useState<ProviderOwnedServiceSummary[]>([]);
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editServiceTitle, setEditServiceTitle] = useState('');
+  const [editServicePrice, setEditServicePrice] = useState('');
   const [providerCancelReason, setProviderCancelReason] = useState('');
   const [providerReportReason, setProviderReportReason] = useState('');
   const [providerReportDetails, setProviderReportDetails] = useState('');
+  const [requestPayoutAmount, setRequestPayoutAmount] = useState('');
+  const [selectedPayoutMethodId, setSelectedPayoutMethodId] = useState<string | null>(
+    null,
+  );
+  const [selectedCustomerPaymentMethodId, setSelectedCustomerPaymentMethodId] =
+    useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState('Welcome to ServEase.');
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const selectedService = services.find((service) => service.id === selectedServiceId);
   const selectedProvider = providers.find(
@@ -292,12 +360,20 @@ export default function App() {
   const selectedPayment = selectedBooking
     ? payments.find((payment) => payment.bookingId === selectedBooking.id)
     : null;
+  const selectedCustomerPaymentMethod =
+    customerPaymentMethods.find(
+      (method) => method.id === selectedCustomerPaymentMethodId,
+    ) ??
+    customerPaymentMethods.find((method) => method.isDefault) ??
+    customerPaymentMethods[0] ??
+    null;
   const unreadCount = notifications.filter((notification) => !notification.isRead).length;
   const role = profile?.user.role ?? 'customer';
   const appRole: AppRole = role === 'provider' ? 'provider' : 'customer';
   const activeCount = activeBookingCount(bookings.map((booking) => booking.status));
   const completedCount = completedBookingCount(bookings.map((booking) => booking.status));
-  const payoutTotal = providerPayoutTotal(payments);
+  const payoutTotal =
+    payoutAccount?.availableBalance ?? providerPayoutTotal(payments);
   const providerBookingSlots = useMemo(
     () =>
       buildProviderBookingSlots(
@@ -321,11 +397,25 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    setPromoCode('');
+    setPromotionValidation(null);
+  }, [selectedBookingId]);
+
+  useEffect(() => {
     setProfileFullName(profile?.user.fullName ?? '');
     setProfileContactNumber(profile?.user.contactNumber ?? '');
     setProfileAddress(profile?.customerProfile?.address ?? '');
     setProfileBusinessName(profile?.providerProfile?.businessName ?? '');
   }, [profile]);
+
+  useEffect(() => {
+    if (route.screen !== 'providerServiceInProgress') {
+      return undefined;
+    }
+
+    const timer = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [route.screen]);
 
   async function loadCatalog() {
     setBusyAction('catalog');
@@ -434,7 +524,11 @@ export default function App() {
           ? `Signed in as ${roleLabel(nextRole)}.`
           : `Welcome back, ${nextProfile.user.fullName ?? nextProfile.user.email}.`,
       );
-      await refreshWorkspace(nextSession.accessToken, nextRole);
+      await refreshWorkspace(
+        nextSession.accessToken,
+        nextRole,
+        nextProfile.providerProfile?.id ?? null,
+      );
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -505,7 +599,33 @@ export default function App() {
         screen: nextRole === 'provider' ? 'home' : 'explore',
       });
       setNotice(`Welcome to ServEase, ${nextProfile.user.fullName ?? nextProfile.user.email}.`);
-      await refreshWorkspace(nextSession.accessToken, nextRole);
+      await refreshWorkspace(
+        nextSession.accessToken,
+        nextRole,
+        nextProfile.providerProfile?.id ?? null,
+      );
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function sendPasswordReset() {
+    if (!email.trim()) {
+      setNotice('Enter your email address first.');
+      return;
+    }
+
+    setBusyAction('password-reset');
+    try {
+      await requestPasswordReset(
+        {
+          email: email.trim(),
+        },
+        { baseUrl: apiBaseUrl },
+      );
+      setNotice('If an account exists, password reset instructions were sent.');
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -520,13 +640,26 @@ export default function App() {
     setConversations([]);
     setMessages([]);
     setPayments([]);
+    setCustomerPaymentMethods([]);
+    setPayoutAccount(null);
+    setPayoutMethods([]);
+    setProviderPayouts([]);
+    setReferralSummary(null);
+    setUserPreferences(null);
     setSupportTickets([]);
     setNotifications([]);
     setSelectedBookingServiceUpdates([]);
     setSelectedBookingTimelineEvents([]);
+    setSelectedProviderPortfolioMedia([]);
+    setProviderPortfolioMedia([]);
     setAvailability(null);
     setSelectedBookingId(null);
     setSelectedConversationId(null);
+    setSelectedCustomerPaymentMethodId(null);
+    setPromoCode('');
+    setPromotionValidation(null);
+    setCurrentPassword('');
+    setNewPassword('');
     setRoute({ role: null, screen: 'authGate' });
     setNotice('Signed out.');
   }
@@ -570,7 +703,72 @@ export default function App() {
     }
   }
 
-  async function refreshWorkspace(token = session?.accessToken, nextRole = appRole) {
+  async function savePassword() {
+    if (!session) {
+      setNotice('Sign in before changing your password.');
+      return;
+    }
+
+    if (!currentPassword || newPassword.length < 8) {
+      setNotice('Enter your current password and a new password with at least 8 characters.');
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      setNotice('Choose a new password that is different from your current password.');
+      return;
+    }
+
+    setBusyAction('password-change');
+    try {
+      await updateCurrentUserPassword(
+        {
+          currentPassword,
+          newPassword,
+        },
+        apiOptions,
+      );
+      setCurrentPassword('');
+      setNewPassword('');
+      setNotice('Password updated.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function savePreferences(
+    patch: {
+      pushNotificationsEnabled?: boolean;
+      darkModeEnabled?: boolean;
+      language?: 'en' | 'fil';
+    },
+  ) {
+    if (!session) {
+      setNotice('Sign in before updating settings.');
+      return;
+    }
+
+    setBusyAction('preferences');
+    try {
+      const updated = await updateUserPreferences(patch, apiOptions);
+      setUserPreferences(updated);
+      setPushNotificationsEnabled(updated.pushNotificationsEnabled);
+      setDarkModeEnabled(updated.darkModeEnabled);
+      setNotice('Settings updated.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function refreshWorkspace(
+    token = session?.accessToken,
+    nextRole = appRole,
+    providerId = profile?.providerProfile?.id ?? null,
+  ) {
     if (!token) {
       setNotice('Sign in before refreshing.');
       return;
@@ -583,25 +781,100 @@ export default function App() {
         nextBookings,
         nextConversations,
         nextPayments,
+        nextCustomerPaymentMethods,
         nextTickets,
         nextNotifications,
         nextAvailability,
+        nextPayoutAccount,
+        nextPayoutMethods,
+        nextProviderPayouts,
+        nextProviderPortfolio,
+        nextReferralSummary,
+        nextUserPreferences,
+        nextOwnReviews,
+        nextProviderDashboard,
+        nextOwnedServices,
       ] = await Promise.all([
         nextRole === 'provider'
           ? listProviderBookings(options)
           : listCustomerBookings(options),
         listConversations(options),
         listPayments(options),
+        nextRole === 'customer'
+          ? listCustomerPaymentMethods(options).catch(() => [])
+          : Promise.resolve([]),
         listSupportTickets(options),
         listNotifications(options),
         nextRole === 'provider'
           ? getProviderAvailability(options).catch(() => null)
           : Promise.resolve(null),
+        nextRole === 'provider'
+          ? getProviderPayoutAccount(options).catch(() => null)
+          : Promise.resolve(null),
+        nextRole === 'provider'
+          ? listProviderPayoutMethods(options).catch(() => [])
+          : Promise.resolve([]),
+        nextRole === 'provider'
+          ? listProviderPayouts(options).catch(() => [])
+          : Promise.resolve([]),
+        nextRole === 'provider' && providerId
+          ? listProviderPortfolioMedia(providerId, options).catch(() => [])
+          : Promise.resolve([]),
+        nextRole === 'customer'
+          ? getReferralSummary(options).catch(() => null)
+          : Promise.resolve(null),
+        getUserPreferences(options).catch(() => null),
+        nextRole === 'provider' && providerId
+          ? listProviderReviews(providerId, options).catch(() => [])
+          : Promise.resolve([]),
+        nextRole === 'provider'
+          ? getProviderDashboard(options).catch(() => null)
+          : Promise.resolve(null),
+        nextRole === 'provider'
+          ? listProviderOwnedServices(options).catch(() => [])
+          : Promise.resolve([]),
       ]);
 
       setBookings(nextBookings);
       setConversations(nextConversations);
       setPayments(nextPayments);
+      setCustomerPaymentMethods(nextCustomerPaymentMethods);
+      setPayoutAccount(nextPayoutAccount);
+      setPayoutMethods(nextPayoutMethods);
+      setProviderPayouts(nextProviderPayouts);
+      setReferralSummary(nextReferralSummary);
+      setUserPreferences(nextUserPreferences);
+      if (nextUserPreferences) {
+        setPushNotificationsEnabled(nextUserPreferences.pushNotificationsEnabled);
+        setDarkModeEnabled(nextUserPreferences.darkModeEnabled);
+      }
+      setProviderPortfolioMedia(nextProviderPortfolio);
+      setOwnReviews(nextOwnReviews as ReviewSummary[]);
+      setProviderDashboard(nextProviderDashboard as ProviderDashboardSummary | null);
+      setOwnedServices(nextOwnedServices as ProviderOwnedServiceSummary[]);
+      setSelectedPayoutMethodId((current) => {
+        if (current && nextPayoutMethods.some((method) => method.id === current)) {
+          return current;
+        }
+        return (
+          nextPayoutMethods.find((method) => method.isDefault)?.id ??
+          nextPayoutMethods[0]?.id ??
+          null
+        );
+      });
+      setSelectedCustomerPaymentMethodId((current) => {
+        if (
+          current &&
+          nextCustomerPaymentMethods.some((method) => method.id === current)
+        ) {
+          return current;
+        }
+        return (
+          nextCustomerPaymentMethods.find((method) => method.isDefault)?.id ??
+          nextCustomerPaymentMethods[0]?.id ??
+          null
+        );
+      });
       setSupportTickets(nextTickets);
       setNotifications(nextNotifications);
       setAvailability(nextAvailability);
@@ -644,7 +917,7 @@ export default function App() {
         hoursRequired: Number(hoursRequired) || 1,
         serviceAmount: selectedProvider.price ?? selectedService?.price ?? 0,
         pricingMode: selectedProvider.pricingMode,
-        paymentMethod: 'cash_on_service',
+        paymentMethod: selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service',
         customerNotes: notes.trim() || null,
         attachments: bookingReferenceUpload
           ? [
@@ -689,6 +962,7 @@ export default function App() {
       );
       replaceBooking(updated);
       void refreshBookingTimelineEvents(updated.id);
+      void refreshBookingTracking(updated.id);
       setNotice(`Booking moved to ${statusLabel(updated.status)}.`);
       return true;
     } catch (error) {
@@ -750,6 +1024,8 @@ export default function App() {
           apiOptions,
         );
         replaceBooking(updated);
+        void refreshBookingTracking(updated.id);
+        void refreshBookingTimelineEvents(updated.id);
       }
       setNotice('Service started.');
       setRoute({ role: 'provider', screen: 'providerServiceInProgress' });
@@ -786,6 +1062,7 @@ export default function App() {
         apiOptions,
       );
       replaceBooking(updated);
+      void refreshBookingTracking(updated.id);
       setCompletionNotes('');
       setNotice('Service completed.');
       setRoute({ role: 'provider', screen: 'providerServiceCompleted' });
@@ -1026,6 +1303,41 @@ export default function App() {
     }
   }
 
+  async function applyPromotionCode() {
+    if (!selectedBooking) {
+      setNotice('Select a booking first.');
+      return false;
+    }
+
+    const code = promoCode.trim();
+    if (!code) {
+      setPromotionValidation(null);
+      setNotice('Enter a promo code first.');
+      return false;
+    }
+
+    setBusyAction('promo');
+    try {
+      const promotion = await validatePromotion(
+        selectedBooking.id,
+        code,
+        apiOptions,
+      );
+      setPromotionValidation(promotion);
+      setNotice(
+        promotion.valid
+          ? `Promo applied: ${formatMoney(promotion.discountAmount)} off.`
+          : promotion.message,
+      );
+      return promotion.valid;
+    } catch (error) {
+      setNotice(readError(error));
+      return false;
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function collectPayment() {
     if (!selectedBooking) {
       setNotice('Select a booking first.');
@@ -1034,10 +1346,30 @@ export default function App() {
 
     setBusyAction('payment');
     try {
+      const code = promoCode.trim();
+      let promoCodeForPayment: string | null = null;
+
+      if (code) {
+        const promotion = await validatePromotion(
+          selectedBooking.id,
+          code,
+          apiOptions,
+        );
+        setPromotionValidation(promotion);
+
+        if (!promotion.valid) {
+          setNotice(promotion.message);
+          return false;
+        }
+
+        promoCodeForPayment = promotion.code;
+      }
+
       const payment = await createPayment(
         {
           bookingId: selectedBooking.id,
-          paymentMethod: 'cash_on_service',
+          paymentMethod: selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service',
+          promoCode: promoCodeForPayment,
         },
         apiOptions,
       );
@@ -1055,11 +1387,183 @@ export default function App() {
     }
   }
 
+  async function submitProviderPayoutRequest() {
+    const amount = Number(requestPayoutAmount);
+    const methodId =
+      selectedPayoutMethodId ??
+      payoutMethods.find((method) => method.isDefault)?.id ??
+      payoutMethods[0]?.id;
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setNotice('Enter a valid payout amount.');
+      return;
+    }
+
+    if (!methodId) {
+      setNotice('Add a payout method before requesting a payout.');
+      return;
+    }
+
+    if (payoutAccount && amount > payoutAccount.availableBalance) {
+      setNotice('Amount exceeds available payout balance.');
+      return;
+    }
+
+    setBusyAction('provider-payout');
+    try {
+      const payout = await requestProviderPayout(
+        {
+          amount,
+          payoutMethodId: methodId,
+        },
+        apiOptions,
+      );
+      setProviderPayouts((current) => [
+        payout,
+        ...current.filter((item) => item.id !== payout.id),
+      ]);
+      setRequestPayoutAmount('');
+      setNotice(`Payout ${payout.reference ?? payout.id.slice(0, 8)} requested.`);
+
+      const [nextAccount, nextPayouts] = await Promise.all([
+        getProviderPayoutAccount(apiOptions).catch(() => payoutAccount),
+        listProviderPayouts(apiOptions).catch(() => [payout, ...providerPayouts]),
+      ]);
+      setPayoutAccount(nextAccount);
+      setProviderPayouts(nextPayouts);
+      setRoute({ role: 'provider', screen: 'providerPayoutManagement' });
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function uploadProviderPortfolioMedia() {
+    await pickAndUploadImage('provider_portfolio', async (uri, uploaded) => {
+      const media = await addProviderPortfolioMedia(
+        mediaAttachmentFromUpload(uploaded),
+        apiOptions,
+      );
+      setProviderPortfolioPhotoUri(uri);
+      setProviderPortfolioPhotoUrl(uploaded.publicUrl);
+      setProviderPortfolioMedia((current) => [
+        media,
+        ...current.filter((item) => item.id !== media.id),
+      ]);
+      setSelectedProviderPortfolioMedia((current) => [
+        media,
+        ...current.filter((item) => item.id !== media.id),
+      ]);
+    });
+  }
+
+  async function removeProviderPortfolioMedia(mediaId: string) {
+    setBusyAction(`portfolio-${mediaId}`);
+    try {
+      await deleteProviderPortfolioMedia(mediaId, apiOptions);
+      setProviderPortfolioMedia((current) =>
+        current.filter((item) => item.id !== mediaId),
+      );
+      setSelectedProviderPortfolioMedia((current) =>
+        current.filter((item) => item.id !== mediaId),
+      );
+      setNotice('Portfolio media removed.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function reservePayment() {
     const reserved = selectedPayment ? true : await collectPayment();
     if (reserved && selectedBooking) {
       setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
     }
+  }
+
+  async function saveCustomerPaymentMethod(
+    methodType: CustomerPaymentMethodType,
+  ) {
+    const existing = customerPaymentMethods.find(
+      (method) => method.methodType === methodType,
+    );
+    const defaults: Record<
+      CustomerPaymentMethodType,
+      { label: string; brand: string | null; last4: string | null }
+    > = {
+      cash_on_service: {
+        label: 'Cash on service',
+        brand: 'Cash',
+        last4: null,
+      },
+      card: {
+        label: 'Card ending 4242',
+        brand: 'Visa',
+        last4: '4242',
+      },
+      gcash: {
+        label: 'GCash wallet',
+        brand: 'GCash',
+        last4: null,
+      },
+      paymaya: {
+        label: 'PayMaya wallet',
+        brand: 'PayMaya',
+        last4: null,
+      },
+    };
+
+    setBusyAction(`customer-payment-${methodType}`);
+    try {
+      const method = await upsertCustomerPaymentMethod(
+        {
+          methodId: existing?.id ?? null,
+          methodType,
+          ...defaults[methodType],
+          isDefault: true,
+        },
+        apiOptions,
+      );
+      const methods = await listCustomerPaymentMethods(apiOptions).catch(() => [
+        method,
+      ]);
+      setCustomerPaymentMethods(methods);
+      setSelectedCustomerPaymentMethodId(method.id);
+      setNotice(`${method.label} selected.`);
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function removeCustomerPaymentMethod(methodId: string) {
+    setBusyAction(`delete-customer-payment-${methodId}`);
+    try {
+      await deleteCustomerPaymentMethod(methodId, apiOptions);
+      const methods = await listCustomerPaymentMethods(apiOptions);
+      setCustomerPaymentMethods(methods);
+      setSelectedCustomerPaymentMethodId(
+        methods.find((method) => method.isDefault)?.id ?? methods[0]?.id ?? null,
+      );
+      setNotice('Payment method removed.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function paymentMethodMeta(method: CustomerPaymentMethodSummary) {
+    if (method.methodType === 'cash_on_service') {
+      return method.isDefault ? 'Default method' : 'Available method';
+    }
+
+    const suffix = method.last4 ? ` ending ${method.last4}` : '';
+    const label = method.brand ?? method.methodType.toUpperCase();
+    return `${label}${suffix}${method.isDefault ? ' · Default' : ''}`;
   }
 
   async function submitReview() {
@@ -1081,6 +1585,58 @@ export default function App() {
       setReviews((current) => [review, ...current.filter((item) => item.id !== review.id)]);
       setReviewText('');
       setNotice('Review submitted.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function submitReviewReply() {
+    if (!replyingToReviewId || !reviewReplyText.trim()) {
+      setNotice('Select a review and enter a reply.');
+      return;
+    }
+    setBusyAction('review-reply');
+    try {
+      await replyToReview(replyingToReviewId, reviewReplyText.trim(), apiOptions);
+      setReviewReplyText('');
+      setReplyingToReviewId(null);
+      setNotice('Reply submitted.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function submitFlagReview(reviewId: string) {
+    setBusyAction(`flag-review-${reviewId}`);
+    try {
+      await flagReview(reviewId, 'inappropriate', apiOptions);
+      setNotice('Review flagged for admin review.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function saveOwnedServiceEdit() {
+    if (!editingServiceId) return;
+    const current = ownedServices.find((s) => s.id === editingServiceId);
+    if (!current) return;
+    setBusyAction('service-edit');
+    try {
+      const updated: ProviderOwnedServiceInput[] = ownedServices.map((s) =>
+        s.id === editingServiceId
+          ? { ...s, title: editServiceTitle.trim() || s.title, price: Number(editServicePrice) || s.price }
+          : s,
+      );
+      const saved = await replaceProviderServices(updated, apiOptions);
+      setOwnedServices(saved);
+      setEditingServiceId(null);
+      setNotice('Service updated.');
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -1234,6 +1790,16 @@ export default function App() {
     }
   }
 
+  async function refreshBookingTracking(bookingId: string) {
+    try {
+      setSelectedBookingTracking(
+        await getBookingTrackingSnapshot(bookingId, apiOptions),
+      );
+    } catch {
+      setSelectedBookingTracking(null);
+    }
+  }
+
   function upsertBookingServiceUpdate(update: BookingServiceUpdateSummary) {
     setSelectedBookingServiceUpdates((current) => [
       update,
@@ -1256,6 +1822,7 @@ export default function App() {
     setSelectedBookingId(booking.id);
     void refreshBookingServiceUpdates(booking.id);
     void refreshBookingTimelineEvents(booking.id);
+    void refreshBookingTracking(booking.id);
     navigate(screen, appRole);
   }
 
@@ -1285,6 +1852,7 @@ export default function App() {
         navigate={navigate}
         signIn={signIn}
         signUp={signUp}
+        requestPasswordReset={sendPasswordReset}
       />
     );
   }
@@ -1301,6 +1869,7 @@ export default function App() {
         {route.screen === 'customerBookingManage' ? renderManageBooking() : null}
         {route.screen === 'customerBookingCancel' ? renderCancelBooking() : null}
         {route.screen === 'customerBookingReport' ? renderReportIssue() : null}
+        {route.screen === 'customerTrackServiceProvider' ? renderCustomerTrackServiceProvider() : null}
         {route.screen === 'customerCategory' ? renderCustomerCategory() : null}
         {route.screen === 'customerAllServices' ? renderCustomerAllServices('All Services') : null}
         {route.screen === 'customerRecommendedServices' ? renderCustomerAllServices('Recommended Services') : null}
@@ -1310,9 +1879,11 @@ export default function App() {
         {route.screen === 'customerSearchResults' ? renderCustomerAllServices('Search Results') : null}
         {route.screen === 'customerProfile' ? renderCustomerProfile() : null}
         {route.screen === 'customerSettings' ? renderCustomerSettings() : null}
+        {route.screen === 'customerPaymentMethods' ? renderCustomerPaymentMethods() : null}
         {route.screen === 'customerHelp' ? renderCustomerHelp() : null}
         {route.screen === 'customerServiceHistory' ? renderCustomerServiceHistory() : null}
         {route.screen === 'customerNotifications' ? renderCustomerNotifications() : null}
+        {route.screen === 'customerReferral' ? renderCustomerReferral() : null}
         {route.screen === 'customerTerms' ? renderCustomerTerms() : null}
         {activeTab === 'explore' && route.screen === 'explore' ? renderExplore() : null}
         {activeTab === 'bookings' && route.screen === 'bookings' ? renderBookings() : null}
@@ -1364,6 +1935,11 @@ export default function App() {
         {route.screen === 'providerCancelBooking' ? renderProviderCancelBooking() : null}
         {route.screen === 'providerReportIssue' ? renderProviderReportIssue() : null}
         {route.screen === 'providerServiceReceipt' ? renderProviderServiceReceipt() : null}
+        {route.screen === 'providerProfileView' ? renderProviderProfileView() : null}
+        {route.screen === 'providerEditProfile' ? renderProviderEditProfile() : null}
+        {route.screen === 'providerPortfolio' ? renderProviderPortfolio() : null}
+        {route.screen === 'providerPayoutManagement' ? renderProviderPayoutManagement() : null}
+        {route.screen === 'providerRequestPayout' ? renderProviderRequestPayout() : null}
         {activeTab === 'home' && route.screen === 'home' ? renderProviderHome() : null}
         {activeTab === 'bookings' && route.screen === 'bookings' ? renderProviderBookings() : null}
         {activeTab === 'calendar' && route.screen === 'calendar' ? renderProviderCalendar() : null}
@@ -1932,9 +2508,19 @@ export default function App() {
         <Section title="Reviews">
           {reviews.slice(0, 5).map((review) => (
             <Card key={review.id}>
-              <View style={styles.ratingRow}>
-                <Star color="#FFC107" fill="#FFC107" size={14} />
-                <Text style={styles.cardTitle}>{review.rating.toFixed(1)}</Text>
+              <View style={styles.rowBetween}>
+                <View style={styles.ratingRow}>
+                  <Star color="#FFC107" fill="#FFC107" size={14} />
+                  <Text style={styles.cardTitle}>{review.rating.toFixed(1)}</Text>
+                </View>
+                {session ? (
+                  <Text
+                    style={styles.cardMeta}
+                    onPress={() => void submitFlagReview(review.id)}
+                  >
+                    {busyAction === `flag-review-${review.id}` ? 'Flagging…' : 'Flag'}
+                  </Text>
+                ) : null}
               </View>
               <Text style={styles.cardBody}>{review.reviewText ?? 'No review text provided.'}</Text>
             </Card>
@@ -2133,34 +2719,114 @@ export default function App() {
               </Text>
             </View>
             <Section title="Saved payment methods">
-              <View style={styles.paymentMethodSelected}>
-                <View style={styles.radioOuterSelected}>
-                  <View style={styles.radioInner} />
-                </View>
-                <CreditCard color={palette.mint} size={22} />
-                <View style={styles.flex}>
-                  <Text style={styles.cardTitle}>Cash on service</Text>
-                  <Text style={styles.cardMeta}>Current backend-supported payment method</Text>
-                </View>
-              </View>
+              {customerPaymentMethods.length ? (
+                customerPaymentMethods.map((method) => {
+                  const selected = selectedCustomerPaymentMethod?.id === method.id;
+                  return (
+                    <Pressable
+                      key={method.id}
+                      style={[
+                        styles.paymentMethodOption,
+                        selected && styles.paymentMethodSelected,
+                      ]}
+                      onPress={() => setSelectedCustomerPaymentMethodId(method.id)}
+                      accessibilityRole="button"
+                    >
+                      <View
+                        style={[
+                          styles.radioOuter,
+                          selected && styles.radioOuterSelected,
+                        ]}
+                      >
+                        {selected ? <View style={styles.radioInner} /> : null}
+                      </View>
+                      <CreditCard
+                        color={selected ? palette.mint : palette.muted}
+                        size={22}
+                      />
+                      <View style={styles.flex}>
+                        <Text style={styles.cardTitle}>{method.label}</Text>
+                        <Text style={styles.cardMeta}>
+                          {paymentMethodMeta(method)}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              ) : (
+                <ActivityIndicator color={palette.mint} />
+              )}
               <PrimaryButton
                 label="ADD NEW CARD"
                 variant="secondary"
-                onPress={() => setNotice('Card storage needs payment provider integration before enabling.')}
+                onPress={() => void saveCustomerPaymentMethod('card')}
               />
             </Section>
             <Card>
               <View style={styles.rowBetween}>
                 <View>
-                  <Text style={styles.cardTitle}>Credit or Debit Card</Text>
-                  <Text style={styles.cardMeta}>Not connected yet</Text>
+                  <Text style={styles.cardTitle}>Wallet options</Text>
+                  <Text style={styles.cardMeta}>GCash and PayMaya display methods</Text>
                 </View>
-                <ChevronRight color={palette.faint} size={20} />
+                <View style={styles.inlineActions}>
+                  <Pressable
+                    style={styles.smallAction}
+                    onPress={() => void saveCustomerPaymentMethod('gcash')}
+                  >
+                    <Text style={styles.smallActionText}>GCash</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.smallAction}
+                    onPress={() => void saveCustomerPaymentMethod('paymaya')}
+                  >
+                    <Text style={styles.smallActionText}>PayMaya</Text>
+                  </Pressable>
+                </View>
               </View>
             </Card>
             <Card>
               <Text style={styles.cardTitle}>Promo code</Text>
-              <Text style={styles.cardMeta}>Promo validation is not connected to the backend yet.</Text>
+              <Field
+                label="Code"
+                value={promoCode}
+                onChangeText={(value) => {
+                  setPromoCode(value.toUpperCase());
+                  setPromotionValidation(null);
+                }}
+                placeholder="SERVEASE10"
+              />
+              <PrimaryButton
+                label={busyAction === 'promo' ? 'Applying...' : 'Apply'}
+                variant="secondary"
+                onPress={() => void applyPromotionCode()}
+                disabled={busyAction === 'promo' || Boolean(selectedPayment)}
+              />
+              {promotionValidation ? (
+                <View
+                  style={
+                    promotionValidation.valid
+                      ? styles.promoAppliedBox
+                      : styles.promoRejectedBox
+                  }
+                >
+                  <Text style={styles.cardTitle}>
+                    {promotionValidation.valid ? 'Promo applied' : 'Promo unavailable'}
+                  </Text>
+                  <Text style={styles.cardMeta}>{promotionValidation.message}</Text>
+                  {promotionValidation.valid ? (
+                    <>
+                      <InfoRow
+                        label="Discount"
+                        value={formatMoney(promotionValidation.discountAmount)}
+                      />
+                      <InfoRow
+                        label="Amount due"
+                        value={formatMoney(promotionValidation.finalAmount)}
+                      />
+                    </>
+                  ) : null}
+                </View>
+              ) : null}
             </Card>
           </View>
         </ScrollView>
@@ -2332,6 +2998,15 @@ export default function App() {
               </Text>
               <Text style={styles.linkText}>View Profile &gt;</Text>
             </Card>
+            {['confirmed', 'in_progress'].includes(selectedBooking.status) ? (
+              <PrimaryButton
+                label="Track provider"
+                onPress={() => {
+                  void refreshBookingTracking(selectedBooking.id);
+                  navigate('customerTrackServiceProvider', 'customer');
+                }}
+              />
+            ) : null}
             {renderBookingMedia(selectedBooking)}
             {renderBookingServiceUpdates()}
             <View style={styles.twoButtons}>
@@ -2355,6 +3030,75 @@ export default function App() {
           </View>
         </ScrollView>
       </>
+    );
+  }
+
+  function renderCustomerTrackServiceProvider(): ReactNode {
+    if (!selectedBooking) {
+      return <MissingSelection onBack={() => navigate('bookings', 'customer')} />;
+    }
+
+    const tracking =
+      selectedBookingTracking?.bookingId === selectedBooking.id
+        ? selectedBookingTracking
+        : null;
+
+    return (
+      <View style={styles.navigationScreen}>
+        <View style={styles.mapCanvas}>
+          <Pressable
+            style={styles.mapCloseButton}
+            onPress={() => navigate('customerBookingDetail', 'customer')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.mapCloseText}>Close</Text>
+          </Pressable>
+          <Card>
+            <View style={styles.providerSummaryRow}>
+              <View style={styles.quickIcon}>
+                <Navigation color={palette.mint} size={20} strokeWidth={2.6} />
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.cardTitle}>{trackingPhaseTitle(tracking)}</Text>
+                <Text style={styles.cardMeta}>{trackingRouteLabel(tracking)}</Text>
+              </View>
+            </View>
+          </Card>
+          <View style={styles.mapRouteLine} />
+          <View style={styles.mapPin}>
+            <MapPin color={palette.white} size={24} strokeWidth={2.8} />
+          </View>
+        </View>
+        <View style={styles.navBottomSheet}>
+          <View style={styles.dragHandle} />
+          <Text style={styles.cardTitle}>Service location</Text>
+          <Text style={styles.cardBody}>
+            {tracking?.destinationAddress ??
+              selectedBooking.serviceAddress ??
+              'Address unavailable'}
+          </Text>
+          <InfoRow label="Schedule" value={formatDateTime(selectedBooking.scheduledAt)} />
+          <InfoRow
+            label="Last update"
+            value={tracking?.lastUpdatedAt ? formatDateTime(tracking.lastUpdatedAt) : 'Loading'}
+          />
+          <View style={styles.twoButtons}>
+            <View style={styles.flex}>
+              <PrimaryButton
+                label="Refresh"
+                variant="secondary"
+                onPress={() => void refreshBookingTracking(selectedBooking.id)}
+              />
+            </View>
+            <View style={styles.flex}>
+              <PrimaryButton
+                label="Message"
+                onPress={() => void openSelectedConversation()}
+              />
+            </View>
+          </View>
+        </View>
+      </View>
     );
   }
 
@@ -2418,10 +3162,6 @@ export default function App() {
               <Text style={styles.cardMeta}>
                 Pending or confirmed bookings can be cancelled. Backend cancellation fees are not enabled yet.
               </Text>
-            </View>
-            <View style={styles.keepBox}>
-              <Text style={styles.cardTitle}>Need a different time?</Text>
-              <Text style={styles.cardMeta}>Rescheduling will be enabled after the backend endpoint is available.</Text>
             </View>
             <View style={styles.twoButtons}>
               <PrimaryButton
@@ -2652,6 +3392,82 @@ export default function App() {
     );
   }
 
+  function renderCustomerPaymentMethods() {
+    return (
+      <>
+        <TopBar title="Payment Methods" onBack={() => navigate('more', 'customer')} />
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
+            <Section title="Saved methods">
+              {customerPaymentMethods.length ? (
+                customerPaymentMethods.map((method) => {
+                  const selected = selectedCustomerPaymentMethod?.id === method.id;
+                  const deleting =
+                    busyAction === `delete-customer-payment-${method.id}`;
+                  return (
+                    <Pressable
+                      key={method.id}
+                      style={[
+                        styles.paymentMethodOption,
+                        selected && styles.paymentMethodSelected,
+                      ]}
+                      onPress={() => setSelectedCustomerPaymentMethodId(method.id)}
+                      accessibilityRole="button"
+                    >
+                      <View
+                        style={[
+                          styles.radioOuter,
+                          selected && styles.radioOuterSelected,
+                        ]}
+                      >
+                        {selected ? <View style={styles.radioInner} /> : null}
+                      </View>
+                      <Wallet color={selected ? palette.mint : palette.muted} size={22} />
+                      <View style={styles.flex}>
+                        <Text style={styles.cardTitle}>{method.label}</Text>
+                        <Text style={styles.cardMeta}>{paymentMethodMeta(method)}</Text>
+                      </View>
+                      {method.methodType !== 'cash_on_service' ? (
+                        <Pressable
+                          style={styles.iconAction}
+                          onPress={() => void removeCustomerPaymentMethod(method.id)}
+                          disabled={deleting}
+                        >
+                          <Trash2 color={palette.red} size={18} />
+                        </Pressable>
+                      ) : null}
+                    </Pressable>
+                  );
+                })
+              ) : (
+                <ActivityIndicator color={palette.mint} />
+              )}
+            </Section>
+            <View style={styles.twoButtons}>
+              <PrimaryButton
+                label="Add GCash"
+                variant="secondary"
+                onPress={() => void saveCustomerPaymentMethod('gcash')}
+                disabled={busyAction === 'customer-payment-gcash'}
+              />
+              <PrimaryButton
+                label="Add PayMaya"
+                variant="secondary"
+                onPress={() => void saveCustomerPaymentMethod('paymaya')}
+                disabled={busyAction === 'customer-payment-paymaya'}
+              />
+            </View>
+            <PrimaryButton
+              label="Add New Card"
+              onPress={() => void saveCustomerPaymentMethod('card')}
+              disabled={busyAction === 'customer-payment-card'}
+            />
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
   function renderCustomerSettings() {
     return (
       <>
@@ -2663,20 +3479,47 @@ export default function App() {
                 icon={Bell}
                 label="Push Notifications"
                 toggleValue={pushNotificationsEnabled}
-                onToggle={() => setPushNotificationsEnabled((value) => !value)}
+                onToggle={() =>
+                  void savePreferences({
+                    pushNotificationsEnabled: !pushNotificationsEnabled,
+                  })
+                }
               />
             </SettingsSection>
             <SettingsSection title="Account">
               <SettingsRow
                 icon={Lock}
                 label="Change Password"
-                onPress={() => setNotice('Password changes need an auth update flow before enabling.')}
+                onPress={() => setNotice('Enter your current and new password below.')}
+              />
+              <Field
+                label="Current Password"
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+                placeholder="Current password"
+              />
+              <Field
+                label="New Password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                placeholder="New password"
+              />
+              <PrimaryButton
+                label={busyAction === 'password-change' ? 'Saving...' : 'Save Password'}
+                onPress={() => void savePassword()}
+                disabled={busyAction === 'password-change'}
               />
               <SettingsRow
                 icon={Globe}
                 label="Language"
-                value="English"
-                onPress={() => setNotice('Language selection is visual-only for now.')}
+                value={languageLabel(userPreferences?.language ?? 'en')}
+                onPress={() =>
+                  void savePreferences({
+                    language: userPreferences?.language === 'fil' ? 'en' : 'fil',
+                  })
+                }
               />
             </SettingsSection>
             <SettingsSection title="Appearance">
@@ -2684,7 +3527,11 @@ export default function App() {
                 icon={Moon}
                 label="Dark Mode"
                 toggleValue={darkModeEnabled}
-                onToggle={() => setDarkModeEnabled((value) => !value)}
+                onToggle={() =>
+                  void savePreferences({
+                    darkModeEnabled: !darkModeEnabled,
+                  })
+                }
               />
             </SettingsSection>
           </View>
@@ -2844,6 +3691,65 @@ export default function App() {
     );
   }
 
+  function renderCustomerReferral() {
+    const code = referralSummary?.referralCode ?? 'Loading';
+    return (
+      <>
+        <TopBar title="Refer a Friend" onBack={() => navigate('more', 'customer')} />
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
+            <Card>
+              <View style={styles.providerSummaryRow}>
+                <View style={styles.quickIcon}>
+                  <Gift color={palette.mint} size={22} strokeWidth={2.5} />
+                </View>
+                <View style={styles.flex}>
+                  <Text style={styles.cardTitle}>Your referral code</Text>
+                  <Text style={styles.detailTitle}>{code}</Text>
+                  <Text style={styles.cardMeta}>
+                    Share this code with people creating a ServEase account.
+                  </Text>
+                </View>
+              </View>
+            </Card>
+            <View style={styles.metricGrid}>
+              <MetricCard
+                label="Completed"
+                value={`${referralSummary?.completedReferrals ?? 0}`}
+              />
+              <MetricCard
+                label="Pending"
+                value={`${referralSummary?.pendingReferrals ?? 0}`}
+              />
+            </View>
+            <Card>
+              <Text style={styles.cardTitle}>Rewards</Text>
+              <Text style={styles.detailTitle}>
+                {formatMoney(referralSummary?.totalRewards ?? 0)}
+              </Text>
+              <Text style={styles.cardMeta}>Earned referral credits</Text>
+            </Card>
+            <PrimaryButton
+              label="Refresh"
+              variant="secondary"
+              onPress={async () => {
+                setBusyAction('referrals');
+                try {
+                  setReferralSummary(await getReferralSummary(apiOptions));
+                  setNotice('Referral summary refreshed.');
+                } catch (error) {
+                  setNotice(readError(error));
+                } finally {
+                  setBusyAction(null);
+                }
+              }}
+            />
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
   function renderCustomerTerms() {
     return (
       <>
@@ -2870,6 +3776,9 @@ export default function App() {
 
   function renderProviderHome() {
     const pendingCount = bookings.filter((booking) => booking.status === 'pending').length;
+    const todayCompleted = providerDashboard?.summary.todayCompleted ?? 0;
+    const todayEarnings = providerDashboard?.summary.todayEarnings ?? 0;
+    const acceptanceRate = providerDashboard?.performance.acceptanceRate ?? null;
     return (
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.providerHero}>
@@ -2909,6 +3818,35 @@ export default function App() {
               />
             ))}
           </Section>
+          {(todayCompleted > 0 || todayEarnings > 0) ? (
+            <Section title="Today">
+              <View style={styles.metricGrid}>
+                <MetricCard label="Completed" value={todayCompleted} />
+                <MetricCard label="Earned Today" value={formatMoney(todayEarnings)} />
+                {acceptanceRate !== null ? (
+                  <MetricCard label="Accept Rate" value={`${acceptanceRate}%`} />
+                ) : null}
+              </View>
+            </Section>
+          ) : null}
+          {ownedServices.length > 0 ? (
+            <Section
+              title="My Services"
+              action={<Text style={styles.linkText} onPress={() => navigate('more', 'provider')}>Manage</Text>}
+            >
+              {ownedServices.slice(0, 3).map((svc) => (
+                <Card key={svc.id}>
+                  <View style={styles.rowBetween}>
+                    <View style={styles.flex}>
+                      <Text style={styles.cardTitle}>{svc.title}</Text>
+                      <Text style={styles.cardMeta}>{svc.price != null ? formatMoney(svc.price) : 'Price not set'} · {svc.pricingMode ?? 'flat'}</Text>
+                    </View>
+                    <Badge label={svc.isActive ? 'active' : 'inactive'} tone={svc.isActive ? 'success' : 'neutral'} />
+                  </View>
+                </Card>
+              ))}
+            </Section>
+          ) : null}
           <Section title="Quick Actions">
             <View style={styles.twoButtons}>
               <QuickAction label="Set Availability" onPress={() => navigate('calendar', 'provider')} />
@@ -3154,7 +4092,10 @@ export default function App() {
           <View style={styles.actions}>
             <PrimaryButton
               label="Start Navigation"
-              onPress={() => navigate('providerNavigationMode', 'provider')}
+              onPress={() => {
+                void refreshBookingTracking(selectedBooking.id);
+                navigate('providerNavigationMode', 'provider');
+              }}
             />
             <PrimaryButton
               label="Start Service"
@@ -3205,6 +4146,10 @@ export default function App() {
     if (!selectedBooking) {
       return <MissingSelection onBack={() => navigate('bookings', 'provider')} />;
     }
+    const tracking =
+      selectedBookingTracking?.bookingId === selectedBooking.id
+        ? selectedBookingTracking
+        : null;
     return (
       <View style={styles.navigationScreen}>
         <View style={styles.mapCanvas}>
@@ -3222,7 +4167,7 @@ export default function App() {
               </View>
               <View style={styles.flex}>
                 <Text style={styles.cardTitle}>Head to the service location</Text>
-                <Text style={styles.cardMeta}>ETA 18 min - 5.2 km - moderate traffic</Text>
+                <Text style={styles.cardMeta}>{trackingRouteLabel(tracking)}</Text>
               </View>
             </View>
           </Card>
@@ -3369,6 +4314,10 @@ export default function App() {
     if (!selectedBooking) {
       return <MissingSelection onBack={() => navigate('bookings', 'provider')} />;
     }
+    const startedAt = serviceStartedAt(
+      selectedBooking,
+      selectedBookingTimelineEvents,
+    );
     return (
       <>
         <TopBar
@@ -3380,8 +4329,14 @@ export default function App() {
           <View style={styles.content}>
             <View style={styles.timerCard}>
               <Clock color={palette.mint} size={28} strokeWidth={2.5} />
-              <Text style={styles.timerText}>00:42:18</Text>
-              <Text style={styles.cardMeta}>Live timer mock until time tracking is added.</Text>
+              <Text style={styles.timerText}>
+                {formatElapsedTime(startedAt ? nowTick - startedAt.getTime() : 0)}
+              </Text>
+              <Text style={styles.cardMeta}>
+                {startedAt
+                  ? `Started ${formatDateTime(startedAt.toISOString())}`
+                  : 'Service timer starts when work begins.'}
+              </Text>
             </View>
             <Card>
               <Text style={styles.cardTitle}>{selectedBooking.serviceTitle ?? 'Service booking'}</Text>
@@ -3807,6 +4762,465 @@ export default function App() {
     );
   }
 
+  function renderProviderProfileView() {
+    return (
+      <>
+        <TopBar
+          title="Provider Profile"
+          subtitle="Public business profile"
+          onBack={() => navigate('more', 'provider')}
+          right={
+            <PrimaryButton
+              label="Edit"
+              variant="secondary"
+              onPress={() => navigate('providerEditProfile', 'provider')}
+            />
+          }
+        />
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
+            <Card>
+              <View style={styles.profileHero}>
+                <View style={styles.profileAvatarLarge}>
+                  <Text style={styles.profileAvatarLargeText}>
+                    {(profile?.providerProfile?.businessName ??
+                      profile?.user.fullName ??
+                      'P')
+                      .slice(0, 1)
+                      .toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={styles.detailTitle}>
+                  {profile?.providerProfile?.businessName ??
+                    profile?.user.fullName ??
+                    'Service Provider'}
+                </Text>
+                <Text style={styles.cardMeta}>
+                  {profile?.providerProfile?.verificationStatus ?? 'pending'} ·{' '}
+                  {profile?.providerProfile?.averageRating.toFixed(1) ?? '0.0'} rating ·{' '}
+                  {profile?.providerProfile?.reviewCount ?? 0} reviews
+                </Text>
+              </View>
+            </Card>
+            <Section title="Account">
+              <ProfileInfoRow
+                icon={User}
+                label="Name"
+                value={profile?.user.fullName ?? 'N/A'}
+              />
+              <ProfileInfoRow
+                icon={Mail}
+                label="Email"
+                value={profile?.user.email ?? 'N/A'}
+              />
+              <ProfileInfoRow
+                icon={Phone}
+                label="Phone"
+                value={profile?.user.contactNumber ?? 'N/A'}
+              />
+            </Section>
+            <Section title="Portfolio Preview">
+              <View style={styles.portfolioGrid}>
+                {providerPortfolioMedia.slice(0, 4).map((item) => (
+                  <View key={item.id} style={styles.portfolioTile}>
+                    <Image source={{ uri: item.fileUrl }} style={styles.portfolioImage} />
+                    {item.caption ? (
+                      <Text style={styles.portfolioText} numberOfLines={1}>
+                        {item.caption}
+                      </Text>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+              {!providerPortfolioMedia.length ? (
+                <EmptyState title="No portfolio yet" body="Upload work samples to build trust." />
+              ) : null}
+              <PrimaryButton
+                label="Manage Portfolio"
+                variant="secondary"
+                onPress={() => navigate('providerPortfolio', 'provider')}
+              />
+            </Section>
+            <Section title="My Reviews">
+              {ownReviews.slice(0, 10).map((review) => (
+                <Card key={review.id}>
+                  <View style={styles.ratingRow}>
+                    <Star color="#FFC107" fill="#FFC107" size={14} />
+                    <Text style={styles.cardTitle}>{review.rating.toFixed(1)}</Text>
+                    <Text style={styles.cardMeta}> · {review.reviewerFullName ?? 'Customer'}</Text>
+                  </View>
+                  <Text style={styles.cardBody}>{review.reviewText ?? 'No review text.'}</Text>
+                  {replyingToReviewId === review.id ? (
+                    <>
+                      <Field
+                        label="Your reply"
+                        value={reviewReplyText}
+                        onChangeText={setReviewReplyText}
+                        multiline
+                      />
+                      <View style={styles.twoButtons}>
+                        <PrimaryButton
+                          label={busyAction === 'review-reply' ? 'Sending...' : 'Submit Reply'}
+                          onPress={() => void submitReviewReply()}
+                          disabled={busyAction === 'review-reply'}
+                        />
+                        <PrimaryButton
+                          label="Cancel"
+                          variant="secondary"
+                          onPress={() => {
+                            setReplyingToReviewId(null);
+                            setReviewReplyText('');
+                          }}
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    <Text
+                      style={styles.linkText}
+                      onPress={() => setReplyingToReviewId(review.id)}
+                    >
+                      Reply to this review
+                    </Text>
+                  )}
+                </Card>
+              ))}
+              {!ownReviews.length ? (
+                <EmptyState title="No reviews yet" body="Customer reviews will appear here once received." />
+              ) : null}
+            </Section>
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
+  function renderProviderEditProfile() {
+    return (
+      <>
+        <TopBar
+          title="Edit Profile"
+          subtitle="Update account and business details"
+          onBack={() => navigate('providerProfileView', 'provider')}
+        />
+        <ScrollView contentContainerStyle={styles.withStickyFooter}>
+          <View style={styles.content}>
+            <Card>
+              <Field
+                label="Full Name"
+                value={profileFullName}
+                onChangeText={setProfileFullName}
+                placeholder="Your full name"
+              />
+              <Field
+                label="Phone Number"
+                value={profileContactNumber}
+                onChangeText={setProfileContactNumber}
+                keyboardType="phone-pad"
+                placeholder="+639000000000"
+              />
+              <Field
+                label="Business Name"
+                value={profileBusinessName}
+                onChangeText={setProfileBusinessName}
+                placeholder="Your provider business name"
+              />
+              <Text style={styles.noticeText}>
+                Service area and service descriptions are managed from provider services.
+              </Text>
+            </Card>
+          </View>
+        </ScrollView>
+        <View style={styles.stickyFooter}>
+          <PrimaryButton
+            label={busyAction === 'profile-update' ? 'Saving...' : 'Save Profile'}
+            onPress={() => void saveProfile()}
+            disabled={busyAction === 'profile-update' || !profile}
+          />
+          <Text
+            style={styles.footerLink}
+            onPress={() => navigate('providerProfileView', 'provider')}
+          >
+            Back to profile
+          </Text>
+          <View style={styles.footerHomeIndicator} />
+        </View>
+      </>
+    );
+  }
+
+  function renderProviderPortfolio() {
+    return (
+      <>
+        <TopBar
+          title="Portfolio"
+          subtitle="Work samples shown to customers"
+          onBack={() => navigate('providerProfileView', 'provider')}
+          right={
+            <PrimaryButton
+              label="Refresh"
+              variant="secondary"
+              onPress={() => void refreshWorkspace()}
+            />
+          }
+        />
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
+            <Pressable
+              style={styles.uploadBox}
+              onPress={() => void uploadProviderPortfolioMedia()}
+              accessibilityRole="button"
+            >
+              {providerPortfolioPhotoUri ? (
+                <Image source={{ uri: providerPortfolioPhotoUri }} style={styles.uploadPreview} />
+              ) : (
+                <ImageIcon color={palette.mint} size={28} strokeWidth={2.5} />
+              )}
+              <Text style={styles.linkText}>
+                {providerPortfolioPhotoUrl ? 'Portfolio media uploaded' : 'Upload portfolio media'}
+              </Text>
+            </Pressable>
+
+            <View style={styles.portfolioGrid}>
+              {providerPortfolioMedia.map((item) => (
+                <View key={item.id} style={styles.portfolioTile}>
+                  <Image source={{ uri: item.fileUrl }} style={styles.portfolioImage} />
+                  <Text style={styles.portfolioText} numberOfLines={1}>
+                    {item.caption ?? item.fileName ?? 'Portfolio media'}
+                  </Text>
+                  <Pressable
+                    style={styles.deleteOverlay}
+                    onPress={() => void removeProviderPortfolioMedia(item.id)}
+                    accessibilityRole="button"
+                  >
+                    <Trash2 color={palette.white} size={16} strokeWidth={2.6} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+            {!providerPortfolioMedia.length ? (
+              <EmptyState
+                title="No portfolio yet"
+                body="Upload photos of completed services."
+              />
+            ) : null}
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
+  function renderProviderPayoutManagement() {
+    const nextPayoutDate = payoutAccount?.nextPayoutDate
+      ? formatDateTime(payoutAccount.nextPayoutDate)
+      : 'Not scheduled';
+
+    return (
+      <>
+        <TopBar
+          title="Payouts"
+          subtitle="Manage earnings and payout methods"
+          onBack={() => navigate('more', 'provider')}
+          right={
+            <PrimaryButton
+              label="Refresh"
+              variant="secondary"
+              onPress={() => void refreshWorkspace()}
+            />
+          }
+        />
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
+            <MetricCard
+              label="Available Payout"
+              value={formatMoney(payoutAccount?.availableBalance ?? payoutTotal)}
+              featured
+            />
+            <View style={styles.metricGrid}>
+              <MetricCard
+                label="Pending"
+                value={formatMoney(payoutAccount?.pendingBalance ?? 0)}
+              />
+              <MetricCard
+                label="Paid Out"
+                value={formatMoney(payoutAccount?.totalPaidOut ?? 0)}
+              />
+              <MetricCard label="Next" value={nextPayoutDate} />
+            </View>
+
+            <PrimaryButton
+              label="Request Payout"
+              onPress={() => navigate('providerRequestPayout', 'provider')}
+              disabled={!payoutMethods.length}
+            />
+
+            <Section title="Payout Methods">
+              {payoutMethods.map((method) => (
+                <Pressable
+                  key={method.id}
+                  style={styles.settingsRow}
+                  onPress={() => setSelectedPayoutMethodId(method.id)}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.settingsRowLeft}>
+                    <View style={styles.quickIcon}>
+                      <Wallet color={palette.mint} size={20} strokeWidth={2.5} />
+                    </View>
+                    <View>
+                      <Text style={styles.cardTitle}>{method.accountLabel}</Text>
+                      <Text style={styles.cardMeta}>
+                        {method.methodType.toUpperCase()}
+                        {method.isDefault ? ' · Default' : ''}
+                      </Text>
+                    </View>
+                  </View>
+                  {selectedPayoutMethodId === method.id ? (
+                    <CheckCircle color={palette.mint} size={20} strokeWidth={2.6} />
+                  ) : null}
+                </Pressable>
+              ))}
+              {!payoutMethods.length ? (
+                <EmptyState
+                  title="No payout method"
+                  body="Add payout details in provider onboarding or web settings."
+                />
+              ) : null}
+            </Section>
+
+            <Section title="Payout Requests">
+              {providerPayouts.map((payout) => (
+                <Card key={payout.id}>
+                  <View style={styles.rowBetween}>
+                    <View style={styles.flex}>
+                      <Text style={styles.cardTitle}>
+                        {formatMoney(payout.netAmount || payout.amount)}
+                      </Text>
+                      <Text style={styles.cardMeta}>
+                        {payout.reference ?? payout.id.slice(0, 8)} ·{' '}
+                        {payout.accountLabel ?? 'Payout method'}
+                      </Text>
+                      <Text style={styles.noticeText}>
+                        Fee {formatMoney(payout.processingFee)} · Requested{' '}
+                        {formatDateTime(payout.requestedAt ?? payout.createdAt)}
+                      </Text>
+                    </View>
+                    <Badge
+                      label={payout.status}
+                      tone={payout.status === 'paid' ? 'success' : 'warning'}
+                    />
+                  </View>
+                </Card>
+              ))}
+              {!providerPayouts.length ? (
+                <EmptyState
+                  title="No payout requests"
+                  body="Requested payouts will appear here."
+                />
+              ) : null}
+            </Section>
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
+  function renderProviderRequestPayout() {
+    const amount = Number(requestPayoutAmount);
+    const selectedMethod =
+      payoutMethods.find((method) => method.id === selectedPayoutMethodId) ??
+      payoutMethods.find((method) => method.isDefault) ??
+      payoutMethods[0] ??
+      null;
+    const fee = Number.isFinite(amount) && amount > 0 ? amount * 0.025 : 0;
+    const netAmount = Number.isFinite(amount) && amount > 0 ? amount - fee : 0;
+    const availableBalance = payoutAccount?.availableBalance ?? 0;
+    const canSubmit =
+      Boolean(selectedMethod) &&
+      Number.isFinite(amount) &&
+      amount > 0 &&
+      amount <= availableBalance &&
+      busyAction !== 'provider-payout';
+
+    return (
+      <>
+        <TopBar
+          title="Request Payout"
+          subtitle="Withdraw available earnings"
+          onBack={() => navigate('providerPayoutManagement', 'provider')}
+        />
+        <ScrollView contentContainerStyle={styles.withStickyFooter}>
+          <View style={styles.content}>
+            <MetricCard
+              label="Available Balance"
+              value={formatMoney(availableBalance)}
+              featured
+            />
+            <Card>
+              <Field
+                label="Amount"
+                value={requestPayoutAmount}
+                onChangeText={setRequestPayoutAmount}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+              />
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Processing fee</Text>
+                <Text style={styles.infoValue}>{formatMoney(fee)}</Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>You receive</Text>
+                <Text style={styles.totalValue}>{formatMoney(netAmount)}</Text>
+              </View>
+            </Card>
+            <Section title="Send To">
+              {payoutMethods.map((method) => (
+                <Pressable
+                  key={method.id}
+                  style={[
+                    styles.methodCard,
+                    selectedMethod?.id === method.id && styles.methodCardSelected,
+                  ]}
+                  onPress={() => setSelectedPayoutMethodId(method.id)}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.settingsRowLeft}>
+                    <Wallet color={palette.mint} size={20} strokeWidth={2.5} />
+                    <View>
+                      <Text style={styles.cardTitle}>{method.accountLabel}</Text>
+                      <Text style={styles.cardMeta}>{method.methodType.toUpperCase()}</Text>
+                    </View>
+                  </View>
+                  {selectedMethod?.id === method.id ? (
+                    <CheckCircle color={palette.mint} size={20} strokeWidth={2.6} />
+                  ) : null}
+                </Pressable>
+              ))}
+              {!payoutMethods.length ? (
+                <EmptyState
+                  title="No payout method"
+                  body="Set up a payout method before requesting funds."
+                />
+              ) : null}
+            </Section>
+          </View>
+        </ScrollView>
+        <View style={styles.stickyFooter}>
+          <PrimaryButton
+            label={busyAction === 'provider-payout' ? 'Requesting...' : 'Submit Payout Request'}
+            onPress={() => void submitProviderPayoutRequest()}
+            disabled={!canSubmit}
+          />
+          <Text
+            style={styles.footerLink}
+            onPress={() => navigate('providerPayoutManagement', 'provider')}
+          >
+            Back to payouts
+          </Text>
+          <View style={styles.footerHomeIndicator} />
+        </View>
+      </>
+    );
+  }
+
   function renderProviderMore() {
     return (
       <>
@@ -3814,6 +5228,26 @@ export default function App() {
         <ScrollView contentContainerStyle={styles.withBottomNav}>
           <View style={styles.content}>
             <MetricCard label="Available Payout" value={formatMoney(payoutTotal)} featured />
+            <View style={styles.twoButtons}>
+              <QuickAction
+                label="Profile"
+                onPress={() => navigate('providerProfileView', 'provider')}
+              />
+              <QuickAction
+                label="Portfolio"
+                onPress={() => navigate('providerPortfolio', 'provider')}
+              />
+            </View>
+            <View style={styles.twoButtons}>
+              <QuickAction
+                label="Payouts"
+                onPress={() => navigate('providerPayoutManagement', 'provider')}
+              />
+              <QuickAction
+                label="Request Payout"
+                onPress={() => navigate('providerRequestPayout', 'provider')}
+              />
+            </View>
             <Section title="Payments">
               {payments.map((payment) => (
                 <Card key={payment.id}>
@@ -3828,6 +5262,58 @@ export default function App() {
                   </View>
                 </Card>
               ))}
+            </Section>
+            <Section title="My Services">
+              {ownedServices.map((svc) => (
+                <Card key={svc.id}>
+                  {editingServiceId === svc.id ? (
+                    <>
+                      <Field label="Title" value={editServiceTitle} onChangeText={setEditServiceTitle} />
+                      <Field
+                        label="Price"
+                        value={editServicePrice}
+                        onChangeText={setEditServicePrice}
+                        keyboardType="decimal-pad"
+                      />
+                      <View style={styles.twoButtons}>
+                        <PrimaryButton
+                          label={busyAction === 'service-edit' ? 'Saving...' : 'Save'}
+                          onPress={() => void saveOwnedServiceEdit()}
+                          disabled={busyAction === 'service-edit'}
+                        />
+                        <PrimaryButton
+                          label="Cancel"
+                          variant="secondary"
+                          onPress={() => setEditingServiceId(null)}
+                        />
+                      </View>
+                    </>
+                  ) : (
+                    <View style={styles.rowBetween}>
+                      <View style={styles.flex}>
+                        <Text style={styles.cardTitle}>{svc.title}</Text>
+                        <Text style={styles.cardMeta}>{svc.price != null ? formatMoney(svc.price) : 'No price'} · {svc.pricingMode ?? 'flat'}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Badge label={svc.isActive ? 'active' : 'inactive'} tone={svc.isActive ? 'success' : 'neutral'} />
+                        <Text
+                          style={[styles.linkText, { marginLeft: 8 }]}
+                          onPress={() => {
+                            setEditingServiceId(svc.id);
+                            setEditServiceTitle(svc.title);
+                            setEditServicePrice(svc.price != null ? String(svc.price) : '');
+                          }}
+                        >
+                          Edit
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </Card>
+              ))}
+              {!ownedServices.length ? (
+                <EmptyState title="No services yet" body="Add services to appear in marketplace listings." />
+              ) : null}
             </Section>
             {renderProfileCard()}
             {renderSupportPanel()}
@@ -3869,18 +5355,7 @@ export default function App() {
               />
               <Pressable
                 style={styles.uploadBox}
-                onPress={() => void pickAndUploadImage('provider_portfolio', async (uri, uploaded) => {
-                  const media = await addProviderPortfolioMedia(
-                    mediaAttachmentFromUpload(uploaded),
-                    apiOptions,
-                  );
-                  setProviderPortfolioPhotoUri(uri);
-                  setProviderPortfolioPhotoUrl(uploaded.publicUrl);
-                  setSelectedProviderPortfolioMedia((current) => [
-                    media,
-                    ...current.filter((item) => item.id !== media.id),
-                  ]);
-                })}
+                onPress={() => void uploadProviderPortfolioMedia()}
                 accessibilityRole="button"
               >
                 {providerPortfolioPhotoUri ? (
@@ -4047,6 +5522,75 @@ export default function App() {
   );
 }
 
+function trackingPhaseTitle(tracking: BookingTrackingSnapshot | null): string {
+  switch (tracking?.phase) {
+    case 'awaiting_confirmation':
+      return 'Awaiting provider confirmation';
+    case 'scheduled':
+      return 'Provider is scheduled';
+    case 'on_the_way':
+      return 'Provider is on the way';
+    case 'completed':
+      return 'Service completed';
+    case 'cancelled':
+      return 'Booking cancelled';
+    case 'rejected':
+      return 'Booking declined';
+    default:
+      return 'Loading route estimate';
+  }
+}
+
+function trackingRouteLabel(tracking: BookingTrackingSnapshot | null): string {
+  if (!tracking) {
+    return 'Fetching ETA and route distance';
+  }
+
+  const routeParts = [
+    tracking.etaMinutes === null ? null : `ETA ${tracking.etaMinutes} min`,
+    tracking.distanceKm === null ? null : `${tracking.distanceKm.toFixed(1)} km`,
+    tracking.trafficLevel ? `${tracking.trafficLevel} traffic` : null,
+  ].filter(Boolean);
+
+  return routeParts.length ? routeParts.join(' - ') : statusLabel(tracking.status);
+}
+
+function serviceStartedAt(
+  booking: BookingSummary,
+  events: BookingTimelineEventSummary[],
+): Date | null {
+  const startEvent = events.find((event) => {
+    return (
+      event.eventType === 'status_changed' &&
+      (event.label ?? '').toLowerCase().includes('in_progress') &&
+      event.createdAt
+    );
+  });
+  const value = startEvent?.createdAt ?? booking.scheduledAt;
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
+}
+
+function formatElapsedTime(milliseconds: number): string {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds]
+    .map((value) => String(value).padStart(2, '0'))
+    .join(':');
+}
+
+function languageLabel(language: string): string {
+  return language === 'fil' ? 'Filipino' : 'English';
+}
+
 const styles = StyleSheet.create({
   safeArea: {
     backgroundColor: palette.white,
@@ -4129,6 +5673,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.sm,
+  },
+  methodCard: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 64,
+    padding: spacing.base,
+  },
+  methodCardSelected: {
+    backgroundColor: '#F0FFF4',
+    borderColor: palette.mint,
+  },
+  deleteOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(220,38,38,0.88)',
+    borderRadius: radius.pill,
+    height: 32,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: spacing.sm,
+    top: spacing.sm,
+    width: 32,
   },
   switchTrack: {
     backgroundColor: palette.line,
@@ -4788,6 +6358,41 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.base,
   },
+  paymentMethodOption: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.base,
+  },
+  inlineActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexShrink: 0,
+    gap: spacing.xs,
+  },
+  smallAction: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  smallActionText: {
+    color: palette.mint,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  iconAction: {
+    alignItems: 'center',
+    backgroundColor: '#FEF2F2',
+    borderRadius: radius.pill,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+  },
   confirmationContent: {
     gap: spacing.lg,
     padding: spacing.xl,
@@ -4891,6 +6496,22 @@ const styles = StyleSheet.create({
   keepBox: {
     backgroundColor: palette.mintSoft,
     borderColor: '#C7F0D8',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.base,
+  },
+  promoAppliedBox: {
+    backgroundColor: palette.mintSoft,
+    borderColor: '#C7F0D8',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.base,
+  },
+  promoRejectedBox: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
     borderRadius: radius.md,
     borderWidth: 1,
     gap: spacing.xs,

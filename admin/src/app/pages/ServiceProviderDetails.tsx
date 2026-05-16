@@ -1,5 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  getAdminManagedProvider,
+  updateAdminManagedProviderStatus,
+  AdminProviderSummary,
+} from "../../services/serveaseAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -263,7 +269,35 @@ const TAB_EMPTY_ICONS: Record<string, React.ReactNode> = {
 export function ServiceProviderDetails() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const provider = (id && PROVIDERS[id]) ? PROVIDERS[id] : DEFAULT_PROVIDER;
+  const { accessToken } = useAuth();
+  const [apiProvider, setApiProvider] = useState<AdminProviderSummary | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id || !accessToken) return;
+    getAdminManagedProvider(accessToken, id)
+      .then(setApiProvider)
+      .catch(() => setLoadError('Provider not found.'));
+  }, [id, accessToken]);
+
+  const fallback = (id && PROVIDERS[id]) ? PROVIDERS[id] : DEFAULT_PROVIDER;
+  const provider = apiProvider
+    ? {
+        ...fallback,
+        id: apiProvider.id,
+        businessName: apiProvider.businessName ?? fallback.businessName,
+        ownerName: apiProvider.userFullName ?? fallback.ownerName,
+        email: apiProvider.userEmail ?? fallback.email,
+        phone: apiProvider.userContactNumber ?? fallback.phone,
+        location: apiProvider.serviceArea ?? fallback.location,
+        rating: apiProvider.averageRating,
+        totalBookings: apiProvider.reviewCount,
+        verificationLevel: (
+          apiProvider.verificationStatus === 'approved' ? 'Fully Verified' :
+          apiProvider.verificationStatus === 'rejected' ? 'Basic' : 'Basic'
+        ) as typeof fallback.verificationLevel,
+      }
+    : fallback;
 
   const [activeTab, setActiveTab] = useState("Documents");
   const [showRevokeModal, setShowRevokeModal] = useState(false);
@@ -279,6 +313,10 @@ export function ServiceProviderDetails() {
     setZoomLevel(100);
     setShowDocModal(true);
   };
+
+  if (loadError) {
+    return <div className="p-8 text-red-600">{loadError}</div>;
+  }
 
   return (
     <div className="space-y-5">

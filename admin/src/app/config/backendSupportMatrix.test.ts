@@ -14,13 +14,19 @@ describe("backendSupportMatrix", () => {
     }
   });
 
-  it("does not mark blocked features as complete without backend mutation endpoints", () => {
+  it("does not mark blocked or partial features as complete without backend notes", () => {
     const blockedItems = backendSupportMatrix.filter((item) => item.status === "blocked");
+    const incompleteItems = backendSupportMatrix.filter((item) =>
+      ["blocked", "partial", "local"].includes(item.status),
+    );
 
-    expect(blockedItems.length).toBeGreaterThan(0);
     for (const item of blockedItems) {
       expect(item.backendNeeded.length).toBeGreaterThan(0);
       expect(item.currentSupport.toLowerCase()).not.toContain("fully wired");
+    }
+    expect(incompleteItems.length).toBeGreaterThan(0);
+    for (const item of incompleteItems) {
+      expect(item.notes).toBeTruthy();
     }
   });
 
@@ -29,9 +35,12 @@ describe("backendSupportMatrix", () => {
 
     expect(endpoints).toContain("GET /v1/me");
     expect(endpoints).toContain("GET /v1/admin/payments");
+    expect(endpoints).toContain("GET /v1/admin/payments/:paymentId");
     expect(endpoints).toContain("PATCH /v1/admin/payments/:paymentId/status");
     expect(endpoints).toContain("GET /v1/admin/support/tickets");
+    expect(endpoints).toContain("GET /v1/admin/support/tickets/:ticketId");
     expect(endpoints).toContain("PATCH /v1/admin/support/tickets/:ticketId/status");
+    expect(endpoints).toContain("GET /v1/admin/bookings/summary");
     expect(endpoints).toContain("GET /v1/catalog/categories");
     expect(endpoints).toContain("GET /v1/catalog/services");
     expect(endpoints).toContain("GET /v1/catalog/providers");

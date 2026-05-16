@@ -4,6 +4,8 @@ import { CatalogDependencyUnavailableError } from '../catalog.errors';
 import {
   CatalogCategory,
   CatalogServiceItem,
+  ProviderOwnedServiceInput,
+  ProviderOwnedServiceSummary,
   ProviderPortfolioMediaInput,
   ProviderPortfolioMediaSummary,
   ProviderServiceListing,
@@ -22,8 +24,18 @@ export class CatalogServiceClient {
     return this.get<CatalogServiceItem[]>(`/internal/catalog/services${search}`);
   }
 
-  async listProviderListings(serviceId?: string): Promise<ProviderServiceListing[]> {
-    const search = serviceId ? `?serviceId=${encodeURIComponent(serviceId)}` : '';
+  async listProviderListings(
+    serviceId?: string,
+    providerId?: string,
+  ): Promise<ProviderServiceListing[]> {
+    const searchParams = new URLSearchParams();
+    if (serviceId) {
+      searchParams.set('serviceId', serviceId);
+    }
+    if (providerId) {
+      searchParams.set('providerId', providerId);
+    }
+    const search = searchParams.size > 0 ? `?${searchParams.toString()}` : '';
     return this.get<ProviderServiceListing[]>(
       `/internal/catalog/providers${search}`,
     );
@@ -63,13 +75,33 @@ export class CatalogServiceClient {
     );
   }
 
+  async listProviderOwnedServices(
+    userId: string,
+  ): Promise<ProviderOwnedServiceSummary[]> {
+    return this.request<ProviderOwnedServiceSummary[]>(
+      `/internal/providers/by-user/${encodeURIComponent(userId)}/services`,
+      'GET',
+    );
+  }
+
+  async replaceProviderOwnedServices(
+    userId: string,
+    services: ProviderOwnedServiceInput[],
+  ): Promise<ProviderOwnedServiceSummary[]> {
+    return this.request<ProviderOwnedServiceSummary[]>(
+      `/internal/providers/by-user/${encodeURIComponent(userId)}/services`,
+      'PUT',
+      { services },
+    );
+  }
+
   private async get<T>(path: string): Promise<T> {
     return this.request<T>(path, 'GET');
   }
 
   private async request<T>(
     path: string,
-    method: 'DELETE' | 'GET' | 'POST',
+    method: 'DELETE' | 'GET' | 'POST' | 'PUT',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(

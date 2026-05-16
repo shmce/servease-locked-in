@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { AdminAuditGatewayService } from './admin-audit.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
+import { CurrentUserProfile } from '../current-user/current-user.types';
 import {
   AuthRequiredError,
   InvalidAuthTokenError,
@@ -11,7 +13,7 @@ import {
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminSupportGatewayService } from './admin-support.service';
-import { SupportTicketSummary } from './admin-support.types';
+import { SupportTicketReplySummary, SupportTicketSummary } from './admin-support.types';
 
 const validSupportStatuses = new Set(['open', 'in_progress', 'resolved', 'closed']);
 
@@ -19,6 +21,7 @@ const validSupportStatuses = new Set(['open', 'in_progress', 'resolved', 'closed
 export class AdminSupportController {
   constructor(
     private readonly adminSupportGatewayService: AdminSupportGatewayService,
+    private readonly adminAuditGatewayService: AdminAuditGatewayService,
     private readonly authTokenService: AuthTokenService,
     private readonly currentUserService: CurrentUserService,
   ) {}
@@ -43,35 +46,126 @@ export class AdminSupportController {
     }
   }
 
-  @Patch(':ticketId/status')
-  async updateTicketStatus(
+  @Get(':ticketId')
+  async get(
     @Headers('authorization') authorization: string | undefined,
     @Param('ticketId') ticketId: string,
-    @Body() body: { status?: string },
   ): Promise<{ data: SupportTicketSummary }> {
     try {
       await this.requireAdmin(authorization);
-      if (!body.status || !validSupportStatuses.has(body.status)) {
-        throw new InvalidAdminRequestError();
-      }
       return {
-        data: await this.adminSupportGatewayService.updateTicketStatus(
-          ticketId,
-          body.status,
-        ),
+        data: await this.adminSupportGatewayService.getSupportTicket(ticketId),
       };
     } catch (error) {
       throw this.toHttpException(error);
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<void> {
+  @Get(':ticketId/replies')
+  async listReplies(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('ticketId') ticketId: string,
+  ): Promise<{ data: SupportTicketReplySummary[] }> {
+    try {
+      await this.requireAdmin(authorization);
+      return { data: await this.adminSupportGatewayService.listReplies(ticketId) };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':ticketId/replies')
+  async addReply(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('ticketId') ticketId: string,
+    @Body() body: { repliedBy?: string; message?: string },
+  ): Promise<{ data: SupportTicketReplySummary }> {
+    try {
+      await this.requireAdmin(authorization);
+      if (!body.repliedBy?.trim() || !body.message?.trim()) {
+        throw new InvalidAdminRequestError();
+      }
+      return {
+        data: await this.adminSupportGatewayService.addReply(ticketId, body.repliedBy, body.message),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':ticketId/assignee')
+  async assignTicket(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('ticketId') ticketId: string,
+    @Body() body: { assigneeId?: string | null },
+  ): Promise<{ data: SupportTicketSummary }> {
+    try {
+      await this.requireAdmin(authorization);
+      return {
+        data: await this.adminSupportGatewayService.assignTicket(ticketId, body.assigneeId ?? null),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':ticketId/status')
+  async updateTicketStatus(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('ticketId') ticketId: string,
+    @Body() body: { status?: string },
+  ): Promise<{ data: SupportTicketSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      if (!body.status || !validSupportStatuses.has(body.status)) {
+        throw new InvalidAdminRequestError();
+      }
+      const ticket = await this.adminSupportGatewayService.updateTicketStatus(
+        ticketId,
+        body.status,
+      );
+      void this.adminAuditGatewayService.createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: `Updated support ticket status to ${ticket.status}`,
+        actionType: ticket.status === 'resolved' ? 'resolve' : 'update',
+        entityType: 'Support Ticket',
+        entityId: ticket.id,
+        details: `Support ticket ${ticket.id} is now ${ticket.status}.`,
+        ipAddress: this.getClientIp(request),
+        metadata: { ticketId: ticket.id, status: ticket.status },
+      }).catch(() => undefined);
+      return {
+        data: ticket,
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
     if (currentUser.user.role !== 'admin') {
       throw new AdminRequiredError();
     }
+
+    return currentUser;
+  }
+
+  private getClientIp(request: {
+    headers?: Record<string, string | string[] | undefined>;
+    socket?: { remoteAddress?: string };
+  }): string | null {
+    const forwardedFor = request.headers?.['x-forwarded-for'];
+    if (Array.isArray(forwardedFor)) {
+      return forwardedFor[0] ?? null;
+    }
+
+    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
   }
 
   private toHttpException(error: unknown): HttpException {

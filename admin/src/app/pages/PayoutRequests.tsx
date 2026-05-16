@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -27,48 +27,111 @@ import {
   DialogTitle,
 } from "../components/ui/dialog";
 import {
-  DollarSign,
   Clock,
   CheckCircle,
   XCircle,
   Search,
-  AlertCircle,
   ThumbsUp,
   ThumbsDown,
   Wallet,
 } from "lucide-react";
-import { useData } from "../../contexts/DataContext";
-import type { PayoutStatus } from "../../types";
-import { notifyBackendRequired } from "../utils/backendRequired";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  listAdminPayouts,
+  updateAdminPayoutStatus,
+  type AdminPayoutStatus,
+  type AdminPayoutSummary,
+} from "../../services/serveaseAdminApi";
+import { toast } from "sonner";
+
+const payoutStatuses: AdminPayoutStatus[] = [
+  "requested",
+  "processing",
+  "paid",
+  "cancelled",
+];
+
+function formatPeso(value: number) {
+  return `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "N/A";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function statusLabel(status: AdminPayoutStatus) {
+  switch (status) {
+    case "requested":
+      return "Requested";
+    case "processing":
+      return "Processing";
+    case "paid":
+      return "Released";
+    case "cancelled":
+      return "Cancelled";
+  }
+}
 
 export function PayoutRequests() {
-  const { payoutRequests, getProviderById, calculateProviderEarnings } = useData();
+  const { accessToken } = useAuth();
+  const [payoutRequests, setPayoutRequests] = useState<AdminPayoutSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<AdminPayoutStatus | "all">("all");
   const [selectedPayout, setSelectedPayout] = useState<string | null>(null);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [updatingPayoutId, setUpdatingPayoutId] = useState<string | null>(null);
+
+  const loadPayouts = useCallback(async () => {
+    if (!accessToken) return;
+
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      setPayoutRequests(
+        await listAdminPayouts(
+          accessToken,
+          statusFilter === "all" ? null : statusFilter,
+        ),
+      );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to load payouts.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [accessToken, statusFilter]);
+
+  useEffect(() => {
+    void loadPayouts();
+  }, [loadPayouts]);
 
   const filteredPayouts = useMemo(() => {
+    const normalizedSearch = searchTerm.toLowerCase();
+
     return payoutRequests.filter((payout) => {
-      const provider = getProviderById(payout.providerId);
-      
       const matchesSearch =
-        payout.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        provider?.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        provider?.id.toLowerCase().includes(searchTerm.toLowerCase());
+        payout.id.toLowerCase().includes(normalizedSearch) ||
+        payout.providerId.toLowerCase().includes(normalizedSearch) ||
+        payout.reference?.toLowerCase().includes(normalizedSearch) ||
+        payout.accountLabel?.toLowerCase().includes(normalizedSearch);
 
-      const matchesStatus = statusFilter === "all" || payout.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
-  }, [payoutRequests, searchTerm, statusFilter, getProviderById]);
+  }, [payoutRequests, searchTerm]);
 
   const stats = useMemo(() => {
-    const pending = payoutRequests.filter((p) => p.status === "Pending");
-    const approved = payoutRequests.filter((p) => p.status === "Approved");
-    const released = payoutRequests.filter((p) => p.status === "Released");
-    const rejected = payoutRequests.filter((p) => p.status === "Rejected");
+    const pending = payoutRequests.filter((p) => p.status === "requested");
+    const approved = payoutRequests.filter((p) => p.status === "processing");
+    const released = payoutRequests.filter((p) => p.status === "paid");
+    const rejected = payoutRequests.filter((p) => p.status === "cancelled");
 
     const pendingAmount = pending.reduce((sum, p) => sum + p.amount, 0);
     const approvedAmount = approved.reduce((sum, p) => sum + p.amount, 0);
@@ -83,43 +146,60 @@ export function PayoutRequests() {
     };
   }, [payoutRequests]);
 
-  const handleApprove = () => {
-    if (selectedPayout) {
-      notifyBackendRequired(
-        "Approving payout requests",
-        "POST /v1/admin/payout-requests/:id/approve",
+  const updatePayout = async (payoutId: string, status: AdminPayoutStatus) => {
+    if (!accessToken) return;
+
+    setUpdatingPayoutId(payoutId);
+    try {
+      const updated = await updateAdminPayoutStatus(accessToken, payoutId, status);
+      setPayoutRequests((current) =>
+        current.map((payout) => (payout.id === updated.id ? updated : payout)),
       );
+      toast.success(`Payout ${updated.reference ?? updated.id} updated to ${statusLabel(status)}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update payout.");
+    } finally {
+      setUpdatingPayoutId(null);
+      setSelectedPayout(null);
+      setShowApproveDialog(false);
+      setShowRejectDialog(false);
     }
   };
 
-  const getStatusBadge = (status: PayoutStatus) => {
+  const handleApprove = () => {
+    if (selectedPayout) {
+      void updatePayout(selectedPayout, "processing");
+    }
+  };
+
+  const getStatusBadge = (status: AdminPayoutStatus) => {
     switch (status) {
-      case "Pending":
+      case "requested":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
             <Clock className="w-3 h-3 mr-1" />
-            Pending
+            Requested
           </Badge>
         );
-      case "Approved":
+      case "processing":
         return (
           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
             <CheckCircle className="w-3 h-3 mr-1" />
-            Approved
+            Processing
           </Badge>
         );
-      case "Released":
+      case "paid":
         return (
           <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]">
             <CheckCircle className="w-3 h-3 mr-1" />
             Released
           </Badge>
         );
-      case "Rejected":
+      case "cancelled":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200">
             <XCircle className="w-3 h-3 mr-1" />
-            Rejected
+            Cancelled
           </Badge>
         );
     }
@@ -144,7 +224,7 @@ export function PayoutRequests() {
                 <p className="text-sm text-gray-500">Pending Requests</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.pendingCount}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  ₱{(stats.pendingAmount / 1000).toFixed(1)}K total
+                  {formatPeso(stats.pendingAmount)} total
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-yellow-50">
@@ -161,7 +241,7 @@ export function PayoutRequests() {
                 <p className="text-sm text-gray-500">Approved</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.approvedCount}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  ₱{(stats.approvedAmount / 1000).toFixed(1)}K total
+                  {formatPeso(stats.approvedAmount)} total
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-blue-50">
@@ -222,19 +302,31 @@ export function PayoutRequests() {
             </div>
 
             {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) =>
+                setStatusFilter(value as AdminPayoutStatus | "all")
+              }
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Filter by Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="Approved">Approved</SelectItem>
-                <SelectItem value="Released">Released</SelectItem>
-                <SelectItem value="Rejected">Rejected</SelectItem>
+                {payoutStatuses.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {statusLabel(status)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
+
+          {loadError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
 
           {/* Table */}
           <div className="overflow-x-auto">
@@ -242,17 +334,23 @@ export function PayoutRequests() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Request ID</TableHead>
-                  <TableHead>Provider</TableHead>
-                  <TableHead>Business ID</TableHead>
+                  <TableHead>Provider ID</TableHead>
+                  <TableHead>Reference</TableHead>
                   <TableHead>Amount Requested</TableHead>
-                  <TableHead>Bank Details</TableHead>
+                  <TableHead>Payout Method</TableHead>
                   <TableHead>Request Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPayouts.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      Loading payout requests...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredPayouts.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       No payout requests found
@@ -260,62 +358,55 @@ export function PayoutRequests() {
                   </TableRow>
                 ) : (
                   filteredPayouts.map((payout) => {
-                    const provider = getProviderById(payout.providerId);
-                    const earnings = calculateProviderEarnings(payout.providerId);
-
                     return (
                       <TableRow key={payout.id}>
                         <TableCell>
                           <span className="font-mono font-semibold text-[#16A34A]">
-                            {payout.id}
+                            {payout.reference ?? payout.id}
                           </span>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium text-gray-900">
-                              {provider?.businessName || "N/A"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              Available: ₱{earnings.pendingEarnings.toLocaleString()}
+                            <p className="font-mono text-sm text-gray-900">
+                              {payout.providerId}
                             </p>
                           </div>
                         </TableCell>
                         <TableCell>
                           <span className="font-mono text-sm text-gray-600">
-                            {provider?.id || "N/A"}
+                            {payout.id}
                           </span>
                         </TableCell>
                         <TableCell>
                           <span className="font-bold text-gray-900">
-                            ₱{payout.amount.toLocaleString()}
+                            {formatPeso(payout.amount)}
                           </span>
+                          <p className="text-xs text-gray-500">
+                            Net: {formatPeso(payout.netAmount)}
+                          </p>
                         </TableCell>
                         <TableCell>
                           <div>
                             <p className="text-sm font-medium text-gray-900">
-                              {payout.bankDetails.accountName}
+                              {payout.accountLabel ?? "N/A"}
                             </p>
                             <p className="text-xs text-gray-500">
-                              {payout.bankDetails.bankName} - ****
-                              {payout.bankDetails.accountNumber.slice(-4)}
+                              {payout.methodType ?? "Payout method"}
                             </p>
                           </div>
                         </TableCell>
                         <TableCell>
                           <span className="text-sm text-gray-600">
-                            {new Date(payout.requestedDate).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
+                            {formatDate(payout.requestedAt ?? payout.createdAt)}
                           </span>
                         </TableCell>
                         <TableCell>{getStatusBadge(payout.status)}</TableCell>
                         <TableCell>
-                          {payout.status === "Pending" && (
+                          {payout.status === "requested" && (
                             <div className="flex items-center gap-2">
                               <Button
                                 size="sm"
+                                disabled={updatingPayoutId === payout.id}
                                 onClick={() => {
                                   setSelectedPayout(payout.id);
                                   setShowApproveDialog(true);
@@ -328,6 +419,7 @@ export function PayoutRequests() {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                disabled={updatingPayoutId === payout.id}
                                 onClick={() => {
                                   setSelectedPayout(payout.id);
                                   setShowRejectDialog(true);
@@ -338,6 +430,17 @@ export function PayoutRequests() {
                                 Reject
                               </Button>
                             </div>
+                          )}
+                          {payout.status === "processing" && (
+                            <Button
+                              size="sm"
+                              disabled={updatingPayoutId === payout.id}
+                              onClick={() => void updatePayout(payout.id, "paid")}
+                              className="bg-[#16A34A] hover:bg-[#15803D]"
+                            >
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Mark Released
+                            </Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -401,10 +504,9 @@ export function PayoutRequests() {
             </Button>
             <Button
               onClick={() => {
-                notifyBackendRequired(
-                  "Rejecting payout requests",
-                  "POST /v1/admin/payout-requests/:id/reject",
-                );
+                if (selectedPayout) {
+                  void updatePayout(selectedPayout, "cancelled");
+                }
               }}
               className="bg-red-600 hover:bg-red-700"
             >

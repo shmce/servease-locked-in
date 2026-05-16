@@ -1,6 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Filter, MapPin, Calendar, Clock, ChevronRight, X } from "lucide-react";
 import { useNavigate } from "react-router";
+import {
+  getStoredProviderAccessToken,
+  listProviderBookings,
+  updateProviderBookingStatus,
+  type BookingStatus,
+  type BookingSummary,
+} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -300,6 +307,7 @@ const styles = {
 
 interface BookingRequest {
   id: string;
+  backendStatus: BookingStatus;
   customerName: string;
   customerPhoto?: string;
   serviceType: string;
@@ -310,6 +318,46 @@ interface BookingRequest {
   status: "new" | "pending" | "accepted" | "declined";
 }
 
+function toRequestStatus(status: BookingStatus): BookingRequest["status"] {
+  if (status === "pending") return "new";
+  if (status === "confirmed") return "accepted";
+  if (status === "rejected" || status === "cancelled") return "declined";
+  return "pending";
+}
+
+function formatDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Time unavailable";
+  return date.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function toBookingRequest(booking: BookingSummary): BookingRequest {
+  return {
+    id: booking.id,
+    backendStatus: booking.status,
+    customerName: booking.customerFullName || "ServEase Customer",
+    serviceType: booking.serviceTitle || "Service Booking",
+    proposedDate: formatDate(booking.scheduledAt),
+    proposedTime: formatTime(booking.scheduledAt),
+    location: booking.serviceAddress || "Address unavailable",
+    initialPrice: booking.totalAmount,
+    status: toRequestStatus(booking.status),
+  };
+}
+
 export function BookingRequestsPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"new" | "pending" | "accepted" | "declined">("new");
@@ -318,59 +366,30 @@ export function BookingRequestsPage() {
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterService, setFilterService] = useState("");
+  const [requests, setRequests] = useState<BookingRequest[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
 
-  const requests: BookingRequest[] = [
-    {
-      id: "1",
-      customerName: "Maria Santos",
-      serviceType: "Plumbing Repair",
-      proposedDate: "March 25, 2024",
-      proposedTime: "2:00 PM",
-      location: "123 Quezon Ave, Quezon City",
-      initialPrice: 1500,
-      status: "new",
-    },
-    {
-      id: "2",
-      customerName: "Juan dela Cruz",
-      serviceType: "Pipe Installation",
-      proposedDate: "March 26, 2024",
-      proposedTime: "10:00 AM",
-      location: "456 Taft Avenue, Manila",
-      initialPrice: 3500,
-      status: "new",
-    },
-    {
-      id: "3",
-      customerName: "Anna Reyes",
-      serviceType: "Toilet Repair",
-      proposedDate: "March 24, 2024",
-      proposedTime: "9:00 AM",
-      location: "789 Rizal Street, Makati",
-      initialPrice: 800,
-      status: "pending",
-    },
-    {
-      id: "4",
-      customerName: "Carlos Mendoza",
-      serviceType: "Water Heater Installation",
-      proposedDate: "March 27, 2024",
-      proposedTime: "1:00 PM",
-      location: "321 EDSA, Pasig City",
-      initialPrice: 4200,
-      status: "accepted",
-    },
-    {
-      id: "5",
-      customerName: "Sofia Garcia",
-      serviceType: "Drain Cleaning",
-      proposedDate: "March 23, 2024",
-      proposedTime: "3:00 PM",
-      location: "555 Aurora Blvd, San Juan",
-      initialPrice: 600,
-      status: "declined",
-    },
-  ];
+  useEffect(() => {
+    const loadRequests = async () => {
+      const token = getStoredProviderAccessToken();
+      if (!token) {
+        return;
+      }
+
+      try {
+        setLoadError(null);
+        const bookings = await listProviderBookings(token);
+        setRequests(bookings.map(toBookingRequest));
+      } catch (error) {
+        setLoadError(
+          error instanceof Error ? error.message : "Unable to load booking requests.",
+        );
+      }
+    };
+
+    void loadRequests();
+  }, []);
 
   const filteredRequests = requests.filter((request) => {
     if (request.status !== activeTab) return false;
@@ -430,16 +449,46 @@ export function BookingRequestsPage() {
     navigate(`/provider/request-details/${requestId}`);
   };
 
+  const updateRequestStatus = async (
+    requestId: string,
+    nextStatus: BookingStatus,
+  ) => {
+    const token = getStoredProviderAccessToken();
+    const request = requests.find((item) => item.id === requestId);
+
+    if (!token || !request) {
+      return;
+    }
+
+    try {
+      setUpdatingRequestId(requestId);
+      setLoadError(null);
+      const updated = await updateProviderBookingStatus(
+        token,
+        requestId,
+        request.backendStatus,
+        nextStatus,
+      );
+      setRequests((current) =>
+        current.map((item) =>
+          item.id === requestId ? toBookingRequest(updated) : item,
+        ),
+      );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to update request.");
+    } finally {
+      setUpdatingRequestId(null);
+    }
+  };
+
   const handleAccept = (requestId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("Accept request:", requestId);
-    // Handle accept logic
+    void updateRequestStatus(requestId, "confirmed");
   };
 
   const handleReject = (requestId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("Reject request:", requestId);
-    // Handle reject logic
+    void updateRequestStatus(requestId, "rejected");
   };
 
   const renderRequestCard = (request: BookingRequest) => {
@@ -498,12 +547,14 @@ export function BookingRequestsPage() {
             <div style={styles.actionButtons}>
               <button
                 style={{ ...styles.button, ...styles.primaryButton, padding: "8px 16px" }}
+                disabled={updatingRequestId === request.id}
                 onClick={(e) => handleAccept(request.id, e)}
               >
-                Accept
+                {updatingRequestId === request.id ? "Saving..." : "Accept"}
               </button>
               <button
                 style={{ ...styles.button, ...styles.dangerButton, padding: "8px 16px" }}
+                disabled={updatingRequestId === request.id}
                 onClick={(e) => handleReject(request.id, e)}
               >
                 Reject
@@ -545,6 +596,12 @@ export function BookingRequestsPage() {
             </button>
           </div>
         </div>
+
+        {loadError && (
+          <div style={{ marginBottom: "16px", color: "#B91C1C", fontSize: "14px" }}>
+            {loadError}
+          </div>
+        )}
 
         <div style={styles.tabs}>
           <button

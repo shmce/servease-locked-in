@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Headers, HttpException, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpException,
+  Param,
+  Post,
+  Put,
+} from '@nestjs/common';
 import {
   BookingDependencyUnavailableError,
   BookingNotFoundError,
@@ -16,7 +26,17 @@ import {
   PaymentNotFoundError,
 } from './payment.errors';
 import { PaymentGatewayService } from './payment.service';
-import { PaymentSummary, PaymentVisibility } from './payment.types';
+import {
+  PaymentSummary,
+  PaymentVisibility,
+  PromotionValidationSummary,
+  PayoutAccountSummary,
+  CustomerPaymentMethodSummary,
+  PayoutMethodSummary,
+  PayoutSummary,
+  UpsertCustomerPaymentMethodRequest,
+  UpsertPayoutMethodRequest,
+} from './payment.types';
 
 @Controller('v1/payments')
 export class PaymentController {
@@ -44,7 +64,8 @@ export class PaymentController {
   @Post()
   async create(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: { bookingId?: string; paymentMethod?: string },
+    @Body()
+    body: { bookingId?: string; paymentMethod?: string; promoCode?: string | null },
   ): Promise<{ data: PaymentSummary }> {
     try {
       if (!body.bookingId || !body.paymentMethod?.trim()) {
@@ -62,14 +83,213 @@ export class PaymentController {
         throw new InvalidPaymentRequestError();
       }
 
+      const promoCode = body.promoCode?.trim();
+      let amount = booking.totalAmount;
+
+      if (promoCode) {
+        const promotion = await this.paymentGatewayService.validatePromotion(
+          promoCode,
+          booking.totalAmount,
+        );
+
+        if (!promotion.valid || promotion.finalAmount <= 0) {
+          throw new InvalidPaymentRequestError();
+        }
+
+        amount = promotion.finalAmount;
+      }
+
       return {
         data: await this.paymentGatewayService.createPayment({
           bookingId: booking.id,
           customerId: booking.customerId,
           providerId: booking.providerId,
-          amount: booking.totalAmount,
+          amount,
           paymentMethod: body.paymentMethod,
         }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('promotions/validate')
+  async validatePromotion(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { bookingId?: string; code?: string },
+  ): Promise<{ data: PromotionValidationSummary }> {
+    try {
+      if (!body.bookingId || !body.code?.trim()) {
+        throw new InvalidPaymentRequestError();
+      }
+
+      const participant = await this.resolveParticipant(authorization);
+      const booking = await this.bookingGatewayService.findBooking(
+        body.bookingId,
+        participant.userId,
+        participant.visibility.providerId,
+      );
+
+      if (!Number.isFinite(booking.totalAmount) || booking.totalAmount <= 0) {
+        throw new InvalidPaymentRequestError();
+      }
+
+      return {
+        data: await this.paymentGatewayService.validatePromotion(
+          body.code,
+          booking.totalAmount,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('payout-account')
+  async payoutAccount(
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: PayoutAccountSummary }> {
+    try {
+      const participant = await this.resolveRequiredProviderParticipant(authorization);
+      return {
+        data: await this.paymentGatewayService.getPayoutAccount(
+          participant.providerId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('payout-methods')
+  async payoutMethods(
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: PayoutMethodSummary[] }> {
+    try {
+      const participant = await this.resolveRequiredProviderParticipant(authorization);
+      return {
+        data: await this.paymentGatewayService.listPayoutMethods(
+          participant.providerId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Put('payout-methods')
+  async upsertPayoutMethod(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: UpsertPayoutMethodRequest,
+  ): Promise<{ data: PayoutMethodSummary }> {
+    try {
+      if (!body.accountLabel?.trim() || !body.methodType) {
+        throw new InvalidPaymentRequestError();
+      }
+      const participant = await this.resolveRequiredProviderParticipant(authorization);
+      return {
+        data: await this.paymentGatewayService.upsertPayoutMethod(
+          participant.providerId,
+          body,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('methods')
+  async customerPaymentMethods(
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: CustomerPaymentMethodSummary[] }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.paymentGatewayService.listCustomerPaymentMethods(userId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Put('methods')
+  async upsertCustomerPaymentMethod(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: UpsertCustomerPaymentMethodRequest,
+  ): Promise<{ data: CustomerPaymentMethodSummary }> {
+    try {
+      if (!body.label?.trim() || !body.methodType) {
+        throw new InvalidPaymentRequestError();
+      }
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.paymentGatewayService.upsertCustomerPaymentMethod(
+          userId,
+          body,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete('methods/:methodId')
+  async deleteCustomerPaymentMethod(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('methodId') methodId: string,
+  ): Promise<{ data: CustomerPaymentMethodSummary }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.paymentGatewayService.deleteCustomerPaymentMethod(
+          userId,
+          methodId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('payouts')
+  async payouts(
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: PayoutSummary[] }> {
+    try {
+      const participant = await this.resolveRequiredProviderParticipant(authorization);
+      return {
+        data: await this.paymentGatewayService.listPayouts(participant.providerId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('payouts')
+  async requestPayout(
+    @Headers('authorization') authorization: string | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: { amount?: number; payoutMethodId?: string },
+  ): Promise<{ data: PayoutSummary }> {
+    try {
+      if (
+        !body.payoutMethodId?.trim() ||
+        !Number.isFinite(Number(body.amount)) ||
+        Number(body.amount) <= 0
+      ) {
+        throw new InvalidPaymentRequestError();
+      }
+      const participant = await this.resolveRequiredProviderParticipant(authorization);
+      return {
+        data: await this.paymentGatewayService.createPayoutRequest(
+          participant.userId,
+          participant.providerId,
+          {
+            amount: Number(body.amount),
+            payoutMethodId: body.payoutMethodId,
+          },
+          idempotencyKey ?? null,
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -92,6 +312,23 @@ export class PaymentController {
         customerId: userId,
         providerId: providerProfile?.id ?? null,
       },
+    };
+  }
+
+  private async resolveRequiredProviderParticipant(
+    authorization: string | undefined,
+  ): Promise<{
+    userId: string;
+    providerId: string;
+  }> {
+    const participant = await this.resolveParticipant(authorization);
+    if (!participant.visibility.providerId) {
+      throw new InvalidPaymentRequestError();
+    }
+
+    return {
+      userId: participant.userId,
+      providerId: participant.visibility.providerId,
     };
   }
 

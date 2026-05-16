@@ -36,6 +36,68 @@ export interface ProviderListing {
   verificationStatus: 'pending' | 'approved' | 'rejected';
 }
 
+export interface ProviderOwnedServiceInput {
+  id?: string | null;
+  serviceId?: string | null;
+  title: string;
+  description?: string | null;
+  price?: number | null;
+  pricingMode?: 'flat' | 'hourly' | null;
+  isActive?: boolean | null;
+}
+
+export interface ProviderOwnedServiceSummary extends ProviderListing {
+  isActive: boolean;
+}
+
+export interface ProviderDashboardBooking {
+  id: string;
+  scheduledAt: string;
+  time: string;
+  customerName: string | null;
+  serviceTitle: string | null;
+  location: string | null;
+  status: BookingStatus;
+}
+
+export interface ProviderDashboardSummary {
+  summary: {
+    newRequests: number;
+    todayBookings: number;
+    todayCompleted: number;
+    todayEarnings: number;
+    totalEarnings: number;
+    overallRating: number;
+    reviewCount: number;
+  };
+  upcomingBookings: ProviderDashboardBooking[];
+  performance: {
+    acceptanceRate: number;
+    completionRate: number;
+    responseTimeMinutes: number | null;
+  };
+}
+
+export interface ProviderProfileSnapshot {
+  account: {
+    id: string;
+    email: string;
+    fullName: string | null;
+    contactNumber: string | null;
+    role: UserRole;
+    status: UserStatus;
+  };
+  provider: {
+    id: string;
+    businessName: string | null;
+    verificationStatus: 'pending' | 'approved' | 'rejected';
+    averageRating: number;
+    reviewCount: number;
+  };
+  services: ProviderListing[];
+  portfolio: ProviderPortfolioMediaSummary[];
+}
+
 export interface BookingSummary {
   id: string;
   bookingReference: string;
@@ -50,6 +112,36 @@ export interface BookingSummary {
   status: BookingStatus;
   totalAmount: number;
   attachments?: BookingAttachmentSummary[];
+}
+
+export type BookingTrackingPhase =
+  | 'awaiting_confirmation'
+  | 'scheduled'
+  | 'on_the_way'
+  | 'completed'
+  | 'cancelled'
+  | 'rejected';
+
+export type BookingTrackingTrafficLevel = 'light' | 'moderate' | 'heavy';
+
+export interface BookingTrackingLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export interface BookingTrackingSnapshot {
+  bookingId: string;
+  bookingReference: string;
+  status: BookingStatus;
+  phase: BookingTrackingPhase;
+  etaMinutes: number | null;
+  distanceKm: number | null;
+  trafficLevel: BookingTrackingTrafficLevel | null;
+  destinationAddress: string | null;
+  destinationLocation: BookingTrackingLocation | null;
+  providerLocation: BookingTrackingLocation | null;
+  scheduledAt: string;
+  lastUpdatedAt: string;
 }
 
 export interface ConversationSummary {
@@ -90,6 +182,79 @@ export interface PaymentSummary {
 export interface CreatePaymentRequest {
   bookingId: string;
   paymentMethod: string;
+  promoCode?: string | null;
+}
+
+export interface PromotionValidationSummary {
+  code: string;
+  valid: boolean;
+  discountAmount: number;
+  finalAmount: number;
+  message: string;
+}
+
+export type PayoutMethodType = 'bank' | 'gcash' | 'paymaya';
+export type PayoutStatus = 'requested' | 'processing' | 'paid' | 'cancelled';
+export type CustomerPaymentMethodType =
+  | 'cash_on_service'
+  | 'card'
+  | 'gcash'
+  | 'paymaya';
+
+export interface CustomerPaymentMethodSummary {
+  id: string;
+  customerId: string;
+  methodType: CustomerPaymentMethodType;
+  label: string;
+  brand: string | null;
+  last4: string | null;
+  isDefault: boolean;
+  createdAt: string | null;
+}
+
+export interface UpsertCustomerPaymentMethodRequest {
+  methodId?: string | null;
+  methodType: CustomerPaymentMethodType;
+  label: string;
+  brand?: string | null;
+  last4?: string | null;
+  isDefault?: boolean | null;
+}
+
+export interface PayoutMethodSummary {
+  id: string;
+  providerId: string;
+  methodType: PayoutMethodType;
+  accountLabel: string;
+  accountName: string | null;
+  accountNumberLast4: string | null;
+  isDefault: boolean;
+  createdAt: string | null;
+}
+
+export interface PayoutAccountSummary {
+  availableBalance: number;
+  pendingBalance: number;
+  totalPaidOut: number;
+  nextPayoutDate: string | null;
+}
+
+export interface PayoutSummary {
+  id: string;
+  providerId: string;
+  amount: number;
+  processingFee: number;
+  netAmount: number;
+  status: PayoutStatus;
+  payoutMethodId: string | null;
+  methodType: string | null;
+  accountLabel: string | null;
+  reference: string | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  requestedAt: string | null;
+  paidAt: string | null;
+  createdAt: string | null;
 }
 
 export interface ReviewSummary {
@@ -97,9 +262,18 @@ export interface ReviewSummary {
   bookingId: string;
   providerId: string;
   reviewerId: string;
+  reviewerFullName: string | null;
   rating: number;
   reviewText: string | null;
   isFlagged: boolean;
+  createdAt: string | null;
+}
+
+export interface ReviewResponseSummary {
+  id: string;
+  reviewId: string;
+  responderId: string;
+  responseText: string;
   createdAt: string | null;
 }
 
@@ -138,6 +312,28 @@ export interface NotificationSummary {
   isRead: boolean;
   metadata: Record<string, unknown> | null;
   createdAt: string | null;
+}
+
+export interface ReferralSummary {
+  referralCode: string;
+  referralLinkPath: string;
+  completedReferrals: number;
+  pendingReferrals: number;
+  totalRewards: number;
+}
+
+export interface UserPreferenceSummary {
+  userId: string;
+  pushNotificationsEnabled: boolean;
+  darkModeEnabled: boolean;
+  language: 'en' | 'fil';
+  updatedAt: string | null;
+}
+
+export interface UpdateUserPreferencesRequest {
+  pushNotificationsEnabled?: boolean | null;
+  darkModeEnabled?: boolean | null;
+  language?: 'en' | 'fil' | null;
 }
 
 export type DayOfWeek =
@@ -216,11 +412,29 @@ export interface RegisterAccountRequest {
 
 export interface RegisteredAccountResponse extends CurrentUserProfile {}
 
+export interface PasswordResetRequest {
+  email: string;
+  redirectTo?: string | null;
+}
+
+export interface PasswordResetResponse {
+  ok: true;
+}
+
 export interface UpdateCurrentUserProfileRequest {
   fullName: string;
   contactNumber?: string | null;
   address?: string | null;
   businessName?: string | null;
+}
+
+export interface UpdateCurrentUserPasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UpdateCurrentUserPasswordResponse {
+  ok: true;
 }
 
 export type UploadKind =
@@ -455,11 +669,34 @@ export function registerAccount(
   });
 }
 
+export function requestPasswordReset(
+  body: PasswordResetRequest,
+  options: ApiOptions = {},
+): Promise<PasswordResetResponse> {
+  return request<PasswordResetResponse>('/v1/auth/password-reset', {
+    ...options,
+    method: 'POST',
+    body,
+  });
+}
+
 export function updateCurrentUserProfile(
   body: UpdateCurrentUserProfileRequest,
   options: ApiOptions = {},
 ): Promise<CurrentUserProfile> {
   return request<CurrentUserProfile>('/v1/me', {
+    ...options,
+    method: 'PATCH',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function updateCurrentUserPassword(
+  body: UpdateCurrentUserPasswordRequest,
+  options: ApiOptions = {},
+): Promise<UpdateCurrentUserPasswordResponse> {
+  return request<UpdateCurrentUserPasswordResponse>('/v1/me/password', {
     ...options,
     method: 'PATCH',
     body,
@@ -523,6 +760,20 @@ export function listBookingTimelineEvents(
   );
 }
 
+export function getBookingTrackingSnapshot(
+  bookingId: string,
+  options: ApiOptions = {},
+): Promise<BookingTrackingSnapshot> {
+  return request<BookingTrackingSnapshot>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/tracking`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
+}
+
 export function createBookingServiceUpdate(
   bookingId: string,
   body: CreateBookingServiceUpdateRequest,
@@ -553,6 +804,17 @@ export function listProviderBookings(
   options: ApiOptions = {},
 ): Promise<BookingSummary[]> {
   return request<BookingSummary[]>('/v1/bookings?scope=provider', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function getBooking(
+  bookingId: string,
+  options: ApiOptions = {},
+): Promise<BookingSummary> {
+  return request<BookingSummary>(`/v1/bookings/${encodeURIComponent(bookingId)}`, {
     ...options,
     method: 'GET',
     requiresAuth: true,
@@ -652,6 +914,103 @@ export function createPayment(
   });
 }
 
+export function validatePromotion(
+  bookingId: string,
+  code: string,
+  options: ApiOptions = {},
+): Promise<PromotionValidationSummary> {
+  return request<PromotionValidationSummary>('/v1/payments/promotions/validate', {
+    ...options,
+    method: 'POST',
+    body: {
+      bookingId,
+      code,
+    },
+    requiresAuth: true,
+  });
+}
+
+export function listCustomerPaymentMethods(
+  options: ApiOptions = {},
+): Promise<CustomerPaymentMethodSummary[]> {
+  return request<CustomerPaymentMethodSummary[]>('/v1/payments/methods', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function upsertCustomerPaymentMethod(
+  body: UpsertCustomerPaymentMethodRequest,
+  options: ApiOptions = {},
+): Promise<CustomerPaymentMethodSummary> {
+  return request<CustomerPaymentMethodSummary>('/v1/payments/methods', {
+    ...options,
+    method: 'PUT',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function deleteCustomerPaymentMethod(
+  methodId: string,
+  options: ApiOptions = {},
+): Promise<CustomerPaymentMethodSummary> {
+  return request<CustomerPaymentMethodSummary>(
+    `/v1/payments/methods/${encodeURIComponent(methodId)}`,
+    {
+      ...options,
+      method: 'DELETE',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function getProviderPayoutAccount(
+  options: ApiOptions = {},
+): Promise<PayoutAccountSummary> {
+  return request<PayoutAccountSummary>('/v1/payments/payout-account', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function listProviderPayoutMethods(
+  options: ApiOptions = {},
+): Promise<PayoutMethodSummary[]> {
+  return request<PayoutMethodSummary[]>('/v1/payments/payout-methods', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function listProviderPayouts(
+  options: ApiOptions = {},
+): Promise<PayoutSummary[]> {
+  return request<PayoutSummary[]>('/v1/payments/payouts', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function requestProviderPayout(
+  body: { amount: number; payoutMethodId: string },
+  options: ApiOptions = {},
+): Promise<PayoutSummary> {
+  return request<PayoutSummary>('/v1/payments/payouts', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+    idempotencyKey: `mobile-provider-payout-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}`,
+  });
+}
+
 export function listProviderReviews(
   providerId: string,
   options: ApiOptions = {},
@@ -673,6 +1032,32 @@ export function createReview(
     ...options,
     method: 'POST',
     body,
+    requiresAuth: true,
+  });
+}
+
+export function replyToReview(
+  reviewId: string,
+  responseText: string,
+  options: ApiOptions = {},
+): Promise<ReviewResponseSummary> {
+  return request<ReviewResponseSummary>(`/v1/reviews/${encodeURIComponent(reviewId)}/reply`, {
+    ...options,
+    method: 'POST',
+    body: { responseText },
+    requiresAuth: true,
+  });
+}
+
+export function flagReview(
+  reviewId: string,
+  reason: string,
+  options: ApiOptions = {},
+): Promise<ReviewSummary> {
+  return request<ReviewSummary>(`/v1/reviews/${encodeURIComponent(reviewId)}/flag`, {
+    ...options,
+    method: 'POST',
+    body: { reason },
     requiresAuth: true,
   });
 }
@@ -699,12 +1084,55 @@ export function createSupportTicket(
   });
 }
 
+export function getSupportTicket(
+  ticketId: string,
+  options: ApiOptions = {},
+): Promise<SupportTicketSummary> {
+  return request<SupportTicketSummary>(`/v1/support/tickets/${encodeURIComponent(ticketId)}`, {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
 export function listNotifications(
   options: ApiOptions = {},
 ): Promise<NotificationSummary[]> {
   return request<NotificationSummary[]>('/v1/notifications', {
     ...options,
     method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function getReferralSummary(
+  options: ApiOptions = {},
+): Promise<ReferralSummary> {
+  return request<ReferralSummary>('/v1/referrals', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function getUserPreferences(
+  options: ApiOptions = {},
+): Promise<UserPreferenceSummary> {
+  return request<UserPreferenceSummary>('/v1/me/preferences', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function updateUserPreferences(
+  body: UpdateUserPreferencesRequest,
+  options: ApiOptions = {},
+): Promise<UserPreferenceSummary> {
+  return request<UserPreferenceSummary>('/v1/me/preferences', {
+    ...options,
+    method: 'PUT',
+    body,
     requiresAuth: true,
   });
 }
@@ -721,6 +1149,48 @@ export function markNotificationRead(
       requiresAuth: true,
     },
   );
+}
+
+export function getProviderProfile(
+  options: ApiOptions = {},
+): Promise<ProviderProfileSnapshot> {
+  return request<ProviderProfileSnapshot>('/v1/provider/profile', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function getProviderDashboard(
+  options: ApiOptions = {},
+): Promise<ProviderDashboardSummary> {
+  return request<ProviderDashboardSummary>('/v1/provider/dashboard', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function listProviderOwnedServices(
+  options: ApiOptions = {},
+): Promise<ProviderOwnedServiceSummary[]> {
+  return request<ProviderOwnedServiceSummary[]>('/v1/provider/services', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function replaceProviderServices(
+  services: ProviderOwnedServiceInput[],
+  options: ApiOptions = {},
+): Promise<ProviderOwnedServiceSummary[]> {
+  return request<ProviderOwnedServiceSummary[]>('/v1/provider/services', {
+    ...options,
+    method: 'PUT',
+    body: { services },
+    requiresAuth: true,
+  });
 }
 
 export function getProviderAvailability(
@@ -823,6 +1293,7 @@ interface RequestOptions extends ApiOptions {
   method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT';
   body?: unknown;
   requiresAuth?: boolean;
+  idempotencyKey?: string | null;
 }
 
 async function request<T>(
@@ -834,6 +1305,7 @@ async function request<T>(
     method,
     body,
     requiresAuth = false,
+    idempotencyKey,
   }: RequestOptions,
 ): Promise<T> {
   if (requiresAuth && !token?.trim()) {
@@ -846,6 +1318,9 @@ async function request<T>(
       accept: 'application/json',
       'content-type': 'application/json',
       ...(token?.trim() ? { authorization: `Bearer ${token.trim()}` } : {}),
+      ...(idempotencyKey?.trim()
+        ? { 'idempotency-key': idempotencyKey.trim() }
+        : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

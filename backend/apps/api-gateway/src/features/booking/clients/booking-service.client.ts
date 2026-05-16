@@ -13,6 +13,7 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingSnapshot,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
 } from '../booking.types';
@@ -62,6 +63,24 @@ export class BookingServiceClient {
     }
     return this.request<BookingSummary>(
       `/internal/bookings/${bookingId}?${searchParams.toString()}`,
+      'GET',
+    );
+  }
+
+  async getTrackingSnapshot(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+  ): Promise<BookingTrackingSnapshot> {
+    const searchParams = new URLSearchParams();
+    if (customerId) {
+      searchParams.set('customerId', customerId);
+    }
+    if (providerId) {
+      searchParams.set('providerId', providerId);
+    }
+    return this.request<BookingTrackingSnapshot>(
+      `/internal/bookings/${bookingId}/tracking?${searchParams.toString()}`,
       'GET',
     );
   }

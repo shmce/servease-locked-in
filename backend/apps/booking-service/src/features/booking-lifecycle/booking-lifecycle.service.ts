@@ -9,6 +9,9 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingPhase,
+  BookingTrackingSnapshot,
+  BookingTrackingTrafficLevel,
   CreateBookingServiceUpdateInput,
   CreateBookingInput,
 } from './booking.types';
@@ -97,6 +100,48 @@ export class BookingLifecycleService {
     );
   }
 
+  async getTrackingSnapshot(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+  ): Promise<BookingTrackingSnapshot> {
+    if (!bookingId || (!customerId && !providerId)) {
+      throw new InvalidBookingRequestError();
+    }
+
+    const booking = await this.bookingRepository.findVisibleBooking(
+      bookingId,
+      customerId,
+      providerId,
+    );
+    const seed = this.hashRouteSeed(
+      `${booking.id}:${booking.serviceAddress ?? ''}:${booking.scheduledAt}`,
+    );
+    const distanceKm = this.deriveDistanceKm(booking.status, seed);
+    const etaMinutes = this.deriveEtaMinutes(
+      booking.status,
+      booking.scheduledAt,
+      distanceKm,
+      seed,
+    );
+
+    return {
+      bookingId: booking.id,
+      bookingReference: booking.bookingReference,
+      status: booking.status,
+      phase: this.trackingPhaseForStatus(booking.status),
+      etaMinutes,
+      distanceKm,
+      trafficLevel:
+        distanceKm === null ? null : this.trackingTrafficForSeed(seed),
+      destinationAddress: booking.serviceAddress,
+      destinationLocation: null,
+      providerLocation: null,
+      scheduledAt: booking.scheduledAt,
+      lastUpdatedAt: new Date().toISOString(),
+    };
+  }
+
   async transitionStatus(
     bookingId: string,
     actorId: string,
@@ -113,5 +158,68 @@ export class BookingLifecycleService {
       reason,
       explanation,
     );
+  }
+
+  private deriveDistanceKm(status: BookingStatus, seed: number): number | null {
+    if (!['confirmed', 'in_progress'].includes(status)) {
+      return null;
+    }
+
+    return Number((2.5 + (seed % 66) / 10).toFixed(1));
+  }
+
+  private deriveEtaMinutes(
+    status: BookingStatus,
+    scheduledAt: string,
+    distanceKm: number | null,
+    seed: number,
+  ): number | null {
+    if (status === 'confirmed') {
+      const minutesUntilSchedule = Math.ceil(
+        (new Date(scheduledAt).getTime() - Date.now()) / 60000,
+      );
+      return this.clamp(minutesUntilSchedule, 15, 90);
+    }
+
+    if (status === 'in_progress' && distanceKm !== null) {
+      return this.clamp(Math.ceil(distanceKm * 4 + (seed % 8)), 8, 45);
+    }
+
+    return null;
+  }
+
+  private trackingPhaseForStatus(status: BookingStatus): BookingTrackingPhase {
+    switch (status) {
+      case 'pending':
+        return 'awaiting_confirmation';
+      case 'confirmed':
+        return 'scheduled';
+      case 'in_progress':
+        return 'on_the_way';
+      case 'completed':
+        return 'completed';
+      case 'cancelled':
+        return 'cancelled';
+      case 'rejected':
+        return 'rejected';
+    }
+  }
+
+  private trackingTrafficForSeed(seed: number): BookingTrackingTrafficLevel {
+    return (['light', 'moderate', 'heavy'] as const)[seed % 3];
+  }
+
+  private hashRouteSeed(value: string): number {
+    return value.split('').reduce((total, character) => {
+      return (total + character.charCodeAt(0)) % 9973;
+    }, 0);
+  }
+
+  private clamp(value: number, minimum: number, maximum: number): number {
+    if (!Number.isFinite(value)) {
+      return minimum;
+    }
+
+    return Math.min(Math.max(value, minimum), maximum);
   }
 }

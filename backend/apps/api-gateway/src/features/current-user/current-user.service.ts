@@ -5,6 +5,8 @@ import { UserServiceClient } from './clients/user-service.client';
 import { AccountInactiveError } from './current-user.errors';
 import {
   CurrentUserProfile,
+  UpdateCurrentUserPasswordInput,
+  UpdateCurrentUserPasswordResponse,
   UpdateCurrentUserProfileInput,
 } from './current-user.types';
 
@@ -64,5 +66,18 @@ export class CurrentUserService {
       customerProfile,
       providerProfile,
     };
+  }
+
+  async updateCurrentUserPassword(
+    userId: string,
+    input: UpdateCurrentUserPasswordInput,
+  ): Promise<UpdateCurrentUserPasswordResponse> {
+    const user = await this.authServiceClient.findUserById(userId);
+
+    if (user.status !== 'active') {
+      throw new AccountInactiveError();
+    }
+
+    return this.authServiceClient.updatePassword(user.id, user.email, input);
   }
 }

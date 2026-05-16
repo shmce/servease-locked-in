@@ -28,6 +28,20 @@ export interface ProviderServiceListing {
   verificationStatus: 'pending' | 'approved' | 'rejected';
 }
 
+export interface ProviderOwnedServiceInput {
+  id?: string | null;
+  serviceId?: string | null;
+  title: string;
+  description?: string | null;
+  price?: number | null;
+  pricingMode?: 'flat' | 'hourly' | null;
+  isActive?: boolean | null;
+}
+
+export interface ProviderOwnedServiceSummary extends ProviderServiceListing {
+  isActive: boolean;
+}
+
 export interface ProviderPortfolioMediaInput {
   fileUrl: string;
   fileName?: string | null;

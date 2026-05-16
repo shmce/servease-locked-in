@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -30,39 +31,59 @@ import {
   TrendingUp,
   CalendarClock,
 } from "lucide-react";
-import { useData } from "../../contexts/DataContext";
-import type { Booking, BookingStatus } from "../../types";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  listAdminBookings,
+  type AdminBookingStatus,
+  type AdminBookingSummary,
+} from "../../services/serveaseAdminApi";
 
 type BookingTab = "all" | "upcoming" | "ongoing" | "completed" | "cancelled";
 
 export function AllBookings() {
-  const { bookings, getCustomerById, getProviderById, getCategoryById } = useData();
+  const { accessToken } = useAuth();
+  const [bookings, setBookings] = useState<AdminBookingSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   
   const [activeTab, setActiveTab] = useState<BookingTab>("all");
   const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<string>("all");
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const loadBookings = async () => {
+      setIsLoading(true);
+      try {
+        setBookings(await listAdminBookings(accessToken, { limit: 200 }));
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Unable to load bookings.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadBookings();
+  }, [accessToken]);
 
   // Filter bookings
   const filteredBookings = useMemo(() => {
     return bookings.filter((booking) => {
       // Tab-based filtering
       let matchesTab = true;
-      const now = new Date();
-      const scheduledDate = new Date(booking.scheduledDate);
 
       switch (activeTab) {
         case "upcoming":
-          matchesTab = booking.status === "Pending" || booking.status === "Confirmed";
+          matchesTab = booking.status === "pending" || booking.status === "confirmed";
           break;
         case "ongoing":
-          matchesTab = booking.status === "In Progress";
+          matchesTab = booking.status === "in_progress";
           break;
         case "completed":
-          matchesTab = booking.status === "Completed";
+          matchesTab = booking.status === "completed";
           break;
         case "cancelled":
-          matchesTab = booking.status === "Cancelled";
+          matchesTab = booking.status === "cancelled";
           break;
         case "all":
         default:
@@ -71,15 +92,15 @@ export function AllBookings() {
 
       const matchesSearch =
         booking.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        getCustomerById(booking.customerId)?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        getProviderById(booking.providerId)?.businessName.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesCategory = categoryFilter === "all" || booking.categoryId === categoryFilter;
+        booking.bookingReference.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (booking.customerFullName ?? booking.customerId).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        booking.providerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (booking.serviceTitle ?? "").toLowerCase().includes(searchTerm.toLowerCase());
 
       // Date filter logic
       let matchesDate = true;
       if (dateFilter !== "all") {
-        const bookingDate = new Date(booking.scheduledDate);
+        const bookingDate = new Date(booking.scheduledAt);
         const today = new Date();
         const daysDiff = Math.floor((today.getTime() - bookingDate.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -96,74 +117,68 @@ export function AllBookings() {
         }
       }
 
-      return matchesTab && matchesSearch && matchesCategory && matchesDate;
+      return matchesTab && matchesSearch && matchesDate;
     });
-  }, [bookings, activeTab, searchTerm, categoryFilter, dateFilter, getCustomerById, getProviderById]);
+  }, [bookings, activeTab, searchTerm, dateFilter]);
 
   // Calculate stats
   const stats = useMemo(() => {
     const total = filteredBookings.length;
-    const completed = filteredBookings.filter((b) => b.status === "Completed").length;
-    const inProgress = filteredBookings.filter((b) => b.status === "In Progress").length;
-    const cancelled = filteredBookings.filter((b) => b.status === "Cancelled").length;
+    const completed = filteredBookings.filter((b) => b.status === "completed").length;
+    const inProgress = filteredBookings.filter((b) => b.status === "in_progress").length;
+    const cancelled = filteredBookings.filter((b) => b.status === "cancelled").length;
     const totalRevenue = filteredBookings
-      .filter((b) => b.status === "Completed" && b.paymentStatus === "Paid")
-      .reduce((sum, b) => sum + b.amount, 0);
+      .filter((b) => b.status === "completed")
+      .reduce((sum, b) => sum + b.totalAmount, 0);
     const completionRate = total > 0 ? (completed / total) * 100 : 0;
 
     return { total, completed, inProgress, cancelled, totalRevenue, completionRate };
   }, [filteredBookings]);
 
-  const getStatusBadge = (status: BookingStatus) => {
+  const getStatusBadge = (status: AdminBookingStatus) => {
     switch (status) {
-      case "Completed":
+      case "completed":
         return (
           <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]">
             <CheckCircle className="w-3 h-3 mr-1" />
             Completed
           </Badge>
         );
-      case "In Progress":
+      case "in_progress":
         return (
           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
             <Activity className="w-3 h-3 mr-1" />
             In Progress
           </Badge>
         );
-      case "Confirmed":
+      case "confirmed":
         return (
           <Badge className="bg-purple-100 text-purple-700 border-purple-200">
             <CheckCircle className="w-3 h-3 mr-1" />
             Confirmed
           </Badge>
         );
-      case "Pending":
+      case "pending":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
             <Clock className="w-3 h-3 mr-1" />
             Pending
           </Badge>
         );
-      case "Cancelled":
+      case "cancelled":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200">
             <XCircle className="w-3 h-3 mr-1" />
             Cancelled
           </Badge>
         );
-    }
-  };
-
-  const getPaymentBadge = (status: Booking["paymentStatus"]) => {
-    switch (status) {
-      case "Paid":
-        return <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]">Paid</Badge>;
-      case "Pending":
-        return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">Pending</Badge>;
-      case "Refunded":
-        return <Badge className="bg-gray-100 text-gray-700 border-gray-200">Refunded</Badge>;
-      case "Failed":
-        return <Badge className="bg-red-100 text-red-700 border-red-200">Failed</Badge>;
+      case "rejected":
+        return (
+          <Badge className="bg-red-100 text-red-700 border-red-200">
+            <XCircle className="w-3 h-3 mr-1" />
+            Rejected
+          </Badge>
+        );
     }
   };
 
@@ -339,21 +354,6 @@ export function AllBookings() {
               />
             </div>
 
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                <SelectItem value="CAT-001">Home Maintenance</SelectItem>
-                <SelectItem value="CAT-002">Beauty & Wellness</SelectItem>
-                <SelectItem value="CAT-003">Cleaning Services</SelectItem>
-                <SelectItem value="CAT-004">Pet Services</SelectItem>
-                <SelectItem value="CAT-005">Events</SelectItem>
-                <SelectItem value="CAT-006">Auto & Tech</SelectItem>
-              </SelectContent>
-            </Select>
-
             <Select value={dateFilter} onValueChange={setDateFilter}>
               <SelectTrigger>
                 <Calendar className="w-4 h-4 mr-2" />
@@ -380,47 +380,45 @@ export function AllBookings() {
                   <TableHead>Scheduled Date</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Payment</TableHead>
+                  <TableHead>Escalations</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredBookings.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                      No bookings found
+                      {isLoading ? "Loading bookings..." : "No backend bookings found"}
                     </TableCell>
                   </TableRow>
                 ) : (
                   filteredBookings.map((booking) => {
-                    const customer = getCustomerById(booking.customerId);
-                    const provider = getProviderById(booking.providerId);
-                    const category = getCategoryById(booking.categoryId);
-
                     return (
                       <TableRow key={booking.id}>
                         <TableCell>
                           <span className="font-mono font-semibold text-[#16A34A]">
-                            {booking.id}
+                            {booking.bookingReference}
                           </span>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium text-gray-900">{customer?.name}</p>
-                            <p className="text-xs text-gray-500">{customer?.email}</p>
+                            <p className="font-medium text-gray-900">
+                              {booking.customerFullName ?? "Customer"}
+                            </p>
+                            <p className="text-xs text-gray-500">{booking.customerId}</p>
                           </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium text-gray-900">{provider?.businessName}</p>
-                            <p className="text-xs text-gray-500">{category?.name}</p>
+                            <p className="font-medium text-gray-900">{booking.providerId}</p>
+                            <p className="text-xs text-gray-500">Provider ID</p>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm text-gray-700">{booking.serviceDescription}</span>
+                          <span className="text-sm text-gray-700">{booking.serviceTitle ?? "Service booking"}</span>
                         </TableCell>
                         <TableCell>
                           <span className="text-sm text-gray-600">
-                            {new Date(booking.scheduledDate).toLocaleDateString("en-US", {
+                            {new Date(booking.scheduledAt).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
                               year: "numeric",
@@ -431,11 +429,21 @@ export function AllBookings() {
                         </TableCell>
                         <TableCell>
                           <span className="font-bold text-gray-900">
-                            ₱{booking.amount.toLocaleString()}
+                            ₱{booking.totalAmount.toLocaleString()}
                           </span>
                         </TableCell>
                         <TableCell>{getStatusBadge(booking.status)}</TableCell>
-                        <TableCell>{getPaymentBadge(booking.paymentStatus)}</TableCell>
+                        <TableCell>
+                          {booking.escalationCount > 0 ? (
+                            <Badge className="bg-orange-100 text-orange-700 border-orange-200">
+                              {booking.escalationCount} escalated
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-gray-300 text-gray-600">
+                              None
+                            </Badge>
+                          )}
+                        </TableCell>
                       </TableRow>
                     );
                   })

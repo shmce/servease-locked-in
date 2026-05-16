@@ -1,10 +1,29 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AdminAuditController } from './features/admin/admin-audit.controller';
+import { AdminAuditGatewayService } from './features/admin/admin-audit.service';
+import { AdminBookingController } from './features/admin/admin-booking.controller';
+import { AdminBookingGatewayService } from './features/admin/admin-booking.service';
+import { AdminCommissionController } from './features/admin/admin-commission.controller';
 import { AdminServiceClient } from './features/admin/clients/admin-service.client';
+import { AdminDisputeController } from './features/admin/admin-dispute.controller';
+import { AdminDisputeGatewayService } from './features/admin/admin-dispute.service';
 import { AdminPaymentController } from './features/admin/admin-payment.controller';
 import { AdminPaymentGatewayService } from './features/admin/admin-payment.service';
+import { AdminProviderApplicationController } from './features/admin/admin-provider-application.controller';
+import { AdminProviderApplicationGatewayService } from './features/admin/admin-provider-application.service';
+import { AdminPromotionController } from './features/admin/admin-promotion.controller';
+import { AdminBroadcastController } from './features/admin/admin-broadcast.controller';
+import { AdminReportController } from './features/admin/admin-report.controller';
+import { AdminIntegrationController } from './features/admin/admin-integration.controller';
+import { AdminRefundController } from './features/admin/admin-refund.controller';
+import { AdminCatalogController } from './features/admin/admin-catalog.controller';
+import { AdminCatalogGatewayService } from './features/admin/admin-catalog.service';
+import { AdminProvidersController } from './features/admin/admin-providers.controller';
 import { AdminSupportController } from './features/admin/admin-support.controller';
 import { AdminSupportGatewayService } from './features/admin/admin-support.service';
+import { AdminUsersController } from './features/admin/admin-users.controller';
+import { AdminUsersGatewayService } from './features/admin/admin-users.service';
 import { AvailabilityController } from './features/availability/availability.controller';
 import { AvailabilityGatewayService } from './features/availability/availability.service';
 import { AvailabilityServiceClient } from './features/availability/clients/availability-service.client';
@@ -30,6 +49,8 @@ import { NotificationGatewayService } from './features/notifications/notificatio
 import { PaymentServiceClient } from './features/payments/clients/payment-service.client';
 import { PaymentController } from './features/payments/payment.controller';
 import { PaymentGatewayService } from './features/payments/payment.service';
+import { ProviderController } from './features/provider/provider.controller';
+import { ProviderGatewayService } from './features/provider/provider.service';
 import { ReviewServiceClient } from './features/reviews/clients/review-service.client';
 import { ReviewController } from './features/reviews/review.controller';
 import { ReviewGatewayService } from './features/reviews/review.service';
@@ -39,6 +60,10 @@ import { SupportGatewayService } from './features/support/support.service';
 import { RateLimitMiddleware } from './features/rate-limit/rate-limit.middleware';
 import { RegistrationController } from './features/registration/registration.controller';
 import { RegistrationGatewayService } from './features/registration/registration.service';
+import { ReferralController } from './features/referrals/referral.controller';
+import { ReferralGatewayService } from './features/referrals/referral.service';
+import { UserPreferenceController } from './features/preferences/preference.controller';
+import { UserPreferenceGatewayService } from './features/preferences/preference.service';
 import { UploadController } from './features/uploads/upload.controller';
 import { UploadGatewayService } from './features/uploads/upload.service';
 
@@ -52,18 +77,40 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     AvailabilityController,
     MessagingController,
     PaymentController,
+    ProviderController,
     ReviewController,
     SupportController,
     NotificationController,
     AdminSupportController,
+    AdminCatalogController,
+    AdminProvidersController,
+    AdminUsersController,
     AdminPaymentController,
+    AdminRefundController,
+    AdminPromotionController,
+    AdminDisputeController,
+    AdminAuditController,
+    AdminBookingController,
+    AdminCommissionController,
+    AdminProviderApplicationController,
+    AdminBroadcastController,
+    AdminReportController,
+    AdminIntegrationController,
     RegistrationController,
+    ReferralController,
+    UserPreferenceController,
     UploadController,
   ],
   providers: [
     AdminServiceClient,
     AdminSupportGatewayService,
+    AdminCatalogGatewayService,
+    AdminUsersGatewayService,
     AdminPaymentGatewayService,
+    AdminDisputeGatewayService,
+    AdminAuditGatewayService,
+    AdminBookingGatewayService,
+    AdminProviderApplicationGatewayService,
     AvailabilityServiceClient,
     AvailabilityGatewayService,
     BookingServiceClient,
@@ -76,6 +123,7 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     NotificationGatewayService,
     PaymentServiceClient,
     PaymentGatewayService,
+    ProviderGatewayService,
     ReviewServiceClient,
     ReviewGatewayService,
     SupportServiceClient,
@@ -85,6 +133,8 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     CatalogServiceClient,
     CurrentUserService,
     RegistrationGatewayService,
+    ReferralGatewayService,
+    UserPreferenceGatewayService,
     UploadGatewayService,
     RateLimitMiddleware,
     {

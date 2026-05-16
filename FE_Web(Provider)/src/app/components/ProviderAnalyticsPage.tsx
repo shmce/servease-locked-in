@@ -1,5 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Fragment } from "react";
+import {
+  getStoredProviderAccessToken,
+  getProviderDashboard,
+  listProviderBookings,
+  ProviderDashboardSummary,
+  BookingSummary,
+} from "../../services/serveaseProviderApi";
 import {
   Calendar,
   TrendingUp,
@@ -419,13 +426,37 @@ const styles = {
 
 export function ProviderAnalyticsPage() {
   const [dateRange, setDateRange] = useState("last-30-days");
+  const [dashboard, setDashboard] = useState<ProviderDashboardSummary | null>(null);
+  const [bookings, setBookings] = useState<BookingSummary[]>([]);
 
-  // Mock data
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+    if (!token) return;
+    Promise.all([
+      getProviderDashboard(token).catch(() => null),
+      listProviderBookings(token).catch(() => []),
+    ]).then(([dash, bks]) => {
+      setDashboard(dash);
+      setBookings(bks);
+    });
+  }, []);
+
+  const totalBookings = bookings.length;
+  const completedBookings = bookings.filter((b) => b.status === 'completed').length;
+  const totalEarnings = dashboard?.summary.totalEarnings ?? 0;
+  const overallRating = dashboard?.summary.overallRating ?? 0;
+  const reviewCount = dashboard?.summary.reviewCount ?? 0;
+  const acceptanceRate = dashboard?.performance.acceptanceRate ?? 0;
+  const completionRate = dashboard?.performance.completionRate ?? 0;
+
+  const formatMoney = (amount: number) =>
+    `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
   const stats = [
     {
       label: "Total Bookings",
-      value: "248",
-      change: "+12.5%",
+      value: String(totalBookings),
+      change: `${completedBookings} completed`,
       isPositive: true,
       icon: ShoppingBag,
       color: "#00BF63",
@@ -433,27 +464,27 @@ export function ProviderAnalyticsPage() {
     },
     {
       label: "Total Revenue",
-      value: "₱324,500",
-      change: "+18.2%",
+      value: formatMoney(totalEarnings),
+      change: `${completionRate}% completion`,
       isPositive: true,
       icon: DollarSign,
       color: "#3B82F6",
       bgColor: "#DBEAFE",
     },
     {
-      label: "Active Customers",
-      value: "142",
-      change: "+8.4%",
+      label: "Rating",
+      value: overallRating > 0 ? overallRating.toFixed(1) : "—",
+      change: `${reviewCount} review${reviewCount === 1 ? "" : "s"}`,
       isPositive: true,
       icon: Users,
       color: "#8B5CF6",
       bgColor: "#EDE9FE",
     },
     {
-      label: "New Customers",
-      value: "34",
-      change: "+23.1%",
-      isPositive: true,
+      label: "Acceptance Rate",
+      value: acceptanceRate > 0 ? `${acceptanceRate}%` : "—",
+      change: `${completionRate}% completion rate`,
+      isPositive: acceptanceRate >= 80,
       icon: TrendingUp,
       color: "#F59E0B",
       bgColor: "#FEF3C7",
@@ -486,8 +517,7 @@ export function ProviderAnalyticsPage() {
   ];
 
   const handleExport = () => {
-    // Handle export functionality
-    console.log("Exporting report...");
+    window.print();
   };
 
   return (

@@ -6,6 +6,10 @@ describe('SupabaseProviderProfileRepository', () => {
       data: {
         id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
         business_name: 'Reliable Repairs',
+        bio: 'Licensed repair provider.',
+        service_description: 'Plumbing and electrical repairs.',
+        service_area: 'Metro Manila',
+        years_experience: 6,
         verification_status: 'approved',
         average_rating: 4.8,
         review_count: 12,
@@ -21,6 +25,10 @@ describe('SupabaseProviderProfileRepository', () => {
     ).resolves.toEqual({
       id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
       businessName: 'Reliable Repairs',
+      bio: 'Licensed repair provider.',
+      serviceDescription: 'Plumbing and electrical repairs.',
+      serviceArea: 'Metro Manila',
+      yearsExperience: 6,
       verificationStatus: 'approved',
       averageRating: 4.8,
       reviewCount: 12,

@@ -2,9 +2,15 @@ import { useEffect, useState } from "react";
 import { Wallet, Calendar, ChevronRight, ExternalLink, Clock, X, Search, TrendingUp, CheckCircle, AlertCircle, Plus, Building2, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
+  getProviderPayoutAccount,
   getStoredProviderAccessToken,
+  listProviderPayoutMethods,
+  listProviderPayouts,
   listProviderPayments,
   type PaymentSummary,
+  type PayoutAccountSummary,
+  type PayoutMethodSummary,
+  type PayoutSummary,
 } from "../../services/serveaseProviderApi";
 
 const styles = {
@@ -89,6 +95,32 @@ function toPayoutTransaction(payment: PaymentSummary): Transaction {
   };
 }
 
+function toPayoutRequestTransaction(payout: PayoutSummary): Transaction {
+  const date = new Date(payout.requestedAt || payout.createdAt || "");
+
+  return {
+    id: payout.id,
+    date: Number.isNaN(date.getTime())
+      ? new Date().toISOString()
+      : date.toISOString(),
+    amount: payout.netAmount || payout.amount,
+    status:
+      payout.status === "paid"
+        ? "completed"
+        : payout.status === "requested"
+          ? "pending"
+          : "processing",
+    method: payout.accountLabel || "Payout request",
+    reference: payout.reference || payout.id,
+  };
+}
+
+function formatMethodName(methodType: PayoutMethodSummary["methodType"]): string {
+  if (methodType === "gcash") return "GCash";
+  if (methodType === "paymaya") return "PayMaya";
+  return "Bank Transfer";
+}
+
 export function PayoutPage() {
   const navigate = useNavigate();
   const [selectedFilter, setSelectedFilter] = useState("all");
@@ -96,78 +128,63 @@ export function PayoutPage() {
   const [dateFilter, setDateFilter] = useState("all");
   const [expandedTransaction, setExpandedTransaction] = useState<string | null>(null);
   const [liveTransactions, setLiveTransactions] = useState<Transaction[]>([]);
+  const [payoutMethods, setPayoutMethods] = useState<PayoutMethodSummary[]>([]);
+  const [payoutAccount, setPayoutAccount] = useState<PayoutAccountSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const nextPayoutDate = "April 5, 2026";
-
-  const mockTransactions: Transaction[] = [
-    {
-      id: "1",
-      date: "2024-03-15",
-      amount: 4500.00,
-      status: "completed",
-      method: "GCash",
-      reference: "TXN-2024-001234",
-    },
-    {
-      id: "2",
-      date: "2024-03-10",
-      amount: 3200.00,
-      status: "processing",
-      method: "Bank Transfer",
-      reference: "TXN-2024-001233",
-    },
-    {
-      id: "3",
-      date: "2024-03-05",
-      amount: 2800.00,
-      status: "completed",
-      method: "PayMaya",
-      reference: "TXN-2024-001232",
-    },
-    {
-      id: "4",
-      date: "2024-02-28",
-      amount: 5100.00,
-      status: "completed",
-      method: "GCash",
-      reference: "TXN-2024-001231",
-    },
-  ];
-
   useEffect(() => {
-    const loadPayments = async () => {
+    const loadPayoutData = async () => {
       const token = getStoredProviderAccessToken();
 
       if (!token) {
+        setLoadError("Sign in to load payout data from the backend.");
         return;
       }
 
       try {
         setLoadError(null);
-        const payments = await listProviderPayments(token);
-        setLiveTransactions(payments.map(toPayoutTransaction));
+        const [account, methods, payments, payouts] = await Promise.all([
+          getProviderPayoutAccount(token),
+          listProviderPayoutMethods(token),
+          listProviderPayments(token),
+          listProviderPayouts(token),
+        ]);
+        setPayoutAccount(account);
+        setPayoutMethods(methods);
+        setLiveTransactions([
+          ...payouts.map(toPayoutRequestTransaction),
+          ...payments.map(toPayoutTransaction),
+        ]);
       } catch (error) {
         setLoadError(error instanceof Error ? error.message : "Unable to load payout data.");
       }
     };
 
-    void loadPayments();
+    void loadPayoutData();
   }, []);
 
-  const transactions = liveTransactions.length > 0 ? liveTransactions : mockTransactions;
-  const currentBalance = transactions
+  const transactions = liveTransactions;
+  const currentBalance = payoutAccount?.availableBalance ?? transactions
     .filter((transaction) => transaction.status === "completed")
     .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const pendingBalance = transactions
+  const pendingBalance = payoutAccount?.pendingBalance ?? transactions
     .filter((transaction) => transaction.status !== "completed")
     .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const totalEarnings = transactions.reduce(
-    (sum, transaction) => sum + transaction.amount,
-    0,
-  );
+  const totalEarnings =
+    payoutAccount
+      ? payoutAccount.availableBalance +
+        payoutAccount.pendingBalance +
+        payoutAccount.totalPaidOut
+      : transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
   const nextPayoutAmount = currentBalance;
   const thisMonthEarnings = totalEarnings;
+  const nextPayoutDate = payoutAccount?.nextPayoutDate
+    ? new Date(payoutAccount.nextPayoutDate).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Not scheduled";
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -183,8 +200,33 @@ export function PayoutPage() {
   };
 
   const filteredTransactions = transactions.filter((transaction) => {
-    if (selectedFilter === "all") return true;
-    return transaction.status === selectedFilter;
+    const matchesStatus =
+      selectedFilter === "all" || transaction.status === selectedFilter;
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const matchesSearch =
+      !normalizedQuery ||
+      transaction.reference.toLowerCase().includes(normalizedQuery) ||
+      transaction.method.toLowerCase().includes(normalizedQuery) ||
+      transaction.amount.toString().includes(normalizedQuery);
+
+    if (dateFilter === "all") {
+      return matchesStatus && matchesSearch;
+    }
+
+    const transactionDate = new Date(transaction.date);
+    const today = new Date();
+    const daysAgo =
+      (today.getTime() - transactionDate.getTime()) / (1000 * 60 * 60 * 24);
+
+    if (dateFilter === "week") {
+      return matchesStatus && matchesSearch && daysAgo <= 7;
+    }
+
+    if (dateFilter === "month") {
+      return matchesStatus && matchesSearch && daysAgo <= 31;
+    }
+
+    return matchesStatus && matchesSearch;
   });
 
   return (
@@ -376,101 +418,86 @@ export function PayoutPage() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {/* Primary Method - GCash */}
-            <div
-              style={{
-                padding: "20px",
-                borderRadius: "12px",
-                backgroundColor: "#F0FDF8",
-                border: "2px solid #00BF63",
-                minHeight: "88px",
-                transition: "all 0.3s ease",
-                cursor: "pointer",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 191, 99, 0.15)";
-                e.currentTarget.style.transform = "translateY(-1px)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = "none";
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{ width: "40px", height: "40px", borderRadius: "10px", backgroundColor: "#00BF63", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Smartphone style={{ width: "20px", height: "20px", color: "white" }} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "15px", fontWeight: "600", color: "#111827", marginBottom: "4px", lineHeight: "1.3" }}>
-                      GCash
-                    </p>
-                    <p style={{ fontSize: "13px", color: "#6B7280", lineHeight: "1.3" }}>
-                      •••• •••• 1234
-                    </p>
-                  </div>
-                </div>
-                <span
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: "6px",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    backgroundColor: "#00BF63",
-                    color: "white",
-                  }}
-                >
-                  Primary
-                </span>
+            {payoutMethods.length === 0 ? (
+              <div
+                style={{
+                  padding: "20px",
+                  borderRadius: "12px",
+                  backgroundColor: "#F9FAFB",
+                  border: "1px solid #E5E7EB",
+                  color: "#6B7280",
+                  fontSize: "14px",
+                }}
+              >
+                No payout method is configured yet.
               </div>
-              <p style={{ fontSize: "12px", color: "#059669", display: "flex", alignItems: "center", gap: "4px" }}>
-                <Clock size={12} />
-                Processing time: Instant – 1 hour
-              </p>
-            </div>
-
-            {/* Secondary Method - Bank Transfer */}
-            <div
-              style={{
-                padding: "20px",
-                borderRadius: "12px",
-                backgroundColor: "#F9FAFB",
-                border: "1px solid #E5E7EB",
-                minHeight: "88px",
-                transition: "all 0.3s ease",
-                cursor: "pointer",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "#F3F4F6";
-                e.currentTarget.style.borderColor = "#D1D5DB";
-                e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "#F9FAFB";
-                e.currentTarget.style.borderColor = "#E5E7EB";
-                e.currentTarget.style.boxShadow = "none";
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{ width: "40px", height: "40px", borderRadius: "10px", backgroundColor: "#E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Building2 style={{ width: "20px", height: "20px", color: "#6B7280" }} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "15px", fontWeight: "600", color: "#111827", marginBottom: "4px", lineHeight: "1.3" }}>
-                      Bank Transfer
+            ) : (
+              payoutMethods.map((method) => {
+                const isWallet =
+                  method.methodType === "gcash" || method.methodType === "paymaya";
+                return (
+                  <div
+                    key={method.id}
+                    style={{
+                      padding: "20px",
+                      borderRadius: "12px",
+                      backgroundColor: method.isDefault ? "#F0FDF8" : "#F9FAFB",
+                      border: method.isDefault ? "2px solid #00BF63" : "1px solid #E5E7EB",
+                      minHeight: "88px",
+                      transition: "all 0.3s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.boxShadow = method.isDefault
+                        ? "0 2px 8px rgba(0, 191, 99, 0.15)"
+                        : "0 2px 8px rgba(0, 0, 0, 0.05)";
+                      e.currentTarget.style.transform = "translateY(-1px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.boxShadow = "none";
+                      e.currentTarget.style.transform = "translateY(0)";
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{ width: "40px", height: "40px", borderRadius: "10px", backgroundColor: method.isDefault ? "#00BF63" : "#E5E7EB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          {isWallet ? (
+                            <Smartphone style={{ width: "20px", height: "20px", color: method.isDefault ? "white" : "#6B7280" }} />
+                          ) : (
+                            <Building2 style={{ width: "20px", height: "20px", color: method.isDefault ? "white" : "#6B7280" }} />
+                          )}
+                        </div>
+                        <div>
+                          <p style={{ fontSize: "15px", fontWeight: "600", color: "#111827", marginBottom: "4px", lineHeight: "1.3" }}>
+                            {formatMethodName(method.methodType)}
+                          </p>
+                          <p style={{ fontSize: "13px", color: "#6B7280", lineHeight: "1.3" }}>
+                            {method.accountLabel}
+                          </p>
+                        </div>
+                      </div>
+                      {method.isDefault && (
+                        <span
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: "6px",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            backgroundColor: "#00BF63",
+                            color: "white",
+                          }}
+                        >
+                          Primary
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: "12px", color: method.isDefault ? "#059669" : "#6B7280", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Clock size={12} />
+                      Processing time: {isWallet ? "Instant to 1 hour" : "1 to 3 business days"}
                     </p>
-                    <p style={{ fontSize: "13px", color: "#6B7280", lineHeight: "1.3" }}>
-                      BDO •••• 9012
-                    </p>
                   </div>
-                </div>
-              </div>
-              <p style={{ fontSize: "12px", color: "#6B7280", display: "flex", alignItems: "center", gap: "4px" }}>
-                <Clock size={12} />
-                Processing time: 1–3 business days
-              </p>
-            </div>
+                );
+              })
+            )}
 
             {/* Add New Payout Method */}
             <button

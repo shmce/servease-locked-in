@@ -4,6 +4,7 @@ import { SupportTicketNotFoundError } from './ticket.errors';
 import {
   CreateSupportTicketInput,
   SupportTicketAttachmentSummary,
+  SupportTicketReplySummary,
   SupportTicketStatus,
   SupportTicketSummary,
 } from './ticket.types';
@@ -30,8 +31,17 @@ interface TicketRow {
   message: string | null;
   category: string | null;
   status: SupportTicketStatus;
+  assignee_id?: string | null;
   created_at: string | null;
   attachments?: unknown;
+}
+
+interface TicketReplyRow {
+  id: string;
+  ticket_id: string;
+  replied_by: string;
+  message: string;
+  created_at: string | null;
 }
 
 interface TicketAttachmentRow {
@@ -87,6 +97,25 @@ export class SupabaseSupportTicketRepository {
     return this.mapTicket(data);
   }
 
+  async getTicket(userId: string, ticketId: string): Promise<SupportTicketSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_get_support_ticket', {
+        p_user_id: userId,
+        p_ticket_id: ticketId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to get support ticket: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new SupportTicketNotFoundError();
+    }
+
+    return this.mapTicket(data);
+  }
+
   async listTickets(userId: string): Promise<SupportTicketSummary[]> {
     const { data, error } = await this.client.rpc('servease_list_support_tickets', {
       p_user_id: userId,
@@ -116,6 +145,24 @@ export class SupabaseSupportTicketRepository {
     return (data ?? []).map((row) => this.mapTicket(row));
   }
 
+  async adminGetTicket(ticketId: string): Promise<SupportTicketSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_get_support_ticket', {
+        p_ticket_id: ticketId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to get admin support ticket: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new SupportTicketNotFoundError();
+    }
+
+    return this.mapTicket(data);
+  }
+
   async updateTicketStatus(
     ticketId: string,
     status: SupportTicketStatus,
@@ -138,6 +185,74 @@ export class SupabaseSupportTicketRepository {
     return this.mapTicket(data);
   }
 
+  async addReply(
+    ticketId: string,
+    repliedBy: string,
+    message: string,
+  ): Promise<SupportTicketReplySummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_add_ticket_reply', {
+        p_ticket_id: ticketId,
+        p_replied_by: repliedBy,
+        p_message: message,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to add ticket reply: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new SupportTicketNotFoundError();
+    }
+
+    const row = data as unknown as TicketReplyRow;
+    return {
+      id: row.id,
+      ticketId: row.ticket_id,
+      repliedBy: row.replied_by,
+      message: row.message,
+      createdAt: row.created_at,
+    };
+  }
+
+  async listReplies(ticketId: string): Promise<SupportTicketReplySummary[]> {
+    const { data, error } = await this.client.rpc('servease_admin_list_ticket_replies', {
+      p_ticket_id: ticketId,
+    });
+
+    if (error) {
+      throw new Error(`Failed to list ticket replies: ${error.message}`);
+    }
+
+    return ((data ?? []) as unknown as TicketReplyRow[]).map((row) => ({
+      id: row.id,
+      ticketId: row.ticket_id,
+      repliedBy: row.replied_by,
+      message: row.message,
+      createdAt: row.created_at,
+    }));
+  }
+
+  async assignTicket(ticketId: string, assigneeId: string | null): Promise<SupportTicketSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_assign_ticket', {
+        p_ticket_id: ticketId,
+        p_assignee_id: assigneeId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to assign ticket: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new SupportTicketNotFoundError();
+    }
+
+    return this.mapTicket(data);
+  }
+
   private mapTicket(row: TicketRow): SupportTicketSummary {
     return {
       id: row.id,
@@ -146,6 +261,7 @@ export class SupabaseSupportTicketRepository {
       message: row.message,
       category: row.category,
       status: row.status,
+      assigneeId: row.assignee_id ?? null,
       createdAt: row.created_at,
       attachments: this.mapAttachments(row.attachments),
     };

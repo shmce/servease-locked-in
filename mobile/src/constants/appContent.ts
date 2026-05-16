@@ -40,6 +40,7 @@ export const hiddenProviderBottomNavScreens: AppScreen[] = [
   'providerCancelBooking',
   'providerReportIssue',
   'providerServiceReceipt',
+  'providerRequestPayout',
 ];
 
 export const providerProfileTabs = [

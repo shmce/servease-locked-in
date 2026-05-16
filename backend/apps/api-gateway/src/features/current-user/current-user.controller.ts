@@ -2,9 +2,11 @@ import {
   Controller,
   Get,
   Headers,
+  HttpCode,
   HttpException,
   HttpStatus,
   Patch,
+  Post,
   Body,
 } from '@nestjs/common';
 import {
@@ -14,10 +16,16 @@ import {
   ProfileDependencyUnavailableError,
   UserNotFoundError,
 } from './current-user.errors';
+import {
+  InvalidPasswordChangeRequestError,
+  PasswordChangeDependencyUnavailableError,
+} from '../registration/registration.errors';
 import { AuthTokenService } from './auth-token.service';
 import { CurrentUserService } from './current-user.service';
 import {
   CurrentUserProfile,
+  UpdateCurrentUserPasswordInput,
+  UpdateCurrentUserPasswordResponse,
   UpdateCurrentUserProfileInput,
 } from './current-user.types';
 
@@ -67,6 +75,83 @@ export class CurrentUserController {
     }
   }
 
+  @Patch('password')
+  async updatePassword(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: UpdateCurrentUserPasswordInput,
+  ): Promise<{ data: UpdateCurrentUserPasswordResponse }> {
+    try {
+      if (
+        !body.currentPassword ||
+        !body.newPassword ||
+        body.newPassword.length < 8 ||
+        body.currentPassword === body.newPassword
+      ) {
+        throw this.error(
+          'invalid_password_change_request',
+          'Password change request is invalid.',
+          400,
+        );
+      }
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.updateCurrentUserPassword(
+        userId,
+        body,
+      );
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('sessions')
+  async listSessions(
+    @Headers('authorization') authorization?: string,
+  ): Promise<{ data: never[] }> {
+    try {
+      await this.authTokenService.authenticate(authorization);
+      return { data: [] };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('two-factor/enable')
+  @HttpCode(501)
+  async enableTwoFactor(
+    @Headers('authorization') authorization?: string,
+  ): Promise<{ error: { code: string; message: string } }> {
+    try {
+      await this.authTokenService.authenticate(authorization);
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+    return {
+      error: {
+        code: 'not_implemented',
+        message: 'Two-factor authentication is not yet implemented.',
+      },
+    };
+  }
+
+  @Post('two-factor/disable')
+  @HttpCode(501)
+  async disableTwoFactor(
+    @Headers('authorization') authorization?: string,
+  ): Promise<{ error: { code: string; message: string } }> {
+    try {
+      await this.authTokenService.authenticate(authorization);
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+    return {
+      error: {
+        code: 'not_implemented',
+        message: 'Two-factor authentication is not yet implemented.',
+      },
+    };
+  }
+
   private toHttpException(error: unknown): HttpException {
     if (error instanceof HttpException) {
       return error;
@@ -82,6 +167,22 @@ export class CurrentUserController {
 
     if (error instanceof AccountInactiveError) {
       return this.error('account_inactive', 'This account is not active.', 403);
+    }
+
+    if (error instanceof InvalidPasswordChangeRequestError) {
+      return this.error(
+        'invalid_password_change_request',
+        'Password change request is invalid.',
+        400,
+      );
+    }
+
+    if (error instanceof PasswordChangeDependencyUnavailableError) {
+      return this.error(
+        'password_change_dependency_unavailable',
+        'Password change service is unavailable.',
+        503,
+      );
     }
 
     if (error instanceof UserNotFoundError) {

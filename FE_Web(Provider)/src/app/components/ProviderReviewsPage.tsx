@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Star,
   ChevronDown,
@@ -11,6 +11,14 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import {
+  getStoredProviderAccessToken,
+  getProviderProfile,
+  listProviderReviews,
+  replyToReview,
+  flagReview,
+  type ReviewSummary,
+} from "../../services/serveaseProviderApi";
 
 // Styles object for reusability
 const styles = {
@@ -148,7 +156,7 @@ const styles = {
 };
 
 interface Review {
-  id: number;
+  id: string;
   customerName: string;
   avatar: string;
   rating: number;
@@ -157,6 +165,33 @@ interface Review {
   reviewText: string;
   photos: string[];
   businessResponse?: string;
+}
+
+function mapApiReviewToLocal(r: ReviewSummary): Review {
+  const name = r.reviewerFullName ?? "Anonymous";
+  const initials = name
+    .split(" ")
+    .slice(0, 2)
+    .map((n) => n[0] ?? "")
+    .join("")
+    .toUpperCase();
+  const date = r.createdAt
+    ? new Date(r.createdAt).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
+  return {
+    id: r.id,
+    customerName: name,
+    avatar: initials,
+    rating: r.rating,
+    date,
+    serviceType: "",
+    reviewText: r.reviewText ?? "",
+    photos: [],
+  };
 }
 
 export function ProviderReviewsPage() {
@@ -169,19 +204,38 @@ export function ProviderReviewsPage() {
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
   const [showReportReasonDropdown, setShowReportReasonDropdown] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Sample data
-  const totalReviews = 200;
-  const averageRating = 4.8;
-  const responseRate = 92;
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    getProviderProfile(token)
+      .then((snapshot) =>
+        listProviderReviews(token, snapshot.provider.id)
+      )
+      .then((data) => setReviews(data.map(mapApiReviewToLocal)))
+      .catch(() => setReviews([]))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const ratingDistribution = [
-    { stars: 5, count: 142, percentage: 71 },
-    { stars: 4, count: 38, percentage: 19 },
-    { stars: 3, count: 12, percentage: 6 },
-    { stars: 2, count: 5, percentage: 2.5 },
-    { stars: 1, count: 3, percentage: 1.5 },
-  ];
+  const totalReviews = reviews.length;
+  const averageRating =
+    totalReviews > 0
+      ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews) * 10) / 10
+      : 0;
+
+  const ratingDistribution = [5, 4, 3, 2, 1].map((stars) => {
+    const count = reviews.filter((r) => r.rating === stars).length;
+    return {
+      stars,
+      count,
+      percentage: totalReviews > 0 ? (count / totalReviews) * 100 : 0,
+    };
+  });
 
   const filterTabs = [
     "All Reviews",
@@ -200,66 +254,6 @@ export function ProviderReviewsPage() {
     "Personal attack",
     "Spam",
     "Other",
-  ];
-
-  const reviews: Review[] = [
-    {
-      id: 1,
-      customerName: "Maria S.",
-      avatar: "MS",
-      rating: 5,
-      date: "March 15, 2026",
-      serviceType: "House Cleaning",
-      reviewText:
-        "Excellent service! Very thorough and professional. The team arrived on time and did an amazing job cleaning our home. Highly recommend!",
-      photos: [],
-      businessResponse:
-        "Thank you so much for your kind words, Maria! We're thrilled to hear you were satisfied with our service. Looking forward to serving you again!",
-    },
-    {
-      id: 2,
-      customerName: "John D.",
-      avatar: "JD",
-      rating: 5,
-      date: "March 12, 2026",
-      serviceType: "Plumbing",
-      reviewText:
-        "Fixed my plumbing issue quickly and efficiently. Great work!",
-      photos: [],
-    },
-    {
-      id: 3,
-      customerName: "Sarah L.",
-      avatar: "SL",
-      rating: 4,
-      date: "March 10, 2026",
-      serviceType: "Electrical",
-      reviewText:
-        "Good service overall. The electrician was knowledgeable and fixed the problem. Only minor issue was arriving 15 minutes late.",
-      photos: [],
-    },
-    {
-      id: 4,
-      customerName: "Robert M.",
-      avatar: "RM",
-      rating: 5,
-      date: "March 8, 2026",
-      serviceType: "Aircon Services",
-      reviewText:
-        "Outstanding service! The aircon is working perfectly now. Very professional team.",
-      photos: [],
-    },
-    {
-      id: 5,
-      customerName: "Lisa T.",
-      avatar: "LT",
-      rating: 3,
-      date: "March 5, 2026",
-      serviceType: "House Cleaning",
-      reviewText:
-        "Service was okay but I expected more attention to detail. Some areas were missed.",
-      photos: [],
-    },
   ];
 
   const tips = [
@@ -297,22 +291,36 @@ export function ProviderReviewsPage() {
   };
 
   const handleRespondSubmit = () => {
-    if (response.trim().length === 0) return;
-    console.log("Response submitted:", { reviewId: respondModal?.id, response });
-    setRespondModal(null);
-    setResponse("");
+    if (response.trim().length === 0 || !respondModal) return;
+    const token = getStoredProviderAccessToken();
+    if (!token) return;
+    replyToReview(token, respondModal.id, response.trim())
+      .then(() => {
+        setReviews((prev) =>
+          prev.map((r) =>
+            r.id === respondModal.id ? { ...r, businessResponse: response.trim() } : r
+          )
+        );
+      })
+      .catch(() => {})
+      .finally(() => {
+        setRespondModal(null);
+        setResponse("");
+      });
   };
 
   const handleReportSubmit = () => {
-    if (!reportReason) return;
-    console.log("Report submitted:", {
-      reviewId: reportModal?.id,
-      reason: reportReason,
-      details: reportDetails,
-    });
-    setReportModal(null);
-    setReportReason("");
-    setReportDetails("");
+    if (!reportReason || !reportModal) return;
+    const token = getStoredProviderAccessToken();
+    if (!token) return;
+    const reason = reportReason === "Other" ? reportDetails.trim() : reportReason;
+    flagReview(token, reportModal.id, reason)
+      .catch(() => {})
+      .finally(() => {
+        setReportModal(null);
+        setReportReason("");
+        setReportDetails("");
+      });
   };
 
   // Filter reviews based on active filter
@@ -406,7 +414,7 @@ export function ProviderReviewsPage() {
                   color: "#111827",
                 }}
               >
-                {averageRating}
+                {loading ? "—" : averageRating}
               </span>
               <Star
                 style={{ width: "20px", height: "20px" }}
@@ -437,7 +445,7 @@ export function ProviderReviewsPage() {
                 marginBottom: "8px",
               }}
             >
-              {totalReviews}
+              {loading ? "—" : totalReviews}
             </p>
             <p
               style={{
@@ -462,7 +470,7 @@ export function ProviderReviewsPage() {
                 marginBottom: "8px",
               }}
             >
-              {responseRate}%
+              {loading ? "—" : `${reviews.filter((r) => r.businessResponse).length}`}
             </p>
             <p
               style={{
@@ -473,7 +481,7 @@ export function ProviderReviewsPage() {
                 letterSpacing: "0.05em",
               }}
             >
-              Response Rate
+              Responded
             </p>
           </div>
 
@@ -678,6 +686,15 @@ export function ProviderReviewsPage() {
         </div>
 
         {/* Reviews Grid */}
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "48px", color: "#6B7280" }}>
+            Loading reviews...
+          </div>
+        ) : displayedReviews.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "48px", color: "#6B7280" }}>
+            No reviews found for this filter.
+          </div>
+        ) : null}
         <div
           style={{
             display: "grid",

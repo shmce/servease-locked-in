@@ -1,5 +1,11 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  AdminProviderApplicationSummary,
+  AdminProviderApplicationStatus,
+  listAdminProviderApplications,
+} from "../../services/serveaseAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -180,13 +186,83 @@ const stats = [
   },
 ];
 
+type ProviderApplicationRow = {
+  applicationId: string;
+  reviewId: string;
+  businessName: string;
+  ownerName: string;
+  category: string;
+  dateApplied: string;
+  location: string;
+  status: AdminProviderApplicationStatus;
+  providerId: string;
+};
+
 export function ProviderApplications() {
   const navigate = useNavigate();
+  const { accessToken } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("pending");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [backendApplications, setBackendApplications] = useState<
+    AdminProviderApplicationSummary[]
+  >([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  let filteredApplications = applications.filter((app) => {
+  useEffect(() => {
+    let cancelled = false;
+    async function loadApplications() {
+      if (!accessToken) {
+        setBackendApplications([]);
+        return;
+      }
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const data = await listAdminProviderApplications(accessToken, {
+          status:
+            statusFilter === "all"
+              ? null
+              : (statusFilter as AdminProviderApplicationStatus),
+          query: searchTerm.trim() || null,
+          limit: 200,
+        });
+        if (!cancelled) {
+          setBackendApplications(data);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Provider applications failed to load.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+    void loadApplications();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, searchTerm, statusFilter]);
+
+  const displayedApplications = useMemo((): ProviderApplicationRow[] => {
+    if (backendApplications.length === 0) {
+      return applications.map((app) => ({
+        ...app,
+        reviewId: app.applicationId,
+        status: app.status as AdminProviderApplicationStatus,
+      }));
+    }
+    return backendApplications.map(toApplicationRow);
+  }, [backendApplications]);
+
+  let filteredApplications = displayedApplications.filter((app) => {
     const matchesSearch =
       app.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       app.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -226,7 +302,7 @@ export function ProviderApplications() {
     return <Badge variant="outline">{status}</Badge>;
   };
 
-  const pendingCount = applications.filter((app) => app.status === "pending").length;
+  const pendingCount = displayedApplications.filter((app) => app.status === "pending").length;
 
   return (
     <div className="space-y-6">
@@ -264,9 +340,12 @@ export function ProviderApplications() {
             <CardTitle>Application Queue</CardTitle>
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <Filter className="w-4 h-4" />
-              {filteredApplications.length} of {applications.length} applications
+              {filteredApplications.length} of {displayedApplications.length} applications
             </div>
           </div>
+          {loadError ? (
+            <p className="text-sm text-red-600 mt-2">{loadError}</p>
+          ) : null}
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -344,7 +423,7 @@ export function ProviderApplications() {
                 {filteredApplications.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-gray-500">
-                      No applications found matching your filters
+                      {isLoading ? "Loading provider applications..." : "No applications found matching your filters"}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -383,7 +462,7 @@ export function ProviderApplications() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => navigate(`/provider-applications/${app.applicationId}`)}
+                          onClick={() => navigate(`/provider-applications/${app.reviewId}`)}
                           className="gap-2"
                         >
                           <Eye className="w-4 h-4" />
@@ -400,4 +479,18 @@ export function ProviderApplications() {
       </Card>
     </div>
   );
+}
+
+function toApplicationRow(app: AdminProviderApplicationSummary): ProviderApplicationRow {
+  return {
+    applicationId: app.applicationReference,
+    reviewId: app.id,
+    businessName: app.businessName ?? "Unnamed provider",
+    ownerName: app.userId,
+    category: "Service Marketplace",
+    dateApplied: app.createdAt ?? "",
+    location: app.serviceArea ?? "Service area not set",
+    status: app.verificationStatus,
+    providerId: app.id,
+  };
 }

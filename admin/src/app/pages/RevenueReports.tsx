@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
@@ -32,6 +32,15 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  getAdminBookingsSummary,
+  listAdminPayments,
+  listAdminRefunds,
+  AdminBookingsSummaryStats,
+  AdminPaymentSummary,
+  AdminRefundSummary,
+} from "../../services/serveaseAdminApi";
 
 // Monthly Revenue Data
 const monthlyRevenueData = [
@@ -81,18 +90,40 @@ const CHART_COLORS = [
 ];
 
 export function RevenueReports() {
+  const { accessToken } = useAuth();
   const [dateRange, setDateRange] = useState("last-6-months");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [bookingsSummary, setBookingsSummary] = useState<AdminBookingsSummaryStats | null>(null);
+  const [payments, setPayments] = useState<AdminPaymentSummary[]>([]);
+  const [refunds, setRefunds] = useState<AdminRefundSummary[]>([]);
 
-  // Calculate stats
-  const totalRevenueAllTime = 14950000;
-  const revenueThisMonth = 2450000;
-  const commissionEarned = 245000;
-  const totalRefunds = 89500;
-  const failedPaymentRate = 2.3;
+  useEffect(() => {
+    if (!accessToken) return;
+    Promise.all([
+      getAdminBookingsSummary(accessToken).catch(() => null),
+      listAdminPayments(accessToken).catch(() => [] as AdminPaymentSummary[]),
+      listAdminRefunds(accessToken).catch(() => [] as AdminRefundSummary[]),
+    ]).then(([summary, pays, refs]) => {
+      setBookingsSummary(summary);
+      setPayments(pays);
+      setRefunds(refs);
+    });
+  }, [accessToken]);
 
-  const revenueGrowth = 8.9; // Percentage
-  const commissionGrowth = 8.9;
+  const totalRevenueAllTime = bookingsSummary?.totalRevenue
+    ?? payments.reduce((s, p) => s + p.amount, 0);
+  const revenueThisMonth = bookingsSummary?.totalRevenue ?? 0;
+  const commissionEarned = payments.reduce((s, p) => s + p.platformFee, 0);
+  const totalRefunds = refunds
+    .filter((r) => r.status === "approved")
+    .reduce((s, r) => s + r.amount, 0);
+  const failedPaymentRate =
+    payments.length > 0
+      ? ((payments.filter((p) => p.status === "cancelled").length / payments.length) * 100).toFixed(1)
+      : "0.0";
+
+  const revenueGrowth = 0;
+  const commissionGrowth = 0;
 
   const handleExportCSV = () => {
     // Create CSV content

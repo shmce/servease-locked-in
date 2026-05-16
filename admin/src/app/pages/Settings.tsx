@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Label } from "../components/ui/label";
@@ -12,8 +12,12 @@ import {
 } from "../components/ui/select";
 import { Bell, Globe, Palette, Database, Save } from "lucide-react";
 import { toast } from "sonner";
-
-const SETTINGS_STORAGE_KEY = "servease_admin_account_settings";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  getUserPreferences,
+  updateUserPreferences,
+  type UserPreferenceSummary,
+} from "../../services/serveaseAdminApi";
 
 const defaultSettings = {
   emailNotifications: true,
@@ -27,25 +31,88 @@ const defaultSettings = {
   dataRetention: "90",
 };
 
+function fromPreferenceSummary(preferences: UserPreferenceSummary) {
+  const metadata = preferences.notificationPreferences;
+  return {
+    emailNotifications:
+      typeof metadata.emailNotifications === "boolean"
+        ? metadata.emailNotifications
+        : defaultSettings.emailNotifications,
+    pushNotifications: preferences.pushNotificationsEnabled,
+    bookingAlerts:
+      typeof metadata.bookingAlerts === "boolean"
+        ? metadata.bookingAlerts
+        : defaultSettings.bookingAlerts,
+    paymentAlerts:
+      typeof metadata.paymentAlerts === "boolean"
+        ? metadata.paymentAlerts
+        : defaultSettings.paymentAlerts,
+    disputeAlerts:
+      typeof metadata.disputeAlerts === "boolean"
+        ? metadata.disputeAlerts
+        : defaultSettings.disputeAlerts,
+    language: preferences.language || defaultSettings.language,
+    timezone:
+      typeof metadata.timezone === "string"
+        ? metadata.timezone
+        : defaultSettings.timezone,
+    theme: preferences.darkModeEnabled
+      ? "dark"
+      : typeof metadata.theme === "string"
+        ? metadata.theme
+        : defaultSettings.theme,
+    dataRetention:
+      typeof metadata.dataRetention === "string"
+        ? metadata.dataRetention
+        : defaultSettings.dataRetention,
+  };
+}
+
 export function Settings() {
-  const [settings, setSettings] = useState(() => {
-    if (typeof window === "undefined") {
-      return defaultSettings;
-    }
+  const { accessToken } = useAuth();
+  const [settings, setSettings] = useState(defaultSettings);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const loadSettings = useCallback(async () => {
+    if (!accessToken) return;
 
     try {
-      const stored = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
-      return stored ? { ...defaultSettings, ...JSON.parse(stored) } : defaultSettings;
-    } catch {
-      return defaultSettings;
+      setSettings(fromPreferenceSummary(await getUserPreferences(accessToken)));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to load settings.");
     }
-  });
+  }, [accessToken]);
 
-  const handleSave = () => {
-    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-    toast.success("Settings saved on this device", {
-      description: "No backend account-settings endpoint is available yet.",
-    });
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
+
+  const handleSave = async () => {
+    if (!accessToken) return;
+
+    setIsSaving(true);
+    try {
+      const updated = await updateUserPreferences(accessToken, {
+        pushNotificationsEnabled: settings.pushNotifications,
+        darkModeEnabled: settings.theme === "dark",
+        language: settings.language,
+        notificationPreferences: {
+          emailNotifications: settings.emailNotifications,
+          bookingAlerts: settings.bookingAlerts,
+          paymentAlerts: settings.paymentAlerts,
+          disputeAlerts: settings.disputeAlerts,
+          timezone: settings.timezone,
+          theme: settings.theme,
+          dataRetention: settings.dataRetention,
+        },
+      });
+      setSettings(fromPreferenceSummary(updated));
+      toast.success("Settings saved.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to save settings.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -286,11 +353,12 @@ export function Settings() {
       {/* Save Button */}
       <div className="flex justify-end">
         <Button
-          onClick={handleSave}
+          disabled={isSaving}
+          onClick={() => void handleSave()}
           className="bg-[#00BF63] hover:bg-[#00A055]"
         >
           <Save className="w-4 h-4 mr-2" />
-          Save Settings
+          {isSaving ? "Saving..." : "Save Settings"}
         </Button>
       </div>
     </div>

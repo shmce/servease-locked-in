@@ -1,10 +1,22 @@
 import { Injectable } from '@nestjs/common';
-import { PaymentSummary } from './admin-payment.types';
+import {
+  PaymentSummary,
+  CommissionRuleSummary,
+  PromotionSummary,
+  PayoutSummary,
+  RefundSummary,
+  UpsertPromotionRequest,
+  UpdateCommissionRuleRequest,
+} from './admin-payment.types';
 import { PaymentServiceClient } from './clients/payment-service.client';
 
 @Injectable()
 export class AdminPaymentService {
   constructor(private readonly paymentServiceClient: PaymentServiceClient) {}
+
+  getPayment(paymentId: string): Promise<PaymentSummary> {
+    return this.paymentServiceClient.getPayment(paymentId);
+  }
 
   listPayments(status?: string | null): Promise<PaymentSummary[]> {
     return this.paymentServiceClient.listPayments(status ?? null);
@@ -15,5 +27,70 @@ export class AdminPaymentService {
     status: string,
   ): Promise<PaymentSummary> {
     return this.paymentServiceClient.updatePaymentStatus(paymentId, status);
+  }
+
+  listPromotions(status?: string | null): Promise<PromotionSummary[]> {
+    return this.paymentServiceClient.listPromotions(status ?? null);
+  }
+
+  createPromotion(input: UpsertPromotionRequest): Promise<PromotionSummary> {
+    return this.paymentServiceClient.createPromotion(input);
+  }
+
+  updatePromotion(
+    promotionId: string,
+    input: UpsertPromotionRequest,
+  ): Promise<PromotionSummary> {
+    return this.paymentServiceClient.updatePromotion(promotionId, input);
+  }
+
+  deletePromotion(promotionId: string): Promise<PromotionSummary> {
+    return this.paymentServiceClient.deletePromotion(promotionId);
+  }
+
+  listPayouts(status?: string | null): Promise<PayoutSummary[]> {
+    return this.paymentServiceClient.listPayouts(status ?? null);
+  }
+
+  updatePayoutStatus(
+    payoutId: string,
+    status: string,
+  ): Promise<PayoutSummary> {
+    return this.paymentServiceClient.updatePayoutStatus(payoutId, status);
+  }
+
+  listRefunds(status?: string | null): Promise<RefundSummary[]> {
+    return this.paymentServiceClient.listRefunds(status ?? null);
+  }
+
+  approveRefund(
+    refundId: string,
+    adminUserId: string,
+    reason?: string | null,
+  ): Promise<RefundSummary> {
+    return this.paymentServiceClient.approveRefund(
+      refundId,
+      adminUserId,
+      reason ?? null,
+    );
+  }
+
+  rejectRefund(
+    refundId: string,
+    adminUserId: string,
+    reason: string,
+  ): Promise<RefundSummary> {
+    return this.paymentServiceClient.rejectRefund(refundId, adminUserId, reason);
+  }
+
+  listCommissionRules(): Promise<CommissionRuleSummary[]> {
+    return this.paymentServiceClient.listCommissionRules();
+  }
+
+  updateCommissionRule(
+    ruleId: string,
+    input: UpdateCommissionRuleRequest,
+  ): Promise<CommissionRuleSummary> {
+    return this.paymentServiceClient.updateCommissionRule(ruleId, input);
   }
 }

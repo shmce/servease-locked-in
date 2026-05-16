@@ -9,6 +9,10 @@ import {
 export class SupportGatewayService {
   constructor(private readonly supportServiceClient: SupportServiceClient) {}
 
+  getTicket(userId: string, ticketId: string): Promise<SupportTicketSummary> {
+    return this.supportServiceClient.getTicket(userId, ticketId);
+  }
+
   createTicket(input: CreateSupportTicketRequest): Promise<SupportTicketSummary> {
     return this.supportServiceClient.createTicket(input);
   }

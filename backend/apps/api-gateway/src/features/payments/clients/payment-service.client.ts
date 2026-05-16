@@ -6,8 +6,15 @@ import {
 } from '../payment.errors';
 import {
   CreatePaymentRequest,
+  CustomerPaymentMethodSummary,
   PaymentSummary,
   PaymentVisibility,
+  PromotionValidationSummary,
+  PayoutAccountSummary,
+  PayoutMethodSummary,
+  PayoutSummary,
+  UpsertCustomerPaymentMethodRequest,
+  UpsertPayoutMethodRequest,
 } from '../payment.types';
 
 @Injectable()
@@ -33,10 +40,110 @@ export class PaymentServiceClient {
     );
   }
 
+  validatePromotion(
+    code: string,
+    amount: number,
+  ): Promise<PromotionValidationSummary> {
+    return this.request<PromotionValidationSummary>(
+      '/internal/payments/promotions/validate',
+      'POST',
+      {
+        code,
+        amount,
+      },
+    );
+  }
+
+  getPayoutAccount(providerId: string): Promise<PayoutAccountSummary> {
+    return this.request<PayoutAccountSummary>(
+      `/internal/payments/payout-account?providerId=${encodeURIComponent(providerId)}`,
+      'GET',
+    );
+  }
+
+  listPayoutMethods(providerId: string): Promise<PayoutMethodSummary[]> {
+    return this.request<PayoutMethodSummary[]>(
+      `/internal/payments/payout-methods?providerId=${encodeURIComponent(providerId)}`,
+      'GET',
+    );
+  }
+
+  upsertPayoutMethod(
+    providerId: string,
+    input: UpsertPayoutMethodRequest,
+  ): Promise<PayoutMethodSummary> {
+    return this.request<PayoutMethodSummary>('/internal/payments/payout-methods', 'PUT', {
+      providerId,
+      ...input,
+    });
+  }
+
+  listCustomerPaymentMethods(
+    customerId: string,
+  ): Promise<CustomerPaymentMethodSummary[]> {
+    return this.request<CustomerPaymentMethodSummary[]>(
+      `/internal/payments/customer-methods?customerId=${encodeURIComponent(customerId)}`,
+      'GET',
+    );
+  }
+
+  upsertCustomerPaymentMethod(
+    customerId: string,
+    input: UpsertCustomerPaymentMethodRequest,
+  ): Promise<CustomerPaymentMethodSummary> {
+    return this.request<CustomerPaymentMethodSummary>(
+      '/internal/payments/customer-methods',
+      'PUT',
+      {
+        customerId,
+        ...input,
+      },
+    );
+  }
+
+  deleteCustomerPaymentMethod(
+    customerId: string,
+    methodId: string,
+  ): Promise<CustomerPaymentMethodSummary> {
+    return this.request<CustomerPaymentMethodSummary>(
+      `/internal/payments/customer-methods/${encodeURIComponent(
+        methodId,
+      )}?customerId=${encodeURIComponent(customerId)}`,
+      'DELETE',
+    );
+  }
+
+  listPayouts(providerId: string): Promise<PayoutSummary[]> {
+    return this.request<PayoutSummary[]>(
+      `/internal/payments/payouts?providerId=${encodeURIComponent(providerId)}`,
+      'GET',
+    );
+  }
+
+  createPayoutRequest(
+    userId: string,
+    providerId: string,
+    input: { amount: number; payoutMethodId: string },
+    idempotencyKey?: string | null,
+  ): Promise<PayoutSummary> {
+    return this.request<PayoutSummary>(
+      '/internal/payments/payouts',
+      'POST',
+      {
+        userId,
+        providerId,
+        amount: input.amount,
+        payoutMethodId: input.payoutMethodId,
+      },
+      idempotencyKey,
+    );
+  }
+
   private async request<T>(
     path: string,
-    method: 'GET' | 'POST',
+    method: 'DELETE' | 'GET' | 'POST' | 'PUT',
     body?: unknown,
+    idempotencyKey?: string | null,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(
       'PAYMENT_SERVICE_URL',
@@ -46,6 +153,9 @@ export class PaymentServiceClient {
       method,
       headers: {
         'content-type': 'application/json',
+        ...(idempotencyKey?.trim()
+          ? { 'idempotency-key': idempotencyKey.trim() }
+          : {}),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

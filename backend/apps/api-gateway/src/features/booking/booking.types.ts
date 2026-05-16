@@ -87,6 +87,36 @@ export interface BookingTimelineEventSummary {
   createdAt: string | null;
 }
 
+export type BookingTrackingPhase =
+  | 'awaiting_confirmation'
+  | 'scheduled'
+  | 'on_the_way'
+  | 'completed'
+  | 'cancelled'
+  | 'rejected';
+
+export type BookingTrackingTrafficLevel = 'light' | 'moderate' | 'heavy';
+
+export interface BookingTrackingLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export interface BookingTrackingSnapshot {
+  bookingId: string;
+  bookingReference: string;
+  status: BookingStatus;
+  phase: BookingTrackingPhase;
+  etaMinutes: number | null;
+  distanceKm: number | null;
+  trafficLevel: BookingTrackingTrafficLevel | null;
+  destinationAddress: string | null;
+  destinationLocation: BookingTrackingLocation | null;
+  providerLocation: BookingTrackingLocation | null;
+  scheduledAt: string;
+  lastUpdatedAt: string;
+}
+
 export interface BookingSummary {
   id: string;
   bookingReference: string;

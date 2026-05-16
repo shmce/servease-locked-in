@@ -31,6 +31,7 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingSnapshot,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
 } from './booking.types';
@@ -55,6 +56,26 @@ export class BookingController {
       return {
         data: await this.bookingGatewayService.listBookings(
           scope === 'provider' ? null : userId,
+          providerId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':bookingId/tracking')
+  async tracking(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+  ): Promise<{ data: BookingTrackingSnapshot }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      const providerId = await this.resolveOptionalProviderId(userId);
+      return {
+        data: await this.bookingGatewayService.getTrackingSnapshot(
+          bookingId,
+          userId,
           providerId,
         ),
       };

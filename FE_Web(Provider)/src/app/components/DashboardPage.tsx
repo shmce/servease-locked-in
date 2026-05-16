@@ -1,15 +1,73 @@
 import { Calendar, DollarSign, Star, TrendingUp, Clock, CheckCircle, ArrowRight, Eye } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import {
+  getProviderDashboard,
+  getStoredProviderAccessToken,
+  type ProviderDashboardSummary,
+} from '../../services/serveaseProviderApi';
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const [dashboard, setDashboard] = useState<ProviderDashboardSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const stats = [
-    { label: 'New Requests', value: '12', icon: Calendar, color: 'bg-blue-500', trend: '+3 from yesterday' },
-    { label: "Today's Bookings", value: '8', icon: CheckCircle, color: 'bg-green-600', trend: '5 completed' },
-    { label: "Today's Earnings", value: '$842', icon: DollarSign, color: 'bg-purple-500', trend: '+12% from avg' },
-    { label: 'Overall Rating', value: '4.8', icon: Star, color: 'bg-yellow-500', trend: 'Based on 247 reviews' },
-  ];
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      setLoadError('Sign in to load your provider dashboard.');
+      return;
+    }
+
+    setIsLoading(true);
+    setLoadError(null);
+    void getProviderDashboard(token)
+      .then(setDashboard)
+      .catch((error) => {
+        setDashboard(null);
+        setLoadError(
+          error instanceof Error ? error.message : 'Unable to load dashboard.',
+        );
+      })
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const stats = useMemo(() => {
+    const summary = dashboard?.summary;
+
+    return [
+      {
+        label: 'New Requests',
+        value: String(summary?.newRequests ?? 0),
+        icon: Calendar,
+        color: 'bg-blue-500',
+        trend: 'Pending provider responses',
+      },
+      {
+        label: "Today's Bookings",
+        value: String(summary?.todayBookings ?? 0),
+        icon: CheckCircle,
+        color: 'bg-green-600',
+        trend: `${summary?.todayCompleted ?? 0} completed`,
+      },
+      {
+        label: "Today's Earnings",
+        value: formatCurrency(summary?.todayEarnings ?? 0),
+        icon: DollarSign,
+        color: 'bg-purple-500',
+        trend: `${formatCurrency(summary?.totalEarnings ?? 0)} total paid`,
+      },
+      {
+        label: 'Overall Rating',
+        value: String(summary?.overallRating ?? 0),
+        icon: Star,
+        color: 'bg-yellow-500',
+        trend: `Based on ${summary?.reviewCount ?? 0} reviews`,
+      },
+    ];
+  }, [dashboard]);
 
   const quickActions = [
     { label: 'Set Availability', path: '/provider/availability', color: 'bg-green-600' },
@@ -18,22 +76,53 @@ export function DashboardPage() {
     { label: 'View Earnings', path: '/provider/earningsdashboard', color: 'bg-yellow-600' },
   ];
 
-  const upcomingBookings = [
-    { time: '9:00 AM', customer: 'John Miller', service: 'Home Cleaning', location: '123 Oak St', status: 'Confirmed' },
-    { time: '11:30 AM', customer: 'Emily Davis', service: 'Lawn Care', location: '456 Pine Ave', status: 'Confirmed' },
-    { time: '2:00 PM', customer: 'Michael Brown', service: 'Pet Grooming', location: '789 Maple Dr', status: 'Pending' },
-    { time: '4:30 PM', customer: 'Sarah Wilson', service: 'Tutoring', location: '321 Elm St', status: 'Confirmed' },
-    { time: '6:00 PM', customer: 'David Lee', service: 'Tech Support', location: '654 Cedar Ln', status: 'Confirmed' },
-  ];
+  const upcomingBookings =
+    dashboard?.upcomingBookings.map((booking) => ({
+      id: booking.id,
+      time: booking.time,
+      customer: booking.customerName || 'Customer',
+      service: booking.serviceTitle || 'Service Booking',
+      location: booking.location || 'Address unavailable',
+      status: toTitleCase(booking.status),
+    })) ?? [];
 
   const performanceMetrics = [
-    { label: 'Acceptance Rate', value: '94%', icon: CheckCircle, color: 'text-green-600' },
-    { label: 'Completion Rate', value: '98%', icon: TrendingUp, color: 'text-blue-600' },
-    { label: 'Response Time', value: '< 2 min', icon: Clock, color: 'text-purple-600' },
+    {
+      label: 'Acceptance Rate',
+      value: dashboard ? `${dashboard.performance.acceptanceRate}%` : '0%',
+      icon: CheckCircle,
+      color: 'text-green-600',
+    },
+    {
+      label: 'Completion Rate',
+      value: dashboard ? `${dashboard.performance.completionRate}%` : '0%',
+      icon: TrendingUp,
+      color: 'text-blue-600',
+    },
+    {
+      label: 'Response Time',
+      value:
+        dashboard?.performance.responseTimeMinutes === null || !dashboard
+          ? 'N/A'
+          : `${dashboard.performance.responseTimeMinutes} min`,
+      icon: Clock,
+      color: 'text-purple-600',
+    },
   ];
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
+      {loadError ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {loadError}
+        </div>
+      ) : null}
+      {isLoading ? (
+        <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+          Loading provider dashboard...
+        </div>
+      ) : null}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => {
@@ -74,7 +163,7 @@ export function DashboardPage() {
       {/* New Requests Banner */}
       <div className="bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-200 rounded-2xl p-6 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-green-900 mb-1">You have 12 new booking requests!</h3>
+          <h3 className="text-lg font-bold text-green-900 mb-1">You have {dashboard?.summary.newRequests ?? 0} new booking requests!</h3>
           <p className="text-sm text-green-700">Review and respond to customer requests to grow your business</p>
         </div>
         <button
@@ -113,7 +202,7 @@ export function DashboardPage() {
             </thead>
             <tbody>
               {upcomingBookings.map((booking, index) => (
-                <tr key={index} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <tr key={booking.id ?? index} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                   <td className="py-4 text-sm font-medium text-gray-900">{booking.time}</td>
                   <td className="py-4 text-sm text-gray-700">{booking.customer}</td>
                   <td className="py-4 text-sm text-gray-700">{booking.service}</td>
@@ -128,7 +217,12 @@ export function DashboardPage() {
                     </span>
                   </td>
                   <td className="py-4 text-right">
-                    <button className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center gap-1 ml-auto">
+                    <button
+                      onClick={() => {
+                        navigate(`/provider/booking-details/${booking.id}`);
+                      }}
+                      className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center gap-1 ml-auto"
+                    >
                       <Eye className="w-4 h-4" />
                       View Details
                     </button>
@@ -137,6 +231,11 @@ export function DashboardPage() {
               ))}
             </tbody>
           </table>
+          {upcomingBookings.length === 0 ? (
+            <div className="py-10 text-center text-sm text-gray-500">
+              No upcoming backend bookings found.
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -161,4 +260,19 @@ export function DashboardPage() {
       </div>
     </div>
   );
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function toTitleCase(value: string): string {
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
 }

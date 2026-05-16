@@ -18,6 +18,10 @@ export interface CustomerProfileSummary {
 export interface ProviderProfileSummary {
   id: string;
   businessName: string | null;
+  bio?: string | null;
+  serviceDescription?: string | null;
+  serviceArea?: string | null;
+  yearsExperience?: number | null;
   verificationStatus: 'pending' | 'approved' | 'rejected';
   averageRating: number;
   reviewCount: number;
@@ -34,4 +38,13 @@ export interface UpdateCurrentUserProfileInput {
   contactNumber?: string | null;
   address?: string | null;
   businessName?: string | null;
+}
+
+export interface UpdateCurrentUserPasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UpdateCurrentUserPasswordResponse {
+  ok: true;
 }

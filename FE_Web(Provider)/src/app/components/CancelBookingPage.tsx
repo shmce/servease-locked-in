@@ -1,5 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
+import {
+  getStoredProviderAccessToken,
+  getProviderBooking,
+  updateProviderBookingStatus,
+  type BookingSummary,
+} from "../../services/serveaseProviderApi";
 import {
   ArrowLeft,
   Calendar,
@@ -283,25 +289,39 @@ export function CancelBookingPage() {
   const [reason, setReason] = useState("");
   const [explanation, setExplanation] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [bookingData, setBookingData] = useState<BookingSummary | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
-  // Mock booking data
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+    if (!token || !id) return;
+    getProviderBooking(token, id).then(setBookingData).catch(() => {});
+  }, [id]);
+
+  const scheduledAt = bookingData ? new Date(bookingData.scheduledAt) : null;
+  const hoursUntilBooking = scheduledAt
+    ? Math.max(0, (scheduledAt.getTime() - Date.now()) / 3600000)
+    : 36;
+
   const booking = {
-    id: id || "1",
-    refNumber: "BK-2024-001234",
-    customer: {
-      name: "Maria Santos",
-    },
+    id: id ?? "",
+    refNumber: bookingData?.bookingReference ?? "—",
+    customer: { name: bookingData?.customerFullName ?? "Customer" },
     service: {
-      type: "Plumbing Repair",
-      date: "March 25, 2024",
-      time: "2:00 PM - 4:00 PM",
-      location: "123 Quezon Ave, Quezon City, Metro Manila",
+      type: bookingData?.serviceTitle ?? "Service",
+      date: scheduledAt
+        ? scheduledAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+        : "—",
+      time: scheduledAt
+        ? scheduledAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+        : "—",
+      location: bookingData?.serviceAddress ?? "—",
     },
-    hoursUntilBooking: 36,
+    hoursUntilBooking,
     cancellationPolicy: {
       penalty: 250,
       ratingImpact: "Moderate",
-      refundAmount: 1100,
+      refundAmount: Math.max(0, (bookingData?.totalAmount ?? 0) - 250),
     },
   };
 
@@ -321,9 +341,26 @@ export function CancelBookingPage() {
   };
 
   const handleFinalCancel = () => {
-    // Process cancellation
-    setShowConfirmModal(false);
-    navigate("/provider/bookings");
+    const token = getStoredProviderAccessToken();
+    if (!token || !id || !bookingData) {
+      setShowConfirmModal(false);
+      navigate("/provider/bookings");
+      return;
+    }
+    setCancelling(true);
+    updateProviderBookingStatus(
+      token,
+      id,
+      bookingData.status,
+      "cancelled",
+      reason || explanation || null,
+    )
+      .catch(() => {})
+      .finally(() => {
+        setCancelling(false);
+        setShowConfirmModal(false);
+        navigate("/provider/bookings");
+      });
   };
 
   const getPenaltyMessage = () => {
@@ -631,16 +668,17 @@ export function CancelBookingPage() {
                 Keep Booking
               </button>
               <button
-                style={{ ...styles.button, ...styles.primaryButton }}
+                disabled={cancelling}
+                style={{ ...styles.button, ...styles.primaryButton, opacity: cancelling ? 0.7 : 1 }}
                 onClick={handleFinalCancel}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#B91C1C";
+                  if (!cancelling) e.currentTarget.style.backgroundColor = "#B91C1C";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#DC2626";
+                  if (!cancelling) e.currentTarget.style.backgroundColor = "#DC2626";
                 }}
               >
-                Yes, Cancel Booking
+                {cancelling ? "Cancelling..." : "Yes, Cancel Booking"}
               </button>
             </div>
           </div>

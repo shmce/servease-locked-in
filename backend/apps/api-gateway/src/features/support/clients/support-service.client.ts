@@ -18,6 +18,13 @@ export class SupportServiceClient {
     );
   }
 
+  getTicket(userId: string, ticketId: string): Promise<SupportTicketSummary> {
+    return this.request<SupportTicketSummary>(
+      `/internal/support/tickets/${encodeURIComponent(ticketId)}?userId=${encodeURIComponent(userId)}`,
+      'GET',
+    );
+  }
+
   listTickets(userId: string): Promise<SupportTicketSummary[]> {
     return this.request<SupportTicketSummary[]>(
       `/internal/support/tickets?userId=${encodeURIComponent(userId)}`,

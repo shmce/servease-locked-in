@@ -1,6 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  AdminProviderApplicationSummary,
+  AdminProviderApplicationStatus,
+  approveAdminProviderApplication,
+  getAdminProviderApplication,
+  rejectAdminProviderApplication,
+} from "../../services/serveaseAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -73,7 +81,8 @@ const buildApplication = (
   businessType: "Physical Location" | "Online Business",
   businessAddress: { street: string; barangay: string; city: string },
   contactPhone: string,
-  contactEmail: string
+  contactEmail: string,
+  status: AdminProviderApplicationStatus = "pending",
 ) => ({
   // ── Original fields (unchanged) ──
   applicationId,
@@ -108,6 +117,7 @@ const buildApplication = (
   businessAddress,
   contactPhone,
   contactEmail,
+  status,
 });
 
 const mockApplications: Record<string, ReturnType<typeof buildApplication>> = {
@@ -190,6 +200,56 @@ const mockApplications: Record<string, ReturnType<typeof buildApplication>> = {
   ),
 };
 
+function toReviewApplication(
+  app: AdminProviderApplicationSummary,
+): ReturnType<typeof buildApplication> {
+  const createdAt = app.createdAt ? new Date(app.createdAt) : null;
+  const dateApplied =
+    createdAt && Number.isFinite(createdAt.getTime())
+      ? createdAt.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "Date unavailable";
+  const flags = [
+    app.rejectedDocumentCount > 0 ? "Rejected document" : null,
+    app.pendingDocumentCount > 0 ? "Pending document review" : null,
+    app.serviceCount === 0 ? "No active service listing" : null,
+  ].filter(Boolean) as string[];
+  const riskLevel =
+    app.rejectedDocumentCount > 0
+      ? "high"
+      : app.pendingDocumentCount > 0
+        ? "medium"
+        : "low";
+
+  return {
+    ...buildApplication(
+      app.id,
+      app.businessName ?? "Unnamed provider",
+      app.userId,
+      "Service Marketplace",
+      dateApplied,
+      app.serviceArea ?? "Service area not set",
+      riskLevel,
+      flags,
+      "Company",
+      app.serviceDescription ??
+        "Provider service description has not been submitted yet.",
+      "Physical Location",
+      {
+        street: app.serviceArea ?? "Service area not set",
+        barangay: "Not provided",
+        city: app.serviceArea ?? "Not provided",
+      },
+      "Not provided",
+      "Not provided",
+    ),
+    status: app.verificationStatus,
+  };
+}
+
 /* ─── SHARED CONSTANTS ───────────────────────────────────────────── */
 const TABS = ["Overview", "Documents", "Portfolio", "References", "Background Check", "Activity Logs"];
 
@@ -256,7 +316,15 @@ function ReadOnlyField({ label, children }: { label: string; children: React.Rea
 export function ProviderApplicationReview() {
   const navigate = useNavigate();
   const { applicationId } = useParams<{ applicationId: string }>();
-  const application = applicationId ? mockApplications[applicationId] : null;
+  const { accessToken } = useAuth();
+  const mockApplication = applicationId ? mockApplications[applicationId] : null;
+  const [backendApplication, setBackendApplication] =
+    useState<AdminProviderApplicationSummary | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoadingApplication, setIsLoadingApplication] = useState(false);
+  const application = backendApplication
+    ? toReviewApplication(backendApplication)
+    : mockApplication;
 
   const [activeTab, setActiveTab] = useState("Overview");
   const [flagsExpanded, setFlagsExpanded] = useState(true);
@@ -299,14 +367,55 @@ export function ProviderApplicationReview() {
   const [govIdNumber, setGovIdNumber] = useState(application?.govIdNumber || "");
   const [ocrRunning, setOcrRunning] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadApplication() {
+      if (!accessToken || !applicationId) {
+        return;
+      }
+      setIsLoadingApplication(true);
+      setLoadError(null);
+      try {
+        const data = await getAdminProviderApplication(accessToken, applicationId);
+        if (!cancelled) {
+          setBackendApplication(data);
+          const nextApplication = toReviewApplication(data);
+          setNotes(nextApplication.notes);
+          setGovIdType(nextApplication.govIdType);
+          setGovIdNumber(nextApplication.govIdNumber);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLoadError(
+            error instanceof Error
+              ? error.message
+              : "Provider application failed to load.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingApplication(false);
+        }
+      }
+    }
+    void loadApplication();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken, applicationId]);
+
   /* ── Not Found ── */
   if (!application) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center space-y-3">
           <FileText className="w-12 h-12 text-gray-300 mx-auto" />
-          <h2 className="text-xl font-semibold text-gray-700">Application Not Found</h2>
-          <p className="text-gray-500 text-sm">No application found for ID: {applicationId}</p>
+          <h2 className="text-xl font-semibold text-gray-700">
+            {isLoadingApplication ? "Loading Application" : "Application Not Found"}
+          </h2>
+          <p className="text-gray-500 text-sm">
+            {loadError ?? `No application found for ID: ${applicationId}`}
+          </p>
           <Button variant="outline" onClick={() => navigate("/provider-applications")} className="mt-2 gap-2">
             <ArrowLeft className="w-4 h-4" />Back to Approval Queue
           </Button>
@@ -350,6 +459,47 @@ export function ProviderApplicationReview() {
     setRotation(0);
     setCompareMode(false);
     setShowDocModal(true);
+  };
+
+  const handleApproveConfirm = async () => {
+    if (!accessToken || !applicationId) {
+      setShowApproveModal(false);
+      navigate("/provider-applications");
+      return;
+    }
+    try {
+      await approveAdminProviderApplication(
+        accessToken,
+        applicationId,
+        "Application met provider verification requirements.",
+      );
+      setShowApproveModal(false);
+      navigate("/provider-applications");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Approval failed.");
+    }
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!rejectionReason.trim()) {
+      return;
+    }
+    if (!accessToken || !applicationId) {
+      setShowRejectModal(false);
+      navigate("/provider-applications");
+      return;
+    }
+    try {
+      await rejectAdminProviderApplication(
+        accessToken,
+        applicationId,
+        rejectionReason.trim(),
+      );
+      setShowRejectModal(false);
+      navigate("/provider-applications");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Rejection failed.");
+    }
   };
 
   /* ═══════════════════════════════════════════════════════════════ */
@@ -407,7 +557,8 @@ export function ProviderApplicationReview() {
 
             {/* Status */}
             <Badge className="bg-amber-50 text-amber-700 border-amber-200 px-2.5 py-1">
-              <Clock className="w-3 h-3 mr-1" />Pending Review
+              <Clock className="w-3 h-3 mr-1" />
+              {application.status === "pending" ? "Pending Review" : application.status}
             </Badge>
 
             {/* Risk */}
@@ -433,7 +584,7 @@ export function ProviderApplicationReview() {
           <Button
             className="gap-2 bg-[#16A34A] hover:bg-[#15803D]"
             onClick={() => setShowApproveModal(true)}
-            disabled={!canApprove}
+            disabled={!canApprove || application.status === "approved"}
             title={canApprove ? "" : "Complete all KYC verification checks first"}
           >
             <CheckCircle className="w-4 h-4" />Approve
@@ -989,7 +1140,7 @@ export function ProviderApplicationReview() {
               <Button
                 className="gap-2 bg-[#16A34A] hover:bg-[#15803D]"
                 onClick={() => setShowApproveModal(true)}
-                disabled={!canApprove}
+                disabled={!canApprove || application.status === "approved"}
                 title={canApprove ? "" : "Complete all KYC verification checklist items first"}
               >
                 <CheckCircle className="w-4 h-4" />Approve Provider
@@ -1130,7 +1281,7 @@ export function ProviderApplicationReview() {
             <Button variant="outline" onClick={() => setShowApproveModal(false)}>Cancel</Button>
             <Button
               className="bg-[#16A34A] hover:bg-[#15803D] gap-2"
-              onClick={() => { setShowApproveModal(false); navigate("/provider-applications"); }}
+              onClick={() => void handleApproveConfirm()}
             >
               <CheckCircle className="w-4 h-4" />Confirm Approval
             </Button>
@@ -1166,7 +1317,7 @@ export function ProviderApplicationReview() {
             <Button
               variant="destructive"
               disabled={!rejectionReason.trim()}
-              onClick={() => { setShowRejectModal(false); navigate("/provider-applications"); }}
+              onClick={() => void handleRejectConfirm()}
               className="gap-2"
             >
               <XCircle className="w-4 h-4" />Confirm Rejection

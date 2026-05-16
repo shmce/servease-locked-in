@@ -9,6 +9,7 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingSnapshot,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
 } from './booking.types';
@@ -49,6 +50,18 @@ export class BookingGatewayService {
         customerId,
         providerId,
       ),
+    );
+  }
+
+  getTrackingSnapshot(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+  ): Promise<BookingTrackingSnapshot> {
+    return this.bookingServiceClient.getTrackingSnapshot(
+      bookingId,
+      customerId,
+      providerId,
     );
   }
 

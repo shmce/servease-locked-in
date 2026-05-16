@@ -20,14 +20,29 @@ export function getCustomerTab(screen: AppScreen): CustomerTab {
     screen === 'customerBookingDetail' ||
     screen === 'customerBookingManage' ||
     screen === 'customerBookingCancel' ||
-    screen === 'customerBookingReport'
+    screen === 'customerBookingReport' ||
+    screen === 'customerTrackServiceProvider'
   ) {
     return 'bookings';
   }
   if (screen === 'messages') {
     return 'messages';
   }
-  if (screen === 'more') {
+  if (
+    screen === 'more' ||
+    screen === 'customerPaymentMethods' ||
+    screen === 'customerProfile' ||
+    screen === 'customerSettings' ||
+    screen === 'customerHelp' ||
+    screen === 'customerServiceHistory' ||
+    screen === 'customerNotifications' ||
+    screen === 'customerReferral' ||
+    screen === 'providerProfileView' ||
+    screen === 'providerEditProfile' ||
+    screen === 'providerPortfolio' ||
+    screen === 'providerPayoutManagement' ||
+    screen === 'providerRequestPayout'
+  ) {
     return 'more';
   }
   return 'explore';

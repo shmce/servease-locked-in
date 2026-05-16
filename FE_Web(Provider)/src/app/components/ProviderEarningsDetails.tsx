@@ -253,110 +253,12 @@ export function ProviderEarningsDetails() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const mockTransactions: Transaction[] = [
-    {
-      id: "1",
-      date: "Mar 18, 2026",
-      bookingRef: "BK-2026-0318-001",
-      customerName: "Maria Santos",
-      serviceType: "House Cleaning",
-      amountCharged: 2500,
-      platformFee: 375,
-      tips: 200,
-      netEarnings: 2325,
-      status: "completed",
-    },
-    {
-      id: "2",
-      date: "Mar 17, 2026",
-      bookingRef: "BK-2026-0317-002",
-      customerName: "Juan Dela Cruz",
-      serviceType: "Plumbing",
-      amountCharged: 3500,
-      platformFee: 525,
-      tips: 150,
-      netEarnings: 3125,
-      status: "completed",
-    },
-    {
-      id: "3",
-      date: "Mar 16, 2026",
-      bookingRef: "BK-2026-0316-003",
-      customerName: "Ana Reyes",
-      serviceType: "Electrical",
-      amountCharged: 1800,
-      platformFee: 270,
-      tips: 0,
-      netEarnings: 1530,
-      status: "pending",
-    },
-    {
-      id: "4",
-      date: "Mar 15, 2026",
-      bookingRef: "BK-2026-0315-004",
-      customerName: "Carlos Mendoza",
-      serviceType: "Aircon Services",
-      amountCharged: 2200,
-      platformFee: 330,
-      tips: 100,
-      netEarnings: 1970,
-      status: "processing",
-    },
-    {
-      id: "5",
-      date: "Mar 14, 2026",
-      bookingRef: "BK-2026-0314-005",
-      customerName: "Lisa Tan",
-      serviceType: "House Cleaning",
-      amountCharged: 2800,
-      platformFee: 420,
-      tips: 300,
-      netEarnings: 2680,
-      status: "completed",
-    },
-    {
-      id: "6",
-      date: "Mar 13, 2026",
-      bookingRef: "BK-2026-0313-006",
-      customerName: "Roberto Garcia",
-      serviceType: "Plumbing",
-      amountCharged: 4200,
-      platformFee: 630,
-      tips: 250,
-      netEarnings: 3820,
-      status: "completed",
-    },
-    {
-      id: "7",
-      date: "Mar 12, 2026",
-      bookingRef: "BK-2026-0312-007",
-      customerName: "Elena Cruz",
-      serviceType: "House Cleaning",
-      amountCharged: 2100,
-      platformFee: 315,
-      tips: 150,
-      netEarnings: 1935,
-      status: "completed",
-    },
-    {
-      id: "8",
-      date: "Mar 11, 2026",
-      bookingRef: "BK-2026-0311-008",
-      customerName: "Miguel Santos",
-      serviceType: "Electrical",
-      amountCharged: 3100,
-      platformFee: 465,
-      tips: 0,
-      netEarnings: 2635,
-      status: "completed",
-    },
-  ];
-
   useEffect(() => {
     const loadPayments = async () => {
       const token = getStoredProviderAccessToken();
 
       if (!token) {
+        setLoadError("Sign in to load transactions from the backend.");
         return;
       }
 
@@ -378,7 +280,7 @@ export function ProviderEarningsDetails() {
     void loadPayments();
   }, []);
 
-  const transactions = liveTransactions.length > 0 ? liveTransactions : mockTransactions;
+  const transactions = liveTransactions;
   const filteredTransactions = useMemo(
     () =>
       transactions.filter((transaction) => {
@@ -901,6 +803,21 @@ export function ProviderEarningsDetails() {
                     </td>
                   </tr>
                 ))}
+                {filteredTransactions.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={10}
+                      style={{
+                        ...styles.tableCell,
+                        color: "#6B7280",
+                        padding: "32px",
+                        textAlign: "center",
+                      }}
+                    >
+                      No backend transactions found for this filter.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>

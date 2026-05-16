@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpException, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, Param, Post } from '@nestjs/common';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import {
   AuthRequiredError,
@@ -26,6 +26,21 @@ export class SupportController {
       const userId = await this.authTokenService.authenticate(authorization);
       return {
         data: await this.supportGatewayService.listTickets(userId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':ticketId')
+  async show(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('ticketId') ticketId: string,
+  ): Promise<{ data: SupportTicketSummary }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.supportGatewayService.getTicket(userId, ticketId),
       };
     } catch (error) {
       throw this.toHttpException(error);

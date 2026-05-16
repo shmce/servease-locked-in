@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { AdminAuditGatewayService } from './admin-audit.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
+import { CurrentUserProfile } from '../current-user/current-user.types';
 import {
   AuthRequiredError,
   InvalidAuthTokenError,
@@ -11,14 +13,21 @@ import {
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminPaymentGatewayService } from './admin-payment.service';
-import { PaymentSummary } from './admin-payment.types';
+import { PaymentSummary, PayoutSummary } from './admin-payment.types';
 
 const validPaymentStatuses = new Set(['pending', 'paid', 'cancelled', 'refunded']);
+const validPayoutStatuses = new Set([
+  'requested',
+  'processing',
+  'paid',
+  'cancelled',
+]);
 
 @Controller('v1/admin/payments')
 export class AdminPaymentController {
   constructor(
     private readonly adminPaymentGatewayService: AdminPaymentGatewayService,
+    private readonly adminAuditGatewayService: AdminAuditGatewayService,
     private readonly authTokenService: AuthTokenService,
     private readonly currentUserService: CurrentUserService,
   ) {}
@@ -41,35 +50,182 @@ export class AdminPaymentController {
     }
   }
 
-  @Patch(':paymentId/status')
-  async updatePaymentStatus(
+  @Get(':paymentId')
+  async get(
     @Headers('authorization') authorization: string | undefined,
     @Param('paymentId') paymentId: string,
-    @Body() body: { status?: string },
   ): Promise<{ data: PaymentSummary }> {
     try {
       await this.requireAdmin(authorization);
-      if (!body.status || !validPaymentStatuses.has(body.status)) {
-        throw new InvalidAdminRequestError();
-      }
       return {
-        data: await this.adminPaymentGatewayService.updatePaymentStatus(
-          paymentId,
-          body.status,
-        ),
+        data: await this.adminPaymentGatewayService.getPayment(paymentId),
       };
     } catch (error) {
       throw this.toHttpException(error);
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<void> {
+  @Patch(':paymentId/status')
+  async updatePaymentStatus(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('paymentId') paymentId: string,
+    @Body() body: { status?: string },
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      if (!body.status || !validPaymentStatuses.has(body.status)) {
+        throw new InvalidAdminRequestError();
+      }
+      const payment = await this.adminPaymentGatewayService.updatePaymentStatus(
+        paymentId,
+        body.status,
+      );
+      void this.recordAudit(admin, request, {
+        action: `Updated payment status to ${body.status}`,
+        actionType: 'update',
+        entityType: 'Payment',
+        entityId: payment.id,
+        details: `Payment ${payment.id} for booking ${payment.bookingId} is now ${payment.status}.`,
+        metadata: { paymentId: payment.id, bookingId: payment.bookingId, status: payment.status },
+      });
+      return {
+        data: payment,
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('payouts')
+  async listPayouts(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('status') status?: string,
+  ): Promise<{ data: PayoutSummary[] }> {
+    try {
+      await this.requireAdmin(authorization);
+      if (status && !validPayoutStatuses.has(status)) {
+        throw new InvalidAdminRequestError();
+      }
+      return {
+        data: await this.adminPaymentGatewayService.listPayouts(status ?? null),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('failures')
+  async listFailures(
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: PaymentSummary[] }> {
+    try {
+      await this.requireAdmin(authorization);
+      const all = await this.adminPaymentGatewayService.listPayments(null);
+      return {
+        data: all.filter((p) => p.status === 'cancelled' || p.status === 'refunded'),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('settlements/:settlementId/approve')
+  @HttpCode(501)
+  async approveSettlement(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('settlementId') _settlementId: string,
+  ): Promise<{ error: { code: string; message: string } }> {
+    await this.requireAdmin(authorization).catch(() => {
+      throw this.error('admin_required', 'An admin account is required.', 403);
+    });
+    return {
+      error: {
+        code: 'not_implemented',
+        message: 'Settlement approval is not yet implemented.',
+      },
+    };
+  }
+
+  @Patch('payouts/:payoutId/status')
+  async updatePayoutStatus(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('payoutId') payoutId: string,
+    @Body() body: { status?: string },
+  ): Promise<{ data: PayoutSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      if (!body.status || !validPayoutStatuses.has(body.status)) {
+        throw new InvalidAdminRequestError();
+      }
+      const payout = await this.adminPaymentGatewayService.updatePayoutStatus(
+        payoutId,
+        body.status,
+      );
+      void this.recordAudit(admin, request, {
+        action: `Updated payout status to ${body.status}`,
+        actionType: body.status === 'paid' ? 'approve' : 'update',
+        entityType: 'Payout',
+        entityId: payout.id,
+        details: `Payout ${payout.id} for provider ${payout.providerId} is now ${payout.status}.`,
+        metadata: { payoutId: payout.id, providerId: payout.providerId, status: payout.status },
+      });
+      return {
+        data: payout,
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
     if (currentUser.user.role !== 'admin') {
       throw new AdminRequiredError();
     }
+
+    return currentUser;
+  }
+
+  private recordAudit(
+    admin: CurrentUserProfile,
+    request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    input: {
+      action: string;
+      actionType: 'approve' | 'update';
+      entityType: string;
+      entityId: string;
+      details: string;
+      metadata: Record<string, unknown>;
+    },
+  ): Promise<unknown> {
+    return this.adminAuditGatewayService.createAuditLog({
+      adminUserId: admin.user.id,
+      adminEmail: admin.user.email,
+      adminName: admin.user.fullName,
+      action: input.action,
+      actionType: input.actionType,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      details: input.details,
+      ipAddress: this.getClientIp(request),
+      metadata: input.metadata,
+    }).catch(() => undefined);
+  }
+
+  private getClientIp(request: {
+    headers?: Record<string, string | string[] | undefined>;
+    socket?: { remoteAddress?: string };
+  }): string | null {
+    const forwardedFor = request.headers?.['x-forwarded-for'];
+    if (Array.isArray(forwardedFor)) {
+      return forwardedFor[0] ?? null;
+    }
+
+    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
   }
 
   private toHttpException(error: unknown): HttpException {

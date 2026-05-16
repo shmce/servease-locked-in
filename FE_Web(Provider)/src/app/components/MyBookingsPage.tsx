@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Search, Filter, MapPin, Clock, Calendar, Phone, MessageCircle, Navigation, CheckCircle, X, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router";
+import { getStoredProviderAccessToken, listProviderBookings, type BookingSummary } from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -308,6 +309,48 @@ interface Booking {
   amount: number;
 }
 
+function mapApiStatusToLocal(
+  apiStatus: BookingSummary["status"]
+): Booking["status"] {
+  switch (apiStatus) {
+    case "pending":
+    case "confirmed":
+      return "upcoming";
+    case "in_progress":
+      return "in-progress";
+    case "completed":
+      return "completed";
+    case "cancelled":
+    case "rejected":
+      return "cancelled";
+  }
+}
+
+function mapApiBookingToLocal(b: BookingSummary): Booking {
+  const dt = new Date(b.scheduledAt);
+  const date = dt.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+  const time = dt.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  return {
+    id: b.id,
+    refNumber: b.bookingReference,
+    customerName: b.customerFullName ?? "Customer",
+    serviceType: b.serviceTitle ?? "Service",
+    date,
+    time,
+    location: b.serviceAddress ?? "",
+    status: mapApiStatusToLocal(b.status),
+    amount: b.totalAmount,
+  };
+}
+
 export function MyBookingsPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"upcoming" | "in-progress" | "completed" | "cancelled">("upcoming");
@@ -317,77 +360,20 @@ export function MyBookingsPage() {
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterService, setFilterService] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const bookings: Booking[] = [
-    {
-      id: "1",
-      refNumber: "BK-2024-001234",
-      customerName: "Maria Santos",
-      serviceType: "Plumbing Repair",
-      date: "March 25, 2024",
-      time: "2:00 PM - 4:00 PM",
-      location: "123 Quezon Ave, Quezon City",
-      distance: "3.2 km",
-      status: "upcoming",
-      amount: 1500,
-    },
-    {
-      id: "2",
-      refNumber: "BK-2024-001235",
-      customerName: "Juan dela Cruz",
-      serviceType: "Pipe Installation",
-      date: "March 24, 2024",
-      time: "10:00 AM - 2:00 PM",
-      location: "456 Taft Avenue, Manila",
-      status: "in-progress",
-      amount: 3500,
-    },
-    {
-      id: "3",
-      refNumber: "BK-2024-001236",
-      customerName: "Anna Reyes",
-      serviceType: "Toilet Repair",
-      date: "March 23, 2024",
-      time: "9:00 AM - 11:00 AM",
-      location: "789 Rizal Street, Makati",
-      status: "completed",
-      amount: 800,
-    },
-    {
-      id: "4",
-      refNumber: "BK-2024-001237",
-      customerName: "Carlos Mendoza",
-      serviceType: "Water Heater Installation",
-      date: "March 26, 2024",
-      time: "1:00 PM - 5:00 PM",
-      location: "321 EDSA, Pasig City",
-      distance: "5.8 km",
-      status: "upcoming",
-      amount: 4200,
-    },
-    {
-      id: "5",
-      refNumber: "BK-2024-001238",
-      customerName: "Sofia Garcia",
-      serviceType: "Drain Cleaning",
-      date: "March 22, 2024",
-      time: "3:00 PM - 4:00 PM",
-      location: "555 Aurora Blvd, San Juan",
-      status: "completed",
-      amount: 600,
-    },
-    {
-      id: "6",
-      refNumber: "BK-2024-001239",
-      customerName: "Roberto Cruz",
-      serviceType: "Pipe Leak Repair",
-      date: "March 21, 2024",
-      time: "11:00 AM - 12:00 PM",
-      location: "888 Shaw Blvd, Mandaluyong",
-      status: "cancelled",
-      amount: 1000,
-    },
-  ];
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    listProviderBookings(token)
+      .then((data) => setBookings(data.map(mapApiBookingToLocal)))
+      .catch(() => setBookings([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredBookings = bookings.filter((booking) => {
     if (booking.status !== activeTab) return false;
@@ -603,7 +589,11 @@ export function MyBookingsPage() {
           </button>
         </div>
 
-        {filteredBookings.length > 0 ? (
+        {loading ? (
+          <div style={styles.emptyState}>
+            <div style={styles.emptyStateTitle}>Loading bookings...</div>
+          </div>
+        ) : filteredBookings.length > 0 ? (
           filteredBookings.map(renderBookingCard)
         ) : (
           <div style={styles.emptyState}>

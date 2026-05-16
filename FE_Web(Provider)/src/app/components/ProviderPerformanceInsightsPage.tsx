@@ -1,22 +1,49 @@
+import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, Award, Clock, CheckCircle, XCircle, Star, Target, BarChart3, Trophy } from 'lucide-react';
+import { getStoredProviderAccessToken, getProviderDashboard } from '../../services/serveaseProviderApi';
 
 export function ProviderPerformanceInsightsPage() {
-  // Mock data
-  const performanceScore = 87;
+  const [acceptanceRate, setAcceptanceRate] = useState(92);
+  const [completionRate, setCompletionRate] = useState(96);
+  const [responseTimeMinutes, setResponseTimeMinutes] = useState<number | null>(12);
+  const [customerSatisfaction, setCustomerSatisfaction] = useState(4.8);
+  const [reviewCount, setReviewCount] = useState(0);
+
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+    if (!token) return;
+    getProviderDashboard(token)
+      .then((dashboard) => {
+        setAcceptanceRate(dashboard.performance.acceptanceRate);
+        setCompletionRate(dashboard.performance.completionRate);
+        setResponseTimeMinutes(dashboard.performance.responseTimeMinutes);
+        setCustomerSatisfaction(dashboard.summary.overallRating);
+        setReviewCount(dashboard.summary.reviewCount);
+      })
+      .catch(() => {});
+  }, []);
+
+  const avgResponseTime = responseTimeMinutes !== null ? `${responseTimeMinutes} min` : 'N/A';
+  const cancellationRate = Math.max(0, 100 - completionRate);
+  const onTimeArrivalRate = 94;
+  const performanceScore = Math.round(
+    (acceptanceRate * 0.25 + completionRate * 0.35 + (customerSatisfaction / 5) * 100 * 0.3 + onTimeArrivalRate * 0.1),
+  );
+
   const metrics = {
-    acceptanceRate: 92,
-    completionRate: 96,
-    cancellationRate: 4,
-    avgResponseTime: '12 min',
-    customerSatisfaction: 4.8,
-    onTimeArrivalRate: 94
+    acceptanceRate,
+    completionRate,
+    cancellationRate,
+    avgResponseTime,
+    customerSatisfaction,
+    onTimeArrivalRate,
   };
 
   const categoryAverage = {
     acceptanceRate: 85,
     completionRate: 90,
     customerSatisfaction: 4.5,
-    onTimeArrivalRate: 88
+    onTimeArrivalRate: 88,
   };
 
   const trendsData = [
@@ -26,14 +53,14 @@ export function ProviderPerformanceInsightsPage() {
     { day: 'Day 15', score: 84 },
     { day: 'Day 20', score: 86 },
     { day: 'Day 25', score: 87 },
-    { day: 'Day 30', score: 87 }
+    { day: 'Day 30', score: performanceScore }
   ];
 
   const improvements = [
     {
       icon: Clock,
       title: 'Response Time',
-      current: '12 min',
+      current: avgResponseTime,
       target: '< 10 min',
       description: 'Respond to booking requests faster to improve your acceptance rate',
       priority: 'high'
@@ -41,7 +68,7 @@ export function ProviderPerformanceInsightsPage() {
     {
       icon: Target,
       title: 'Acceptance Rate',
-      current: '92%',
+      current: `${acceptanceRate}%`,
       target: '95%',
       description: 'Accept more booking requests to qualify for Top Provider status',
       priority: 'medium'
@@ -49,7 +76,7 @@ export function ProviderPerformanceInsightsPage() {
     {
       icon: Star,
       title: 'Customer Satisfaction',
-      current: '4.8/5',
+      current: `${customerSatisfaction.toFixed(1)}/5`,
       target: '4.9/5',
       description: 'Maintain excellent service quality to boost your rating',
       priority: 'low'
@@ -57,11 +84,11 @@ export function ProviderPerformanceInsightsPage() {
   ];
 
   const topProviderCriteria = [
-    { label: 'Acceptance Rate ≥ 95%', current: 92, required: 95, met: false },
-    { label: 'Completion Rate ≥ 95%', current: 96, required: 95, met: true },
-    { label: 'Cancellation Rate ≤ 5%', current: 4, required: 5, met: true },
-    { label: 'Customer Satisfaction ≥ 4.7', current: 4.8, required: 4.7, met: true },
-    { label: 'On-time Arrival ≥ 90%', current: 94, required: 90, met: true }
+    { label: 'Acceptance Rate ≥ 95%', current: acceptanceRate, required: 95, met: acceptanceRate >= 95 },
+    { label: 'Completion Rate ≥ 95%', current: completionRate, required: 95, met: completionRate >= 95 },
+    { label: 'Cancellation Rate ≤ 5%', current: cancellationRate, required: 5, met: cancellationRate <= 5 },
+    { label: 'Customer Satisfaction ≥ 4.7', current: customerSatisfaction, required: 4.7, met: customerSatisfaction >= 4.7 },
+    { label: 'On-time Arrival ≥ 90%', current: onTimeArrivalRate, required: 90, met: onTimeArrivalRate >= 90 }
   ];
 
   const metCriteria = topProviderCriteria.filter(c => c.met).length;
@@ -435,7 +462,7 @@ export function ProviderPerformanceInsightsPage() {
             <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>{metrics.customerSatisfaction}/5</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Star style={{ width: '16px', height: '16px', color: '#f59e0b', fill: '#f59e0b' }} />
-              <span style={{ fontSize: '14px', color: '#6b7280', fontWeight: '600' }}>126 reviews</span>
+              <span style={{ fontSize: '14px', color: '#6b7280', fontWeight: '600' }}>{reviewCount} reviews</span>
             </div>
           </div>
 

@@ -1,10 +1,10 @@
-import { Body, Controller, Get, HttpException, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   InvalidSupportTicketRequestError,
   SupportTicketNotFoundError,
 } from './ticket.errors';
 import { SupportTicketAdminService } from './ticket-admin.service';
-import { SupportTicketSummary } from './ticket.types';
+import { SupportTicketReplySummary, SupportTicketSummary } from './ticket.types';
 
 @Controller('internal/admin/support/tickets')
 export class SupportTicketAdminController {
@@ -21,6 +21,19 @@ export class SupportTicketAdminController {
     }
   }
 
+  @Get(':ticketId')
+  async get(
+    @Param('ticketId') ticketId: string,
+  ): Promise<{ data: SupportTicketSummary }> {
+    try {
+      return {
+        data: await this.ticketAdminService.getTicket(ticketId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Patch(':ticketId/status')
   async updateStatus(
     @Param('ticketId') ticketId: string,
@@ -28,10 +41,50 @@ export class SupportTicketAdminController {
   ): Promise<{ data: SupportTicketSummary }> {
     try {
       return {
-        data: await this.ticketAdminService.updateTicketStatus(
+        data: await this.ticketAdminService.updateTicketStatus(ticketId, body.status ?? ''),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':ticketId/replies')
+  async listReplies(
+    @Param('ticketId') ticketId: string,
+  ): Promise<{ data: SupportTicketReplySummary[] }> {
+    try {
+      return { data: await this.ticketAdminService.listReplies(ticketId) };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':ticketId/replies')
+  async addReply(
+    @Param('ticketId') ticketId: string,
+    @Body() body: { repliedBy?: string; message?: string },
+  ): Promise<{ data: SupportTicketReplySummary }> {
+    try {
+      return {
+        data: await this.ticketAdminService.addReply(
           ticketId,
-          body.status ?? '',
+          body.repliedBy ?? '',
+          body.message ?? '',
         ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':ticketId/assignee')
+  async assignTicket(
+    @Param('ticketId') ticketId: string,
+    @Body() body: { assigneeId?: string | null },
+  ): Promise<{ data: SupportTicketSummary }> {
+    try {
+      return {
+        data: await this.ticketAdminService.assignTicket(ticketId, body.assigneeId ?? null),
       };
     } catch (error) {
       throw this.toHttpException(error);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -21,158 +21,81 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { notifyBackendRequired } from "../utils/backendRequired";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  listAdminCommissionRules,
+  updateAdminCommissionRule,
+  type AdminCommissionRuleSummary,
+} from "../../services/serveaseAdminApi";
 
-interface CommissionRule {
-  id: string;
-  category: string;
-  currentRate: number;
-  previousRate: number;
-  status: "active" | "pending" | "inactive";
-  lastUpdated: string;
-  monthlyRevenue: number;
-  monthlyCommission: number;
+function formatDate(value: string | null) {
+  if (!value) return "N/A";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
-const commissionRulesData: CommissionRule[] = [
-  {
-    id: "CR-001",
-    category: "Home Maintenance & Repair",
-    currentRate: 12,
-    previousRate: 10,
-    status: "active",
-    lastUpdated: "2026-02-15",
-    monthlyRevenue: 1250000,
-    monthlyCommission: 150000,
-  },
-  {
-    id: "CR-002",
-    category: "Beauty Wellness & Personal Care",
-    currentRate: 15,
-    previousRate: 15,
-    status: "active",
-    lastUpdated: "2026-01-20",
-    monthlyRevenue: 850000,
-    monthlyCommission: 127500,
-  },
-  {
-    id: "CR-003",
-    category: "Domestic & Cleaning Services",
-    currentRate: 10,
-    previousRate: 8,
-    status: "active",
-    lastUpdated: "2026-02-28",
-    monthlyRevenue: 980000,
-    monthlyCommission: 98000,
-  },
-  {
-    id: "CR-004",
-    category: "Pet Services",
-    currentRate: 18,
-    previousRate: 18,
-    status: "active",
-    lastUpdated: "2026-01-10",
-    monthlyRevenue: 450000,
-    monthlyCommission: 81000,
-  },
-  {
-    id: "CR-005",
-    category: "Events & Entertainment",
-    currentRate: 20,
-    previousRate: 18,
-    status: "active",
-    lastUpdated: "2026-03-01",
-    monthlyRevenue: 2100000,
-    monthlyCommission: 420000,
-  },
-  {
-    id: "CR-006",
-    category: "Automotive & Tech Support",
-    currentRate: 14,
-    previousRate: 14,
-    status: "active",
-    lastUpdated: "2025-12-15",
-    monthlyRevenue: 670000,
-    monthlyCommission: 93800,
-  },
-  {
-    id: "CR-007",
-    category: "Education & Professional Services",
-    currentRate: 16,
-    previousRate: 15,
-    status: "active",
-    lastUpdated: "2026-02-20",
-    monthlyRevenue: 540000,
-    monthlyCommission: 86400,
-  },
-  {
-    id: "CR-008",
-    category: "Health & Fitness",
-    currentRate: 13,
-    previousRate: 12,
-    status: "active",
-    lastUpdated: "2026-02-10",
-    monthlyRevenue: 720000,
-    monthlyCommission: 93600,
-  },
-];
-
-const stats = [
-  {
-    title: "Average Commission Rate",
-    value: "14.75%",
-    change: "+1.2% vs last month",
-    icon: Percent,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-  },
-  {
-    title: "Total Monthly Commission",
-    value: "₱1.15M",
-    change: "+18.5% vs last month",
-    icon: DollarSign,
-    color: "text-green-600",
-    bgColor: "bg-green-50",
-  },
-  {
-    title: "Active Categories",
-    value: "8",
-    change: "All categories operational",
-    icon: TrendingUp,
-    color: "text-purple-600",
-    bgColor: "bg-purple-50",
-  },
-  {
-    title: "Pending Changes",
-    value: "0",
-    change: "All rules updated",
-    icon: AlertCircle,
-    color: "text-orange-600",
-    bgColor: "bg-orange-50",
-  },
-];
-
 export function CommissionRules() {
-  const [rules, setRules] = useState<CommissionRule[]>(commissionRulesData);
+  const { accessToken } = useAuth();
+  const [rules, setRules] = useState<AdminCommissionRuleSummary[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const handleEdit = (rule: CommissionRule) => {
+  const loadRules = useCallback(async () => {
+    if (!accessToken) return;
+
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      setRules(await listAdminCommissionRules(accessToken));
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "Unable to load commission rules.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    void loadRules();
+  }, [loadRules]);
+
+  const handleEdit = (rule: AdminCommissionRuleSummary) => {
     setEditingId(rule.id);
     setEditValue(rule.currentRate.toString());
   };
 
-  const handleSave = (ruleId: string) => {
+  const handleSave = async (ruleId: string) => {
+    if (!accessToken) return;
+
     const newRate = parseFloat(editValue);
     if (isNaN(newRate) || newRate < 0 || newRate > 100) {
       toast.error("Please enter a valid percentage between 0 and 100");
       return;
     }
 
-    notifyBackendRequired(
-      "Updating commission rules",
-      "PATCH /v1/admin/commission-rules/:id",
-    );
+    try {
+      const currentRule = rules.find((rule) => rule.id === ruleId);
+      const updated = await updateAdminCommissionRule(accessToken, ruleId, {
+        currentRate: newRate,
+        status: currentRule?.status ?? "active",
+      });
+      setRules((current) =>
+        current.map((rule) => (rule.id === updated.id ? updated : rule)),
+      );
+      setEditingId(null);
+      setEditValue("");
+      toast.success(`${updated.categoryLabel} commission updated.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to update commission rule.",
+      );
+    }
   };
 
   const handleCancel = () => {
@@ -204,6 +127,49 @@ export function CommissionRules() {
 
   const totalMonthlyRevenue = rules.reduce((sum, rule) => sum + rule.monthlyRevenue, 0);
   const totalMonthlyCommission = rules.reduce((sum, rule) => sum + rule.monthlyCommission, 0);
+  const averageRate = rules.length
+    ? rules.reduce((sum, rule) => sum + rule.currentRate, 0) / rules.length
+    : 0;
+  const activeCount = rules.filter((rule) => rule.status === "active").length;
+  const pendingCount = rules.filter((rule) => rule.status === "pending").length;
+
+  const stats = useMemo(
+    () => [
+      {
+        title: "Average Commission Rate",
+        value: `${averageRate.toFixed(2)}%`,
+        change: "Backend configured",
+        icon: Percent,
+        color: "text-blue-600",
+        bgColor: "bg-blue-50",
+      },
+      {
+        title: "Total Monthly Commission",
+        value: `₱${totalMonthlyCommission.toLocaleString()}`,
+        change: "From active rule data",
+        icon: DollarSign,
+        color: "text-green-600",
+        bgColor: "bg-green-50",
+      },
+      {
+        title: "Active Categories",
+        value: String(activeCount),
+        change: `${rules.length} rules total`,
+        icon: TrendingUp,
+        color: "text-purple-600",
+        bgColor: "bg-purple-50",
+      },
+      {
+        title: "Pending Changes",
+        value: String(pendingCount),
+        change: "Awaiting activation",
+        icon: AlertCircle,
+        color: "text-orange-600",
+        bgColor: "bg-orange-50",
+      },
+    ],
+    [activeCount, averageRate, pendingCount, rules.length, totalMonthlyCommission],
+  );
 
   return (
     <div className="space-y-6">
@@ -243,6 +209,7 @@ export function CommissionRules() {
               {rules.length} Categories
             </Badge>
           </div>
+          {loadError ? <p className="text-sm text-red-600 mt-2">{loadError}</p> : null}
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -260,10 +227,22 @@ export function CommissionRules() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rules.map((rule) => (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      Loading commission rules...
+                    </TableCell>
+                  </TableRow>
+                ) : rules.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      No commission rules found
+                    </TableCell>
+                  </TableRow>
+                ) : rules.map((rule) => (
                   <TableRow key={rule.id}>
                     <TableCell>
-                      <span className="font-medium text-gray-900">{rule.category}</span>
+                      <span className="font-medium text-gray-900">{rule.categoryLabel}</span>
                     </TableCell>
                     <TableCell>
                       {editingId === rule.id ? (
@@ -297,7 +276,7 @@ export function CommissionRules() {
                     </TableCell>
                     <TableCell>{getStatusBadge(rule.status)}</TableCell>
                     <TableCell>
-                      <span className="text-sm text-gray-600">{rule.lastUpdated}</span>
+                      <span className="text-sm text-gray-600">{formatDate(rule.updatedAt)}</span>
                     </TableCell>
                     <TableCell>
                       <span className="font-medium text-gray-900">
@@ -314,7 +293,7 @@ export function CommissionRules() {
                         <div className="flex gap-2">
                           <Button
                             size="sm"
-                            onClick={() => handleSave(rule.id)}
+                            onClick={() => void handleSave(rule.id)}
                             className="bg-green-600 hover:bg-green-700"
                           >
                             <Save className="w-4 h-4" />

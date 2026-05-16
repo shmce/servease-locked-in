@@ -2,8 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import { UserServiceClient } from '../current-user/clients/user-service.client';
-import { InvalidRegistrationRequestError } from './registration.errors';
 import {
+  InvalidPasswordResetRequestError,
+  InvalidRegistrationRequestError,
+} from './registration.errors';
+import {
+  PasswordResetRequest,
+  PasswordResetResponse,
   RegisterAccountRequest,
   RegisteredAccountResponse,
 } from './registration.types';
@@ -50,6 +55,16 @@ export class RegistrationGatewayService {
     }
   }
 
+  requestPasswordReset(
+    input: PasswordResetRequest,
+  ): Promise<PasswordResetResponse> {
+    this.validatePasswordReset(input);
+    return this.authServiceClient.requestPasswordReset({
+      email: input.email.trim().toLowerCase(),
+      redirectTo: input.redirectTo?.trim() || null,
+    });
+  }
+
   private validate(input: RegisterAccountRequest): void {
     const email = input.email?.trim() ?? '';
     if (
@@ -66,5 +81,25 @@ export class RegistrationGatewayService {
     if (input.role === 'provider' && !input.businessName?.trim()) {
       throw new InvalidRegistrationRequestError();
     }
+  }
+
+  private validatePasswordReset(input: PasswordResetRequest): void {
+    const email = input.email?.trim() ?? '';
+    if (!email || !EMAIL_PATTERN.test(email)) {
+      throw new InvalidPasswordResetRequestError();
+    }
+
+    if (input.redirectTo && !isValidUrl(input.redirectTo)) {
+      throw new InvalidPasswordResetRequestError();
+    }
+  }
+}
+
+function isValidUrl(value: string): boolean {
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
   }
 }

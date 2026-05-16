@@ -7,5 +7,15 @@ export interface SupportTicketSummary {
   message: string | null;
   category: string | null;
   status: SupportTicketStatus;
+  assigneeId?: string | null;
+  createdAt: string | null;
+  attachments?: unknown[];
+}
+
+export interface SupportTicketReplySummary {
+  id: string;
+  ticketId: string;
+  repliedBy: string;
+  message: string;
   createdAt: string | null;
 }

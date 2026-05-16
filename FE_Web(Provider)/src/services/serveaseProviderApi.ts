@@ -34,6 +34,10 @@ export interface CurrentUserProfile {
   providerProfile: {
     id: string
     businessName: string | null
+    bio?: string | null
+    serviceDescription?: string | null
+    serviceArea?: string | null
+    yearsExperience?: number | null
     verificationStatus: 'pending' | 'approved' | 'rejected'
     averageRating: number
     reviewCount: number
@@ -137,6 +141,217 @@ export interface NotificationSummary {
   createdAt: string | null
 }
 
+export interface UserPreferenceSummary {
+  userId: string
+  pushNotificationsEnabled: boolean
+  darkModeEnabled: boolean
+  language: 'en' | 'fil'
+  notificationPreferences: Record<string, unknown>
+  updatedAt: string | null
+}
+
+export interface UpdateUserPreferencesRequest {
+  pushNotificationsEnabled?: boolean | null
+  darkModeEnabled?: boolean | null
+  language?: 'en' | 'fil' | null
+  notificationPreferences?: Record<string, unknown> | null
+}
+
+export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+
+export interface SupportTicketAttachmentSummary {
+  id: string
+  ticketId: string
+  uploadedBy: string | null
+  fileUrl: string
+  fileName: string | null
+  mimeType: string | null
+  storagePath: string | null
+  fileSize: number | null
+  createdAt: string | null
+}
+
+export interface SupportTicketSummary {
+  id: string
+  userId: string
+  subject: string
+  message: string | null
+  category: string | null
+  status: SupportTicketStatus
+  createdAt: string | null
+  attachments?: SupportTicketAttachmentSummary[]
+}
+
+export interface CreateSupportTicketRequest {
+  subject: string
+  message?: string | null
+  category?: string | null
+}
+
+export interface ProviderServiceListing {
+  id: string
+  providerId: string
+  providerBusinessName: string | null
+  serviceId: string | null
+  title: string
+  description: string | null
+  price: number | null
+  pricingMode: 'flat' | 'hourly'
+  averageRating: number
+  reviewCount: number
+  verificationStatus: 'pending' | 'approved' | 'rejected'
+}
+
+export interface ProviderOwnedServiceInput {
+  id?: string | null
+  serviceId?: string | null
+  title: string
+  description?: string | null
+  price?: number | null
+  pricingMode?: 'flat' | 'hourly' | null
+  isActive?: boolean | null
+}
+
+export interface ProviderOwnedServiceSummary extends ProviderServiceListing {
+  isActive: boolean
+}
+
+export interface ProviderPortfolioMediaSummary {
+  id: string
+  providerId: string
+  uploadedBy: string | null
+  fileUrl: string
+  fileName: string | null
+  mimeType: string | null
+  storagePath: string | null
+  fileSize: number | null
+  caption: string | null
+  sortOrder: number
+  createdAt: string | null
+}
+
+export interface ProviderProfileSnapshot {
+  account: CurrentUserProfile['user']
+  provider: NonNullable<CurrentUserProfile['providerProfile']>
+  services: ProviderServiceListing[]
+  portfolio: ProviderPortfolioMediaSummary[]
+}
+
+export interface ProviderDashboardBooking {
+  id: string
+  scheduledAt: string
+  time: string
+  customerName: string | null
+  serviceTitle: string | null
+  location: string | null
+  status: BookingStatus
+}
+
+export interface ProviderDashboardSummary {
+  summary: {
+    newRequests: number
+    todayBookings: number
+    todayCompleted: number
+    todayEarnings: number
+    totalEarnings: number
+    overallRating: number
+    reviewCount: number
+  }
+  upcomingBookings: ProviderDashboardBooking[]
+  performance: {
+    acceptanceRate: number
+    completionRate: number
+    responseTimeMinutes: number | null
+  }
+}
+
+export type PayoutMethodType = 'bank' | 'gcash' | 'paymaya'
+
+export interface PayoutMethodSummary {
+  id: string
+  providerId: string
+  methodType: PayoutMethodType
+  accountLabel: string
+  accountName: string | null
+  accountNumberLast4: string | null
+  isDefault: boolean
+  createdAt: string | null
+}
+
+export interface PayoutAccountSummary {
+  availableBalance: number
+  pendingBalance: number
+  totalPaidOut: number
+  nextPayoutDate: string | null
+}
+
+export interface PayoutSummary {
+  id: string
+  providerId: string
+  amount: number
+  processingFee: number
+  netAmount: number
+  status: 'requested' | 'processing' | 'paid' | 'cancelled'
+  payoutMethodId: string | null
+  methodType: string | null
+  accountLabel: string | null
+  reference: string | null
+  periodStart: string | null
+  periodEnd: string | null
+  requestedAt: string | null
+  paidAt: string | null
+  createdAt: string | null
+}
+
+export interface ReviewSummary {
+  id: string
+  bookingId: string
+  providerId: string
+  reviewerId: string
+  reviewerFullName: string | null
+  rating: number
+  reviewText: string | null
+  isFlagged: boolean
+  createdAt: string | null
+}
+
+export interface ReviewResponseSummary {
+  id: string
+  reviewId: string
+  responderId: string
+  responseText: string
+  createdAt: string | null
+}
+
+export interface UpdateCurrentUserProfileRequest {
+  fullName: string
+  contactNumber?: string | null
+  address?: string | null
+  businessName?: string | null
+}
+
+export interface UpdateCurrentUserPasswordRequest {
+  currentPassword: string
+  newPassword: string
+}
+
+export interface ReferralSummary {
+  referralCode: string
+  referralLinkPath: string
+  completedReferrals: number
+  pendingReferrals: number
+  totalRewards: number
+}
+
+export interface AddPortfolioMediaRequest {
+  fileUrl: string
+  fileName?: string | null
+  mimeType?: string | null
+  storagePath?: string | null
+  fileSize?: number | null
+  caption?: string | null
+}
+
 interface SupabaseTokenResponse {
   access_token?: string
   refresh_token?: string
@@ -156,6 +371,7 @@ interface RequestOptions {
   token?: string | null
   body?: unknown
   query?: Record<string, string | null | undefined>
+  idempotencyKey?: string | null
 }
 
 const DEFAULT_API_BASE_URL =
@@ -262,6 +478,41 @@ export function getCurrentUser(token: string): Promise<CurrentUserProfile> {
   })
 }
 
+export function getProviderProfile(
+  token: string,
+): Promise<ProviderProfileSnapshot> {
+  return request<ProviderProfileSnapshot>('/v1/provider/profile', {
+    token,
+  })
+}
+
+export function getProviderDashboard(
+  token: string,
+): Promise<ProviderDashboardSummary> {
+  return request<ProviderDashboardSummary>('/v1/provider/dashboard', {
+    token,
+  })
+}
+
+export function listProviderOwnedServices(
+  token: string,
+): Promise<ProviderOwnedServiceSummary[]> {
+  return request<ProviderOwnedServiceSummary[]>('/v1/provider/services', {
+    token,
+  })
+}
+
+export function replaceProviderOwnedServices(
+  token: string,
+  services: ProviderOwnedServiceInput[],
+): Promise<ProviderOwnedServiceSummary[]> {
+  return request<ProviderOwnedServiceSummary[]>('/v1/provider/services', {
+    method: 'PUT',
+    token,
+    body: { services },
+  })
+}
+
 export function getProviderAvailability(
   token: string,
 ): Promise<ProviderAvailabilitySchedule> {
@@ -358,6 +609,63 @@ export function listProviderPayments(token: string): Promise<PaymentSummary[]> {
   })
 }
 
+export function getProviderPayoutAccount(
+  token: string,
+): Promise<PayoutAccountSummary> {
+  return request<PayoutAccountSummary>('/v1/payments/payout-account', {
+    token,
+  })
+}
+
+export function listProviderPayoutMethods(
+  token: string,
+): Promise<PayoutMethodSummary[]> {
+  return request<PayoutMethodSummary[]>('/v1/payments/payout-methods', {
+    token,
+  })
+}
+
+export function upsertProviderPayoutMethod(
+  token: string,
+  input: {
+    methodId?: string | null
+    methodType: PayoutMethodType
+    accountLabel: string
+    accountName?: string | null
+    accountNumberLast4?: string | null
+    isDefault?: boolean | null
+  },
+): Promise<PayoutMethodSummary> {
+  return request<PayoutMethodSummary>('/v1/payments/payout-methods', {
+    method: 'PUT',
+    token,
+    body: input,
+  })
+}
+
+export function listProviderPayouts(token: string): Promise<PayoutSummary[]> {
+  return request<PayoutSummary[]>('/v1/payments/payouts', {
+    token,
+  })
+}
+
+export function requestProviderPayout(
+  token: string,
+  input: {
+    amount: number
+    payoutMethodId: string
+  },
+): Promise<PayoutSummary> {
+  return request<PayoutSummary>('/v1/payments/payouts', {
+    method: 'POST',
+    token,
+    body: input,
+    idempotencyKey: `provider-payout-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}`,
+  })
+}
+
 export function listProviderConversations(
   token: string,
 ): Promise<ConversationSummary[]> {
@@ -414,9 +722,115 @@ export function markProviderNotificationRead(
   )
 }
 
+export function getUserPreferences(token: string): Promise<UserPreferenceSummary> {
+  return request<UserPreferenceSummary>('/v1/me/preferences', {
+    token,
+  })
+}
+
+export function updateUserPreferences(
+  token: string,
+  input: UpdateUserPreferencesRequest,
+): Promise<UserPreferenceSummary> {
+  return request<UserPreferenceSummary>('/v1/me/preferences', {
+    method: 'PUT',
+    token,
+    body: input,
+  })
+}
+
+export function listProviderReviews(token: string, providerId: string): Promise<ReviewSummary[]> {
+  return request<ReviewSummary[]>(`/v1/reviews?providerId=${encodeURIComponent(providerId)}`, {
+    method: 'GET',
+    token,
+  })
+}
+
+export function replyToReview(
+  token: string,
+  reviewId: string,
+  responseText: string,
+): Promise<ReviewResponseSummary> {
+  return request<ReviewResponseSummary>(`/v1/reviews/${encodeURIComponent(reviewId)}/reply`, {
+    method: 'POST',
+    token,
+    body: { responseText },
+  })
+}
+
+export function flagReview(token: string, reviewId: string, reason: string): Promise<void> {
+  return request<void>(`/v1/reviews/${encodeURIComponent(reviewId)}/flag`, {
+    method: 'POST',
+    token,
+    body: { reason },
+  })
+}
+
+export function updateCurrentUserProfile(
+  token: string,
+  body: UpdateCurrentUserProfileRequest,
+): Promise<CurrentUserProfile> {
+  return request<CurrentUserProfile>('/v1/me', { method: 'PATCH', token, body })
+}
+
+export function updateCurrentUserPassword(
+  token: string,
+  body: UpdateCurrentUserPasswordRequest,
+): Promise<{ ok: true }> {
+  return request<{ ok: true }>('/v1/me/password', { method: 'PATCH', token, body })
+}
+
+export function addProviderPortfolioMedia(
+  token: string,
+  body: AddPortfolioMediaRequest,
+): Promise<ProviderPortfolioMediaSummary> {
+  return request<ProviderPortfolioMediaSummary>('/v1/catalog/provider/portfolio', {
+    method: 'POST',
+    token,
+    body,
+  })
+}
+
+export function deleteProviderPortfolioMedia(token: string, mediaId: string): Promise<void> {
+  return request<void>(`/v1/catalog/provider/portfolio/${encodeURIComponent(mediaId)}`, {
+    method: 'DELETE',
+    token,
+  })
+}
+
+export function openProviderConversation(
+  token: string,
+  bookingId: string,
+): Promise<ConversationSummary> {
+  return request<ConversationSummary>('/v1/conversations', {
+    method: 'POST',
+    token,
+    body: { bookingId },
+  })
+}
+
+export function getReferralSummary(token: string): Promise<ReferralSummary> {
+  return request<ReferralSummary>('/v1/referrals', { token })
+}
+
+export function listSupportTickets(token: string): Promise<SupportTicketSummary[]> {
+  return request<SupportTicketSummary[]>('/v1/support/tickets', { token })
+}
+
+export function getSupportTicket(token: string, ticketId: string): Promise<SupportTicketSummary> {
+  return request<SupportTicketSummary>(`/v1/support/tickets/${encodeURIComponent(ticketId)}`, { token })
+}
+
+export function createSupportTicket(
+  token: string,
+  body: CreateSupportTicketRequest,
+): Promise<SupportTicketSummary> {
+  return request<SupportTicketSummary>('/v1/support/tickets', { method: 'POST', token, body })
+}
+
 async function request<T>(
   path: string,
-  { method = 'GET', token, body, query }: RequestOptions = {},
+  { method = 'GET', token, body, query, idempotencyKey }: RequestOptions = {},
 ): Promise<T> {
   const url = new URL(`${getProviderApiBaseUrl()}${path}`)
 
@@ -432,6 +846,9 @@ async function request<T>(
       accept: 'application/json',
       'content-type': 'application/json',
       ...(token?.trim() ? { authorization: `Bearer ${token.trim()}` } : {}),
+      ...(idempotencyKey?.trim()
+        ? { 'idempotency-key': idempotencyKey.trim() }
+        : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })

@@ -1,25 +1,41 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  addProviderPortfolioMedia,
   createBooking,
   createBookingServiceUpdate,
   createConversationMessage,
   createPayment,
   createSupportTicket,
+  deleteCustomerPaymentMethod,
+  deleteProviderPortfolioMedia,
   getPublicProviderAvailability,
   getProviderAvailability,
+  getBookingTrackingSnapshot,
   getCurrentUser,
+  getProviderPayoutAccount,
+  getReferralSummary,
+  getUserPreferences,
   listCatalogCategories,
   listNotifications,
   listBookingServiceUpdates,
   listBookingTimelineEvents,
+  listCustomerPaymentMethods,
   listCustomerBookings,
+  listProviderPayoutMethods,
+  listProviderPayouts,
   markNotificationRead,
   openConversation,
   registerAccount,
   replaceProviderAvailabilityWindows,
+  requestPasswordReset,
+  requestProviderPayout,
+  updateCurrentUserPassword,
   updateCurrentUserProfile,
+  upsertCustomerPaymentMethod,
+  updateUserPreferences,
   uploadMedia,
+  validatePromotion,
 } from './serveaseApi';
 
 describe('serveaseApi', () => {
@@ -199,6 +215,41 @@ describe('serveaseApi', () => {
     assert.equal(timeline[0]?.eventType, 'created');
   });
 
+  it('loads booking tracking snapshots with authentication', async () => {
+    let authorization: string | null = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/bookings/booking-1/tracking');
+      assert.equal(init?.method, 'GET');
+      authorization = new Headers(init?.headers).get('authorization');
+      return jsonResponse({
+        data: {
+          bookingId: 'booking-1',
+          bookingReference: 'SE-123',
+          status: 'in_progress',
+          phase: 'on_the_way',
+          etaMinutes: 18,
+          distanceKm: 5.2,
+          trafficLevel: 'moderate',
+          destinationAddress: '123 Test St',
+          destinationLocation: null,
+          providerLocation: null,
+          scheduledAt: '2026-05-20T02:00:00.000Z',
+          lastUpdatedAt: '2026-05-16T00:00:00.000Z',
+        },
+      });
+    };
+
+    const tracking = await getBookingTrackingSnapshot('booking-1', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.equal(authorization, 'Bearer access-token');
+    assert.equal(tracking.phase, 'on_the_way');
+    assert.equal(tracking.etaMinutes, 18);
+  });
+
   it('returns useful gateway error messages', async () => {
     const fetcher = async () =>
       jsonResponse(
@@ -312,6 +363,36 @@ describe('serveaseApi', () => {
     });
   });
 
+  it('requests password reset through the gateway', async () => {
+    let requestBody: unknown = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/auth/password-reset');
+      assert.equal(init?.method, 'POST');
+      requestBody = JSON.parse(String(init?.body));
+
+      return jsonResponse({
+        data: { ok: true },
+      });
+    };
+
+    const result = await requestPasswordReset(
+      {
+        email: 'customer@example.com',
+        redirectTo: 'servease://reset-password',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        fetcher,
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(requestBody, {
+      email: 'customer@example.com',
+      redirectTo: 'servease://reset-password',
+    });
+  });
+
   it('updates the current user profile through the gateway', async () => {
     let authorization: string | null = null;
     let requestBody: unknown = null;
@@ -359,6 +440,40 @@ describe('serveaseApi', () => {
       fullName: 'Updated Customer',
       contactNumber: '+639000000001',
       address: 'Updated address',
+    });
+  });
+
+  it('updates the current user password through the gateway', async () => {
+    let authorization: string | null = null;
+    let requestBody: unknown = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/me/password');
+      assert.equal(init?.method, 'PATCH');
+      authorization = new Headers(init?.headers).get('authorization');
+      requestBody = JSON.parse(String(init?.body));
+
+      return jsonResponse({
+        data: { ok: true },
+      });
+    };
+
+    const result = await updateCurrentUserPassword(
+      {
+        currentPassword: 'OldPassword#2026',
+        newPassword: 'NewPassword#2026',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(authorization, 'Bearer access-token');
+    assert.deepEqual(requestBody, {
+      currentPassword: 'OldPassword#2026',
+      newPassword: 'NewPassword#2026',
     });
   });
 
@@ -461,7 +576,11 @@ describe('serveaseApi', () => {
     };
 
     const payment = await createPayment(
-      { bookingId: 'booking-1', paymentMethod: 'cash_on_service' },
+      {
+        bookingId: 'booking-1',
+        paymentMethod: 'cash_on_service',
+        promoCode: 'SERVEASE10',
+      },
       { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
     );
     const ticket = await createSupportTicket(
@@ -476,6 +595,7 @@ describe('serveaseApi', () => {
     assert.deepEqual(bodies[0], {
       bookingId: 'booking-1',
       paymentMethod: 'cash_on_service',
+      promoCode: 'SERVEASE10',
     });
     assert.deepEqual(bodies[1], {
       subject: 'Need help',
@@ -484,6 +604,140 @@ describe('serveaseApi', () => {
     });
     assert.equal(payment.status, 'pending');
     assert.equal(ticket.status, 'open');
+  });
+
+  it('validates promotion codes through the authenticated gateway endpoint', async () => {
+    let requestBody: unknown = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/payments/promotions/validate');
+      assert.equal(init?.method, 'POST');
+      assert.equal(
+        new Headers(init?.headers).get('authorization'),
+        'Bearer access-token',
+      );
+      requestBody = JSON.parse(String(init?.body));
+      return jsonResponse({
+        data: {
+          code: 'SERVEASE10',
+          valid: true,
+          discountAmount: 120,
+          finalAmount: 1080,
+          message: 'Promo applied.',
+        },
+      });
+    };
+
+    const promotion = await validatePromotion('booking-1', 'SERVEASE10', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.deepEqual(requestBody, {
+      bookingId: 'booking-1',
+      code: 'SERVEASE10',
+    });
+    assert.equal(promotion.finalAmount, 1080);
+  });
+
+  it('manages customer payment methods through authenticated gateway endpoints', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      if (init?.method === 'GET') {
+        return jsonResponse({
+          data: [
+            {
+              id: 'method-1',
+              customerId: 'customer-1',
+              methodType: 'cash_on_service',
+              label: 'Cash on service',
+              brand: 'Cash',
+              last4: null,
+              isDefault: true,
+              createdAt: '2026-05-16T00:00:00.000Z',
+            },
+          ],
+        });
+      }
+
+      if (init?.method === 'DELETE') {
+        return jsonResponse({
+          data: {
+            id: 'method-2',
+            customerId: 'customer-1',
+            methodType: 'card',
+            label: 'Card ending 4242',
+            brand: 'Visa',
+            last4: '4242',
+            isDefault: false,
+            createdAt: '2026-05-16T00:00:00.000Z',
+          },
+        });
+      }
+
+      return jsonResponse({
+        data: {
+          id: 'method-2',
+          customerId: 'customer-1',
+          methodType: 'card',
+          label: 'Card ending 4242',
+          brand: 'Visa',
+          last4: '4242',
+          isDefault: true,
+          createdAt: '2026-05-16T00:00:00.000Z',
+        },
+      });
+    };
+
+    const methods = await listCustomerPaymentMethods({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    const method = await upsertCustomerPaymentMethod(
+      {
+        methodType: 'card',
+        label: 'Card ending 4242',
+        brand: 'Visa',
+        last4: '4242',
+        isDefault: true,
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+    const deleted = await deleteCustomerPaymentMethod('method-2', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.equal(methods[0]?.methodType, 'cash_on_service');
+    assert.equal(method.methodType, 'card');
+    assert.equal(deleted.id, 'method-2');
+    assert.deepEqual(calls.map((call) => [call.url, call.method, call.body]), [
+      ['http://gateway.test/v1/payments/methods', 'GET', null],
+      [
+        'http://gateway.test/v1/payments/methods',
+        'PUT',
+        {
+          methodType: 'card',
+          label: 'Card ending 4242',
+          brand: 'Visa',
+          last4: '4242',
+          isDefault: true,
+        },
+      ],
+      ['http://gateway.test/v1/payments/methods/method-2', 'DELETE', null],
+    ]);
   });
 
   it('uploads media through the authenticated gateway endpoint', async () => {
@@ -525,6 +779,79 @@ describe('serveaseApi', () => {
     assert.equal(authorization, 'Bearer access-token');
     assert.equal(bodyWasFormData, true);
     assert.equal(upload.publicUrl, 'https://storage.test/file.jpg');
+  });
+
+  it('adds and deletes provider portfolio media through the gateway', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      if (init?.method === 'DELETE') {
+        return jsonResponse({}, 204);
+      }
+
+      return jsonResponse({
+        data: {
+          id: 'portfolio-1',
+          providerId: 'provider-1',
+          uploadedBy: 'provider-user-1',
+          fileUrl: 'https://storage.test/portfolio.jpg',
+          fileName: 'portfolio.jpg',
+          mimeType: 'image/jpeg',
+          storagePath: 'provider_portfolio/provider-user-1/portfolio.jpg',
+          fileSize: 12,
+          caption: 'Completed cleaning job',
+          sortOrder: 0,
+          createdAt: '2026-05-16T00:00:00.000Z',
+        },
+      });
+    };
+
+    const media = await addProviderPortfolioMedia(
+      {
+        fileUrl: 'https://storage.test/portfolio.jpg',
+        fileName: 'portfolio.jpg',
+        mimeType: 'image/jpeg',
+        storagePath: 'provider_portfolio/provider-user-1/portfolio.jpg',
+        fileSize: 12,
+        caption: 'Completed cleaning job',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+    await deleteProviderPortfolioMedia('portfolio-1', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.equal(media.id, 'portfolio-1');
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/catalog/provider/portfolio',
+        method: 'POST',
+        body: {
+          fileUrl: 'https://storage.test/portfolio.jpg',
+          fileName: 'portfolio.jpg',
+          mimeType: 'image/jpeg',
+          storagePath: 'provider_portfolio/provider-user-1/portfolio.jpg',
+          fileSize: 12,
+          caption: 'Completed cleaning job',
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/catalog/provider/portfolio/portfolio-1',
+        method: 'DELETE',
+        body: null,
+      },
+    ]);
   });
 
   it('lists notifications and marks one read with PATCH', async () => {
@@ -577,6 +904,92 @@ describe('serveaseApi', () => {
     assert.equal(notifications[0]?.isRead, false);
     assert.equal(read.isRead, true);
     assert.deepEqual(methods, ['GET', 'PATCH']);
+  });
+
+  it('loads referral summaries through the gateway', async () => {
+    let authorization: string | null = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/referrals');
+      assert.equal(init?.method, 'GET');
+      authorization = new Headers(init?.headers).get('authorization');
+      return jsonResponse({
+        data: {
+          referralCode: 'SE-ABC12345',
+          referralLinkPath: '/signup?ref=SE-ABC12345',
+          completedReferrals: 2,
+          pendingReferrals: 1,
+          totalRewards: 300,
+        },
+      });
+    };
+
+    const summary = await getReferralSummary({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.equal(authorization, 'Bearer access-token');
+    assert.equal(summary.referralCode, 'SE-ABC12345');
+    assert.equal(summary.totalRewards, 300);
+  });
+
+  it('loads and updates user preferences through the gateway', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      return jsonResponse({
+        data: {
+          userId: 'user-1',
+          pushNotificationsEnabled: false,
+          darkModeEnabled: true,
+          language: 'fil',
+          updatedAt: '2026-05-16T00:00:00.000Z',
+        },
+      });
+    };
+
+    const current = await getUserPreferences({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    const updated = await updateUserPreferences(
+      {
+        pushNotificationsEnabled: false,
+        darkModeEnabled: true,
+        language: 'fil',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.equal(current.language, 'fil');
+    assert.equal(updated.darkModeEnabled, true);
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/me/preferences',
+        method: 'GET',
+        body: null,
+      },
+      {
+        url: 'http://gateway.test/v1/me/preferences',
+        method: 'PUT',
+        body: {
+          pushNotificationsEnabled: false,
+          darkModeEnabled: true,
+          language: 'fil',
+        },
+      },
+    ]);
   });
 
   it('loads public/provider availability and replaces provider-owned windows through the gateway', async () => {
@@ -651,6 +1064,121 @@ describe('serveaseApi', () => {
         },
       },
     ]);
+  });
+
+  it('loads provider payouts and requests a payout with idempotency', async () => {
+    const calls: Array<{
+      url: string;
+      method: string;
+      body: unknown;
+      idempotencyKey: string | null;
+    }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+        idempotencyKey: new Headers(init?.headers).get('idempotency-key'),
+      });
+
+      if (url.endsWith('/payout-account')) {
+        return jsonResponse({
+          data: {
+            availableBalance: 1000,
+            pendingBalance: 250,
+            totalPaidOut: 5000,
+            nextPayoutDate: '2026-05-22',
+          },
+        });
+      }
+
+      if (url.endsWith('/payout-methods')) {
+        return jsonResponse({
+          data: [
+            {
+              id: 'method-1',
+              providerId: 'provider-1',
+              methodType: 'gcash',
+              accountLabel: 'GCash **** 1234',
+              accountName: 'Provider',
+              accountNumberLast4: '1234',
+              isDefault: true,
+              createdAt: '2026-05-16T00:00:00.000Z',
+            },
+          ],
+        });
+      }
+
+      if (init?.method === 'POST') {
+        return jsonResponse({
+          data: {
+            id: 'payout-1',
+            providerId: 'provider-1',
+            amount: 500,
+            processingFee: 12.5,
+            netAmount: 487.5,
+            status: 'requested',
+            payoutMethodId: 'method-1',
+            methodType: 'gcash',
+            accountLabel: 'GCash **** 1234',
+            reference: 'PO-TEST',
+            periodStart: null,
+            periodEnd: null,
+            requestedAt: '2026-05-16T00:00:00.000Z',
+            paidAt: null,
+            createdAt: '2026-05-16T00:00:00.000Z',
+          },
+        });
+      }
+
+      return jsonResponse({ data: [] });
+    };
+
+    const account = await getProviderPayoutAccount({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    const methods = await listProviderPayoutMethods({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    const payouts = await listProviderPayouts({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    const payout = await requestProviderPayout(
+      {
+        amount: 500,
+        payoutMethodId: 'method-1',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.equal(account.availableBalance, 1000);
+    assert.equal(methods[0]?.id, 'method-1');
+    assert.deepEqual(payouts, []);
+    assert.equal(payout.reference, 'PO-TEST');
+    assert.deepEqual(calls.map((call) => [call.url, call.method, call.body]), [
+      ['http://gateway.test/v1/payments/payout-account', 'GET', null],
+      ['http://gateway.test/v1/payments/payout-methods', 'GET', null],
+      ['http://gateway.test/v1/payments/payouts', 'GET', null],
+      [
+        'http://gateway.test/v1/payments/payouts',
+        'POST',
+        {
+          amount: 500,
+          payoutMethodId: 'method-1',
+        },
+      ],
+    ]);
+    assert.ok(calls[3]?.idempotencyKey?.startsWith('mobile-provider-payout-'));
   });
 });
 

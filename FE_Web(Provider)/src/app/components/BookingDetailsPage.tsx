@@ -10,7 +10,6 @@ import {
   Navigation,
   CheckCircle,
   Upload,
-  Plus,
   AlertCircle,
   Image as ImageIcon,
   Send,
@@ -468,7 +467,6 @@ export function BookingDetailsPage() {
     ],
     pricing: {
       serviceFee: apiBooking.totalAmount,
-      additionalCharges: 0,
       platformFee: 0,
       yourEarnings: apiBooking.totalAmount,
     },
@@ -499,9 +497,8 @@ export function BookingDetailsPage() {
     ],
     pricing: {
       serviceFee: 1200,
-      additionalCharges: 300,
       platformFee: 150,
-      yourEarnings: 1350,
+      yourEarnings: 1050,
     },
   };
 
@@ -840,13 +837,6 @@ export function BookingDetailsPage() {
               </div>
 
               <div style={styles.pricingRow}>
-                <div style={styles.pricingLabel}>Additional Charges</div>
-                <div style={styles.pricingValue}>
-                  ₱{booking.pricing.additionalCharges.toLocaleString()}
-                </div>
-              </div>
-
-              <div style={styles.pricingRow}>
                 <div style={styles.pricingLabel}>Platform Fee (10%)</div>
                 <div style={styles.pricingValue}>
                   -₱{booking.pricing.platformFee.toLocaleString()}
@@ -891,16 +881,6 @@ export function BookingDetailsPage() {
                     <button
                       style={{
                         ...styles.button,
-                        ...styles.secondaryButton,
-                        gridColumn: "1 / -1",
-                      }}
-                    >
-                      <Calendar size={16} />
-                      Request Reschedule
-                    </button>
-                    <button
-                      style={{
-                        ...styles.button,
                         ...styles.dangerButton,
                         gridColumn: "1 / -1",
                       }}
@@ -927,16 +907,6 @@ export function BookingDetailsPage() {
                     <button style={{ ...styles.button, ...styles.outlinedButton }}>
                       <Upload size={16} />
                       Upload Photos
-                    </button>
-                    <button
-                      style={{
-                        ...styles.button,
-                        ...styles.secondaryButton,
-                        gridColumn: "1 / -1",
-                      }}
-                    >
-                      <Plus size={16} />
-                      Add Additional Charges
                     </button>
                   </div>
                 </>

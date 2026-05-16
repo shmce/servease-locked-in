@@ -3,24 +3,123 @@ import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import { PaymentNotFoundError } from './payment.errors';
 import {
   CreatePaymentInput,
+  CommissionRuleStatus,
+  CommissionRuleSummary,
+  CustomerPaymentMethodSummary,
+  CustomerPaymentMethodType,
   PaymentSummary,
   PaymentVisibility,
   PaymentStatus,
+  RefundStatus,
+  RefundSummary,
+  PromotionDiscountType,
+  PromotionValidationSummary,
+  PromotionStatus,
+  PromotionSummary,
+  PayoutAccountSummary,
+  PayoutMethodSummary,
+  PayoutStatus,
+  PayoutSummary,
+  UpsertPayoutMethodInput,
+  CreatePayoutRequestInput,
+  UpsertCustomerPaymentMethodInput,
+  UpsertPromotionInput,
 } from './payment.types';
 
 interface SupabaseRpcClient {
   rpc(
     functionName: string,
-    args: Record<string, string | number | null>,
+    args: Record<string, string | number | boolean | null>,
   ): PromiseLike<{
-    data: PaymentRow[] | null;
+    data:
+      | PaymentRow[]
+      | PayoutMethodRow[]
+      | CustomerPaymentMethodRow[]
+      | CommissionRuleRow[]
+      | PayoutRow[]
+      | PayoutAccountRow[]
+      | RefundRow[]
+      | PromotionValidationRow[]
+      | PromotionRow[]
+      | null;
     error: { message: string; code?: string } | null;
   }> & {
     maybeSingle(): PromiseLike<{
-      data: PaymentRow | null;
+      data:
+        | PaymentRow
+        | PayoutMethodRow
+        | CustomerPaymentMethodRow
+        | CommissionRuleRow
+        | PayoutRow
+        | PayoutAccountRow
+        | RefundRow
+        | PromotionValidationRow
+        | PromotionRow
+        | null;
       error: { message: string; code?: string } | null;
     }>;
   };
+}
+
+interface PayoutMethodRow {
+  id: string;
+  provider_id: string;
+  method_type: 'bank' | 'gcash' | 'paymaya';
+  account_label: string;
+  account_name: string | null;
+  account_number_last4: string | null;
+  is_default: boolean | null;
+  created_at: string | null;
+}
+
+interface CustomerPaymentMethodRow {
+  id: string;
+  customer_id: string;
+  method_type: CustomerPaymentMethodType;
+  label: string;
+  brand: string | null;
+  last4: string | null;
+  is_default: boolean | null;
+  created_at: string | null;
+}
+
+interface CommissionRuleRow {
+  id: string;
+  category_key: string;
+  category_label: string;
+  current_rate: string | number | null;
+  previous_rate: string | number | null;
+  status: CommissionRuleStatus;
+  monthly_revenue: string | number | null;
+  monthly_commission: string | number | null;
+  updated_by: string | null;
+  updated_at: string | null;
+  created_at: string | null;
+}
+
+interface PayoutRow {
+  id: string;
+  provider_id: string;
+  amount: string | number | null;
+  processing_fee: string | number | null;
+  net_amount: string | number | null;
+  status: PayoutStatus;
+  payout_method_id: string | null;
+  method_type: string | null;
+  account_label: string | null;
+  reference: string | null;
+  period_start: string | null;
+  period_end: string | null;
+  requested_at: string | null;
+  paid_at: string | null;
+  created_at: string | null;
+}
+
+interface PayoutAccountRow {
+  available_balance: string | number | null;
+  pending_balance: string | number | null;
+  total_paid_out: string | number | null;
+  next_payout_date: string | null;
 }
 
 interface PaymentRow {
@@ -34,6 +133,46 @@ interface PaymentRow {
   status: PaymentStatus;
   payment_method: string | null;
   paid_at: string | null;
+  created_at: string | null;
+}
+
+interface RefundRow {
+  id: string;
+  payment_id: string;
+  booking_id: string;
+  customer_id: string | null;
+  provider_id: string | null;
+  amount: string | number | null;
+  reason: string | null;
+  status: RefundStatus;
+  requested_at: string | null;
+  decided_by: string | null;
+  decision_reason: string | null;
+  decided_at: string | null;
+  processed_at: string | null;
+  created_at: string | null;
+}
+
+interface PromotionValidationRow {
+  code: string;
+  valid: boolean | null;
+  discount_amount: string | number | null;
+  final_amount: string | number | null;
+  message: string | null;
+}
+
+interface PromotionRow {
+  id: string;
+  code: string;
+  description: string | null;
+  discount_type: PromotionDiscountType;
+  discount_value: string | number | null;
+  max_discount_amount: string | number | null;
+  min_order_amount: string | number | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  is_active: boolean | null;
+  status: PromotionStatus;
   created_at: string | null;
 }
 
@@ -65,7 +204,7 @@ export class SupabasePaymentRepository {
       throw new PaymentNotFoundError();
     }
 
-    return this.mapPayment(data);
+    return this.mapPayment(data as PaymentRow);
   }
 
   async listPayments(visibility: PaymentVisibility): Promise<PaymentSummary[]> {
@@ -78,7 +217,35 @@ export class SupabasePaymentRepository {
       throw new Error(`Failed to list payments: ${error.message}`);
     }
 
-    return (data ?? []).map((row) => this.mapPayment(row));
+    return ((data ?? []) as PaymentRow[]).map((row) => this.mapPayment(row));
+  }
+
+  async validatePromotion(
+    code: string,
+    amount: number,
+  ): Promise<PromotionValidationSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_validate_promotion', {
+        p_code: code,
+        p_amount: amount,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to validate promotion: ${error.message}`);
+    }
+
+    if (!data) {
+      return {
+        code: code.trim().toUpperCase(),
+        valid: false,
+        discountAmount: 0,
+        finalAmount: amount,
+        message: 'Promo code is not valid.',
+      };
+    }
+
+    return this.mapPromotionValidation(data as PromotionValidationRow);
   }
 
   async listAllPayments(status: PaymentStatus | null): Promise<PaymentSummary[]> {
@@ -90,7 +257,23 @@ export class SupabasePaymentRepository {
       throw new Error(`Failed to list admin payments: ${error.message}`);
     }
 
-    return (data ?? []).map((row) => this.mapPayment(row));
+    return ((data ?? []) as PaymentRow[]).map((row) => this.mapPayment(row));
+  }
+
+  async adminGetPayment(paymentId: string): Promise<PaymentSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_get_payment', { p_payment_id: paymentId })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to get admin payment: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPayment(data as PaymentRow);
   }
 
   async updatePaymentStatus(
@@ -112,7 +295,386 @@ export class SupabasePaymentRepository {
       throw new PaymentNotFoundError();
     }
 
-    return this.mapPayment(data);
+    return this.mapPayment(data as PaymentRow);
+  }
+
+  async listPromotions(
+    status: PromotionStatus | null,
+  ): Promise<PromotionSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_admin_list_promotions',
+      {
+        p_status: status,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list promotions: ${error.message}`);
+    }
+
+    return ((data ?? []) as PromotionRow[]).map((row) =>
+      this.mapPromotion(row),
+    );
+  }
+
+  async upsertPromotion(input: UpsertPromotionInput): Promise<PromotionSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_upsert_promotion', {
+        p_promotion_id: input.promotionId ?? null,
+        p_code: input.code,
+        p_description: input.description ?? null,
+        p_discount_type: input.discountType,
+        p_discount_value: input.discountValue,
+        p_max_discount_amount: input.maxDiscountAmount ?? null,
+        p_min_order_amount: input.minOrderAmount ?? 0,
+        p_starts_at: input.startsAt ?? null,
+        p_ends_at: input.endsAt ?? null,
+        p_is_active: input.isActive ?? true,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      throw new Error(`Failed to upsert promotion: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPromotion(data as PromotionRow);
+  }
+
+  async deletePromotion(promotionId: string): Promise<PromotionSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_delete_promotion', {
+        p_promotion_id: promotionId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      throw new Error(`Failed to delete promotion: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPromotion(data as PromotionRow);
+  }
+
+  async listAllPayouts(status: PayoutStatus | null): Promise<PayoutSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_admin_list_provider_payouts',
+      {
+        p_status: status,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list admin payouts: ${error.message}`);
+    }
+
+    return ((data ?? []) as PayoutRow[]).map((row) => this.mapPayout(row));
+  }
+
+  async updatePayoutStatus(
+    payoutId: string,
+    status: PayoutStatus,
+  ): Promise<PayoutSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_update_provider_payout_status', {
+        p_payout_id: payoutId,
+        p_status: status,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      throw new Error(`Failed to update payout: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPayout(data as PayoutRow);
+  }
+
+  async listRefunds(status: RefundStatus | null): Promise<RefundSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_admin_list_refund_requests',
+      {
+        p_status: status,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list admin refunds: ${error.message}`);
+    }
+
+    return ((data ?? []) as RefundRow[]).map((row) => this.mapRefund(row));
+  }
+
+  async decideRefund(
+    refundId: string,
+    adminUserId: string,
+    status: Exclude<RefundStatus, 'requested'>,
+    reason: string | null,
+  ): Promise<RefundSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_decide_refund_request', {
+        p_refund_id: refundId,
+        p_admin_user_id: adminUserId,
+        p_status: status,
+        p_reason: reason,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      throw new Error(`Failed to decide refund: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapRefund(data as RefundRow);
+  }
+
+  async listCommissionRules(): Promise<CommissionRuleSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_admin_list_commission_rules',
+      {},
+    );
+
+    if (error) {
+      throw new Error(`Failed to list commission rules: ${error.message}`);
+    }
+
+    return ((data ?? []) as CommissionRuleRow[]).map((row) =>
+      this.mapCommissionRule(row),
+    );
+  }
+
+  async updateCommissionRule(input: {
+    ruleId: string;
+    currentRate: number;
+    status: CommissionRuleStatus;
+    adminUserId: string;
+  }): Promise<CommissionRuleSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_update_commission_rule', {
+        p_rule_id: input.ruleId,
+        p_current_rate: input.currentRate,
+        p_status: input.status,
+        p_admin_user_id: input.adminUserId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      throw new Error(`Failed to update commission rule: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapCommissionRule(data as CommissionRuleRow);
+  }
+
+  async listPayoutMethods(providerId: string): Promise<PayoutMethodSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_list_provider_payout_methods',
+      {
+        p_provider_id: providerId,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list payout methods: ${error.message}`);
+    }
+
+    return ((data ?? []) as PayoutMethodRow[]).map((row) =>
+      this.mapPayoutMethod(row),
+    );
+  }
+
+  async upsertPayoutMethod(
+    input: UpsertPayoutMethodInput,
+  ): Promise<PayoutMethodSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_upsert_provider_payout_method', {
+        p_provider_id: input.providerId,
+        p_method_id: input.methodId ?? null,
+        p_method_type: input.methodType,
+        p_account_label: input.accountLabel,
+        p_account_name: input.accountName ?? null,
+        p_account_number_last4: input.accountNumberLast4 ?? null,
+        p_is_default: input.isDefault ?? false,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to upsert payout method: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPayoutMethod(data as PayoutMethodRow);
+  }
+
+  async listCustomerPaymentMethods(
+    customerId: string,
+  ): Promise<CustomerPaymentMethodSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_list_customer_payment_methods',
+      {
+        p_customer_id: customerId,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list customer payment methods: ${error.message}`);
+    }
+
+    return ((data ?? []) as CustomerPaymentMethodRow[]).map((row) =>
+      this.mapCustomerPaymentMethod(row),
+    );
+  }
+
+  async upsertCustomerPaymentMethod(
+    input: UpsertCustomerPaymentMethodInput,
+  ): Promise<CustomerPaymentMethodSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_upsert_customer_payment_method', {
+        p_customer_id: input.customerId,
+        p_method_id: input.methodId ?? null,
+        p_method_type: input.methodType,
+        p_label: input.label,
+        p_brand: input.brand ?? null,
+        p_last4: input.last4 ?? null,
+        p_is_default: input.isDefault ?? false,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to upsert customer payment method: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapCustomerPaymentMethod(data as CustomerPaymentMethodRow);
+  }
+
+  async deleteCustomerPaymentMethod(
+    customerId: string,
+    methodId: string,
+  ): Promise<CustomerPaymentMethodSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_delete_customer_payment_method', {
+        p_customer_id: customerId,
+        p_method_id: methodId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      throw new Error(`Failed to delete customer payment method: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapCustomerPaymentMethod(data as CustomerPaymentMethodRow);
+  }
+
+  async getPayoutAccount(providerId: string): Promise<PayoutAccountSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_get_provider_payout_account', {
+        p_provider_id: providerId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to get payout account: ${error.message}`);
+    }
+
+    if (!data) {
+      return {
+        availableBalance: 0,
+        pendingBalance: 0,
+        totalPaidOut: 0,
+        nextPayoutDate: null,
+      };
+    }
+
+    const row = data as PayoutAccountRow;
+    return {
+      availableBalance: Number(row.available_balance ?? 0),
+      pendingBalance: Number(row.pending_balance ?? 0),
+      totalPaidOut: Number(row.total_paid_out ?? 0),
+      nextPayoutDate: row.next_payout_date,
+    };
+  }
+
+  async listPayouts(providerId: string): Promise<PayoutSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_list_provider_payouts',
+      {
+        p_provider_id: providerId,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list payouts: ${error.message}`);
+    }
+
+    return ((data ?? []) as PayoutRow[]).map((row) => this.mapPayout(row));
+  }
+
+  async createPayoutRequest(
+    input: CreatePayoutRequestInput,
+  ): Promise<PayoutSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_request_provider_payout', {
+        p_provider_id: input.providerId,
+        p_requested_by: input.userId,
+        p_amount: input.amount,
+        p_payout_method_id: input.payoutMethodId,
+        p_idempotency_key: input.idempotencyKey ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to request payout: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPayout(data as PayoutRow);
   }
 
   private mapPayment(row: PaymentRow): PaymentSummary {
@@ -127,6 +689,119 @@ export class SupabasePaymentRepository {
       status: row.status,
       paymentMethod: row.payment_method,
       paidAt: row.paid_at,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapPromotionValidation(
+    row: PromotionValidationRow,
+  ): PromotionValidationSummary {
+    return {
+      code: row.code,
+      valid: row.valid ?? false,
+      discountAmount: Number(row.discount_amount ?? 0),
+      finalAmount: Number(row.final_amount ?? 0),
+      message: row.message ?? '',
+    };
+  }
+
+  private mapPromotion(row: PromotionRow): PromotionSummary {
+    return {
+      id: row.id,
+      code: row.code,
+      description: row.description,
+      discountType: row.discount_type,
+      discountValue: Number(row.discount_value ?? 0),
+      maxDiscountAmount:
+        row.max_discount_amount === null ? null : Number(row.max_discount_amount),
+      minOrderAmount: Number(row.min_order_amount ?? 0),
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      isActive: row.is_active ?? false,
+      status: row.status,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapPayoutMethod(row: PayoutMethodRow): PayoutMethodSummary {
+    return {
+      id: row.id,
+      providerId: row.provider_id,
+      methodType: row.method_type,
+      accountLabel: row.account_label,
+      accountName: row.account_name,
+      accountNumberLast4: row.account_number_last4,
+      isDefault: row.is_default ?? false,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapCustomerPaymentMethod(
+    row: CustomerPaymentMethodRow,
+  ): CustomerPaymentMethodSummary {
+    return {
+      id: row.id,
+      customerId: row.customer_id,
+      methodType: row.method_type,
+      label: row.label,
+      brand: row.brand,
+      last4: row.last4,
+      isDefault: row.is_default ?? false,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapPayout(row: PayoutRow): PayoutSummary {
+    return {
+      id: row.id,
+      providerId: row.provider_id,
+      amount: Number(row.amount ?? 0),
+      processingFee: Number(row.processing_fee ?? 0),
+      netAmount: Number(row.net_amount ?? 0),
+      status: row.status,
+      payoutMethodId: row.payout_method_id,
+      methodType: row.method_type,
+      accountLabel: row.account_label,
+      reference: row.reference,
+      periodStart: row.period_start,
+      periodEnd: row.period_end,
+      requestedAt: row.requested_at,
+      paidAt: row.paid_at,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapRefund(row: RefundRow): RefundSummary {
+    return {
+      id: row.id,
+      paymentId: row.payment_id,
+      bookingId: row.booking_id,
+      customerId: row.customer_id,
+      providerId: row.provider_id,
+      amount: Number(row.amount ?? 0),
+      reason: row.reason ?? '',
+      status: row.status,
+      requestedAt: row.requested_at,
+      decidedBy: row.decided_by,
+      decisionReason: row.decision_reason,
+      decidedAt: row.decided_at,
+      processedAt: row.processed_at,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapCommissionRule(row: CommissionRuleRow): CommissionRuleSummary {
+    return {
+      id: row.id,
+      categoryKey: row.category_key,
+      categoryLabel: row.category_label,
+      currentRate: Number(row.current_rate ?? 0),
+      previousRate: Number(row.previous_rate ?? 0),
+      status: row.status,
+      monthlyRevenue: Number(row.monthly_revenue ?? 0),
+      monthlyCommission: Number(row.monthly_commission ?? 0),
+      updatedBy: row.updated_by,
+      updatedAt: row.updated_at,
       createdAt: row.created_at,
     };
   }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -39,7 +39,15 @@ import {
   Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
 import { notifyBackendRequired } from "../utils/backendRequired";
+import {
+  cancelAdminBooking,
+  escalateAdminBooking,
+  listAdminBookings,
+  type AdminBookingStatus,
+  type AdminBookingSummary,
+} from "../../services/serveaseAdminApi";
 
 type LiveStatus = "Scheduled" | "In Progress" | "Completed" | "Cancelled";
 type PaymentStatus = "Paid" | "Pending" | "Failed";
@@ -191,8 +199,44 @@ const initialServices: OngoingService[] = [
   },
 ];
 
+function toLiveStatus(status: AdminBookingStatus): LiveStatus {
+  switch (status) {
+    case "confirmed":
+    case "pending":
+      return "Scheduled";
+    case "in_progress":
+      return "In Progress";
+    case "completed":
+      return "Completed";
+    case "cancelled":
+    case "rejected":
+      return "Cancelled";
+  }
+}
+
+function toOngoingService(booking: AdminBookingSummary): OngoingService {
+  const startTime = booking.scheduledAt;
+  const expectedCompletion = new Date(new Date(startTime).getTime() + 2 * 60 * 60 * 1000).toISOString();
+
+  return {
+    id: booking.id,
+    bookingId: booking.bookingReference,
+    customer: booking.customerFullName ?? booking.customerId,
+    provider: booking.providerId,
+    category: booking.serviceTitle ?? "Service booking",
+    startTime,
+    expectedCompletion,
+    liveStatus: toLiveStatus(booking.status),
+    paymentStatus: booking.status === "cancelled" ? "Failed" : "Pending",
+    location: booking.serviceAddress ?? "No address recorded",
+    amount: booking.totalAmount,
+  };
+}
+
 export function OngoingServices() {
-  const [services, setServices] = useState<OngoingService[]>(initialServices);
+  const { accessToken } = useAuth();
+  const [services, setServices] = useState<OngoingService[]>(initialServices.slice(0, 0));
+  const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -204,6 +248,24 @@ export function OngoingServices() {
   const [cancelReason, setCancelReason] = useState("");
   const [escalationReason, setEscalationReason] = useState("");
   const [contactMessage, setContactMessage] = useState("");
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const loadServices = async () => {
+      setIsLoading(true);
+      try {
+        const data = await listAdminBookings(accessToken, { limit: 200 });
+        setServices(data.map(toOngoingService));
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Unable to load active services.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadServices();
+  }, [accessToken]);
 
   const filteredServices = services.filter((service) => {
     const matchesSearch =
@@ -341,22 +403,53 @@ export function OngoingServices() {
     setContactModalOpen(true);
   };
 
-  const handleConfirmCancel = () => {
+  const handleConfirmCancel = async () => {
     if (!selectedService || !cancelReason.trim()) {
       toast.error("Please provide a cancellation reason");
       return;
     }
 
-    notifyBackendRequired("Force-cancelling active bookings", "POST /v1/admin/bookings/:id/cancel");
+    if (!accessToken) return;
+
+    try {
+      const updated = await cancelAdminBooking(accessToken, selectedService.id, {
+        reason: cancelReason,
+      });
+      setServices((current) =>
+        current.map((service) =>
+          service.id === selectedService.id ? toOngoingService(updated) : service,
+        ),
+      );
+      setCancelModalOpen(false);
+      toast.success(`Booking ${updated.bookingReference} cancelled.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to cancel booking.");
+    }
   };
 
-  const handleConfirmEscalate = () => {
+  const handleConfirmEscalate = async () => {
     if (!selectedService || !escalationReason.trim()) {
       toast.error("Please provide an escalation reason");
       return;
     }
 
-    notifyBackendRequired("Escalating bookings to disputes", "POST /v1/admin/bookings/:id/escalate");
+    if (!accessToken) return;
+
+    try {
+      const updated = await escalateAdminBooking(accessToken, selectedService.id, {
+        reason: escalationReason,
+        priority: "high",
+      });
+      setServices((current) =>
+        current.map((service) =>
+          service.id === selectedService.id ? toOngoingService(updated) : service,
+        ),
+      );
+      setEscalateModalOpen(false);
+      toast.success(`Booking ${updated.bookingReference} escalated.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to escalate booking.");
+    }
   };
 
   const handleSendMessage = () => {
@@ -491,7 +584,7 @@ export function OngoingServices() {
                 {filteredServices.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={9} className="text-center py-8 text-gray-500">
-                      No services found
+                      {isLoading ? "Loading services..." : "No backend services found"}
                     </TableCell>
                   </TableRow>
                 ) : (

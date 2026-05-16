@@ -306,11 +306,12 @@ export function Dashboard() {
     .slice(0, 5);
 
   // ── Alerts ───────────────────────────────────────────────────────
+  const ops = adminGateway.summary.operationsAlerts;
   const alerts = [
     {
-      id: "fraud",
-      label: "Fraud Alerts",
-      count: 3,
+      id: "flagged",
+      label: "Flagged Reviews",
+      count: ops?.flaggedReviews ?? 0,
       icon: ShieldAlert,
       bg: "bg-red-50",
       border: "border-red-200",
@@ -318,9 +319,9 @@ export function Dashboard() {
       dot: "bg-red-500",
     },
     {
-      id: "system",
-      label: "System Issues",
-      count: 1,
+      id: "overdue",
+      label: "Overdue Bookings",
+      count: ops?.overdueBookings ?? 0,
       icon: AlertTriangle,
       bg: "bg-orange-50",
       border: "border-orange-200",
@@ -339,8 +340,8 @@ export function Dashboard() {
     },
     {
       id: "tickets",
-      label: "High Priority Tickets",
-      count: openSupportTickets,
+      label: "Open Support Tickets",
+      count: ops?.openSupportTickets ?? openSupportTickets,
       icon: Ticket,
       bg: "bg-purple-50",
       border: "border-purple-200",

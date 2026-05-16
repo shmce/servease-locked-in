@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -32,109 +32,195 @@ import {
   CheckCircle,
   XCircle,
   Search,
-  AlertCircle,
   ThumbsUp,
   ThumbsDown,
 } from "lucide-react";
-import { useData } from "../../contexts/DataContext";
-import { notifyBackendRequired } from "../utils/backendRequired";
+import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  approveAdminRefund,
+  listAdminRefunds,
+  rejectAdminRefund,
+  type AdminRefundStatus,
+  type AdminRefundSummary,
+} from "../../services/serveaseAdminApi";
+
+const refundStatuses: AdminRefundStatus[] = [
+  "requested",
+  "approved",
+  "processed",
+  "rejected",
+];
+
+function formatPeso(value: number) {
+  return `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "N/A";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function statusLabel(status: AdminRefundStatus) {
+  switch (status) {
+    case "requested":
+      return "Requested";
+    case "approved":
+      return "Approved";
+    case "processed":
+      return "Processed";
+    case "rejected":
+      return "Rejected";
+  }
+}
 
 export function RefundManagement() {
-  const { refunds, getCustomerById, getBookingById } = useData();
+  const { accessToken } = useAuth();
+  const [refunds, setRefunds] = useState<AdminRefundSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<AdminRefundStatus | "all">("all");
   const [selectedRefund, setSelectedRefund] = useState<string | null>(null);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [updatingRefundId, setUpdatingRefundId] = useState<string | null>(null);
+
+  const loadRefunds = useCallback(async () => {
+    if (!accessToken) return;
+
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      setRefunds(
+        await listAdminRefunds(
+          accessToken,
+          statusFilter === "all" ? null : statusFilter,
+        ),
+      );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Unable to load refunds.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [accessToken, statusFilter]);
+
+  useEffect(() => {
+    void loadRefunds();
+  }, [loadRefunds]);
 
   const filteredRefunds = useMemo(() => {
+    const normalizedSearch = searchTerm.toLowerCase();
+
     return refunds.filter((refund) => {
-      const customer = getCustomerById(refund.customerId);
-      const booking = getBookingById(refund.bookingId);
-
-      const matchesSearch =
-        refund.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        refund.bookingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer?.name.toLowerCase().includes(searchTerm.toLowerCase());
-
-      const matchesStatus = statusFilter === "all" || refund.status === statusFilter;
-
-      return matchesSearch && matchesStatus;
+      return (
+        refund.id.toLowerCase().includes(normalizedSearch) ||
+        refund.bookingId.toLowerCase().includes(normalizedSearch) ||
+        refund.paymentId.toLowerCase().includes(normalizedSearch) ||
+        refund.customerId?.toLowerCase().includes(normalizedSearch) ||
+        refund.reason.toLowerCase().includes(normalizedSearch)
+      );
     });
-  }, [refunds, searchTerm, statusFilter, getCustomerById, getBookingById]);
+  }, [refunds, searchTerm]);
 
   const stats = useMemo(() => {
-    const pending = refunds.filter((r) => r.status === "Pending");
-    const approved = refunds.filter((r) => r.status === "Approved");
-    const processed = refunds.filter((r) => r.status === "Processed");
-    const rejected = refunds.filter((r) => r.status === "Rejected");
-
-    const pendingAmount = pending.reduce((sum, r) => sum + r.amount, 0);
-    const approvedAmount = approved.reduce((sum, r) => sum + r.amount, 0);
-    const processedAmount = processed.reduce((sum, r) => sum + r.amount, 0);
+    const requested = refunds.filter((r) => r.status === "requested");
+    const approved = refunds.filter((r) => r.status === "approved");
+    const processed = refunds.filter((r) => r.status === "processed");
+    const rejected = refunds.filter((r) => r.status === "rejected");
 
     return {
-      pendingCount: pending.length,
+      pendingCount: requested.length,
       approvedCount: approved.length,
       processedCount: processed.length,
       rejectedCount: rejected.length,
-      pendingAmount,
-      approvedAmount,
-      processedAmount,
+      pendingAmount: requested.reduce((sum, r) => sum + r.amount, 0),
+      approvedAmount: approved.reduce((sum, r) => sum + r.amount, 0),
+      processedAmount: processed.reduce((sum, r) => sum + r.amount, 0),
     };
   }, [refunds]);
 
+  const updateRefund = async (
+    refundId: string,
+    decision: "approve" | "reject",
+    reason?: string,
+  ) => {
+    if (!accessToken) return;
+
+    setUpdatingRefundId(refundId);
+    try {
+      const updated =
+        decision === "approve"
+          ? await approveAdminRefund(accessToken, refundId, "Refund request approved.")
+          : await rejectAdminRefund(accessToken, refundId, reason ?? "");
+      setRefunds((current) =>
+        current.map((refund) => (refund.id === updated.id ? updated : refund)),
+      );
+      toast.success(`Refund ${updated.id} updated to ${statusLabel(updated.status)}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update refund.");
+    } finally {
+      setUpdatingRefundId(null);
+      setSelectedRefund(null);
+      setShowApproveDialog(false);
+      setShowRejectDialog(false);
+      setRejectReason("");
+    }
+  };
+
   const handleApprove = () => {
     if (selectedRefund) {
-      notifyBackendRequired("Approving refunds", "POST /v1/admin/refunds/:id/approve");
+      void updateRefund(selectedRefund, "approve");
     }
   };
 
   const handleReject = () => {
-    if (selectedRefund && rejectReason) {
-      notifyBackendRequired("Rejecting refunds", "POST /v1/admin/refunds/:id/reject");
+    if (selectedRefund && rejectReason.trim()) {
+      void updateRefund(selectedRefund, "reject", rejectReason.trim());
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: AdminRefundStatus) => {
     switch (status) {
-      case "Pending":
+      case "requested":
         return (
           <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
             <Clock className="w-3 h-3 mr-1" />
-            Pending
+            Requested
           </Badge>
         );
-      case "Approved":
+      case "approved":
         return (
           <Badge className="bg-blue-100 text-blue-700 border-blue-200">
             <CheckCircle className="w-3 h-3 mr-1" />
             Approved
           </Badge>
         );
-      case "Processed":
+      case "processed":
         return (
           <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]">
             <CheckCircle className="w-3 h-3 mr-1" />
             Processed
           </Badge>
         );
-      case "Rejected":
+      case "rejected":
         return (
           <Badge className="bg-red-100 text-red-700 border-red-200">
             <XCircle className="w-3 h-3 mr-1" />
             Rejected
           </Badge>
         );
-      default:
-        return null;
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Refund Management</h1>
         <p className="text-gray-500 mt-1">
@@ -142,7 +228,6 @@ export function RefundManagement() {
         </p>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
@@ -151,7 +236,7 @@ export function RefundManagement() {
                 <p className="text-sm text-gray-500">Pending Refunds</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.pendingCount}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  ₱{(stats.pendingAmount / 1000).toFixed(1)}K total
+                  {formatPeso(stats.pendingAmount)} total
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-yellow-50">
@@ -168,7 +253,7 @@ export function RefundManagement() {
                 <p className="text-sm text-gray-500">Approved</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.approvedCount}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  ₱{(stats.approvedAmount / 1000).toFixed(1)}K total
+                  {formatPeso(stats.approvedAmount)} total
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-blue-50">
@@ -185,7 +270,7 @@ export function RefundManagement() {
                 <p className="text-sm text-gray-500">Processed</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.processedCount}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  ₱{(stats.processedAmount / 1000).toFixed(1)}K refunded
+                  {formatPeso(stats.processedAmount)} refunded
                 </p>
               </div>
               <div className="p-3 rounded-lg bg-[#DCFCE7]">
@@ -201,7 +286,7 @@ export function RefundManagement() {
               <div>
                 <p className="text-sm text-gray-500">Rejected</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.rejectedCount}</p>
-                <p className="text-xs text-gray-400 mt-1">This month</p>
+                <p className="text-xs text-gray-400 mt-1">Backend decisions</p>
               </div>
               <div className="p-3 rounded-lg bg-red-50">
                 <XCircle className="w-6 h-6 text-red-600" />
@@ -211,41 +296,43 @@ export function RefundManagement() {
         </Card>
       </div>
 
-      {/* Filters and Table */}
       <Card>
         <CardHeader>
           <CardTitle>All Refund Requests</CardTitle>
+          {loadError ? <p className="text-sm text-red-600 mt-2">{loadError}</p> : null}
         </CardHeader>
         <CardContent>
-          {/* Filters */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="Search by ID, booking, customer..."
+                placeholder="Search by ID, booking, payment, customer..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
               />
             </div>
 
-            {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(value) =>
+                setStatusFilter(value as AdminRefundStatus | "all")
+              }
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Filter by Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="Pending">Pending</SelectItem>
-                <SelectItem value="Approved">Approved</SelectItem>
-                <SelectItem value="Processed">Processed</SelectItem>
-                <SelectItem value="Rejected">Rejected</SelectItem>
+                {refundStatuses.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {statusLabel(status)}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Table */}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -261,87 +348,86 @@ export function RefundManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRefunds.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      Loading refund requests...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredRefunds.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       No refund requests found
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredRefunds.map((refund) => {
-                    const customer = getCustomerById(refund.customerId);
-                    const booking = getBookingById(refund.bookingId);
-
-                    return (
-                      <TableRow key={refund.id}>
-                        <TableCell>
-                          <span className="font-mono font-semibold text-[#16A34A]">
-                            {refund.id}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-mono text-sm text-gray-600">
-                            {refund.bookingId}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">
-                              {customer?.name || "N/A"}
-                            </p>
-                            <p className="text-xs text-gray-500">{customer?.email}</p>
+                  filteredRefunds.map((refund) => (
+                    <TableRow key={refund.id}>
+                      <TableCell>
+                        <span className="font-mono font-semibold text-[#16A34A]">
+                          {refund.id}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-sm text-gray-600">
+                          {refund.bookingId}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">
+                            {refund.customerId ?? "N/A"}
+                          </p>
+                          <p className="text-xs text-gray-500">Payment {refund.paymentId}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-bold text-gray-900">
+                          {formatPeso(refund.amount)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-gray-600">{refund.reason}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm text-gray-600">
+                          {formatDate(refund.requestedAt ?? refund.createdAt)}
+                        </span>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(refund.status)}</TableCell>
+                      <TableCell>
+                        {refund.status === "requested" ? (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              disabled={updatingRefundId === refund.id}
+                              onClick={() => {
+                                setSelectedRefund(refund.id);
+                                setShowApproveDialog(true);
+                              }}
+                              className="bg-[#16A34A] hover:bg-[#15803D]"
+                            >
+                              <ThumbsUp className="w-3 h-3 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={updatingRefundId === refund.id}
+                              onClick={() => {
+                                setSelectedRefund(refund.id);
+                                setShowRejectDialog(true);
+                              }}
+                              className="text-red-600 border-red-200 hover:bg-red-50"
+                            >
+                              <ThumbsDown className="w-3 h-3 mr-1" />
+                              Reject
+                            </Button>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-bold text-gray-900">
-                            ₱{refund.amount.toLocaleString()}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-gray-600">{refund.reason}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm text-gray-600">
-                            {new Date(refund.requestedDate).toLocaleDateString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              year: "numeric",
-                            })}
-                          </span>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(refund.status)}</TableCell>
-                        <TableCell>
-                          {refund.status === "Pending" && (
-                            <div className="flex items-center gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedRefund(refund.id);
-                                  setShowApproveDialog(true);
-                                }}
-                                className="bg-[#16A34A] hover:bg-[#15803D]"
-                              >
-                                <ThumbsUp className="w-3 h-3 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setSelectedRefund(refund.id);
-                                  setShowRejectDialog(true);
-                                }}
-                                className="text-red-600 border-red-200 hover:bg-red-50"
-                              >
-                                <ThumbsDown className="w-3 h-3 mr-1" />
-                                Reject
-                              </Button>
-                            </div>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  ))
                 )}
               </TableBody>
             </Table>
@@ -349,13 +435,12 @@ export function RefundManagement() {
         </CardContent>
       </Card>
 
-      {/* Approve Dialog */}
       <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Approve Refund Request</DialogTitle>
             <DialogDescription>
-              Are you sure you want to approve this refund? The amount will be returned to the customer's card.
+              Are you sure you want to approve this refund? The related payment will be marked as refunded.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -375,7 +460,6 @@ export function RefundManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Reject Dialog */}
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent>
           <DialogHeader>
@@ -404,7 +488,7 @@ export function RefundManagement() {
             </Button>
             <Button
               onClick={handleReject}
-              disabled={!rejectReason}
+              disabled={!rejectReason.trim()}
               className="bg-red-600 hover:bg-red-700"
             >
               Reject Refund

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -42,7 +42,10 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
-import { notifyBackendRequired } from "../utils/backendRequired";
+import {
+  updateCurrentUserPassword,
+  updateCurrentUserProfile,
+} from "../../services/serveaseAdminApi";
 
 // Mock data for login history
 const loginHistory = [
@@ -163,15 +166,15 @@ const rolePermissions = {
 };
 
 export function Profile() {
-  const { admin } = useAuth();
+  const { accessToken, admin } = useAuth();
   const [is2FAEnabled, setIs2FAEnabled] = useState(true);
 
   // Edit Profile Modal
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
-    name: "Juan Dela Cruz",
-    email: "juan@servease.ph",
-    phone: "+63 912 345 6789",
+    name: admin?.name ?? "Admin User",
+    email: admin?.email ?? "admin@servease.ph",
+    phone: "",
   });
 
   // Change Password Modal
@@ -188,14 +191,23 @@ export function Profile() {
   // Activity Log Modal
   const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
 
-  const profileData = {
-    name: "Juan Dela Cruz",
-    email: "juan@servease.ph",
-    phone: "+63 912 345 6789",
+  const [profileData, setProfileData] = useState({
+    name: admin?.name ?? "Admin User",
+    email: admin?.email ?? "admin@servease.ph",
+    phone: "",
     role: "Super Admin",
     accountCreated: "January 15, 2025",
     lastLogin: "April 01, 2026 at 9:30 AM",
-  };
+  });
+
+  useEffect(() => {
+    if (!admin) return;
+    setProfileData((current) => ({
+      ...current,
+      name: admin.name,
+      email: admin.email,
+    }));
+  }, [admin]);
 
   const permissions =
     rolePermissions[profileData.role as keyof typeof rolePermissions] || [];
@@ -209,17 +221,34 @@ export function Profile() {
     setIsEditProfileOpen(true);
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     // Validate
     if (!editFormData.name || !editFormData.email || !editFormData.phone) {
       toast.error("Please fill in all fields");
       return;
     }
-    
-    notifyBackendRequired("Updating admin profiles", "PATCH /v1/me");
+
+    if (!accessToken) return;
+
+    try {
+      const updated = await updateCurrentUserProfile(accessToken, {
+        fullName: editFormData.name,
+        contactNumber: editFormData.phone,
+      });
+      setProfileData((current) => ({
+        ...current,
+        name: updated.user.fullName ?? updated.user.email,
+        email: updated.user.email,
+        phone: updated.user.contactNumber ?? "",
+      }));
+      setIsEditProfileOpen(false);
+      toast.success("Profile updated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update profile.");
+    }
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     // Validate
     if (
       !passwordData.currentPassword ||
@@ -240,20 +269,30 @@ export function Profile() {
       return;
     }
 
-    notifyBackendRequired("Changing admin passwords", "PATCH /v1/me/password");
+    if (!accessToken) return;
+
+    try {
+      await updateCurrentUserPassword(accessToken, {
+        currentPassword: passwordData.currentPassword,
+        newPassword: passwordData.newPassword,
+      });
+      setPasswordData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setIsChangePasswordOpen(false);
+      toast.success("Password updated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update password.");
+    }
   };
 
   const handleToggle2FA = () => {
     if (is2FAEnabled) {
-      notifyBackendRequired(
-        "Disabling two-factor authentication",
-        "POST /v1/me/two-factor/disable",
-      );
+      toast.info("Two-factor disable still needs backend support.");
     } else {
-      notifyBackendRequired(
-        "Enabling two-factor authentication",
-        "POST /v1/me/two-factor/enable",
-      );
+      toast.info("Two-factor enable still needs backend support.");
     }
   };
 

@@ -2,12 +2,14 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import {
   addProviderDayOff,
   getProviderAvailability,
+  getProviderProfile,
   getStoredProviderAccessToken,
   removeProviderDayOff,
   replaceProviderAvailabilityWindows,
   type AvailabilityWindowInput,
   type DayOfWeek,
   type ProviderAvailabilitySchedule,
+  type ProviderProfileSnapshot,
 } from "../../services/serveaseProviderApi";
 
 interface PortfolioItem {
@@ -204,6 +206,50 @@ function applyAvailabilitySchedule(
   };
 }
 
+function applyProviderProfileSnapshot(
+  currentData: ProviderData,
+  snapshot: ProviderProfileSnapshot,
+): ProviderData {
+  return {
+    ...currentData,
+    portfolioItems: snapshot.portfolio.map((item, index) => ({
+      id: item.id,
+      title: item.caption || item.fileName || `Portfolio item ${index + 1}`,
+      description: item.caption || "",
+      category: item.mimeType?.startsWith("image/") ? "Image" : "Portfolio",
+      imageUrl: item.fileUrl,
+      featured: item.sortOrder === 0,
+    })),
+    services: snapshot.services.map((service) => ({
+      id: service.id,
+      name: service.title,
+      category: "Marketplace Service",
+      description: service.description || "Service details unavailable.",
+      baseRate: service.price ?? 0,
+      priceUnit: service.pricingMode === "hourly" ? "per hour" : "per service",
+      estimatedDuration: "Duration varies",
+      isActive: true,
+    })),
+    profile: {
+      ...currentData.profile,
+      businessName:
+        snapshot.provider.businessName ||
+        snapshot.account.fullName ||
+        currentData.profile.businessName,
+      bio:
+        snapshot.provider.bio ||
+        snapshot.provider.serviceDescription ||
+        currentData.profile.bio,
+      serviceAreas: snapshot.provider.serviceArea || currentData.profile.serviceAreas,
+      yearsExperience:
+        snapshot.provider.yearsExperience === null ||
+        snapshot.provider.yearsExperience === undefined
+          ? currentData.profile.yearsExperience
+          : String(snapshot.provider.yearsExperience),
+    },
+  };
+}
+
 export function ProviderDataProvider({ children }: { children: ReactNode }) {
   const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
@@ -296,7 +342,23 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshProviderProfile = async () => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      return;
+    }
+
+    try {
+      const snapshot = await getProviderProfile(token);
+      setProviderData((prev) => applyProviderProfileSnapshot(prev, snapshot));
+    } catch {
+      // Profile screens keep local editable state if the live profile is unavailable.
+    }
+  };
+
   useEffect(() => {
+    void refreshProviderProfile();
     void refreshAvailability();
   }, []);
 

@@ -2,11 +2,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   ChevronRight,
   FileText,
+  Gift,
   HelpCircle,
   History,
   LogOut,
   Settings as SettingsIcon,
   User,
+  WalletCards,
 } from 'lucide-react-native';
 import { AppScreen } from '../navigation/types';
 import { palette, radius, spacing } from '../theme/serveaseDesign';
@@ -21,6 +23,8 @@ type CustomerMoreScreenProps = {
 const menuItems = [
   { label: 'My Profile', icon: User, screen: 'customerProfile' as AppScreen },
   { label: 'Service History', icon: History, screen: 'customerServiceHistory' as AppScreen },
+  { label: 'Refer a Friend', icon: Gift, screen: 'customerReferral' as AppScreen },
+  { label: 'Payment Methods', icon: WalletCards, screen: 'customerPaymentMethods' as AppScreen },
   { label: 'Settings', icon: SettingsIcon, screen: 'customerSettings' as AppScreen },
   { label: 'Help & Support', icon: HelpCircle, screen: 'customerHelp' as AppScreen },
   { label: 'Terms & Privacy', icon: FileText, screen: 'customerTerms' as AppScreen },

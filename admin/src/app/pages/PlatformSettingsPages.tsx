@@ -1,5 +1,7 @@
 import { Shield, Bell, FileText, Users, CheckCircle, Clock, MoreVertical, RefreshCw, Copy, Check, Eye, UserX, Lock, Settings, Edit2, UserCheck, Key, Search, Download, Filter, Plug, Wifi, WifiOff, ExternalLink, CreditCard, MapPin, BarChart3 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
 import { AdminRolesComponent } from "../components/AdminRolesComponent";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -23,6 +25,12 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { notifyBackendRequired } from "../utils/backendRequired";
+import {
+  exportAdminAuditLogsCsv,
+  listAdminAuditLogs,
+  type AdminAuditActionType,
+  type AdminAuditLogSummary,
+} from "../../services/serveaseAdminApi";
 
 // Admin type definition
 type Admin = {
@@ -271,103 +279,115 @@ export function SecuritySettings() {
   );
 }
 
+function getDateRangeBounds(range: string): { from: Date | null; to: Date | null } {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday = new Date(startOfToday);
+  endOfToday.setDate(endOfToday.getDate() + 1);
+  endOfToday.setMilliseconds(endOfToday.getMilliseconds() - 1);
+
+  if (range === "today") {
+    return { from: startOfToday, to: endOfToday };
+  }
+
+  if (range === "yesterday") {
+    const from = new Date(startOfToday);
+    from.setDate(from.getDate() - 1);
+    const to = new Date(startOfToday);
+    to.setMilliseconds(to.getMilliseconds() - 1);
+    return { from, to };
+  }
+
+  if (range === "last7days" || range === "last30days") {
+    const from = new Date(startOfToday);
+    from.setDate(from.getDate() - (range === "last7days" ? 6 : 29));
+    return { from, to: endOfToday };
+  }
+
+  if (range === "thismonth") {
+    return {
+      from: new Date(now.getFullYear(), now.getMonth(), 1),
+      to: endOfToday,
+    };
+  }
+
+  if (range === "lastmonth") {
+    return {
+      from: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      to: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
+    };
+  }
+
+  return { from: null, to: null };
+}
+
+function isWithinDateRange(value: string | null, range: string): boolean {
+  if (!value) return false;
+  const { from, to } = getDateRangeBounds(range);
+  const date = new Date(value);
+  return (!from || date >= from) && (!to || date <= to);
+}
+
+function actionTypeLabel(type: AdminAuditActionType): string {
+  return type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function relativeActivity(value: string | null): string {
+  if (!value) return "No activity";
+  const minutes = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60000));
+  if (minutes < 1) return "Now";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr`;
+  return `${Math.floor(hours / 24)} day`;
+}
+
 // Audit Trail
 export function AuditTrail() {
+  const { accessToken } = useAuth();
   const [selectedDateRange, setSelectedDateRange] = useState("today");
   const [selectedAdminUser, setSelectedAdminUser] = useState("all");
   const [selectedActionType, setSelectedActionType] = useState("all");
   const [selectedEntityType, setSelectedEntityType] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [auditLogs, setAuditLogs] = useState<AdminAuditLogSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const auditLogs = [
-    {
-      id: "LOG-001",
-      timestamp: "2026-03-04T14:30:00",
-      adminUser: "Juan Dela Cruz",
-      action: "Created new admin user",
-      entity: "Admin User",
-      details: "Created admin: Maria Santos (Finance Admin)",
-      ipAddress: "192.168.1.100",
-    },
-    {
-      id: "LOG-002",
-      timestamp: "2026-03-04T13:15:00",
-      adminUser: "Juan Dela Cruz",
-      action: "Updated service provider",
-      entity: "Service Provider",
-      details: "Approved KYC for provider ID: PRV-1234",
-      ipAddress: "192.168.1.100",
-    },
-    {
-      id: "LOG-003",
-      timestamp: "2026-03-04T12:00:00",
-      adminUser: "Maria Santos",
-      action: "Processed payout",
-      entity: "Payout",
-      details: "Approved payout of ₱15,000.00 to PRV-1234",
-      ipAddress: "192.168.1.101",
-    },
-    {
-      id: "LOG-004",
-      timestamp: "2026-03-04T10:45:00",
-      adminUser: "Roberto Garcia",
-      action: "Resolved dispute",
-      entity: "Dispute",
-      details: "Marked dispute DSP-5678 as resolved",
-      ipAddress: "192.168.1.102",
-    },
-    {
-      id: "LOG-005",
-      timestamp: "2026-03-04T09:30:00",
-      adminUser: "Juan Dela Cruz",
-      action: "Updated platform settings",
-      entity: "Settings",
-      details: "Modified notification settings",
-      ipAddress: "192.168.1.100",
-    },
-    {
-      id: "LOG-006",
-      timestamp: "2026-03-04T08:15:00",
-      adminUser: "Maria Santos",
-      action: "Approved booking",
-      entity: "Booking",
-      details: "Approved booking BK-2024-156",
-      ipAddress: "192.168.1.101",
-    },
-    {
-      id: "LOG-007",
-      timestamp: "2026-03-04T07:00:00",
-      adminUser: "Roberto Garcia",
-      action: "Created promotion",
-      entity: "Promotion",
-      details: "Created summer promo code: SUMMER2026",
-      ipAddress: "192.168.1.102",
-    },
-  ];
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const loadAuditLogs = async () => {
+      setIsLoading(true);
+      try {
+        setAuditLogs(await listAdminAuditLogs(accessToken, { limit: 500 }));
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Unable to load audit logs.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadAuditLogs();
+  }, [accessToken]);
 
   // Filter audit logs based on filters and search
   const filteredLogs = auditLogs.filter((log) => {
+    if (!isWithinDateRange(log.createdAt, selectedDateRange)) {
+      return false;
+    }
+
     // Filter by admin user
-    if (selectedAdminUser !== "all" && log.adminUser !== selectedAdminUser) {
+    if (selectedAdminUser !== "all" && log.adminUserId !== selectedAdminUser) {
       return false;
     }
 
     // Filter by action type
-    if (selectedActionType !== "all") {
-      const actionLower = log.action.toLowerCase();
-      if (
-        (selectedActionType === "create" && !actionLower.includes("created")) ||
-        (selectedActionType === "update" && !actionLower.includes("updated") && !actionLower.includes("modified")) ||
-        (selectedActionType === "delete" && !actionLower.includes("deleted")) ||
-        (selectedActionType === "approve" && !actionLower.includes("approved")) ||
-        (selectedActionType === "resolve" && !actionLower.includes("resolved"))
-      ) {
-        return false;
-      }
+    if (selectedActionType !== "all" && log.actionType !== selectedActionType) {
+      return false;
     }
 
     // Filter by entity type
-    if (selectedEntityType !== "all" && log.entity !== selectedEntityType) {
+    if (selectedEntityType !== "all" && log.entityType !== selectedEntityType) {
       return false;
     }
 
@@ -376,19 +396,57 @@ export function AuditTrail() {
       const query = searchQuery.toLowerCase();
       return (
         log.id.toLowerCase().includes(query) ||
-        log.adminUser.toLowerCase().includes(query) ||
+        (log.adminName ?? "").toLowerCase().includes(query) ||
+        (log.adminEmail ?? "").toLowerCase().includes(query) ||
         log.action.toLowerCase().includes(query) ||
-        log.entity.toLowerCase().includes(query) ||
-        log.details.toLowerCase().includes(query) ||
-        log.ipAddress.includes(query)
+        log.entityType.toLowerCase().includes(query) ||
+        (log.details ?? "").toLowerCase().includes(query) ||
+        (log.ipAddress ?? "").includes(query)
       );
     }
 
     return true;
   });
 
-  const handleExportLogs = () => {
-    notifyBackendRequired("Exporting audit logs", "GET /v1/admin/audit-logs/export");
+  const adminUserOptions = useMemo(() => {
+    const unique = new Map<string, string>();
+    auditLogs.forEach((log) => {
+      unique.set(log.adminUserId, log.adminName ?? log.adminEmail ?? log.adminUserId);
+    });
+    return Array.from(unique.entries());
+  }, [auditLogs]);
+
+  const entityOptions = useMemo(() => {
+    return Array.from(new Set(auditLogs.map((log) => log.entityType))).sort();
+  }, [auditLogs]);
+
+  const todayCount = auditLogs.filter((log) => isWithinDateRange(log.createdAt, "today")).length;
+  const recentActivity = relativeActivity(auditLogs[0]?.createdAt ?? null);
+
+  const handleExportLogs = async () => {
+    if (!accessToken) {
+      notifyBackendRequired("Exporting audit logs", "GET /v1/admin/audit-logs/export");
+      return;
+    }
+
+    try {
+      const csv = await exportAdminAuditLogsCsv(accessToken, {
+        actionType: selectedActionType === "all" ? null : (selectedActionType as AdminAuditActionType),
+        entityType: selectedEntityType === "all" ? null : selectedEntityType,
+        query: searchQuery || null,
+        limit: 500,
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `servease-admin-audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success("Audit logs exported.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to export audit logs.");
+    }
   };
 
   return (
@@ -411,8 +469,8 @@ export function AuditTrail() {
               </div>
               <div className="flex-1">
                 <p className="text-sm text-gray-500">Total Actions Today</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">42</p>
-                <p className="text-xs text-gray-400 mt-1">+12% from yesterday</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{todayCount}</p>
+                <p className="text-xs text-gray-400 mt-1">From backend audit log</p>
               </div>
             </div>
           </CardContent>
@@ -426,8 +484,8 @@ export function AuditTrail() {
               </div>
               <div className="flex-1">
                 <p className="text-sm text-gray-500">Active Admin Users</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">8</p>
-                <p className="text-xs text-gray-400 mt-1">Currently online</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{adminUserOptions.length}</p>
+                <p className="text-xs text-gray-400 mt-1">Seen in current log window</p>
               </div>
             </div>
           </CardContent>
@@ -441,7 +499,7 @@ export function AuditTrail() {
               </div>
               <div className="flex-1">
                 <p className="text-sm text-gray-500">Recent Activity</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">5 min</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{recentActivity}</p>
                 <p className="text-xs text-gray-400 mt-1">Last action</p>
               </div>
             </div>
@@ -510,9 +568,9 @@ export function AuditTrail() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Admin Users</SelectItem>
-                  <SelectItem value="Juan Dela Cruz">Juan Dela Cruz</SelectItem>
-                  <SelectItem value="Maria Santos">Maria Santos</SelectItem>
-                  <SelectItem value="Roberto Garcia">Roberto Garcia</SelectItem>
+                  {adminUserOptions.map(([id, label]) => (
+                    <SelectItem key={id} value={id}>{label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -530,7 +588,9 @@ export function AuditTrail() {
                   <SelectItem value="update">Update</SelectItem>
                   <SelectItem value="delete">Delete</SelectItem>
                   <SelectItem value="approve">Approve</SelectItem>
+                  <SelectItem value="reject">Reject</SelectItem>
                   <SelectItem value="resolve">Resolve</SelectItem>
+                  <SelectItem value="export">Export</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -544,13 +604,9 @@ export function AuditTrail() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Entities</SelectItem>
-                  <SelectItem value="Admin User">Admin User</SelectItem>
-                  <SelectItem value="Service Provider">Service Provider</SelectItem>
-                  <SelectItem value="Booking">Booking</SelectItem>
-                  <SelectItem value="Payout">Payout</SelectItem>
-                  <SelectItem value="Dispute">Dispute</SelectItem>
-                  <SelectItem value="Promotion">Promotion</SelectItem>
-                  <SelectItem value="Settings">Settings</SelectItem>
+                  {entityOptions.map((entity) => (
+                    <SelectItem key={entity} value={entity}>{entity}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -561,6 +617,7 @@ export function AuditTrail() {
             <p className="text-sm text-gray-600">
               Showing <span className="font-semibold text-gray-900">{filteredLogs.length}</span> of{" "}
               <span className="font-semibold text-gray-900">{auditLogs.length}</span> logs
+              {isLoading ? " · Loading..." : ""}
             </p>
           </div>
         </CardContent>
@@ -588,39 +645,46 @@ export function AuditTrail() {
               {filteredLogs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell>
-                    <span className="font-mono font-semibold text-[#00BF63]">{log.id}</span>
+                    <span className="font-mono font-semibold text-[#00BF63]">{log.id.slice(0, 8)}</span>
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-gray-600">
-                      {new Date(log.timestamp).toLocaleString("en-US", {
+                      {log.createdAt ? new Date(log.createdAt).toLocaleString("en-US", {
                         month: "short",
                         day: "numeric",
                         hour: "2-digit",
                         minute: "2-digit",
-                      })}
+                      }) : "Not recorded"}
                     </span>
                   </TableCell>
                   <TableCell>
-                    <span className="font-medium text-gray-900">{log.adminUser}</span>
+                    <span className="font-medium text-gray-900">{log.adminName ?? log.adminEmail ?? log.adminUserId}</span>
                   </TableCell>
                   <TableCell>
                     <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                      {log.action}
+                      {actionTypeLabel(log.actionType)}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="border-gray-300 text-gray-700">
-                      {log.entity}
+                      {log.entityType}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm text-gray-700">{log.details}</span>
+                    <span className="text-sm text-gray-700">{log.details ?? log.action}</span>
                   </TableCell>
                   <TableCell>
-                    <span className="font-mono text-xs text-gray-600">{log.ipAddress}</span>
+                    <span className="font-mono text-xs text-gray-600">{log.ipAddress ?? "Unknown"}</span>
                   </TableCell>
                 </TableRow>
               ))}
+              {!isLoading && filteredLogs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-8 text-center text-sm text-gray-500">
+                    No backend audit logs match the selected filters.
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>
@@ -633,31 +697,38 @@ export function AuditTrail() {
             <CardContent className="p-4">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <span className="font-mono text-xs text-[#00BF63]">{log.id}</span>
-                  <p className="font-medium text-gray-900 mt-1">{log.adminUser}</p>
+                  <span className="font-mono text-xs text-[#00BF63]">{log.id.slice(0, 8)}</span>
+                  <p className="font-medium text-gray-900 mt-1">{log.adminName ?? log.adminEmail ?? log.adminUserId}</p>
                   <p className="text-sm text-gray-600 mt-1">
-                    {new Date(log.timestamp).toLocaleString("en-US", {
+                    {log.createdAt ? new Date(log.createdAt).toLocaleString("en-US", {
                       month: "short",
                       day: "numeric",
                       hour: "2-digit",
                       minute: "2-digit",
-                    })}
+                    }) : "Not recorded"}
                   </p>
                 </div>
                 <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-                  {log.action}
+                  {actionTypeLabel(log.actionType)}
                 </Badge>
               </div>
               <div className="space-y-2">
                 <Badge variant="outline" className="border-gray-300 text-gray-700">
-                  {log.entity}
+                  {log.entityType}
                 </Badge>
-                <p className="text-sm text-gray-700">{log.details}</p>
-                <p className="font-mono text-xs text-gray-600">IP: {log.ipAddress}</p>
+                <p className="text-sm text-gray-700">{log.details ?? log.action}</p>
+                <p className="font-mono text-xs text-gray-600">IP: {log.ipAddress ?? "Unknown"}</p>
               </div>
             </CardContent>
           </Card>
         ))}
+        {!isLoading && filteredLogs.length === 0 && (
+          <Card>
+            <CardContent className="p-6 text-center text-sm text-gray-500">
+              No backend audit logs match the selected filters.
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

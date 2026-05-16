@@ -104,4 +104,26 @@ describe('RegistrationGatewayService', () => {
       }),
     ).rejects.toBeInstanceOf(InvalidRegistrationRequestError);
   });
+
+  it('requests password reset through Auth Service with normalized email', async () => {
+    const authServiceClient = {
+      requestPasswordReset: jest.fn().mockResolvedValue({ ok: true }),
+    } as unknown as AuthServiceClient;
+    const service = new RegistrationGatewayService(
+      authServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+    );
+
+    await expect(
+      service.requestPasswordReset({
+        email: ' Customer@Example.COM ',
+        redirectTo: 'https://servease.test/reset-password',
+      }),
+    ).resolves.toEqual({ ok: true });
+    expect(authServiceClient.requestPasswordReset).toHaveBeenCalledWith({
+      email: 'customer@example.com',
+      redirectTo: 'https://servease.test/reset-password',
+    });
+  });
 });

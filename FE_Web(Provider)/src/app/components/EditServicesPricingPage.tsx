@@ -2,6 +2,13 @@ import { useState, useEffect } from "react";
 import { Plus, X, Save, ChevronDown, CheckCircle2, DollarSign, Edit2, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
+import {
+  getStoredProviderAccessToken,
+  listProviderOwnedServices,
+  replaceProviderOwnedServices,
+  type ProviderOwnedServiceInput,
+  type ProviderOwnedServiceSummary,
+} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -163,6 +170,24 @@ export function EditServicesPricingPage() {
   })));
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      return;
+    }
+
+    void listProviderOwnedServices(token)
+      .then((items) => {
+        setServices(items.map(toEditableService));
+      })
+      .catch(() => {
+        setSaveError("Unable to load live services.");
+      });
+  }, []);
 
   const addNewService = () => {
     const newService: Service = {
@@ -195,9 +220,40 @@ export function EditServicesPricingPage() {
     );
   };
 
-  const handleSaveAll = () => {
-    console.log("Saving all services...", services);
-    setEditingId(null);
+  const persistServices = async () => {
+    setSaveError(null);
+    setIsSaving(true);
+
+    try {
+      const token = getStoredProviderAccessToken();
+      const payload = services.map(toProviderServiceInput);
+      const savedServices = token
+        ? await replaceProviderOwnedServices(token, payload)
+        : [];
+      const nextServices =
+        savedServices.length > 0 ? savedServices.map(toEditableService) : services;
+
+      setServices(nextServices);
+      setProviderData({
+        ...providerData,
+        services: nextServices.map((service) => ({
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          category: service.category,
+          baseRate: parseFloat(service.basePrice) || 0,
+          priceUnit: service.priceUnit,
+          estimatedDuration: service.duration,
+          isActive: service.active,
+        })),
+      });
+      setEditingId(null);
+      navigate("/provider/edit-profile");
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to save services.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -232,6 +288,19 @@ export function EditServicesPricingPage() {
         </div>
 
         {/* Services List */}
+        {saveError && (
+          <div
+            style={{
+              ...styles.card,
+              borderColor: "#FCA5A5",
+              color: "#991B1B",
+              backgroundColor: "#FEF2F2",
+            }}
+          >
+            {saveError}
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           {services.map((service) => (
             <div key={service.id} style={styles.card}>
@@ -660,28 +729,12 @@ export function EditServicesPricingPage() {
           Cancel
         </button>
         <button
-          onClick={() => {
-            // Save services to context
-            setProviderData({
-              ...providerData,
-              services: services.map(s => ({
-                id: s.id,
-                name: s.name,
-                description: s.description,
-                category: s.category,
-                baseRate: parseFloat(s.basePrice) || 0,
-                priceUnit: s.priceUnit,
-                estimatedDuration: s.duration,
-                isActive: s.active,
-              })),
-            });
-            setEditingId(null);
-            // Navigate back to edit profile
-            navigate("/provider/edit-profile");
-          }}
+          onClick={() => void persistServices()}
+          disabled={isSaving}
           style={{
             ...styles.button,
             ...styles.primaryButton,
+            opacity: isSaving ? 0.7 : 1,
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = "#059669";
@@ -691,9 +744,39 @@ export function EditServicesPricingPage() {
           }}
         >
           <Save style={{ width: "18px", height: "18px" }} />
-          Save All Changes
+          {isSaving ? "Saving..." : "Save All Changes"}
         </button>
       </div>
     </div>
   );
+}
+
+function toEditableService(service: ProviderOwnedServiceSummary): Service {
+  return {
+    id: service.id,
+    name: service.title,
+    description: service.description || "",
+    category: "Marketplace Service",
+    basePrice: String(service.price ?? 0),
+    priceUnit: service.pricingMode === "hourly" ? "per hour" : "per project",
+    minPrice: "0",
+    maxPrice: "0",
+    duration: "",
+    durationUnit: "hours",
+    calloutFee: "0",
+    emergencyRate: "1.0x",
+    materialsMarkup: "0",
+    active: service.isActive,
+  };
+}
+
+function toProviderServiceInput(service: Service): ProviderOwnedServiceInput {
+  return {
+    id: service.id,
+    title: service.name.trim(),
+    description: service.description.trim() || null,
+    price: parseFloat(service.basePrice) || 0,
+    pricingMode: service.priceUnit === "per hour" ? "hourly" : "flat",
+    isActive: service.active,
+  };
 }

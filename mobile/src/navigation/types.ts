@@ -20,6 +20,7 @@ export type DetailScreen =
   | 'customerBookingManage'
   | 'customerBookingCancel'
   | 'customerBookingReport'
+  | 'customerTrackServiceProvider'
   | 'customerCategory'
   | 'customerAllServices'
   | 'customerRecommendedServices'
@@ -32,8 +33,13 @@ export type DetailScreen =
   | 'customerHelp'
   | 'customerServiceHistory'
   | 'customerNotifications'
+  | 'customerPaymentMethods'
+  | 'customerReferral'
   | 'customerTerms'
   | 'providerBookingDetail'
+  | 'providerProfileView'
+  | 'providerEditProfile'
+  | 'providerPortfolio'
   | 'providerNavigationMode'
   | 'providerStartService'
   | 'providerServiceInProgress'
@@ -41,7 +47,9 @@ export type DetailScreen =
   | 'providerServiceCompleted'
   | 'providerCancelBooking'
   | 'providerReportIssue'
-  | 'providerServiceReceipt';
+  | 'providerServiceReceipt'
+  | 'providerPayoutManagement'
+  | 'providerRequestPayout';
 
 export type AppScreen = AuthScreen | DetailScreen | CustomerTab | ProviderTab;
 

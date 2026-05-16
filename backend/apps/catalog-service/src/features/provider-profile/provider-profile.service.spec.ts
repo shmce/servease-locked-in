@@ -18,6 +18,11 @@ describe('ProviderProfileService', () => {
       listPortfolioMedia: jest.fn(),
       addPortfolioMedia: jest.fn(),
       deletePortfolioMedia: jest.fn(),
+      listOwnedServices: jest.fn(),
+      replaceOwnedServices: jest.fn(),
+      listProviderApplications: jest.fn(),
+      getProviderApplication: jest.fn(),
+      decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
 
@@ -46,6 +51,11 @@ describe('ProviderProfileService', () => {
       listPortfolioMedia: jest.fn(),
       addPortfolioMedia: jest.fn(),
       deletePortfolioMedia: jest.fn(),
+      listOwnedServices: jest.fn(),
+      replaceOwnedServices: jest.fn(),
+      listProviderApplications: jest.fn(),
+      getProviderApplication: jest.fn(),
+      decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
 
@@ -78,6 +88,11 @@ describe('ProviderProfileService', () => {
       listPortfolioMedia: jest.fn(),
       addPortfolioMedia: jest.fn(),
       deletePortfolioMedia: jest.fn(),
+      listOwnedServices: jest.fn(),
+      replaceOwnedServices: jest.fn(),
+      listProviderApplications: jest.fn(),
+      getProviderApplication: jest.fn(),
+      decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
 
@@ -90,5 +105,41 @@ describe('ProviderProfileService', () => {
       userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
       businessName: 'Updated Repairs',
     });
+  });
+
+  it('replaces owned provider services after validating titles', async () => {
+    const repository: ProviderProfileRepository = {
+      findByUserId: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      listPortfolioMedia: jest.fn(),
+      addPortfolioMedia: jest.fn(),
+      deletePortfolioMedia: jest.fn(),
+      listOwnedServices: jest.fn(),
+      replaceOwnedServices: jest.fn().mockResolvedValue([]),
+      listProviderApplications: jest.fn(),
+      getProviderApplication: jest.fn(),
+      decideProviderApplication: jest.fn(),
+    };
+    const service = new ProviderProfileService(repository);
+    const services = [
+      {
+        title: 'Deep Cleaning',
+        description: 'Full home cleaning',
+        price: 1500,
+        pricingMode: 'flat' as const,
+        isActive: true,
+      },
+    ];
+
+    await service.replaceOwnedServices(
+      '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      services,
+    );
+
+    expect(repository.replaceOwnedServices).toHaveBeenCalledWith(
+      '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      services,
+    );
   });
 });

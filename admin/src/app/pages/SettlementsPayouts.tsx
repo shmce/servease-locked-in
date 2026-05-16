@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -28,279 +28,77 @@ import {
   AlertCircle,
   Download,
 } from "lucide-react";
-import { notifyBackendRequired } from "../utils/backendRequired";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  listAdminPayouts,
+  updateAdminPayoutStatus,
+  AdminPayoutSummary,
+  AdminPayoutStatus,
+} from "../../services/serveaseAdminApi";
 
-interface Settlement {
-  id: string;
-  providerName: string;
-  serviceCategory: string;
-  amount: number;
-  requestDate: string;
-  dueDate: string;
-  status: "pending" | "approved" | "rejected" | "paid" | "overdue";
-  bankAccount: string;
-  accountName: string;
-  transactionCount: number;
-}
-
-const settlementsData: Settlement[] = [
-  {
-    id: "SETTLE-2026-001",
-    providerName: "HomeFixPro Manila",
-    serviceCategory: "Home Maintenance & Repair",
-    amount: 45230,
-    requestDate: "2026-03-01",
-    dueDate: "2026-03-08",
-    status: "pending",
-    bankAccount: "BPI - 1234567890",
-    accountName: "Juan Dela Cruz",
-    transactionCount: 23,
-  },
-  {
-    id: "SETTLE-2026-002",
-    providerName: "Glow Beauty Spa",
-    serviceCategory: "Beauty Wellness & Personal Care",
-    amount: 32890,
-    requestDate: "2026-03-02",
-    dueDate: "2026-03-09",
-    status: "pending",
-    bankAccount: "BDO - 9876543210",
-    accountName: "Maria Santos",
-    transactionCount: 18,
-  },
-  {
-    id: "SETTLE-2026-003",
-    providerName: "Sparkle Clean Services",
-    serviceCategory: "Domestic & Cleaning Services",
-    amount: 28450,
-    requestDate: "2026-02-28",
-    dueDate: "2026-03-07",
-    status: "approved",
-    bankAccount: "Metrobank - 5551234567",
-    accountName: "Ana Cruz",
-    transactionCount: 31,
-  },
-  {
-    id: "SETTLE-2026-004",
-    providerName: "Pawsome Pet Care",
-    serviceCategory: "Pet Services",
-    amount: 18900,
-    requestDate: "2026-03-03",
-    dueDate: "2026-03-10",
-    status: "pending",
-    bankAccount: "Unionbank - 7778889999",
-    accountName: "Roberto Garcia",
-    transactionCount: 14,
-  },
-  {
-    id: "SETTLE-2026-005",
-    providerName: "Celebrate Events Co.",
-    serviceCategory: "Events & Entertainment",
-    amount: 87340,
-    requestDate: "2026-03-01",
-    dueDate: "2026-03-08",
-    status: "approved",
-    bankAccount: "Security Bank - 4445556666",
-    accountName: "Carmen Dela Cruz",
-    transactionCount: 8,
-  },
-  {
-    id: "SETTLE-2026-006",
-    providerName: "TechFix Auto Solutions",
-    serviceCategory: "Automotive & Tech Support",
-    amount: 52100,
-    requestDate: "2026-02-27",
-    dueDate: "2026-03-06",
-    status: "overdue",
-    bankAccount: "BPI - 3332221111",
-    accountName: "Miguel Torres",
-    transactionCount: 19,
-  },
-  {
-    id: "SETTLE-2026-007",
-    providerName: "QuickFix Plumbing",
-    serviceCategory: "Home Maintenance & Repair",
-    amount: 39870,
-    requestDate: "2026-03-02",
-    dueDate: "2026-03-09",
-    status: "pending",
-    bankAccount: "BDO - 8887776655",
-    accountName: "Sofia Ramos",
-    transactionCount: 22,
-  },
-  {
-    id: "SETTLE-2026-008",
-    providerName: "Tutor Excellence Hub",
-    serviceCategory: "Education & Professional Services",
-    amount: 24560,
-    requestDate: "2026-03-03",
-    dueDate: "2026-03-10",
-    status: "pending",
-    bankAccount: "Metrobank - 6665554444",
-    accountName: "Daniel Fernandez",
-    transactionCount: 16,
-  },
-  {
-    id: "SETTLE-2026-009",
-    providerName: "Wellness Massage Therapy",
-    serviceCategory: "Beauty Wellness & Personal Care",
-    amount: 31200,
-    requestDate: "2026-02-29",
-    dueDate: "2026-03-08",
-    status: "paid",
-    bankAccount: "Unionbank - 9998887777",
-    accountName: "Isabella Morales",
-    transactionCount: 15,
-  },
-  {
-    id: "SETTLE-2026-010",
-    providerName: "Crystal Clear Housekeeping",
-    serviceCategory: "Domestic & Cleaning Services",
-    amount: 41230,
-    requestDate: "2026-03-01",
-    dueDate: "2026-03-08",
-    status: "approved",
-    bankAccount: "Security Bank - 1112223333",
-    accountName: "Rafael Castillo",
-    transactionCount: 28,
-  },
-  {
-    id: "SETTLE-2026-011",
-    providerName: "Happy Tails Grooming",
-    serviceCategory: "Pet Services",
-    amount: 22890,
-    requestDate: "2026-02-26",
-    dueDate: "2026-03-05",
-    status: "rejected",
-    bankAccount: "BPI - 2223334444",
-    accountName: "Patricia Alvarez",
-    transactionCount: 13,
-  },
-  {
-    id: "SETTLE-2026-012",
-    providerName: "Party Perfect Planners",
-    serviceCategory: "Events & Entertainment",
-    amount: 95670,
-    requestDate: "2026-03-02",
-    dueDate: "2026-03-09",
-    status: "pending",
-    bankAccount: "BDO - 5556667777",
-    accountName: "Gabriel Sanchez",
-    transactionCount: 6,
-  },
-];
-
-const stats = [
-  {
-    title: "Pending Settlements",
-    value: "6",
-    change: "₱289.6K total",
-    icon: Clock,
-    color: "text-amber-600",
-    bgColor: "bg-amber-50",
-  },
-  {
-    title: "Approved (Awaiting Payment)",
-    value: "3",
-    change: "₱168.9K total",
-    icon: CheckCircle,
-    color: "text-blue-600",
-    bgColor: "bg-blue-50",
-  },
-  {
-    title: "Overdue",
-    value: "1",
-    change: "₱52.1K total",
-    icon: AlertCircle,
-    color: "text-red-600",
-    bgColor: "bg-red-50",
-  },
-  {
-    title: "Paid Today",
-    value: "₱156.3K",
-    change: "8 settlements processed",
-    icon: DollarSign,
-    color: "text-green-600",
-    bgColor: "bg-green-50",
-  },
-];
+type DisplayStatus = "requested" | "processing" | "paid" | "cancelled";
 
 export function SettlementsPayouts() {
+  const { accessToken } = useAuth();
+  const [payouts, setPayouts] = useState<AdminPayoutSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [settlements, setSettlements] = useState<Settlement[]>(settlementsData);
+  const [statusFilter, setStatusFilter] = useState<DisplayStatus | "all">("all");
 
-  let filteredSettlements = settlements.filter((settlement) => {
+  useEffect(() => {
+    if (!accessToken) return;
+    listAdminPayouts(accessToken).then(setPayouts).catch(() => {});
+  }, [accessToken]);
+
+  const handleUpdateStatus = async (payoutId: string, status: AdminPayoutStatus) => {
+    if (!accessToken) return;
+    try {
+      const updated = await updateAdminPayoutStatus(accessToken, payoutId, status);
+      setPayouts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    } catch {
+      // silently ignore; row stays unchanged
+    }
+  };
+
+  const filteredPayouts = payouts.filter((p) => {
     const matchesSearch =
-      settlement.providerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      settlement.id.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchesStatus = statusFilter === "all" || settlement.status === statusFilter;
-
+      p.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.providerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.accountLabel ?? "").toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || p.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const handleApprove = (settlementId: string) => {
-    notifyBackendRequired(
-      "Approving settlements",
-      "POST /v1/admin/settlements/:id/approve",
-    );
-  };
+  const pendingPayouts = payouts.filter((p) => p.status === "requested");
+  const processingPayouts = payouts.filter((p) => p.status === "processing");
+  const paidPayouts = payouts.filter((p) => p.status === "paid");
 
-  const handleReject = (settlementId: string) => {
-    notifyBackendRequired(
-      "Rejecting settlements",
-      "POST /v1/admin/settlements/:id/reject",
-    );
-  };
-
-  const getStatusBadge = (status: string) => {
-    if (status === "pending") {
-      return (
-        <Badge className="bg-amber-100 text-amber-700 border-amber-200">
-          Pending Review
-        </Badge>
-      );
+  const getStatusBadge = (status: AdminPayoutStatus) => {
+    if (status === "requested") {
+      return <Badge className="bg-amber-100 text-amber-700 border-amber-200">Requested</Badge>;
     }
-    if (status === "approved") {
-      return (
-        <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-          Approved
-        </Badge>
-      );
-    }
-    if (status === "rejected") {
-      return (
-        <Badge className="bg-red-100 text-red-700 border-red-200">
-          Rejected
-        </Badge>
-      );
+    if (status === "processing") {
+      return <Badge className="bg-blue-100 text-blue-700 border-blue-200">Processing</Badge>;
     }
     if (status === "paid") {
-      return (
-        <Badge className="bg-green-100 text-green-700 border-green-200">
-          Paid
-        </Badge>
-      );
+      return <Badge className="bg-green-100 text-green-700 border-green-200">Paid</Badge>;
     }
-    if (status === "overdue") {
-      return (
-        <Badge className="bg-red-100 text-red-700 border-red-200">
-          Overdue
-        </Badge>
-      );
+    if (status === "cancelled") {
+      return <Badge className="bg-red-100 text-red-700 border-red-200">Cancelled</Badge>;
     }
     return <Badge variant="outline">{status}</Badge>;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "—";
+    return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
     });
   };
+
+  const formatAmount = (amount: number) =>
+    `₱${amount.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
 
   return (
     <div className="space-y-6">
@@ -308,7 +106,7 @@ export function SettlementsPayouts() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Settlements & Payouts</h1>
           <p className="text-gray-500 mt-1">
-            Review and process settlement requests from service providers
+            Review and process payout requests from service providers
           </p>
         </div>
         <Button>
@@ -319,66 +117,111 @@ export function SettlementsPayouts() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className={`p-3 rounded-lg ${stat.bgColor}`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm text-gray-500">{stat.title}</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                  <p className="text-xs text-gray-400 mt-1">{stat.change}</p>
-                </div>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-amber-50">
+                <Clock className="w-6 h-6 text-amber-600" />
               </div>
-            </CardContent>
-          </Card>
-        ))}
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Pending Payouts</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{pendingPayouts.length}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {formatAmount(pendingPayouts.reduce((s, p) => s + p.amount, 0))} total
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-blue-50">
+                <CheckCircle className="w-6 h-6 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Processing</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{processingPayouts.length}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {formatAmount(processingPayouts.reduce((s, p) => s + p.amount, 0))} total
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-green-50">
+                <DollarSign className="w-6 h-6 text-green-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Paid</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{paidPayouts.length}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {formatAmount(paidPayouts.reduce((s, p) => s + p.amount, 0))} total
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-purple-50">
+                <AlertCircle className="w-6 h-6 text-purple-600" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm text-gray-500">Total Payouts</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">{payouts.length}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {formatAmount(payouts.reduce((s, p) => s + p.amount, 0))} total
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Settlements Table */}
+      {/* Payouts Table */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Settlement Requests</CardTitle>
+            <CardTitle>Payout Requests</CardTitle>
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <Filter className="w-4 h-4" />
-              {filteredSettlements.length} of {settlements.length} settlements
+              {filteredPayouts.length} of {payouts.length} payouts
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {/* Filters */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="Search by provider name or settlement ID..."
+                placeholder="Search by payout ID, provider ID, or account…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9"
               />
             </div>
-
-            {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as DisplayStatus | "all")}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Filter by status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending Review</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="requested">Requested</SelectItem>
+                <SelectItem value="processing">Processing</SelectItem>
                 <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-                <SelectItem value="overdue">Overdue</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* Clear Filters */}
           {(searchTerm || statusFilter !== "all") && (
             <div className="mb-4">
               <Button
@@ -399,95 +242,102 @@ export function SettlementsPayouts() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Settlement ID</TableHead>
-                  <TableHead>Provider Name</TableHead>
-                  <TableHead>Service Category</TableHead>
+                  <TableHead>Payout ID</TableHead>
+                  <TableHead>Provider</TableHead>
+                  <TableHead>Method / Account</TableHead>
                   <TableHead>Amount</TableHead>
-                  <TableHead>Request Date</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Bank Details</TableHead>
-                  <TableHead>Transactions</TableHead>
+                  <TableHead>Net Amount</TableHead>
+                  <TableHead>Requested</TableHead>
+                  <TableHead>Period</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSettlements.length === 0 ? (
+                {filteredPayouts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8 text-gray-500">
-                      No settlements found matching your filters
+                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                      No payouts found matching your filters
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredSettlements.map((settlement) => (
-                    <TableRow key={settlement.id}>
+                  filteredPayouts.map((payout) => (
+                    <TableRow key={payout.id}>
                       <TableCell>
-                        <span className="font-mono font-semibold text-gray-900">
-                          {settlement.id}
+                        <span className="font-mono text-xs text-gray-900">
+                          {payout.id.slice(0, 8)}…
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-xs text-gray-600">
+                          {payout.providerId.slice(0, 8)}…
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm">
+                          <p className="font-medium text-gray-900 capitalize">
+                            {payout.methodType ?? "—"}
+                          </p>
+                          <p className="text-gray-500">{payout.accountLabel ?? "—"}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-semibold text-green-600">
+                          {formatAmount(payout.amount)}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="font-medium text-gray-900">
-                          {settlement.providerName}
+                          {formatAmount(payout.netAmount)}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-gray-600">
-                          {settlement.serviceCategory}
+                          {formatDate(payout.requestedAt)}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-semibold text-green-600 text-lg">
-                          ₱{settlement.amount.toLocaleString()}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-600">
-                          {formatDate(settlement.requestDate)}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <p className="font-medium text-gray-900">
-                            {formatDate(settlement.dueDate)}
-                          </p>
-                          {settlement.status === "overdue" && (
-                            <p className="text-xs text-red-600 font-medium">Overdue!</p>
+                        <div className="text-xs text-gray-500">
+                          {payout.periodStart ? (
+                            <>
+                              <p>{formatDate(payout.periodStart)}</p>
+                              <p>→ {formatDate(payout.periodEnd)}</p>
+                            </>
+                          ) : (
+                            "—"
                           )}
                         </div>
                       </TableCell>
+                      <TableCell>{getStatusBadge(payout.status)}</TableCell>
                       <TableCell>
-                        <div className="text-sm">
-                          <p className="font-medium text-gray-900">{settlement.accountName}</p>
-                          <p className="text-gray-500">{settlement.bankAccount}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {settlement.transactionCount} txns
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(settlement.status)}</TableCell>
-                      <TableCell>
-                        {settlement.status === "pending" || settlement.status === "overdue" ? (
+                        {payout.status === "requested" ? (
                           <div className="flex gap-2">
                             <Button
                               size="sm"
                               className="bg-green-600 hover:bg-green-700"
-                              title="Approve Settlement"
-                              onClick={() => handleApprove(settlement.id)}
+                              title="Mark as Processing"
+                              onClick={() => handleUpdateStatus(payout.id, "processing")}
                             >
                               <CheckCircle className="w-4 h-4" />
                             </Button>
                             <Button
                               size="sm"
                               variant="destructive"
-                              title="Reject Settlement"
-                              onClick={() => handleReject(settlement.id)}
+                              title="Cancel Payout"
+                              onClick={() => handleUpdateStatus(payout.id, "cancelled")}
                             >
                               <XCircle className="w-4 h-4" />
                             </Button>
                           </div>
+                        ) : payout.status === "processing" ? (
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            title="Mark as Paid"
+                            onClick={() => handleUpdateStatus(payout.id, "paid")}
+                          >
+                            <DollarSign className="w-4 h-4" />
+                          </Button>
                         ) : (
                           <span className="text-sm text-gray-400">—</span>
                         )}
@@ -499,31 +349,30 @@ export function SettlementsPayouts() {
             </Table>
           </div>
 
-          {/* Summary */}
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-center justify-between p-4 bg-amber-50 rounded-lg">
                 <div>
                   <p className="text-sm text-gray-600">Total Pending Amount</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ₱
-                    {filteredSettlements
-                      .filter((s) => s.status === "pending" || s.status === "overdue")
-                      .reduce((sum, s) => sum + s.amount, 0)
-                      .toLocaleString()}
+                    {formatAmount(
+                      filteredPayouts
+                        .filter((p) => p.status === "requested")
+                        .reduce((s, p) => s + p.amount, 0),
+                    )}
                   </p>
                 </div>
                 <Clock className="w-8 h-8 text-amber-600" />
               </div>
               <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
                 <div>
-                  <p className="text-sm text-gray-600">Total Approved Amount</p>
+                  <p className="text-sm text-gray-600">Total Processing Amount</p>
                   <p className="text-2xl font-bold text-green-600">
-                    ₱
-                    {filteredSettlements
-                      .filter((s) => s.status === "approved")
-                      .reduce((sum, s) => sum + s.amount, 0)
-                      .toLocaleString()}
+                    {formatAmount(
+                      filteredPayouts
+                        .filter((p) => p.status === "processing")
+                        .reduce((s, p) => s + p.amount, 0),
+                    )}
                   </p>
                 </div>
                 <DollarSign className="w-8 h-8 text-green-600" />
@@ -533,18 +382,17 @@ export function SettlementsPayouts() {
         </CardContent>
       </Card>
 
-      {/* Important Note */}
       <Card className="border-blue-200 bg-blue-50">
         <CardContent className="p-4">
           <div className="flex gap-3">
             <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="font-medium text-blue-900">Settlement Processing Guidelines</p>
+              <p className="font-medium text-blue-900">Payout Processing Guidelines</p>
               <ul className="text-sm text-blue-700 mt-2 space-y-1 list-disc list-inside">
-                <li>Review provider transaction history before approving settlements</li>
+                <li>Review provider transaction history before approving payouts</li>
                 <li>Verify bank account details match registered provider information</li>
-                <li>Process approved settlements within 2-3 business days</li>
-                <li>Overdue settlements require immediate attention and manager approval</li>
+                <li>Process approved payouts within 2–3 business days</li>
+                <li>Mark as "Processing" to move to the settlement queue, then "Paid" on completion</li>
               </ul>
             </div>
           </div>

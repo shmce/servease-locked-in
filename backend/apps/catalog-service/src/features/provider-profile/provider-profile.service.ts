@@ -3,6 +3,10 @@ import {
   CreateProviderProfileInput,
   ProviderPortfolioMediaInput,
   ProviderPortfolioMediaSummary,
+  ProviderOwnedServiceInput,
+  ProviderOwnedServiceSummary,
+  AdminProviderApplicationSummary,
+  ProviderApplicationStatus,
   ProviderProfileSummary,
   UpdateProviderProfileInput,
 } from './provider-profile.types';
@@ -18,6 +22,25 @@ export interface ProviderProfileRepository {
     input: ProviderPortfolioMediaInput,
   ): Promise<ProviderPortfolioMediaSummary>;
   deletePortfolioMedia(userId: string, mediaId: string): Promise<void>;
+  listOwnedServices(userId: string): Promise<ProviderOwnedServiceSummary[]>;
+  replaceOwnedServices(
+    userId: string,
+    services: ProviderOwnedServiceInput[],
+  ): Promise<ProviderOwnedServiceSummary[]>;
+  listProviderApplications(filter: {
+    status?: ProviderApplicationStatus | null;
+    query?: string | null;
+    limit?: number | null;
+  }): Promise<AdminProviderApplicationSummary[]>;
+  getProviderApplication(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationSummary | null>;
+  decideProviderApplication(input: {
+    applicationId: string;
+    adminUserId: string;
+    decision: Exclude<ProviderApplicationStatus, 'pending'>;
+    reason: string;
+  }): Promise<AdminProviderApplicationSummary>;
 }
 
 @Injectable()
@@ -43,6 +66,26 @@ export class EmptyProviderProfileRepository implements ProviderProfileRepository
   }
 
   async deletePortfolioMedia(): Promise<void> {
+    throw new Error('provider_profile_repository_not_configured');
+  }
+
+  async listOwnedServices(): Promise<ProviderOwnedServiceSummary[]> {
+    return [];
+  }
+
+  async replaceOwnedServices(): Promise<ProviderOwnedServiceSummary[]> {
+    throw new Error('provider_profile_repository_not_configured');
+  }
+
+  async listProviderApplications(): Promise<AdminProviderApplicationSummary[]> {
+    return [];
+  }
+
+  async getProviderApplication(): Promise<AdminProviderApplicationSummary | null> {
+    return null;
+  }
+
+  async decideProviderApplication(): Promise<AdminProviderApplicationSummary> {
     throw new Error('provider_profile_repository_not_configured');
   }
 }
@@ -82,5 +125,66 @@ export class ProviderProfileService {
 
   deletePortfolioMedia(userId: string, mediaId: string): Promise<void> {
     return this.providerProfileRepository.deletePortfolioMedia(userId, mediaId);
+  }
+
+  listOwnedServices(userId: string): Promise<ProviderOwnedServiceSummary[]> {
+    return this.providerProfileRepository.listOwnedServices(userId);
+  }
+
+  replaceOwnedServices(
+    userId: string,
+    services: ProviderOwnedServiceInput[],
+  ): Promise<ProviderOwnedServiceSummary[]> {
+    if (
+      !userId ||
+      !Array.isArray(services) ||
+      services.some((service) => !service.title?.trim())
+    ) {
+      throw new Error('invalid_provider_service_request');
+    }
+
+    return this.providerProfileRepository.replaceOwnedServices(userId, services);
+  }
+
+  listProviderApplications(filter: {
+    status?: ProviderApplicationStatus | null;
+    query?: string | null;
+    limit?: number | null;
+  }): Promise<AdminProviderApplicationSummary[]> {
+    if (
+      filter.status &&
+      !['pending', 'approved', 'rejected'].includes(filter.status)
+    ) {
+      throw new Error('invalid_provider_application_request');
+    }
+
+    return this.providerProfileRepository.listProviderApplications(filter);
+  }
+
+  getProviderApplication(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationSummary | null> {
+    return this.providerProfileRepository.getProviderApplication(applicationId);
+  }
+
+  decideProviderApplication(input: {
+    applicationId: string;
+    adminUserId: string;
+    decision: Exclude<ProviderApplicationStatus, 'pending'>;
+    reason: string;
+  }): Promise<AdminProviderApplicationSummary> {
+    if (
+      !input.applicationId ||
+      !input.adminUserId ||
+      !['approved', 'rejected'].includes(input.decision) ||
+      !input.reason.trim()
+    ) {
+      throw new Error('invalid_provider_application_request');
+    }
+
+    return this.providerProfileRepository.decideProviderApplication({
+      ...input,
+      reason: input.reason.trim(),
+    });
   }
 }

@@ -1,6 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Wallet, AlertCircle, CheckCircle2, Clock, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router";
+import {
+  getProviderPayoutAccount,
+  getStoredProviderAccessToken,
+  listProviderPayoutMethods,
+  requestProviderPayout,
+  type PayoutAccountSummary,
+  type PayoutMethodSummary,
+} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -67,37 +75,102 @@ const styles = {
   },
 };
 
+function formatMethodName(methodType: PayoutMethodSummary["methodType"]): string {
+  if (methodType === "gcash") return "GCash";
+  if (methodType === "paymaya") return "PayMaya";
+  return "Bank Transfer";
+}
+
 export function RequestPayoutPage() {
   const navigate = useNavigate();
-  const availableBalance = 15420.50;
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [selectedMethod, setSelectedMethod] = useState("GCash");
+  const [selectedMethod, setSelectedMethod] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [payoutAccount, setPayoutAccount] = useState<PayoutAccountSummary | null>(null);
+  const [payoutMethods, setPayoutMethods] = useState<PayoutMethodSummary[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const loadPayoutData = async () => {
+      const token = getStoredProviderAccessToken();
+
+      if (!token) {
+        setLoadError("Sign in again to request a payout.");
+        return;
+      }
+
+      try {
+        setLoadError(null);
+        const [account, methods] = await Promise.all([
+          getProviderPayoutAccount(token),
+          listProviderPayoutMethods(token),
+        ]);
+        setPayoutAccount(account);
+        setPayoutMethods(methods);
+        const defaultMethod = methods.find((method) => method.isDefault) ?? methods[0];
+        setSelectedMethod(defaultMethod?.id ?? "");
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "Unable to load payout data.");
+      }
+    };
+
+    void loadPayoutData();
+  }, []);
 
   // Calculate fees and final amount
+  const availableBalance = payoutAccount?.availableBalance ?? 0;
   const amount = parseFloat(withdrawAmount) || 0;
   const withdrawalFee = amount > 0 ? amount * 0.025 : 0; // 2.5% fee
   const amountToReceive = amount - withdrawalFee;
 
   const isValidAmount = amount > 0 && amount <= availableBalance;
-  const canSubmit = isValidAmount && termsAccepted;
+  const canSubmit =
+    isValidAmount && termsAccepted && Boolean(selectedMethod) && !isSubmitting;
 
-  const payoutMethods = [
-    { id: "GCash", name: "GCash", account: "•••• •••• 1234" },
-    { id: "PayMaya", name: "PayMaya", account: "•••• •••• 5678" },
-    { id: "BankTransfer", name: "Bank Transfer", account: "BDO •••• 9012" },
-  ];
+  const selectedPayoutMethod =
+    payoutMethods.find((method) => method.id === selectedMethod) ?? null;
 
-  const handleRequestPayout = () => {
+  const handleRequestPayout = async () => {
     if (!canSubmit) return;
-    console.log("Requesting payout:", {
-      amount,
-      withdrawalFee,
-      amountToReceive,
-      method: selectedMethod,
-    });
-    // Navigate to confirmation page
-    navigate("/provider/payout-confirmation");
+
+    const token = getStoredProviderAccessToken();
+    if (!token) {
+      setSubmitError("Sign in again to request a payout.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setSubmitError(null);
+      const payout = await requestProviderPayout(token, {
+        amount,
+        payoutMethodId: selectedMethod,
+      });
+
+      sessionStorage.setItem(
+        "servease_payout_confirmation",
+        JSON.stringify({
+          amount: payout.amount,
+          netAmount: payout.netAmount,
+          processingFee: payout.processingFee,
+          method:
+            payout.accountLabel ??
+            selectedPayoutMethod?.accountLabel ??
+            "Selected payout method",
+          referenceNumber: payout.reference ?? payout.id,
+          requestDate: payout.requestedAt ?? payout.createdAt,
+        }),
+      );
+      navigate("/provider/payout-confirmation");
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : "Unable to request payout.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -154,6 +227,11 @@ export function RequestPayoutPage() {
           <p style={{ fontSize: "16px", color: "#6B7280" }}>
             Withdraw your earnings to your preferred payout method
           </p>
+          {loadError && (
+            <p style={{ fontSize: "14px", color: "#B91C1C", marginTop: "12px" }}>
+              {loadError}
+            </p>
+          )}
         </div>
 
         {/* Available Balance Display */}
@@ -294,6 +372,20 @@ export function RequestPayoutPage() {
           <div style={{ marginBottom: "24px" }}>
             <label style={styles.label}>Payout Method</label>
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {payoutMethods.length === 0 && (
+                <div
+                  style={{
+                    padding: "16px",
+                    borderRadius: "12px",
+                    border: "1px solid #E5E7EB",
+                    backgroundColor: "#F9FAFB",
+                    color: "#6B7280",
+                    fontSize: "14px",
+                  }}
+                >
+                  Add a payout method before requesting a withdrawal.
+                </div>
+              )}
               {payoutMethods.map((method) => (
                 <button
                   key={method.id}
@@ -323,10 +415,10 @@ export function RequestPayoutPage() {
                         marginBottom: "2px",
                       }}
                     >
-                      {method.name}
+                      {formatMethodName(method.methodType)}
                     </p>
                     <p style={{ fontSize: "13px", color: "#6B7280" }}>
-                      {method.account}
+                      {method.accountLabel}
                     </p>
                   </div>
                   {selectedMethod === method.id && (
@@ -437,8 +529,25 @@ export function RequestPayoutPage() {
             }}
           >
             <Wallet style={{ width: "18px", height: "18px" }} />
-            Request Payout
+            {isSubmitting ? "Requesting..." : "Request Payout"}
           </button>
+
+          {submitError && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                marginTop: "12px",
+                justifyContent: "center",
+              }}
+            >
+              <AlertCircle style={{ width: "14px", height: "14px", color: "#DC2626" }} />
+              <p style={{ fontSize: "13px", color: "#DC2626" }}>
+                {submitError}
+              </p>
+            </div>
+          )}
 
           {!termsAccepted && amount > 0 && (
             <div

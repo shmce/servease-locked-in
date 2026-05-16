@@ -1,18 +1,24 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import { ReviewNotFoundError } from './review.errors';
-import { CreateReviewInput, ReviewSummary } from './review.types';
+import {
+  CreateReviewInput,
+  CreateReviewResponseInput,
+  FlagReviewInput,
+  ReviewResponseSummary,
+  ReviewSummary,
+} from './review.types';
 
 interface SupabaseRpcClient {
   rpc(
     functionName: string,
     args: Record<string, string | number | null>,
   ): PromiseLike<{
-    data: ReviewRow[] | null;
+    data: ReviewRow[] | ReviewResponseRow[] | null;
     error: { message: string; code?: string } | null;
   }> & {
     maybeSingle(): PromiseLike<{
-      data: ReviewRow | null;
+      data: ReviewRow | ReviewResponseRow | null;
       error: { message: string; code?: string } | null;
     }>;
   };
@@ -23,9 +29,18 @@ interface ReviewRow {
   booking_id: string;
   provider_id: string;
   reviewer_id: string;
+  reviewer_full_name: string | null;
   rating: number;
   review_text: string | null;
   is_flagged: boolean | null;
+  created_at: string | null;
+}
+
+interface ReviewResponseRow {
+  id: string;
+  review_id: string;
+  responder_id: string;
+  response_text: string;
   created_at: string | null;
 }
 
@@ -57,7 +72,7 @@ export class SupabaseReviewRepository {
       throw new ReviewNotFoundError();
     }
 
-    return this.mapReview(data);
+    return this.mapReview(data as ReviewRow);
   }
 
   async listProviderReviews(providerId: string): Promise<ReviewSummary[]> {
@@ -69,7 +84,55 @@ export class SupabaseReviewRepository {
       throw new Error(`Failed to list reviews: ${error.message}`);
     }
 
-    return (data ?? []).map((row) => this.mapReview(row));
+    return ((data ?? []) as ReviewRow[]).map((row) => this.mapReview(row));
+  }
+
+  async createReviewResponse(
+    input: CreateReviewResponseInput,
+  ): Promise<ReviewResponseSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_create_review_response', {
+        p_review_id: input.reviewId,
+        p_provider_id: input.providerId,
+        p_response_text: input.responseText,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === 'P0002') {
+        throw new ReviewNotFoundError();
+      }
+      throw new Error(`Failed to create review response: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new ReviewNotFoundError();
+    }
+
+    return this.mapReviewResponse(data as ReviewResponseRow);
+  }
+
+  async flagReview(input: FlagReviewInput): Promise<ReviewSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_flag_review', {
+        p_review_id: input.reviewId,
+        p_reporter_id: input.reporterId,
+        p_reason: input.reason,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.code === 'P0002') {
+        throw new ReviewNotFoundError();
+      }
+      throw new Error(`Failed to flag review: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new ReviewNotFoundError();
+    }
+
+    return this.mapReview(data as ReviewRow);
   }
 
   private mapReview(row: ReviewRow): ReviewSummary {
@@ -78,9 +141,20 @@ export class SupabaseReviewRepository {
       bookingId: row.booking_id,
       providerId: row.provider_id,
       reviewerId: row.reviewer_id,
+      reviewerFullName: row.reviewer_full_name ?? null,
       rating: row.rating,
       reviewText: row.review_text,
       isFlagged: row.is_flagged ?? false,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapReviewResponse(row: ReviewResponseRow): ReviewResponseSummary {
+    return {
+      id: row.id,
+      reviewId: row.review_id,
+      responderId: row.responder_id,
+      responseText: row.response_text,
       createdAt: row.created_at,
     };
   }

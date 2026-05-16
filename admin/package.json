@@ -8,9 +8,11 @@
     "dev": "next dev",
     "start": "next start",
     "env:check": "node scripts/check-admin-env.mjs",
+    "smoke:demo-api": "tsx scripts/smoke-demo-api.ts",
     "smoke:integration": "node scripts/smoke-admin-integration.mjs",
     "smoke:routes": "node scripts/smoke-admin-routes.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -81,6 +83,7 @@
     "@types/react-dom": "18.3.1",
     "jsdom": "^29.1.1",
     "tailwindcss": "4.1.12",
+    "tsx": "^4.22.0",
     "typescript": "5.8.3",
     "vitest": "^4.1.6"
   }

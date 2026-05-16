@@ -37,19 +37,45 @@ const styles = {
   },
 };
 
+interface StoredPayoutConfirmation {
+  amount?: number
+  netAmount?: number
+  processingFee?: number
+  method?: string
+  requestDate?: string | null
+  referenceNumber?: string
+}
+
+function readPayoutConfirmation(): StoredPayoutConfirmation | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const stored = sessionStorage.getItem("servease_payout_confirmation");
+  if (!stored) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(stored) as StoredPayoutConfirmation;
+  } catch {
+    return null;
+  }
+}
+
 export function PayoutConfirmationPage() {
   const navigate = useNavigate();
 
-  // Mock data - in real app, this would come from route state or API
+  const storedConfirmation = readPayoutConfirmation();
   const payoutDetails = {
-    amount: 4000.00,
-    method: "GCash (****5678)",
-    requestDate: new Date().toLocaleDateString("en-US", { 
+    amount: storedConfirmation?.netAmount ?? storedConfirmation?.amount ?? 0,
+    method: storedConfirmation?.method ?? "Selected payout method",
+    requestDate: new Date(storedConfirmation?.requestDate ?? Date.now()).toLocaleDateString("en-US", {
       month: "long", 
       day: "numeric", 
       year: "numeric" 
     }),
-    referenceNumber: "PO-2024-" + Math.floor(Math.random() * 100000).toString().padStart(5, "0"),
+    referenceNumber: storedConfirmation?.referenceNumber ?? "Pending reference",
   };
 
   return (

@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, Check, MapPin, Plus, Trash2, Clock, Calendar } from "lucide-react";
 import { useNavigate } from "react-router";
+import {
+  getStoredProviderAccessToken,
+  upsertProviderPayoutMethod,
+  replaceProviderOwnedServices,
+  replaceProviderAvailabilityWindows,
+  ProviderOwnedServiceInput,
+  AvailabilityWindowInput,
+  DayOfWeek,
+} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -435,6 +444,8 @@ export function OnboardingPage() {
   const [recurringDaysOff, setRecurringDaysOff] = useState<string[]>(["Sunday"]);
   const [maxBookingsPerDay, setMaxBookingsPerDay] = useState("5");
   const [advanceBookingWindow, setAdvanceBookingWindow] = useState("30");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const steps = [
     { number: 1, label: "Payout Setup" },
@@ -443,12 +454,64 @@ export function OnboardingPage() {
     { number: 4, label: "Availability" },
   ];
 
+  const handleCompleteOnboarding = async () => {
+    const token = getStoredProviderAccessToken();
+    if (!token) {
+      setSubmitError('Not authenticated. Please sign in again.');
+      return;
+    }
+    setIsSubmitting(true);
+    setSubmitError(null);
+    try {
+      const payoutLabel = payoutMethod === 'bank' ? bankName : mobileNumber;
+      const last4 =
+        payoutMethod === 'bank' && accountNumber.length >= 4
+          ? accountNumber.slice(-4)
+          : null;
+      const serviceInputs: ProviderOwnedServiceInput[] = services
+        .filter((s) => s.name.trim())
+        .map((s) => ({
+          title: s.name.trim(),
+          price: parseFloat(s.basePrice) || null,
+          pricingMode: s.priceUnit === 'per hour' ? 'hourly' : 'flat',
+          isActive: true,
+        }));
+      const windowInputs: AvailabilityWindowInput[] = schedule.map((s) => ({
+        dayOfWeek: s.day.toLowerCase() as DayOfWeek,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        isActive: !s.unavailable,
+      }));
+      await Promise.all([
+        upsertProviderPayoutMethod(token, {
+          methodType: payoutMethod as 'bank' | 'gcash' | 'paymaya',
+          accountLabel: payoutLabel || payoutMethod,
+          accountName: accountName || null,
+          accountNumberLast4: last4,
+          isDefault: setPrimary,
+        }),
+        serviceInputs.length > 0
+          ? replaceProviderOwnedServices(token, serviceInputs)
+          : Promise.resolve([]),
+        replaceProviderAvailabilityWindows(token, windowInputs),
+      ]);
+      navigate('/provider/dashboard');
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to save onboarding data. Please try again.',
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleNext = () => {
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Complete onboarding
-      navigate("/provider/dashboard");
+      handleCompleteOnboarding();
     }
   };
 
@@ -1259,21 +1322,45 @@ export function OnboardingPage() {
         {currentStep === 3 && renderStep3()}
         {currentStep === 4 && renderStep4()}
 
+        {submitError && (
+          <div
+            style={{
+              marginBottom: '16px',
+              padding: '12px 16px',
+              borderRadius: '8px',
+              backgroundColor: '#FEF2F2',
+              border: '1px solid #FECACA',
+              color: '#DC2626',
+              fontSize: '14px',
+            }}
+          >
+            {submitError}
+          </div>
+        )}
         <div style={styles.buttonGroup}>
           <button
             style={{ ...styles.button, ...styles.secondaryButton }}
             onClick={handleBack}
-            disabled={currentStep === 1}
+            disabled={currentStep === 1 || isSubmitting}
           >
             <ChevronLeft size={18} />
             Back
           </button>
           <button
-            style={{ ...styles.button, ...styles.primaryButton }}
+            style={{
+              ...styles.button,
+              ...styles.primaryButton,
+              opacity: isSubmitting ? 0.7 : 1,
+            }}
             onClick={handleNext}
+            disabled={isSubmitting}
           >
-            {currentStep === 4 ? "Finish Setup" : "Continue"}
-            <ChevronRight size={18} />
+            {isSubmitting
+              ? 'Saving...'
+              : currentStep === 4
+              ? 'Finish Setup'
+              : 'Continue'}
+            {!isSubmitting && <ChevronRight size={18} />}
           </button>
         </div>
       </div>

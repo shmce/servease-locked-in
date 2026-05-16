@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User, Bell, Lock, Shield, Eye, EyeOff, ChevronRight, CreditCard, MapPin, Clock, DollarSign, Settings as SettingsIcon, Moon, Sun, HelpCircle, FileText, Users, LogOut, Smartphone, Mail } from "lucide-react";
 import { Link } from "react-router";
+import {
+  getStoredProviderAccessToken,
+  getUserPreferences,
+  updateUserPreferences,
+  updateCurrentUserPassword,
+} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -141,6 +147,40 @@ export function ProviderSettingsPage() {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+    if (!token) return;
+    getUserPreferences(token)
+      .then((prefs) => {
+        setPushNotifications(prefs.pushNotificationsEnabled);
+        if (prefs.darkModeEnabled) setTheme("dark");
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleTogglePush = (value: boolean) => {
+    setPushNotifications(value);
+    const token = getStoredProviderAccessToken();
+    if (token) updateUserPreferences(token, { pushNotificationsEnabled: value }).catch(() => {});
+  };
+
+  const handlePasswordUpdate = () => {
+    if (!currentPassword || !newPassword) return;
+    const token = getStoredProviderAccessToken();
+    if (!token) return;
+    setPasswordMsg(null);
+    updateCurrentUserPassword(token, { currentPassword, newPassword })
+      .then(() => {
+        setPasswordMsg("Password updated successfully.");
+        setCurrentPassword("");
+        setNewPassword("");
+      })
+      .catch(() => setPasswordMsg("Failed to update password. Check your current password."));
+  };
 
   return (
     <div style={styles.container}>
@@ -279,7 +319,7 @@ export function ProviderSettingsPage() {
                   </p>
                 </div>
                 <div
-                  onClick={() => setPushNotifications(!pushNotifications)}
+                  onClick={() => handleTogglePush(!pushNotifications)}
                   style={{
                     ...styles.toggle,
                     backgroundColor: pushNotifications ? "#00BF63" : "#E5E7EB",
@@ -396,6 +436,8 @@ export function ProviderSettingsPage() {
                         type={showCurrentPassword ? "text" : "password"}
                         placeholder="Enter current password"
                         style={styles.input}
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
                         onFocus={(e) => {
                           e.currentTarget.style.borderColor = "#00BF63";
                         }}
@@ -432,6 +474,8 @@ export function ProviderSettingsPage() {
                         type={showNewPassword ? "text" : "password"}
                         placeholder="Enter new password"
                         style={styles.input}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
                         onFocus={(e) => {
                           e.currentTarget.style.borderColor = "#00BF63";
                         }}
@@ -461,17 +505,26 @@ export function ProviderSettingsPage() {
                     </div>
                   </div>
 
+                  {passwordMsg && (
+                    <p style={{ fontSize: "13px", color: passwordMsg.startsWith("Password updated") ? "#059669" : "#EF4444" }}>
+                      {passwordMsg}
+                    </p>
+                  )}
                   <button
+                    onClick={handlePasswordUpdate}
+                    disabled={!currentPassword || !newPassword}
                     style={{
                       ...styles.button,
                       ...styles.primaryButton,
                       marginTop: "4px",
+                      opacity: !currentPassword || !newPassword ? 0.6 : 1,
+                      cursor: !currentPassword || !newPassword ? "not-allowed" : "pointer",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#059669";
+                      if (currentPassword && newPassword) e.currentTarget.style.backgroundColor = "#059669";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "#00BF63";
+                      if (currentPassword && newPassword) e.currentTarget.style.backgroundColor = "#00BF63";
                     }}
                   >
                     Update Password
