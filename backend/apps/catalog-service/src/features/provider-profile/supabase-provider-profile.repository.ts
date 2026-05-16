@@ -3,6 +3,7 @@ import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import { ProviderProfileRepository } from './provider-profile.service';
 import {
   CreateProviderProfileInput,
+  AdminProviderApplicationDocumentSummary,
   AdminProviderApplicationSummary,
   ProviderPortfolioMediaInput,
   ProviderPortfolioMediaSummary,
@@ -33,6 +34,35 @@ interface SupabaseQueryClient {
       error: { message: string } | null;
     }>;
   };
+  schema(schema: string): {
+    from(table: string): {
+      select(columns: string): SupabaseDocumentFilterBuilder;
+    };
+  };
+  storage: {
+    from(bucket: string): {
+      createSignedUrl(
+        path: string,
+        expiresIn: number,
+        options?: { download?: boolean },
+      ): PromiseLike<{
+        data: { signedUrl: string } | null;
+        error: { message: string } | null;
+      }>;
+    };
+  };
+}
+
+interface SupabaseDocumentFilterBuilder
+  extends PromiseLike<{
+    data: SupabaseProviderDocumentRow[] | null;
+    error: { message: string } | null;
+  }> {
+  eq(column: string, value: string): SupabaseDocumentFilterBuilder;
+  maybeSingle(): PromiseLike<{
+    data: SupabaseProviderDocumentRow | null;
+    error: { message: string } | null;
+  }>;
 }
 
 interface SupabaseProviderProfileRow {
@@ -100,15 +130,27 @@ interface SupabaseProviderApplicationRow {
   updated_at: string | null;
 }
 
+interface SupabaseProviderDocumentRow {
+  id: string;
+  user_id: string;
+  document_type: string;
+  file_url: string | null;
+  storage_path: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  created_at: string | null;
+}
+
 @Injectable()
 export class SupabaseProviderProfileRepository
   implements ProviderProfileRepository
 {
   private readonly client: SupabaseQueryClient;
+  private readonly storageBucket: string;
 
   constructor(client?: SupabaseQueryClient) {
     this.client =
       client ?? (createSupabaseServiceClient() as unknown as SupabaseQueryClient);
+    this.storageBucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'servease-uploads';
   }
 
   async findByUserId(userId: string): Promise<ProviderProfileSummary | null> {
@@ -155,6 +197,10 @@ export class SupabaseProviderProfileRepository
       .rpc('servease_update_provider_profile', {
         p_user_id: input.userId,
         p_business_name: input.businessName.trim(),
+        p_bio: input.bio?.trim() || null,
+        p_service_description: input.serviceDescription?.trim() || null,
+        p_service_area: input.serviceArea?.trim() || null,
+        p_years_experience: input.yearsExperience ?? null,
       })
       .maybeSingle();
 
@@ -292,6 +338,20 @@ export class SupabaseProviderProfileRepository
   async getProviderApplication(
     applicationId: string,
   ): Promise<AdminProviderApplicationSummary | null> {
+    const application = await this.getProviderApplicationBase(applicationId);
+    if (!application) {
+      return null;
+    }
+
+    return {
+      ...application,
+      documents: await this.listProviderApplicationDocuments(application),
+    };
+  }
+
+  private async getProviderApplicationBase(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationSummary | null> {
     const { data, error } = await this.client
       .rpc('servease_admin_get_provider_application', {
         p_provider_id: applicationId,
@@ -302,9 +362,35 @@ export class SupabaseProviderProfileRepository
       throw new Error(`Failed to get provider application: ${error.message}`);
     }
 
-    return data
-      ? this.mapProviderApplication(data as SupabaseProviderApplicationRow)
-      : null;
+    if (!data) {
+      return null;
+    }
+
+    return this.mapProviderApplication(data as SupabaseProviderApplicationRow);
+  }
+
+  async getProviderApplicationDocument(
+    applicationId: string,
+    documentId: string,
+  ): Promise<AdminProviderApplicationDocumentSummary | null> {
+    const application = await this.getProviderApplicationBase(applicationId);
+    if (!application) {
+      return null;
+    }
+
+    const { data, error } = await this.client
+      .schema('provider_catalog')
+      .from('provider_documents')
+      .select('id,user_id,document_type,file_url,storage_path,status,created_at')
+      .eq('id', documentId)
+      .eq('user_id', application.userId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to get provider document: ${error.message}`);
+    }
+
+    return data ? this.mapProviderDocument(data, application.id) : null;
   }
 
   async decideProviderApplication(input: {
@@ -417,6 +503,70 @@ export class SupabaseProviderProfileRepository
       latestDecidedBy: row.latest_decided_by,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      documents: [],
     };
+  }
+
+  private async listProviderApplicationDocuments(
+    application: AdminProviderApplicationSummary,
+  ): Promise<AdminProviderApplicationDocumentSummary[]> {
+    const { data, error } = await this.client
+      .schema('provider_catalog')
+      .from('provider_documents')
+      .select('id,user_id,document_type,file_url,storage_path,status,created_at')
+      .eq('user_id', application.userId);
+
+    if (error) {
+      throw new Error(`Failed to list provider documents: ${error.message}`);
+    }
+
+    return Promise.all(
+      ((data ?? []) as SupabaseProviderDocumentRow[]).map((row) =>
+        this.mapProviderDocument(row, application.id),
+      ),
+    );
+  }
+
+  private async mapProviderDocument(
+    row: SupabaseProviderDocumentRow,
+    applicationId: string,
+  ): Promise<AdminProviderApplicationDocumentSummary> {
+    const previewUrl =
+      row.file_url ?? (await this.createSignedUrl(row.storage_path, false));
+    const downloadUrl =
+      row.file_url ?? (await this.createSignedUrl(row.storage_path, true));
+
+    return {
+      id: row.id,
+      applicationId,
+      userId: row.user_id,
+      documentType: row.document_type,
+      fileUrl: row.file_url,
+      storagePath: row.storage_path,
+      status: row.status,
+      createdAt: row.created_at,
+      previewUrl,
+      downloadUrl,
+    };
+  }
+
+  private async createSignedUrl(
+    storagePath: string | null,
+    download: boolean,
+  ): Promise<string | null> {
+    if (!storagePath) {
+      return null;
+    }
+
+    const storage = this.client.storage.from(this.storageBucket);
+    const { data, error } = download
+      ? await storage.createSignedUrl(storagePath, 600, { download: true })
+      : await storage.createSignedUrl(storagePath, 600);
+
+    if (error) {
+      throw new Error(`Failed to sign provider document: ${error.message}`);
+    }
+
+    return data?.signedUrl ?? null;
   }
 }

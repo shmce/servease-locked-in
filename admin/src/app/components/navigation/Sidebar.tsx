@@ -33,6 +33,7 @@ import {
   Percent,
   Wallet,
   ServerCog,
+  Star,
 } from "lucide-react";
 import logo from "../../../assets/d516c8a7c0636434620c64585c9fd8b4bb2db014.png";
 
@@ -109,6 +110,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         { to: "/ongoing-services",  icon: ClipboardList, label: "Ongoing Services" },
         { to: "/disputes",          icon: LifeBuoy,      label: "Disputes" },
         { to: "/support",           icon: HelpCircle,    label: "Support" },
+        { to: "/reviews",           icon: Star,          label: "Reviews" },
       ],
     },
     {

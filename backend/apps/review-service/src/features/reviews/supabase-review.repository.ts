@@ -5,9 +5,36 @@ import {
   CreateReviewInput,
   CreateReviewResponseInput,
   FlagReviewInput,
+  ListAdminReviewsFilters,
   ReviewResponseSummary,
   ReviewSummary,
+  SetReviewFlaggedInput,
 } from './review.types';
+
+type SupabaseTableResult = {
+  data: ReviewRow[] | null;
+  error: { message: string; code?: string } | null;
+};
+
+type SupabaseSingleResult = {
+  data: ReviewRow | null;
+  error: { message: string; code?: string } | null;
+};
+
+interface SupabaseTableBuilder {
+  select(columns: string): SupabaseTableBuilder;
+  eq(column: string, value: string | boolean): SupabaseTableBuilder;
+  order(
+    column: string,
+    options?: { ascending?: boolean; nullsFirst?: boolean },
+  ): SupabaseTableBuilder;
+  limit(count: number): SupabaseTableBuilder;
+  update(values: Record<string, unknown>): SupabaseTableBuilder;
+  single(): PromiseLike<SupabaseSingleResult>;
+  then<TFulfilled>(
+    onFulfilled: (result: SupabaseTableResult) => TFulfilled,
+  ): PromiseLike<TFulfilled>;
+}
 
 interface SupabaseRpcClient {
   rpc(
@@ -22,6 +49,8 @@ interface SupabaseRpcClient {
       error: { message: string; code?: string } | null;
     }>;
   };
+  schema?(name: string): { from(table: string): SupabaseTableBuilder };
+  from?(table: string): SupabaseTableBuilder;
 }
 
 interface ReviewRow {
@@ -133,6 +162,61 @@ export class SupabaseReviewRepository {
     }
 
     return this.mapReview(data as ReviewRow);
+  }
+
+  async listForAdmin(filters: ListAdminReviewsFilters): Promise<ReviewSummary[]> {
+    const table = this.adminTable();
+    let query = table
+      .select(
+        'id, booking_id, provider_id, reviewer_id, reviewer_full_name, rating, review_text, is_flagged, created_at',
+      )
+      .order('created_at', { ascending: false })
+      .limit(filters.limit ?? 100);
+
+    if (filters.flaggedOnly) {
+      query = query.eq('is_flagged', true);
+    }
+    if (filters.providerId) {
+      query = query.eq('provider_id', filters.providerId);
+    }
+
+    const result = await (query as unknown as PromiseLike<SupabaseTableResult>);
+    if (result.error) {
+      throw new Error(`Failed to list reviews for admin: ${result.error.message}`);
+    }
+
+    return ((result.data ?? []) as ReviewRow[]).map((row) => this.mapReview(row));
+  }
+
+  async setFlagged(input: SetReviewFlaggedInput): Promise<ReviewSummary> {
+    const result = await this.adminTable()
+      .update({ is_flagged: input.isFlagged })
+      .eq('id', input.reviewId)
+      .select(
+        'id, booking_id, provider_id, reviewer_id, reviewer_full_name, rating, review_text, is_flagged, created_at',
+      )
+      .single();
+
+    if (result.error) {
+      throw new Error(`Failed to update review flag: ${result.error.message}`);
+    }
+
+    if (!result.data) {
+      throw new ReviewNotFoundError();
+    }
+
+    return this.mapReview(result.data);
+  }
+
+  private adminTable(): SupabaseTableBuilder {
+    const schema = this.client.schema?.('trust_and_reputation');
+    if (schema) {
+      return schema.from('reviews');
+    }
+    if (this.client.from) {
+      return this.client.from('trust_and_reputation.reviews');
+    }
+    throw new Error('Supabase client does not expose table access for admin queries.');
   }
 
   private mapReview(row: ReviewRow): ReviewSummary {

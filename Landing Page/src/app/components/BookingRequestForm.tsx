@@ -3,16 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { CalendarClock, MapPin, Send } from "lucide-react";
-import type { BookingSummary, CreateBookingInput } from "../lib/bookings";
+import {
+  createBookingRequest,
+  type CreateBookingInput,
+} from "../lib/bookings";
 import type { ProviderServiceListing } from "../lib/catalog";
 import { createSupabaseBrowserClient } from "../lib/supabase-browser";
-
-interface BookingResponse {
-  data?: BookingSummary;
-  error?: {
-    message?: string;
-  };
-}
 
 function createSupabaseState() {
   try {
@@ -86,42 +82,30 @@ export function BookingRequestForm({
       customerNotes: customerNotes || null,
     };
 
-    const response = await fetch("/api/bookings", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${sessionData.session.access_token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(body),
-    }).catch(() => null);
+    try {
+      const booking = await createBookingRequest(
+        sessionData.session.access_token,
+        body,
+      );
 
-    if (!response) {
-      setFeedback("Could not reach bookings. Please try again.");
+      setServiceAddress("");
+      setScheduledAt("");
+      setHoursRequired("1");
+      setPaymentMethod("cash");
+      setCustomerNotes("");
+      setFeedback(
+        `Booking request ${booking.bookingReference} was created and is pending.`,
+      );
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Could not create your booking request.",
+      );
       setIsError(true);
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    const payload = (await response.json().catch(() => null)) as
-      | BookingResponse
-      | null;
-
-    setIsSubmitting(false);
-
-    if (!response.ok || !payload?.data) {
-      setFeedback(payload?.error?.message ?? "Could not create your booking request.");
-      setIsError(true);
-      return;
-    }
-
-    setServiceAddress("");
-    setScheduledAt("");
-    setHoursRequired("1");
-    setPaymentMethod("cash");
-    setCustomerNotes("");
-    setFeedback(
-      `Booking request ${payload.data.bookingReference} was created and is pending.`,
-    );
   };
 
   return (

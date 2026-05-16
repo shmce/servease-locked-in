@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { 
   Search, 
   ChevronDown,
@@ -9,6 +9,15 @@ import {
   Mail,
   ExternalLink
 } from "lucide-react";
+import {
+  createSupportTicket,
+  createSupportTicketReply,
+  getStoredProviderAccessToken,
+  listSupportTicketReplies,
+  listSupportTickets,
+  type SupportTicketReplySummary,
+  type SupportTicketSummary,
+} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -158,6 +167,60 @@ const styles = {
     transition: "all 0.2s ease",
     outline: "none",
   },
+  supportGrid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) minmax(320px, 420px)",
+    gap: "16px",
+    marginBottom: "48px",
+  },
+  panel: {
+    backgroundColor: "white",
+    borderRadius: "12px",
+    border: "1px solid #E5E7EB",
+    padding: "20px",
+  },
+  input: {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: "10px",
+    border: "1px solid #E5E7EB",
+    fontSize: "14px",
+    color: "#374151",
+    outline: "none",
+    backgroundColor: "white",
+  },
+  textarea: {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: "10px",
+    border: "1px solid #E5E7EB",
+    fontSize: "14px",
+    color: "#374151",
+    outline: "none",
+    minHeight: "96px",
+    resize: "vertical" as const,
+    fontFamily: "inherit",
+  },
+  primaryButton: {
+    backgroundColor: "#00BF63",
+    border: "none",
+    borderRadius: "10px",
+    color: "white",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: "600",
+    padding: "12px 16px",
+  },
+  secondaryButton: {
+    backgroundColor: "white",
+    border: "1px solid #00BF63",
+    borderRadius: "10px",
+    color: "#00A356",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: "600",
+    padding: "10px 14px",
+  },
   contactInfo: {
     display: "flex",
     alignItems: "center",
@@ -216,12 +279,172 @@ const styles = {
   },
 };
 
+function formatTicketDate(value: string | null): string {
+  if (!value) {
+    return "Date unavailable";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function statusLabel(status: SupportTicketSummary["status"]): string {
+  return status
+    .split("_")
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export function ProviderHelpCenterPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
   const [activeTab, setActiveTab] = useState("All");
+  const [tickets, setTickets] = useState<SupportTicketSummary[]>([]);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [ticketReplies, setTicketReplies] = useState<SupportTicketReplySummary[]>([]);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+  const [isLoadingReplies, setIsLoadingReplies] = useState(false);
+  const [isSubmittingTicket, setIsSubmittingTicket] = useState(false);
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [ticketError, setTicketError] = useState<string | null>(null);
+  const [ticketSubject, setTicketSubject] = useState("");
+  const [ticketMessage, setTicketMessage] = useState("");
+  const [ticketCategory, setTicketCategory] = useState("bookings");
+  const [replyMessage, setReplyMessage] = useState("");
 
   const tabs = ["All", "Payments", "Bookings", "Verification"];
+  const selectedTicket = tickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
+
+  const loadTickets = async () => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      setTicketError("Sign in to view and create support tickets.");
+      return;
+    }
+
+    setIsLoadingTickets(true);
+    setTicketError(null);
+
+    try {
+      const nextTickets = await listSupportTickets(token);
+      setTickets(nextTickets);
+      setSelectedTicketId((current) => current ?? nextTickets[0]?.id ?? null);
+    } catch (error) {
+      setTicketError(
+        error instanceof Error ? error.message : "Unable to load support tickets.",
+      );
+    } finally {
+      setIsLoadingTickets(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadTickets();
+  }, []);
+
+  useEffect(() => {
+    const loadReplies = async () => {
+      const token = getStoredProviderAccessToken();
+
+      if (!token || !selectedTicketId) {
+        setTicketReplies([]);
+        return;
+      }
+
+      setIsLoadingReplies(true);
+      setTicketError(null);
+
+      try {
+        const replies = await listSupportTicketReplies(token, selectedTicketId);
+        setTicketReplies(replies);
+      } catch (error) {
+        setTicketError(
+          error instanceof Error ? error.message : "Unable to load support replies.",
+        );
+      } finally {
+        setIsLoadingReplies(false);
+      }
+    };
+
+    void loadReplies();
+  }, [selectedTicketId]);
+
+  const handleCreateTicket = async () => {
+    const token = getStoredProviderAccessToken();
+    const subject = ticketSubject.trim();
+    const message = ticketMessage.trim();
+
+    if (!token) {
+      setTicketError("Sign in to create a support ticket.");
+      return;
+    }
+
+    if (!subject) {
+      setTicketError("Add a subject before creating a support ticket.");
+      return;
+    }
+
+    setIsSubmittingTicket(true);
+    setTicketError(null);
+
+    try {
+      const ticket = await createSupportTicket(token, {
+        subject,
+        message: message || null,
+        category: ticketCategory,
+      });
+      setTickets((current) => [ticket, ...current]);
+      setSelectedTicketId(ticket.id);
+      setTicketSubject("");
+      setTicketMessage("");
+    } catch (error) {
+      setTicketError(
+        error instanceof Error ? error.message : "Unable to create support ticket.",
+      );
+    } finally {
+      setIsSubmittingTicket(false);
+    }
+  };
+
+  const handleSendReply = async () => {
+    const token = getStoredProviderAccessToken();
+    const message = replyMessage.trim();
+
+    if (!token || !selectedTicketId) {
+      setTicketError("Select a support ticket before replying.");
+      return;
+    }
+
+    if (!message) {
+      setTicketError("Write a reply before sending.");
+      return;
+    }
+
+    setIsSubmittingReply(true);
+    setTicketError(null);
+
+    try {
+      const reply = await createSupportTicketReply(token, selectedTicketId, message);
+      setTicketReplies((current) => [...current, reply]);
+      setReplyMessage("");
+    } catch (error) {
+      setTicketError(
+        error instanceof Error ? error.message : "Unable to send support reply.",
+      );
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
 
   const faqs = [
     {
@@ -347,6 +570,213 @@ export function ProviderHelpCenterPage() {
               {tab}
             </button>
           ))}
+        </div>
+
+        {/* Support Tickets */}
+        <div style={styles.supportGrid}>
+          <div style={styles.panel}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "16px", marginBottom: "16px" }}>
+              <div>
+                <h2 style={{ ...styles.sectionTitle, marginBottom: "6px" }}>Your Support Tickets</h2>
+                <p style={{ ...styles.faqSubtitle, marginBottom: 0 }}>
+                  Track replies from ServEase support and keep one thread per issue.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadTickets()}
+                disabled={isLoadingTickets}
+                style={{
+                  ...styles.secondaryButton,
+                  opacity: isLoadingTickets ? 0.7 : 1,
+                  alignSelf: "flex-start",
+                }}
+              >
+                {isLoadingTickets ? "Loading..." : "Refresh"}
+              </button>
+            </div>
+
+            {ticketError && (
+              <div
+                style={{
+                  backgroundColor: "#FEF2F2",
+                  border: "1px solid #FCA5A5",
+                  borderRadius: "10px",
+                  color: "#991B1B",
+                  fontSize: "13px",
+                  marginBottom: "16px",
+                  padding: "10px 12px",
+                }}
+              >
+                {ticketError}
+              </div>
+            )}
+
+            <div style={{ display: "grid", gap: "10px" }}>
+              {tickets.length === 0 && !isLoadingTickets ? (
+                <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>
+                  No support tickets yet.
+                </p>
+              ) : (
+                tickets.map((ticket) => (
+                  <button
+                    key={ticket.id}
+                    type="button"
+                    onClick={() => setSelectedTicketId(ticket.id)}
+                    style={{
+                      backgroundColor: selectedTicketId === ticket.id ? "#F0FDF8" : "white",
+                      border: `1px solid ${selectedTicketId === ticket.id ? "#86EFAC" : "#E5E7EB"}`,
+                      borderRadius: "10px",
+                      cursor: "pointer",
+                      padding: "14px",
+                      textAlign: "left",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "6px" }}>
+                      <strong style={{ color: "#111827", fontSize: "14px" }}>
+                        {ticket.subject}
+                      </strong>
+                      <span
+                        style={{
+                          backgroundColor: "#DCFCE7",
+                          borderRadius: "999px",
+                          color: "#047857",
+                          fontSize: "11px",
+                          fontWeight: "700",
+                          padding: "3px 8px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {statusLabel(ticket.status)}
+                      </span>
+                    </div>
+                    <p style={{ color: "#6B7280", fontSize: "13px", margin: "0 0 6px" }}>
+                      {ticket.message || "No description provided."}
+                    </p>
+                    <span style={{ color: "#9CA3AF", fontSize: "12px" }}>
+                      {ticket.category || "general"} · {formatTicketDate(ticket.createdAt)}
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div style={styles.panel}>
+            <h2 style={{ ...styles.sectionTitle, marginBottom: "12px" }}>
+              {selectedTicket ? "Ticket Thread" : "Create Ticket"}
+            </h2>
+
+            {selectedTicket ? (
+              <div>
+                <div style={{ marginBottom: "16px" }}>
+                  <p style={{ fontSize: "15px", fontWeight: "700", color: "#111827", margin: "0 0 4px" }}>
+                    {selectedTicket.subject}
+                  </p>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>
+                    {selectedTicket.message || "No description provided."}
+                  </p>
+                </div>
+
+                <div style={{ display: "grid", gap: "10px", marginBottom: "16px", maxHeight: "260px", overflowY: "auto" }}>
+                  {isLoadingReplies ? (
+                    <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>
+                      Loading replies...
+                    </p>
+                  ) : ticketReplies.length === 0 ? (
+                    <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>
+                      No replies yet.
+                    </p>
+                  ) : (
+                    ticketReplies.map((reply) => (
+                      <div
+                        key={reply.id}
+                        style={{
+                          backgroundColor: "#F9FAFB",
+                          border: "1px solid #E5E7EB",
+                          borderRadius: "10px",
+                          padding: "12px",
+                        }}
+                      >
+                        <p style={{ color: "#374151", fontSize: "14px", lineHeight: 1.5, margin: "0 0 6px" }}>
+                          {reply.message}
+                        </p>
+                        <span style={{ color: "#9CA3AF", fontSize: "12px" }}>
+                          {formatTicketDate(reply.createdAt)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <textarea
+                  value={replyMessage}
+                  onChange={(event) => setReplyMessage(event.target.value)}
+                  placeholder="Reply to ServEase support..."
+                  style={{ ...styles.textarea, minHeight: "84px", marginBottom: "10px" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleSendReply()}
+                  disabled={isSubmittingReply}
+                  style={{
+                    ...styles.primaryButton,
+                    opacity: isSubmittingReply ? 0.7 : 1,
+                    width: "100%",
+                  }}
+                >
+                  {isSubmittingReply ? "Sending..." : "Send Reply"}
+                </button>
+              </div>
+            ) : (
+              <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>
+                Select a ticket to view its thread.
+              </p>
+            )}
+
+            <div style={{ borderTop: "1px solid #E5E7EB", marginTop: "20px", paddingTop: "20px" }}>
+              <h3 style={{ color: "#111827", fontSize: "15px", fontWeight: "700", margin: "0 0 12px" }}>
+                New Support Ticket
+              </h3>
+              <div style={{ display: "grid", gap: "10px" }}>
+                <select
+                  value={ticketCategory}
+                  onChange={(event) => setTicketCategory(event.target.value)}
+                  style={styles.input}
+                >
+                  <option value="bookings">Bookings</option>
+                  <option value="payments">Payments</option>
+                  <option value="availability">Availability</option>
+                  <option value="verification">Verification</option>
+                  <option value="general">General</option>
+                </select>
+                <input
+                  type="text"
+                  value={ticketSubject}
+                  onChange={(event) => setTicketSubject(event.target.value)}
+                  placeholder="Subject"
+                  style={styles.input}
+                />
+                <textarea
+                  value={ticketMessage}
+                  onChange={(event) => setTicketMessage(event.target.value)}
+                  placeholder="Describe the issue..."
+                  style={styles.textarea}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleCreateTicket()}
+                  disabled={isSubmittingTicket}
+                  style={{
+                    ...styles.primaryButton,
+                    opacity: isSubmittingTicket ? 0.7 : 1,
+                  }}
+                >
+                  {isSubmittingTicket ? "Creating..." : "Create Ticket"}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Frequently Asked Questions */}

@@ -31,6 +31,13 @@ export interface StatusChipModel {
   tone: StatusTone;
 }
 
+export interface BookingTransitionRequest {
+  currentStatus: BookingStatus;
+  nextStatus: BookingStatus;
+  reason?: string | null;
+  explanation?: string | null;
+}
+
 export function bookingStatusChip(status: BookingStatus): StatusChipModel {
   if (status === 'completed') {
     return { label: 'completed', tone: 'success' };
@@ -78,6 +85,28 @@ export function nextActionLabel(
 ): string {
   const nextStatuses = nextBookingStatuses(status, role);
   return nextStatuses[0] ? statusActionLabel(nextStatuses[0]) : 'No action required';
+}
+
+export function buildBookingTransitionRequest(
+  currentStatus: BookingStatus,
+  nextStatus: BookingStatus,
+  reason?: string | null,
+): BookingTransitionRequest {
+  const trimmedReason = reason?.trim();
+
+  if (nextStatus !== 'cancelled' || !trimmedReason) {
+    return {
+      currentStatus,
+      nextStatus,
+    };
+  }
+
+  return {
+    currentStatus,
+    nextStatus,
+    reason: trimmedReason,
+    explanation: trimmedReason,
+  };
 }
 
 export function statusActionLabel(status: BookingStatus): string {

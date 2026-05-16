@@ -77,3 +77,9 @@ export interface EscalateAdminBookingRequest {
   reason: string;
   priority?: AdminBookingEscalationPriority | null;
 }
+
+export interface AdminProviderMessageResult {
+  bookingId: string;
+  providerUserId: string;
+  notificationId: string;
+}

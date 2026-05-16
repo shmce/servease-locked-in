@@ -10,3 +10,11 @@ export interface NotificationSummary {
   metadata: NotificationMetadata;
   createdAt: string | null;
 }
+
+export interface CreateNotificationRequest {
+  userId: string;
+  type: string;
+  title?: string | null;
+  body?: string | null;
+  metadata?: NotificationMetadata;
+}

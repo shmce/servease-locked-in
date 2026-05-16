@@ -19,6 +19,7 @@ import {
   PasswordChangeService,
 } from './features/password-change/password-change.service';
 import { SupabasePasswordChangeRepository } from './features/password-change/supabase-password-change.repository';
+import { AdminUserController } from './features/admin-users/admin-user.controller';
 import { RegistrationController } from './features/registration/registration.controller';
 import {
   REGISTRATION_REPOSITORY,
@@ -32,6 +33,7 @@ import { SupabaseRegistrationRepository } from './features/registration/supabase
     HealthController,
     InternalUserController,
     RegistrationController,
+    AdminUserController,
     PasswordResetController,
     PasswordChangeController,
   ],

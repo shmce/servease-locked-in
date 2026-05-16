@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpException, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpException,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { InvalidReviewRequestError, ReviewNotFoundError } from './review.errors';
 import { ReviewService } from './review.service';
 import { ReviewResponseSummary, ReviewSummary } from './review.types';
@@ -49,6 +58,45 @@ export class ReviewController {
           reviewId,
           providerId: body.providerId ?? '',
           responseText: body.responseText ?? '',
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('admin')
+  async listForAdmin(
+    @Query('providerId') providerId?: string,
+    @Query('flagged') flagged?: string,
+    @Query('limit') limit?: string,
+  ): Promise<{ data: ReviewSummary[] }> {
+    try {
+      const parsedLimit = limit ? Math.min(Math.max(Number(limit), 1), 500) : undefined;
+      return {
+        data: await this.reviewService.listForAdmin({
+          providerId: providerId ?? null,
+          flaggedOnly: flagged === 'true',
+          limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':reviewId/flagged')
+  async setFlagged(
+    @Param('reviewId') reviewId: string,
+    @Body() body: { isFlagged?: boolean; reason?: string; adminId?: string },
+  ): Promise<{ data: ReviewSummary }> {
+    try {
+      return {
+        data: await this.reviewService.setFlaggedStatus({
+          reviewId,
+          isFlagged: body.isFlagged ?? false,
+          reason: body.reason ?? null,
+          adminId: body.adminId ?? null,
         }),
       };
     } catch (error) {

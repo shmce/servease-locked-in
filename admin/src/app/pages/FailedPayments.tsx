@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  listAdminPayments,
+  listAdminPaymentFailures,
   type AdminPaymentSummary,
 } from "../../services/serveaseAdminApi";
 
@@ -52,10 +52,8 @@ export function FailedPayments() {
     setError(null);
 
     try {
-      const data = await listAdminPayments(accessToken);
-      setPayments(
-        data.filter((payment) => payment.status === "cancelled" || payment.status === "refunded"),
-      );
+      const data = await listAdminPaymentFailures(accessToken);
+      setPayments(data);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load payments.");
     } finally {
@@ -98,8 +96,8 @@ export function FailedPayments() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Failed Payments</h1>
         <p className="text-gray-500 mt-1">
-          Shows backend-supported cancelled and refunded payment records. Failure reason
-          data needs a backend contract.
+          Shows gateway-backed cancelled and refunded payment records. Failure reason
+          detail still needs a backend contract.
         </p>
       </div>
 

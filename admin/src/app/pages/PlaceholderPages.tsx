@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,60 +50,145 @@ import {
   XCircle,
   DollarSign,
 } from "lucide-react";
-import { useData } from "../../contexts/DataContext";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  getAdminUsersSummary,
   listAdminSupportTickets,
+  listAdminUsers,
+  sendAdminBroadcast,
   updateAdminSupportTicketStatus,
+  updateAdminUserStatus,
+  type AdminBroadcastAudience,
+  type AdminBroadcastResult,
   type AdminSupportTicketStatus,
   type AdminSupportTicketSummary,
+  type AdminUserStatus,
+  type AdminUserSummary,
+  type AdminUsersSummaryStats,
 } from "../../services/serveaseAdminApi";
 import { toast } from "sonner";
 import { usePersistentState } from "../../hooks/usePersistentState";
 
 export function Customers() {
-  const { customers, getBookingsByCustomer } = useData();
+  const { accessToken } = useAuth();
+  const [customers, setCustomers] = useState<AdminUserSummary[]>([]);
+  const [summary, setSummary] = useState<AdminUsersSummaryStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const filteredCustomers = customers.filter((customer) =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.id.toLowerCase().includes(searchTerm.toLowerCase())
+  const handleSetCustomerStatus = useCallback(
+    async (customer: AdminUserSummary, nextStatus: AdminUserStatus) => {
+      if (!accessToken) return;
+      setPendingId(customer.id);
+      try {
+        const updated = await updateAdminUserStatus(
+          accessToken,
+          customer.id,
+          nextStatus,
+        );
+        setCustomers((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
+        toast.success(
+          nextStatus === "active"
+            ? `${updated.fullName ?? updated.email} restored.`
+            : `${updated.fullName ?? updated.email} suspended.`,
+        );
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Unable to update customer.",
+        );
+      } finally {
+        setPendingId(null);
+      }
+    },
+    [accessToken],
   );
+
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+    Promise.all([
+      listAdminUsers(accessToken, { role: "customer" }),
+      getAdminUsersSummary(accessToken).catch(() => null),
+    ])
+      .then(([nextCustomers, nextSummary]) => {
+        if (cancelled) return;
+        setCustomers(nextCustomers);
+        setSummary(nextSummary);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLoadError(
+          error instanceof Error ? error.message : "Unable to load customers.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
+  const filteredCustomers = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return customers;
+    return customers.filter((customer) => {
+      const haystack = [
+        customer.fullName ?? "",
+        customer.email,
+        customer.id,
+        customer.contactNumber ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [customers, searchTerm]);
+
+  const activeCount = customers.filter((customer) => customer.status === "active").length;
+  const suspendedCount = customers.filter(
+    (customer) => customer.status === "suspended",
+  ).length;
 
   const stats = [
     {
       title: "Total Customers",
-      value: customers.length.toString(),
-      change: `${customers.filter((c) => c.status === "Active").length} active`,
+      value: (summary?.byRole.customer ?? customers.length).toString(),
+      change: `${activeCount} active`,
       icon: Users,
       color: "text-[#16A34A]",
       bgColor: "bg-[#DCFCE7]",
     },
     {
-      title: "Total Bookings",
-      value: customers.reduce((sum, c) => sum + c.totalBookings, 0).toString(),
-      change: "All time",
-      icon: Package,
+      title: "New This Month",
+      value: (summary?.newThisMonth ?? 0).toString(),
+      change: "Recent signups",
+      icon: TrendingUp,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
     },
     {
-      title: "Total Spent",
-      value: `₱${(customers.reduce((sum, c) => sum + c.totalSpent, 0) / 1000).toFixed(1)}K`,
-      change: "Platform revenue",
-      icon: DollarSign,
+      title: "Active",
+      value: activeCount.toString(),
+      change: "Currently active",
+      icon: CheckCircle,
       color: "text-[#16A34A]",
       bgColor: "bg-[#DCFCE7]",
     },
     {
-      title: "Avg. Bookings per Customer",
-      value: (customers.reduce((sum, c) => sum + c.totalBookings, 0) / customers.length).toFixed(1),
-      change: "Engagement rate",
-      icon: TrendingUp,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
+      title: "Suspended",
+      value: suspendedCount.toString(),
+      change: "Restricted accounts",
+      icon: AlertCircle,
+      color: "text-amber-600",
+      bgColor: "bg-amber-50",
     },
   ];
 
@@ -154,6 +240,9 @@ export function Customers() {
             </div>
           </div>
 
+          {loadError ? (
+            <div className="mb-4 text-sm text-red-600">{loadError}</div>
+          ) : null}
           {/* Table */}
           <div className="overflow-x-auto">
             <Table>
@@ -163,17 +252,21 @@ export function Customers() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Total Bookings</TableHead>
-                  <TableHead>Total Spent</TableHead>
                   <TableHead>Member Since</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredCustomers.length === 0 ? (
+                {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      Loading customers…
+                    </TableCell>
+                  </TableRow>
+                ) : filteredCustomers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
                       No customers found
                     </TableCell>
                   </TableRow>
@@ -182,43 +275,76 @@ export function Customers() {
                     <TableRow key={customer.id}>
                       <TableCell>
                         <span className="font-mono font-semibold text-[#16A34A]">
-                          {customer.id}
+                          {customer.id.slice(0, 8).toUpperCase()}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-medium text-gray-900">{customer.name}</span>
+                        <span className="font-medium text-gray-900">
+                          {customer.fullName ?? "—"}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-gray-600">{customer.email}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="text-sm text-gray-600">{customer.phone}</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-600">{customer.location}</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-semibold text-gray-900">{customer.totalBookings}</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-bold text-[#16A34A]">
-                          ₱{customer.totalSpent.toLocaleString()}
+                        <span className="text-sm text-gray-600">
+                          {customer.contactNumber ?? "—"}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-gray-600">
-                          {new Date(customer.memberSince).toLocaleDateString("en-US", {
-                            month: "short",
-                            day: "numeric",
-                            year: "numeric",
-                          })}
+                          {customer.createdAt
+                            ? new Date(customer.createdAt).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })
+                            : "—"}
                         </span>
                       </TableCell>
                       <TableCell>
-                        <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          {customer.status}
-                        </Badge>
+                        {customer.status === "active" ? (
+                          <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Active
+                          </Badge>
+                        ) : customer.status === "suspended" ? (
+                          <Badge className="bg-amber-50 text-amber-700 border-amber-200">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            Suspended
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">
+                            <XCircle className="w-3 h-3 mr-1" />
+                            {customer.status}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {customer.status === "active" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              void handleSetCustomerStatus(customer, "suspended")
+                            }
+                            disabled={pendingId === customer.id}
+                            className="text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                          >
+                            {pendingId === customer.id ? "Updating…" : "Suspend"}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() =>
+                              void handleSetCustomerStatus(customer, "active")
+                            }
+                            disabled={pendingId === customer.id}
+                          >
+                            {pendingId === customer.id ? "Updating…" : "Restore"}
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))
@@ -732,10 +858,136 @@ function SupportDetail({
 }
 
 export function Broadcasts() {
+  const { accessToken } = useAuth();
+  const [audience, setAudience] = useState<AdminBroadcastAudience>("customers");
+  const [title, setTitle] = useState("");
+  const [message, setMessage] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [lastResult, setLastResult] = useState<AdminBroadcastResult | null>(null);
+
+  const canSend = !!accessToken && title.trim().length > 0 && message.trim().length > 0;
+
+  const handleSend = async () => {
+    if (!accessToken || !canSend) return;
+    setIsSending(true);
+    try {
+      const result = await sendAdminBroadcast(accessToken, {
+        audience,
+        title: title.trim(),
+        message: message.trim(),
+      });
+      setLastResult(result);
+      setTitle("");
+      setMessage("");
+      toast.success(`Broadcast sent to ${result.deliveredCount} recipient${result.deliveredCount === 1 ? "" : "s"}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to send broadcast.");
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   return (
-    <ComingSoon
-      title="Broadcasts"
-      description="Send announcements and push notifications to users and providers"
-    />
+    <div className="space-y-6">
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold text-gray-900">Broadcasts</h1>
+        <p className="text-sm text-gray-500">
+          Send operational announcements to active customer, provider, or admin accounts.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base">Compose broadcast</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Audience</label>
+                <Select
+                  value={audience}
+                  onValueChange={(value) => setAudience(value as AdminBroadcastAudience)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="customers">Customers</SelectItem>
+                    <SelectItem value="providers">Providers</SelectItem>
+                    <SelectItem value="admins">Admins</SelectItem>
+                    <SelectItem value="all">All active users</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Title</label>
+                <Input
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                  placeholder="Service update"
+                  maxLength={120}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">Message</label>
+              <Textarea
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Write the announcement users should receive..."
+                rows={6}
+                maxLength={1000}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => void handleSend()}
+                disabled={!canSend || isSending}
+                className="bg-[#16A34A] hover:bg-[#15803D]"
+              >
+                {isSending ? "Sending..." : "Send Broadcast"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Last delivery</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {lastResult ? (
+              <>
+                <div>
+                  <p className="text-xs text-gray-500">Audience</p>
+                  <p className="mt-1 font-medium text-gray-900 capitalize">
+                    {lastResult.audience}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Delivered</p>
+                    <p className="mt-1 text-2xl font-semibold text-[#16A34A]">
+                      {lastResult.deliveredCount}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-3">
+                    <p className="text-xs text-gray-500">Failed</p>
+                    <p className="mt-1 text-2xl font-semibold text-gray-900">
+                      {lastResult.failedCount}
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-200 p-4 text-sm text-gray-500">
+                Delivery results appear after a broadcast is sent.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }

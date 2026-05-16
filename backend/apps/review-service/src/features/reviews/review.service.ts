@@ -4,8 +4,10 @@ import {
   CreateReviewInput,
   CreateReviewResponseInput,
   FlagReviewInput,
+  ListAdminReviewsFilters,
   ReviewResponseSummary,
   ReviewSummary,
+  SetReviewFlaggedInput,
 } from './review.types';
 import { SupabaseReviewRepository } from './supabase-review.repository';
 
@@ -61,5 +63,26 @@ export class ReviewService {
     }
 
     return this.reviewRepository.listProviderReviews(providerId);
+  }
+
+  async listForAdmin(filters: ListAdminReviewsFilters): Promise<ReviewSummary[]> {
+    return this.reviewRepository.listForAdmin({
+      providerId: filters.providerId?.trim() || null,
+      flaggedOnly: filters.flaggedOnly ?? false,
+      limit: filters.limit,
+    });
+  }
+
+  async setFlaggedStatus(input: SetReviewFlaggedInput): Promise<ReviewSummary> {
+    if (!input.reviewId) {
+      throw new InvalidReviewRequestError();
+    }
+
+    return this.reviewRepository.setFlagged({
+      reviewId: input.reviewId,
+      isFlagged: input.isFlagged,
+      reason: input.reason?.trim() || null,
+      adminId: input.adminId?.trim() || null,
+    });
   }
 }

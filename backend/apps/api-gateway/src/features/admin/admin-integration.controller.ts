@@ -1,19 +1,13 @@
 import {
-  Body,
   Controller,
   Headers,
   HttpCode,
   HttpException,
-  Param,
   Patch,
   Post,
 } from '@nestjs/common';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
-import {
-  AuthRequiredError,
-  InvalidAuthTokenError,
-} from '../current-user/current-user.errors';
 import { AdminRequiredError } from './admin-support.errors';
 
 const notImplemented = {
@@ -34,8 +28,6 @@ export class AdminIntegrationController {
   @HttpCode(501)
   async updateCredentials(
     @Headers('authorization') authorization: string | undefined,
-    @Param('provider') _provider: string,
-    @Body() _body: Record<string, unknown>,
   ): Promise<{ error: { code: string; message: string } }> {
     await this.requireAdmin(authorization).catch(() => {
       throw this.error('admin_required', 'An admin account is required.', 403);
@@ -47,7 +39,6 @@ export class AdminIntegrationController {
   @HttpCode(501)
   async test(
     @Headers('authorization') authorization: string | undefined,
-    @Param('provider') _provider: string,
   ): Promise<{ error: { code: string; message: string } }> {
     await this.requireAdmin(authorization).catch(() => {
       throw this.error('admin_required', 'An admin account is required.', 403);

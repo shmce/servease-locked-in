@@ -30,7 +30,9 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  listAdminPayouts,
+  listAdminSettlements,
+  approveAdminSettlement,
+  rejectAdminSettlement,
   updateAdminPayoutStatus,
   AdminPayoutSummary,
   AdminPayoutStatus,
@@ -46,13 +48,18 @@ export function SettlementsPayouts() {
 
   useEffect(() => {
     if (!accessToken) return;
-    listAdminPayouts(accessToken).then(setPayouts).catch(() => {});
+    listAdminSettlements(accessToken).then(setPayouts).catch(() => {});
   }, [accessToken]);
 
   const handleUpdateStatus = async (payoutId: string, status: AdminPayoutStatus) => {
     if (!accessToken) return;
     try {
-      const updated = await updateAdminPayoutStatus(accessToken, payoutId, status);
+      const updated =
+        status === "processing"
+          ? await approveAdminSettlement(accessToken, payoutId)
+          : status === "cancelled"
+            ? await rejectAdminSettlement(accessToken, payoutId)
+          : await updateAdminPayoutStatus(accessToken, payoutId, status);
       setPayouts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     } catch {
       // silently ignore; row stays unchanged
@@ -323,7 +330,7 @@ export function SettlementsPayouts() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              title="Cancel Payout"
+                              title="Reject settlement"
                               onClick={() => handleUpdateStatus(payout.id, "cancelled")}
                             >
                               <XCircle className="w-4 h-4" />

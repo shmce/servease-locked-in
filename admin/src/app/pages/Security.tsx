@@ -17,12 +17,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyBackendRequired } from "../utils/backendRequired";
+import { useAuth } from "../contexts/AuthContext";
+import { updateCurrentUserPassword } from "../../services/serveaseAdminApi";
 
 export function Security() {
+  const { accessToken } = useAuth();
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -30,13 +34,39 @@ export function Security() {
     confirmPassword: "",
   });
 
-  const handlePasswordChange = (e: React.FormEvent) => {
+  const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!passwordForm.currentPassword || !passwordForm.newPassword) {
+      toast.error("Please fill in all password fields");
+      return;
+    }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       toast.error("Passwords do not match");
       return;
     }
-    notifyBackendRequired("Changing admin passwords", "PATCH /v1/me/password");
+    if (passwordForm.newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    if (!accessToken) return;
+
+    setIsSavingPassword(true);
+    try {
+      await updateCurrentUserPassword(accessToken, {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      toast.success("Password updated.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update password.");
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   const handleToggle2FA = () => {
@@ -187,10 +217,11 @@ export function Security() {
 
               <Button
                 type="submit"
+                disabled={isSavingPassword}
                 className="w-full bg-[#00BF63] hover:bg-[#00A055]"
               >
                 <Key className="w-4 h-4 mr-2" />
-                Update Password
+                {isSavingPassword ? "Updating..." : "Update Password"}
               </Button>
             </form>
           </CardContent>

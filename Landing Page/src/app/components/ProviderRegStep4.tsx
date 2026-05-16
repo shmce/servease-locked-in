@@ -6,6 +6,7 @@ import { Upload, FileText, CheckCircle, ArrowRight, ArrowLeft, AlertCircle } fro
 import {
   clearProviderRegistrationDraft,
   readProviderRegistrationDraft,
+  submitProviderRegistration,
 } from "../lib/provider-registration";
 
 const idTypes = [
@@ -62,26 +63,7 @@ export function ProviderRegStep4() {
       }));
 
       const draft = readProviderRegistrationDraft();
-      const response = await fetch("/api/provider-registration", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(draft),
-      });
-
-      const payload = await response.json().catch(() => null) as {
-        error?: {
-          message?: string;
-        };
-      } | null;
-
-      if (!response.ok) {
-        throw new Error(
-          payload?.error?.message ?? "Registration failed. Please try again.",
-        );
-      }
-
+      await submitProviderRegistration(draft);
       clearProviderRegistrationDraft();
       router.push("/provider-registration/success");
     } catch (error) {

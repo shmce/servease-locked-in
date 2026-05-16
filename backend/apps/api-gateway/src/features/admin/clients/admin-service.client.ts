@@ -22,6 +22,7 @@ import {
 } from '../admin-catalog.types';
 import { AdminDisputeSummary } from '../admin-dispute.types';
 import {
+  AdminProviderApplicationDocumentSummary,
   AdminProviderApplicationSummary,
   ListProviderApplicationsFilter,
 } from '../admin-provider-application.types';
@@ -36,7 +37,11 @@ import {
   UpdateCommissionRuleRequest,
 } from '../admin-payment.types';
 import { SupportTicketReplySummary, SupportTicketSummary } from '../admin-support.types';
-import { AdminUserSummary, AdminUsersSummaryStats } from '../admin-users.types';
+import {
+  AdminUserSummary,
+  AdminUsersSummaryStats,
+  CreateAdminUserRequest,
+} from '../admin-users.types';
 
 @Injectable()
 export class AdminServiceClient {
@@ -110,6 +115,10 @@ export class AdminServiceClient {
       'PATCH',
       { status },
     );
+  }
+
+  createAdminUser(input: CreateAdminUserRequest): Promise<AdminUserSummary> {
+    return this.request<AdminUserSummary>('/internal/admin/users', 'POST', input);
   }
 
   listAdminCategories(): Promise<AdminCategoryItem[]> {
@@ -492,6 +501,16 @@ export class AdminServiceClient {
   ): Promise<AdminProviderApplicationSummary> {
     return this.request<AdminProviderApplicationSummary>(
       `/internal/admin/provider-applications/${applicationId}`,
+      'GET',
+    );
+  }
+
+  getProviderApplicationDocument(
+    applicationId: string,
+    documentId: string,
+  ): Promise<AdminProviderApplicationDocumentSummary> {
+    return this.request<AdminProviderApplicationDocumentSummary>(
+      `/internal/admin/provider-applications/${applicationId}/documents/${documentId}`,
       'GET',
     );
   }

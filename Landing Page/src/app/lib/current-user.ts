@@ -35,3 +35,85 @@ export interface UpdateCurrentUserProfileInput {
   address?: string | null;
   businessName?: string | null;
 }
+
+export interface UpdateCurrentUserPasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface UpdateCurrentUserPasswordResponse {
+  ok: true;
+}
+
+interface ApiResponse<T> {
+  data?: T;
+  error?: {
+    message?: string;
+  };
+}
+
+export function getCurrentUserProfile(
+  accessToken: string,
+): Promise<CurrentUserProfile> {
+  return fetchCurrentUserApi<CurrentUserProfile>('/api/me', {
+    accessToken,
+  });
+}
+
+export function updateCurrentUserProfile(
+  accessToken: string,
+  input: UpdateCurrentUserProfileInput,
+): Promise<CurrentUserProfile> {
+  return fetchCurrentUserApi<CurrentUserProfile>('/api/me', {
+    accessToken,
+    method: 'PATCH',
+    body: input,
+  });
+}
+
+export function updateCurrentUserPassword(
+  accessToken: string,
+  input: UpdateCurrentUserPasswordInput,
+): Promise<UpdateCurrentUserPasswordResponse> {
+  return fetchCurrentUserApi<UpdateCurrentUserPasswordResponse>(
+    '/api/me/password',
+    {
+      accessToken,
+      method: 'PATCH',
+      body: input,
+    },
+  );
+}
+
+async function fetchCurrentUserApi<T>(
+  path: string,
+  options: {
+    accessToken: string;
+    method?: 'GET' | 'PATCH';
+    body?: unknown;
+  },
+): Promise<T> {
+  const response = await fetch(path, {
+    method: options.method ?? 'GET',
+    headers: {
+      authorization: `Bearer ${options.accessToken}`,
+      accept: 'application/json',
+      ...(options.body ? { 'content-type': 'application/json' } : {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  }).catch(() => null);
+
+  if (!response) {
+    throw new Error('Could not reach the profile service.');
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | ApiResponse<T>
+    | null;
+
+  if (!response.ok || !payload?.data) {
+    throw new Error(payload?.error?.message ?? 'Profile request failed.');
+  }
+
+  return payload.data;
+}

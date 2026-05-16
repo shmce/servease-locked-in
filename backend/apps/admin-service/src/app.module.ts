@@ -24,6 +24,7 @@ import { AdminSupportService } from './features/support/admin-support.service';
 import { SupportServiceClient } from './features/support/clients/support-service.client';
 import { AdminUsersController } from './features/users/admin-users.controller';
 import { AdminUsersGatewayService } from './features/users/admin-users.service';
+import { AuthServiceClient } from './features/users/clients/auth-service.client';
 import { UserServiceClient } from './features/users/clients/user-service.client';
 import { HealthController } from './features/health/health.controller';
 
@@ -45,6 +46,7 @@ import { HealthController } from './features/health/health.controller';
     AdminCatalogGatewayService,
     CatalogAdminServiceClient,
     AdminUsersGatewayService,
+    AuthServiceClient,
     UserServiceClient,
     AdminSupportService,
     SupportServiceClient,

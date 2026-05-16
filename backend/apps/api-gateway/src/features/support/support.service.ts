@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { SupportServiceClient } from './clients/support-service.client';
 import {
   CreateSupportTicketRequest,
+  SupportTicketReplySummary,
   SupportTicketSummary,
 } from './support.types';
 
@@ -19,5 +20,20 @@ export class SupportGatewayService {
 
   listTickets(userId: string): Promise<SupportTicketSummary[]> {
     return this.supportServiceClient.listTickets(userId);
+  }
+
+  listReplies(
+    userId: string,
+    ticketId: string,
+  ): Promise<SupportTicketReplySummary[]> {
+    return this.supportServiceClient.listReplies(userId, ticketId);
+  }
+
+  addReply(
+    userId: string,
+    ticketId: string,
+    message: string,
+  ): Promise<SupportTicketReplySummary> {
+    return this.supportServiceClient.addReply(userId, ticketId, message);
   }
 }

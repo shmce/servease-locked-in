@@ -1,5 +1,18 @@
 export type ProviderApplicationStatus = 'pending' | 'approved' | 'rejected';
 
+export interface AdminProviderApplicationDocumentSummary {
+  id: string;
+  applicationId: string;
+  userId: string;
+  documentType: string;
+  fileUrl: string | null;
+  storagePath: string | null;
+  status: ProviderApplicationStatus;
+  createdAt: string | null;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+}
+
 export interface AdminProviderApplicationSummary {
   id: string;
   applicationReference: string;
@@ -22,6 +35,7 @@ export interface AdminProviderApplicationSummary {
   latestDecidedBy: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  documents: AdminProviderApplicationDocumentSummary[];
 }
 
 export interface ListProviderApplicationsFilter {

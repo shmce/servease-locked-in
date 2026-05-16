@@ -49,11 +49,8 @@ Needed for customer list, detail, suspend/reactivate, and export.
 - `GET /v1/admin/provider-applications/:applicationId`
 - `POST /v1/admin/provider-applications/:applicationId/approve`
 - `POST /v1/admin/provider-applications/:applicationId/reject`
-- `POST /v1/admin/provider-applications/:applicationId/request-info`
-- `GET /v1/admin/provider-applications/:applicationId/documents/:documentId`
-- `GET /v1/admin/provider-applications/:applicationId/documents/:documentId/download`
 
-Needed for approval queue, application review, document preview/download, rejection reasons, and KYC decisions.
+Approval queue, application review, approve/reject decisions, rejection reasons, request-info notifications, and document preview/download now have gateway-backed contracts.
 
 ### Service Providers
 
@@ -88,7 +85,6 @@ Needed for disputes and resolutions workflows.
 ### Payments, Refunds, Payouts, Settlements
 
 - `GET /v1/admin/payments/:paymentId`
-- `GET /v1/admin/payments/failures`
 - `GET /v1/admin/refunds`
 - `POST /v1/admin/refunds/:refundId/approve`
 - `POST /v1/admin/refunds/:refundId/reject`
@@ -96,11 +92,8 @@ Needed for disputes and resolutions workflows.
 - `POST /v1/admin/payout-requests/:payoutId/approve`
 - `POST /v1/admin/payout-requests/:payoutId/reject`
 - `POST /v1/admin/payout-requests/:payoutId/release`
-- `GET /v1/admin/settlements`
-- `POST /v1/admin/settlements/:settlementId/approve`
-- `POST /v1/admin/settlements/:settlementId/reject`
 
-Needed for real failure reasons, refund processing, payout approval, settlement approval, release flows, and finance audit trails.
+Needed for real failure reasons, refund processing, payout approval, release flows, and finance audit trails. Failed-payment exception listing and settlement list/approve/reject actions are now gateway-backed workflows.
 
 ### Catalog Admin
 
@@ -131,10 +124,9 @@ Needed for geographic coverage management.
 - `PATCH /v1/admin/promotions/:promotionId`
 - `PATCH /v1/admin/promotions/:promotionId/status`
 - `DELETE /v1/admin/promotions/:promotionId`
-- `POST /v1/admin/broadcasts`
 - `GET /v1/admin/broadcasts`
 
-Needed for marketing promotions, lifecycle, targeting, and announcement delivery.
+Promotion lifecycle and immediate broadcast delivery are gateway-backed. Broadcast history, scheduling, and richer targeting still need dedicated contracts.
 
 ### Commission Rules
 
@@ -147,7 +139,6 @@ Needed for commission rule edits and financial audit trails.
 ### Admin Users, Roles, Audit Trail
 
 - `GET /v1/admin/users`
-- `POST /v1/admin/users`
 - `PATCH /v1/admin/users/:adminId`
 - `PATCH /v1/admin/users/:adminId/status`
 - `POST /v1/admin/users/:adminId/invitations`
@@ -156,7 +147,7 @@ Needed for commission rule edits and financial audit trails.
 - `GET /v1/admin/audit-logs`
 - `GET /v1/admin/audit-logs/export`
 
-Needed for admin CRUD, invitations, RBAC, and activity/audit exports.
+Needed for admin profile edits, invitations, RBAC, and activity/audit exports. Admin user creation is now gateway-backed and creates the auth/profile record with `role=admin`.
 
 ### Account And Security
 
@@ -183,14 +174,13 @@ Needed for payment, messaging, maps, analytics, and push-provider configuration.
 ### Reports
 
 - `GET /v1/admin/reports/revenue.pdf`
-- `GET /v1/admin/reports/bookings.csv`
 - `GET /v1/admin/reports/bookings.pdf`
 - `POST /v1/admin/reports/:reportType`
 - `GET /v1/admin/reports/:reportId/download`
 - `POST /v1/admin/reports/:reportType/schedules`
 - `PATCH /v1/admin/reports/:reportType/schedules/:scheduleId/status`
 
-Needed for PDF generation, scheduled reports, historical report downloads, and non-payment analytics.
+Booking analytics CSV export is now gateway-backed. Remaining needs are PDF generation, scheduled reports, historical report downloads, and non-payment analytics.
 
 ## Frontend Status
 

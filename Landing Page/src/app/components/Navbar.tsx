@@ -60,6 +60,18 @@ export function Navbar() {
         >
           {isSignedIn ? "Account" : "Sign In"}
         </Link>
+        {!isSignedIn && (
+          <Link
+            href="/register"
+            className={`font-['Poppins',sans-serif] text-base no-underline transition-colors ${
+              isActive("/register")
+                ? "text-[#00BF63]"
+                : "text-white hover:text-[#00BF63]"
+            }`}
+          >
+            Register
+          </Link>
+        )}
         {isSignedIn && (
           <button
             type="button"
@@ -108,6 +120,7 @@ function MobileMenu({
               path: isSignedIn ? "/account" : "/login",
               label: isSignedIn ? "Account" : "Sign In",
             },
+            ...(!isSignedIn ? [{ path: "/register", label: "Register" }] : []),
           ].map((item) => (
             <Link
               key={item.path}

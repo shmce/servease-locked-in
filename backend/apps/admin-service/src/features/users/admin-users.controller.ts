@@ -1,10 +1,25 @@
-import { Body, Controller, Get, HttpException, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, Param, Patch, Post, Query } from '@nestjs/common';
 import { AdminUsersGatewayService } from './admin-users.service';
-import { AdminUserSummary, AdminUsersSummaryStats } from './admin-users.types';
+import {
+  AdminUserSummary,
+  AdminUsersSummaryStats,
+  CreateAdminUserRequest,
+} from './admin-users.types';
 
 @Controller('internal/admin/users')
 export class AdminUsersController {
   constructor(private readonly adminUsersService: AdminUsersGatewayService) {}
+
+  @Post()
+  async create(
+    @Body() body: CreateAdminUserRequest,
+  ): Promise<{ data: AdminUserSummary }> {
+    try {
+      return { data: await this.adminUsersService.createUser(body) };
+    } catch {
+      throw this.unavailable();
+    }
+  }
 
   @Get('summary')
   async summary(): Promise<{ data: AdminUsersSummaryStats }> {

@@ -47,6 +47,9 @@ import {
 import { Badge } from "../../components/ui/badge";
 import { notifyBackendRequired } from "../../utils/backendRequired";
 import { useAdminGatewayData } from "../../../hooks/useAdminGatewayData";
+import { useAuth } from "../../contexts/AuthContext";
+import { exportAdminBookingsCsv } from "../../../services/serveaseAdminApi";
+import { toast } from "sonner";
 
 const bookingsOverTimeData = [
   { date: "Feb 1", bookings: 67 },
@@ -99,6 +102,7 @@ function KPICard({ label, value, change, icon: Icon, changeType }: any) {
 
 export function BookingAnalytics() {
   const adminGateway = useAdminGatewayData();
+  const { accessToken } = useAuth();
   const [dateRange, setDateRange] = useState("last-30-days");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [serviceAreaFilter, setServiceAreaFilter] = useState("all");
@@ -106,6 +110,7 @@ export function BookingAnalytics() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   const liveBookingRows = useMemo(() => {
     return adminGateway.payments.map((payment) => ({
@@ -182,8 +187,25 @@ export function BookingAnalytics() {
   const completionRate =
     totalBookings > 0 ? `${((completedBookings / totalBookings) * 100).toFixed(1)}%` : "0%";
 
-  const handleExportCSV = () => {
-    notifyBackendRequired("Exporting booking analytics CSV", "GET /v1/admin/reports/bookings.csv");
+  const handleExportCSV = async () => {
+    if (!accessToken) return;
+    setIsExportingCsv(true);
+    try {
+      const csv = await exportAdminBookingsCsv(accessToken);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `booking-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to export bookings CSV.");
+    } finally {
+      setIsExportingCsv(false);
+    }
   };
 
   const handleExportPDF = () => {
@@ -206,9 +228,14 @@ export function BookingAnalytics() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleExportCSV} variant="outline" className="text-[14px] font-medium">
+          <Button
+            onClick={() => void handleExportCSV()}
+            variant="outline"
+            className="text-[14px] font-medium"
+            disabled={isExportingCsv}
+          >
             <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            {isExportingCsv ? "Exporting..." : "Export CSV"}
           </Button>
           <Button onClick={handleExportPDF} className="bg-[#00BF63] hover:bg-[#00A356] text-[14px] font-medium">
             <FileText className="w-4 h-4 mr-2" />

@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
+  HttpCode,
   HttpException,
   Param,
   Patch,
@@ -24,6 +26,8 @@ import {
 } from './admin-support.errors';
 import { AdminCatalogGatewayService } from './admin-catalog.service';
 import { AdminProviderSummary } from './admin-catalog.types';
+import { CatalogServiceClient as CatalogBrowseServiceClient } from '../catalog/clients/catalog-service.client';
+import { ProviderPortfolioMediaSummary } from '../catalog/catalog.types';
 
 const validProviderStatuses = new Set(['active', 'suspended', 'verified', 'unverified', 'rejected']);
 
@@ -36,6 +40,7 @@ export class AdminProvidersController {
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
     private readonly authTokenService: AuthTokenService,
     private readonly currentUserService: CurrentUserService,
+    private readonly catalogBrowseServiceClient: CatalogBrowseServiceClient,
   ) {}
 
   @Get()
@@ -94,6 +99,55 @@ export class AdminProvidersController {
         metadata: { providerId: provider.id, status: body.status, reason: body.reason ?? null },
       }).catch(() => undefined);
       return { data: provider };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':providerId/portfolio')
+  async listPortfolio(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('providerId') providerId: string,
+  ): Promise<{ data: ProviderPortfolioMediaSummary[] }> {
+    try {
+      await this.requireAdmin(authorization);
+      return {
+        data: await this.catalogBrowseServiceClient.listProviderPortfolio(providerId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete(':providerId/portfolio/:mediaId')
+  @HttpCode(204)
+  async deletePortfolioMedia(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: AuditRequest,
+    @Param('providerId') providerId: string,
+    @Param('mediaId') mediaId: string,
+  ): Promise<void> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const provider = await this.adminCatalogGatewayService.getProvider(providerId);
+      await this.catalogBrowseServiceClient.deleteProviderPortfolioMedia(
+        provider.userId,
+        mediaId,
+      );
+      void this.adminAuditGatewayService
+        .createAuditLog({
+          adminUserId: admin.user.id,
+          adminEmail: admin.user.email,
+          adminName: admin.user.fullName,
+          action: 'Removed provider portfolio media',
+          actionType: 'delete',
+          entityType: 'ProviderPortfolioMedia',
+          entityId: mediaId,
+          details: `Admin removed portfolio media ${mediaId} from provider ${providerId}.`,
+          ipAddress: this.getClientIp(request),
+          metadata: { providerId, mediaId },
+        })
+        .catch(() => undefined);
     } catch (error) {
       throw this.toHttpException(error);
     }

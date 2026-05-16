@@ -73,6 +73,7 @@ import {
 import {
   activeBookingCount,
   bookingStatusChip,
+  buildBookingTransitionRequest,
   buildProviderBookingSlots,
   completedBookingCount,
   formatDateTime,
@@ -131,6 +132,7 @@ import {
   PromotionValidationSummary,
   PayoutAccountSummary,
   PayoutMethodSummary,
+  PayoutMethodType,
   PayoutSummary,
   ReferralSummary,
   UserPreferenceSummary,
@@ -138,6 +140,7 @@ import {
   ProviderListing,
   ProviderPortfolioMediaSummary,
   ReviewSummary,
+  SupportTicketReplySummary,
   SupportTicketSummary,
   UploadKind,
   UploadSummary,
@@ -150,6 +153,8 @@ import {
   createPayment,
   createReview,
   createSupportTicket,
+  createSupportTicketReply,
+  listSupportTicketReplies,
   replyToReview,
   flagReview,
   getProviderDashboard,
@@ -191,6 +196,7 @@ import {
   replaceProviderAvailabilityWindows,
   requestPasswordReset,
   requestProviderPayout,
+  upsertProviderPayoutMethod,
   transitionBookingStatus,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
@@ -290,6 +296,11 @@ export default function App() {
   const [rating, setRating] = useState('5');
   const [supportSubject, setSupportSubject] = useState('');
   const [supportMessage, setSupportMessage] = useState('');
+  const [expandedSupportTicketId, setExpandedSupportTicketId] = useState<string | null>(null);
+  const [supportReplies, setSupportReplies] = useState<
+    Record<string, SupportTicketReplySummary[]>
+  >({});
+  const [supportReplyDraft, setSupportReplyDraft] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [desiredResolution, setDesiredResolution] = useState('');
   const [reportEvidencePhotoUri, setReportEvidencePhotoUri] = useState<string | null>(null);
@@ -343,6 +354,11 @@ export default function App() {
   const [selectedPayoutMethodId, setSelectedPayoutMethodId] = useState<string | null>(
     null,
   );
+  const [newPayoutMethodType, setNewPayoutMethodType] =
+    useState<PayoutMethodType>('bank');
+  const [newPayoutAccountLabel, setNewPayoutAccountLabel] = useState('');
+  const [newPayoutAccountName, setNewPayoutAccountName] = useState('');
+  const [newPayoutAccountLast4, setNewPayoutAccountLast4] = useState('');
   const [selectedCustomerPaymentMethodId, setSelectedCustomerPaymentMethodId] =
     useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -416,6 +432,68 @@ export default function App() {
     const timer = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [route.screen]);
+
+  useEffect(() => {
+    if (!session?.accessToken) {
+      return undefined;
+    }
+    const tick = async () => {
+      try {
+        const [nextNotifications, nextBookings] = await Promise.all([
+          listNotifications(apiOptions),
+          appRole === 'provider'
+            ? listProviderBookings(apiOptions)
+            : listCustomerBookings(apiOptions),
+        ]);
+        setNotifications(nextNotifications);
+        setBookings(nextBookings);
+      } catch {
+        // ignore poll errors to avoid noisy notices
+      }
+    };
+    const interval = setInterval(() => void tick(), 30000);
+    return () => clearInterval(interval);
+  }, [session?.accessToken, appRole, apiOptions]);
+
+  useEffect(() => {
+    if (!session?.accessToken || route.screen !== 'messages') {
+      return undefined;
+    }
+    const tick = async () => {
+      try {
+        const nextConversations = await listConversations(apiOptions);
+        setConversations(nextConversations);
+        if (selectedConversationId) {
+          const nextMessages = await listConversationMessages(
+            selectedConversationId,
+            apiOptions,
+          );
+          setMessages(nextMessages);
+        }
+      } catch {
+        // swallow poll errors
+      }
+    };
+    const interval = setInterval(() => void tick(), 8000);
+    return () => clearInterval(interval);
+  }, [session?.accessToken, route.screen, selectedConversationId, apiOptions]);
+
+  useEffect(() => {
+    const trackingScreens: AppScreen[] = [
+      'customerTrackServiceProvider',
+      'providerNavigationMode',
+    ];
+    if (
+      !session?.accessToken ||
+      !selectedBookingId ||
+      !trackingScreens.includes(route.screen)
+    ) {
+      return undefined;
+    }
+    const tick = () => void refreshBookingTracking(selectedBookingId);
+    const interval = setInterval(tick, 15000);
+    return () => clearInterval(interval);
+  }, [session?.accessToken, selectedBookingId, route.screen]);
 
   async function loadCatalog() {
     setBusyAction('catalog');
@@ -944,7 +1022,10 @@ export default function App() {
     }
   }
 
-  async function transitionSelectedBooking(nextStatus: BookingStatus) {
+  async function transitionSelectedBooking(
+    nextStatus: BookingStatus,
+    reason?: string | null,
+  ) {
     if (!selectedBooking) {
       setNotice('Select a booking first.');
       return false;
@@ -954,10 +1035,7 @@ export default function App() {
     try {
       const updated = await transitionBookingStatus(
         selectedBooking.id,
-        {
-          currentStatus: selectedBooking.status,
-          nextStatus,
-        },
+        buildBookingTransitionRequest(selectedBooking.status, nextStatus, reason),
         apiOptions,
       );
       replaceBooking(updated);
@@ -1106,7 +1184,10 @@ export default function App() {
   }
 
   async function cancelSelectedProviderBooking() {
-    const cancelled = await transitionSelectedBooking('cancelled');
+    const cancelled = await transitionSelectedBooking(
+      'cancelled',
+      providerCancelReason,
+    );
     if (cancelled) {
       setProviderCancelReason('');
       setRoute({ role: 'provider', screen: 'bookings' });
@@ -1439,6 +1520,41 @@ export default function App() {
     }
   }
 
+  async function saveNewPayoutMethod() {
+    const label = newPayoutAccountLabel.trim();
+    if (!label) {
+      setNotice('Enter a payout method label.');
+      return;
+    }
+
+    setBusyAction('save-payout-method');
+    try {
+      const method = await upsertProviderPayoutMethod(
+        {
+          methodType: newPayoutMethodType,
+          accountLabel: label,
+          accountName: newPayoutAccountName.trim() || null,
+          accountNumberLast4: newPayoutAccountLast4.trim() || null,
+          isDefault: payoutMethods.length === 0,
+        },
+        apiOptions,
+      );
+      const methods = await listProviderPayoutMethods(apiOptions).catch(
+        () => [method, ...payoutMethods.filter((item) => item.id !== method.id)],
+      );
+      setPayoutMethods(methods);
+      setSelectedPayoutMethodId(method.id);
+      setNewPayoutAccountLabel('');
+      setNewPayoutAccountName('');
+      setNewPayoutAccountLast4('');
+      setNotice(`${method.accountLabel} saved as payout method.`);
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function uploadProviderPortfolioMedia() {
     await pickAndUploadImage('provider_portfolio', async (uri, uploaded) => {
       const media = await addProviderPortfolioMedia(
@@ -1692,6 +1808,38 @@ export default function App() {
       setNotice(readError(error));
     } finally {
       setBusyAction(null);
+    }
+  }
+
+  async function openNotification(notification: NotificationSummary) {
+    if (!notification.isRead) {
+      void markRead(notification.id);
+    }
+    if (notification.type.startsWith('support_')) {
+      const ticketId = (notification.metadata as { ticketId?: string } | null)
+        ?.ticketId;
+      if (ticketId) {
+        setExpandedSupportTicketId(ticketId);
+        setSupportReplyDraft('');
+        if (!supportReplies[ticketId]) {
+          void loadSupportTicketReplies(ticketId);
+        }
+      }
+      navigate('customerHelp', 'customer');
+      return;
+    }
+    if (notification.type.includes('booking')) {
+      const bookingId = (notification.metadata as { bookingId?: string } | null)
+        ?.bookingId;
+      const matched = bookingId
+        ? bookings.find((booking) => booking.id === bookingId)
+        : null;
+      if (matched) {
+        openBooking(
+          matched,
+          appRole === 'provider' ? 'providerBookingDetail' : 'customerBookingDetail',
+        );
+      }
     }
   }
 
@@ -2146,26 +2294,15 @@ export default function App() {
                 {selectedProvider?.title ?? 'Choose a service provider'}
               </Text>
               <Text style={styles.cardMeta}>
-                {selectedProvider?.providerBusinessName ?? 'Select a provider above'}
+                {selectedProvider
+                  ? `${selectedProvider.providerBusinessName ?? selectedProvider.title} · ${formatMoney(selectedProvider.price)}${selectedProvider.pricingMode === 'hourly' ? ' / hr' : ''}`
+                  : 'Pick a provider above to start booking.'}
               </Text>
-              <Field label="Service address" value={address} onChangeText={setAddress} />
-              <Field
-                label="Scheduled time"
-                value={scheduledAt}
-                onChangeText={setScheduledAt}
-              />
-              <Field
-                label="Duration"
-                value={hoursRequired}
-                onChangeText={setHoursRequired}
-                keyboardType="number-pad"
-              />
-              <Field label="Notes" value={notes} onChangeText={setNotes} multiline />
               <PrimaryButton
-                label={selectedProvider ? 'Review Booking' : 'Choose Provider'}
+                label={selectedProvider ? 'Book this provider' : 'Choose Provider'}
                 onPress={() =>
                   selectedProvider
-                    ? navigate('customerBookingReview', 'customer')
+                    ? navigate('customerBookingForm', 'customer')
                     : navigate('customerTopProviders', 'customer')
                 }
               />
@@ -2190,7 +2327,11 @@ export default function App() {
 
     return (
       <>
-        <TopBar title="Review booking" onBack={() => navigate('customerBookingForm', 'customer')} />
+        <TopBar
+          title="Review booking"
+          subtitle="Step 2 of 2 · Confirm and send"
+          onBack={() => navigate('customerBookingForm', 'customer')}
+        />
         <ScrollView contentContainerStyle={styles.withStickyFooter}>
           <View style={styles.content}>
             <Card>
@@ -2588,9 +2729,48 @@ export default function App() {
 
     const dateOnly = scheduledAt.slice(0, 10);
     const timeOnly = scheduledAt.slice(11, 16);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const upcomingDates = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const yyyy = d.getFullYear();
+      const mm = `${d.getMonth() + 1}`.padStart(2, '0');
+      const dd = `${d.getDate()}`.padStart(2, '0');
+      return {
+        value: `${yyyy}-${mm}-${dd}`,
+        weekday: d.toLocaleDateString('en-PH', { weekday: 'short' }),
+        day: d.getDate(),
+        month: d.toLocaleDateString('en-PH', { month: 'short' }),
+        isToday: i === 0,
+        isTomorrow: i === 1,
+      };
+    });
+    const availableTimesForDate = providerBookingSlots
+      .filter((slot) => slot.value.startsWith(`${dateOnly}T`))
+      .map((slot) => slot.value.slice(11, 16));
+    const timeOptions = bookingTimeSlots.map((time) => ({
+      time,
+      isAvailable:
+        availableTimesForDate.length === 0 || availableTimesForDate.includes(time),
+    }));
+    const missingFields: string[] = [];
+    if (!dateOnly) missingFields.push('a date');
+    if (!timeOnly) missingFields.push('a time');
+    if (!address.trim()) missingFields.push('the service address');
+    const duration = Number(hoursRequired) || 1;
+    const baseRate = selectedProvider.price ?? 0;
+    const estimatedTotal =
+      selectedProvider.pricingMode === 'hourly' ? baseRate * duration : baseRate;
+    const canContinue = missingFields.length === 0;
+
     return (
       <>
-        <TopBar title="Book Service" onBack={() => navigate('customerProviderProfile', 'customer')} />
+        <TopBar
+          title="Book Service"
+          subtitle="Step 1 of 2 · Choose details"
+          onBack={() => navigate('customerProviderProfile', 'customer')}
+        />
         <ScrollView contentContainerStyle={styles.withStickyFooter}>
           <View style={styles.content}>
             <Card>
@@ -2605,98 +2785,188 @@ export default function App() {
                     {selectedProvider.providerBusinessName ?? selectedProvider.title}
                   </Text>
                   <Text style={styles.cardMeta}>
-                    {selectedProvider.averageRating.toFixed(1)} rating
+                    {selectedProvider.title} · {formatMoney(selectedProvider.price)}
+                    {selectedProvider.pricingMode === 'hourly' ? ' / hr' : ''}
+                  </Text>
+                  <Text style={styles.cardMeta}>
+                    {selectedProvider.averageRating.toFixed(1)} ★ rating
                   </Text>
                 </View>
               </View>
             </Card>
-            <Section title="Service Type">
-              <Card selected>
-                <Text style={styles.cardTitle}>{selectedProvider.title}</Text>
-                <Text style={styles.cardMeta}>{formatMoney(selectedProvider.price)}</Text>
-              </Card>
+
+            <Section title="Pick a date">
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalRail}
+              >
+                {upcomingDates.map((d) => {
+                  const isSelected = dateOnly === d.value;
+                  return (
+                    <Pressable
+                      key={d.value}
+                      style={[styles.dateChip, isSelected && styles.dateChipSelected]}
+                      onPress={() =>
+                        setScheduledAt(`${d.value}T${timeOnly || '09:00'}`)
+                      }
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                    >
+                      <Text
+                        style={[
+                          styles.dateChipDow,
+                          isSelected && styles.dateChipDowSelected,
+                        ]}
+                      >
+                        {d.isToday ? 'Today' : d.isTomorrow ? 'Tomorrow' : d.weekday}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dateChipDay,
+                          isSelected && styles.dateChipDaySelected,
+                        ]}
+                      >
+                        {d.day}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.dateChipMonth,
+                          isSelected && styles.dateChipDowSelected,
+                        ]}
+                      >
+                        {d.month}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </Section>
-            <Section title="Service Location">
-              <View style={styles.twoButtons}>
-                <PrimaryButton label="Mobile Service" onPress={() => undefined} />
-                <PrimaryButton
-                  label="In-Location"
-                  variant="secondary"
-                  onPress={() => setNotice('In-location booking needs provider location support before enabling.')}
-                />
+
+            <Section title="Pick a time">
+              <View style={styles.timeGrid}>
+                {timeOptions.map(({ time, isAvailable }) => {
+                  const isSelected = timeOnly === time;
+                  return (
+                    <Pressable
+                      key={time}
+                      style={[
+                        styles.timeTile,
+                        isSelected && styles.timeTileSelected,
+                        !isAvailable && styles.timeTileDisabled,
+                      ]}
+                      onPress={() => {
+                        if (!isAvailable) {
+                          setNotice('That time is outside the provider schedule.');
+                          return;
+                        }
+                        setScheduledAt(
+                          `${dateOnly || defaultScheduledAt.slice(0, 10)}T${time}`,
+                        );
+                      }}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected, disabled: !isAvailable }}
+                    >
+                      <Text
+                        style={[
+                          styles.timeTileText,
+                          isSelected && styles.timeTileTextSelected,
+                          !isAvailable && styles.timeTileTextDisabled,
+                        ]}
+                      >
+                        {time}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-            </Section>
-            <Field
-              label="Preferred Date"
-              value={dateOnly}
-              onChangeText={(value) => setScheduledAt(`${value}T${timeOnly || '09:00'}`)}
-            />
-            <Section title="Preferred Time">
-              <View style={styles.wrap}>
-                {(providerBookingSlots.length ? providerBookingSlots : bookingTimeSlots.map((time) => ({
-                  label: time,
-                  value: `${dateOnly || defaultScheduledAt.slice(0, 10)}T${time}`,
-                }))).map((slot) => (
-                  <Pill
-                    key={slot.value}
-                    label={slot.label}
-                    selected={scheduledAt === slot.value}
-                    onPress={() => setScheduledAt(slot.value)}
-                  />
-                ))}
-              </View>
-              {!providerBookingSlots.length ? (
-                <Text style={styles.noticeText}>
-                  Availability is loading or unavailable. Choose a time inside the provider's posted schedule.
-                </Text>
-              ) : null}
-            </Section>
-            <Field label="Service Address" value={address} onChangeText={setAddress} multiline />
-            <Field
-              label="Duration"
-              value={hoursRequired}
-              onChangeText={setHoursRequired}
-              keyboardType="number-pad"
-            />
-            <Field
-              label="Service Description"
-              value={notes}
-              onChangeText={setNotes}
-              placeholder="Describe what you need..."
-              multiline
-            />
-            <Pressable
-              style={styles.uploadBox}
-              onPress={() => void pickAndUploadImage('booking_reference', (uri, uploaded) => {
-                setBookingReferencePhotoUri(uri);
-                setBookingReferencePhotoUrl(uploaded.publicUrl);
-                setBookingReferenceUpload(uploaded);
-              })}
-              accessibilityRole="button"
-            >
-              {bookingReferencePhotoUri ? (
-                <Image source={{ uri: bookingReferencePhotoUri }} style={styles.uploadPreview} />
-              ) : (
-                <Upload color={palette.mint} size={30} />
-              )}
-              <Text style={styles.cardMeta}>Upload reference photos</Text>
-              <Text style={styles.linkText}>
-                {bookingReferencePhotoUrl ? 'Reference photo uploaded' : 'Attach photo'}
+              <Text style={styles.cardMeta}>
+                {providerBookingSlots.length
+                  ? 'Greyed times fall outside this provider\'s posted availability.'
+                  : 'Provider availability still loading — you can still pick a tentative slot.'}
               </Text>
-            </Pressable>
+            </Section>
+
+            <Section title="Where do you need it?">
+              <Field
+                label="Service Address"
+                value={address}
+                onChangeText={setAddress}
+                placeholder="House, street, barangay, city"
+                multiline
+              />
+              <Field
+                label="Duration (hours)"
+                value={hoursRequired}
+                onChangeText={setHoursRequired}
+                keyboardType="number-pad"
+                placeholder="1"
+              />
+            </Section>
+
+            <Section title="Add details (optional)">
+              <Field
+                label="Tell the provider what you need"
+                value={notes}
+                onChangeText={setNotes}
+                placeholder="Example: Kitchen sink leak under cabinet"
+                multiline
+              />
+              <Pressable
+                style={styles.uploadBox}
+                onPress={() => void pickAndUploadImage('booking_reference', (uri, uploaded) => {
+                  setBookingReferencePhotoUri(uri);
+                  setBookingReferencePhotoUrl(uploaded.publicUrl);
+                  setBookingReferenceUpload(uploaded);
+                })}
+                accessibilityRole="button"
+              >
+                {bookingReferencePhotoUri ? (
+                  <Image source={{ uri: bookingReferencePhotoUri }} style={styles.uploadPreview} />
+                ) : (
+                  <Upload color={palette.mint} size={28} />
+                )}
+                <Text style={styles.cardMeta}>Reference photo (optional)</Text>
+                <Text style={styles.linkText}>
+                  {bookingReferencePhotoUrl ? 'Photo attached · tap to replace' : 'Attach a photo'}
+                </Text>
+              </Pressable>
+            </Section>
+
             <Card>
-              <InfoRow label="Base price" value={formatMoney(selectedProvider.price)} />
+              <Text style={styles.cardTitle}>Estimated total</Text>
+              <InfoRow
+                label={selectedProvider.pricingMode === 'hourly' ? `${formatMoney(selectedProvider.price)} × ${duration}h` : 'Service rate'}
+                value={formatMoney(estimatedTotal)}
+              />
               <InfoRow label="Callout fee" value={formatMoney(0)} />
-              <InfoRow label="Estimated total" value={formatMoney(selectedProvider.price)} />
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>You'll review on the next step</Text>
+                <Text style={styles.totalValue}>{formatMoney(estimatedTotal)}</Text>
+              </View>
+              <Text style={styles.cardMeta}>
+                You won't be charged until the service is completed.
+              </Text>
             </Card>
           </View>
         </ScrollView>
         <View style={styles.stickyFooter}>
+          {!canContinue ? (
+            <Text style={styles.noticeText}>
+              Add {missingFields.join(', ').replace(/, ([^,]*)$/, ' and $1')} to continue.
+            </Text>
+          ) : null}
           <PrimaryButton
-            label="Review Booking"
+            label="Continue to Review"
             onPress={() => navigate('customerBookingReview', 'customer')}
-            disabled={!address.trim() || !scheduledAt.trim()}
+            disabled={!canContinue}
           />
+          <Text
+            style={styles.footerLink}
+            onPress={() => navigate('customerProviderProfile', 'customer')}
+          >
+            Back to provider
+          </Text>
           <View style={styles.footerHomeIndicator} />
         </View>
       </>
@@ -3173,7 +3443,7 @@ export default function App() {
                 label="Cancel Booking"
                 variant="danger"
                 onPress={async () => {
-                  await transitionSelectedBooking('cancelled');
+                  await transitionSelectedBooking('cancelled', cancelReason);
                   navigate('bookings', 'customer');
                 }}
                 disabled={
@@ -3661,7 +3931,7 @@ export default function App() {
                   styles.notificationCard,
                   !notification.isRead && styles.notificationCardUnread,
                 ]}
-                onPress={() => !notification.isRead && void markRead(notification.id)}
+                onPress={() => void openNotification(notification)}
               >
                 <View style={styles.notificationIcon}>
                   {notification.type.includes('payment') ? (
@@ -3670,6 +3940,8 @@ export default function App() {
                     <Calendar color={palette.white} size={20} />
                   ) : notification.type.includes('promo') ? (
                     <Gift color={palette.white} size={20} />
+                  ) : notification.type.includes('support') ? (
+                    <MessageCircle color={palette.white} size={20} />
                   ) : (
                     <Bell color={palette.white} size={20} />
                   )}
@@ -4688,11 +4960,58 @@ export default function App() {
   }
 
   function renderProviderCalendar() {
+    const upcoming = bookings
+      .filter(
+        (booking) =>
+          booking.scheduledAt &&
+          new Date(booking.scheduledAt).getTime() >= Date.now() - 3 * 60 * 60 * 1000 &&
+          booking.status !== 'cancelled' &&
+          booking.status !== 'completed',
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.scheduledAt ?? 0).getTime() -
+          new Date(b.scheduledAt ?? 0).getTime(),
+      );
     return (
       <>
-        <TopBar title="Availability" subtitle="Set weekly windows and days off" />
+        <TopBar title="Calendar" subtitle="Upcoming jobs, availability, and days off" />
         <ScrollView contentContainerStyle={styles.withBottomNav}>
           <View style={styles.content}>
+            <Section title="Upcoming jobs">
+              {upcoming.length ? (
+                upcoming.slice(0, 10).map((booking) => (
+                  <Card
+                    key={booking.id}
+                    onPress={() => openBooking(booking, 'providerBookingDetail')}
+                  >
+                    <View style={styles.rowBetween}>
+                      <View style={styles.flex}>
+                        <Text style={styles.cardTitle}>
+                          {booking.serviceTitle ?? 'Service booking'}
+                        </Text>
+                        <Text style={styles.cardMeta}>
+                          {formatDateTime(booking.scheduledAt)}
+                        </Text>
+                        <Text style={styles.cardBody}>
+                          {booking.serviceAddress ?? 'Address pending'}
+                        </Text>
+                      </View>
+                      <Badge
+                        label={statusLabel(booking.status)}
+                        tone={bookingStatusChip(booking.status).tone}
+                      />
+                    </View>
+                  </Card>
+                ))
+              ) : (
+                <EmptyState
+                  title="No upcoming jobs"
+                  body="Confirmed bookings will appear here, grouped by date."
+                />
+              )}
+            </Section>
             <Section title="Weekly availability">
               {dayOrder.map((day) => {
                 const window = availability?.windows.find((item) => item.dayOfWeek === day);
@@ -5081,9 +5400,62 @@ export default function App() {
               {!payoutMethods.length ? (
                 <EmptyState
                   title="No payout method"
-                  body="Add payout details in provider onboarding or web settings."
+                  body="Add a bank, GCash, or PayMaya account below to receive payouts."
                 />
               ) : null}
+            </Section>
+
+            <Section title="Add Payout Method">
+              <Card>
+                <Text style={styles.cardMeta}>Account type</Text>
+                <View style={styles.wrap}>
+                  {(['bank', 'gcash', 'paymaya'] as const).map((type) => (
+                    <Pill
+                      key={type}
+                      label={type === 'bank' ? 'Bank' : type === 'gcash' ? 'GCash' : 'PayMaya'}
+                      selected={newPayoutMethodType === type}
+                      onPress={() => setNewPayoutMethodType(type)}
+                    />
+                  ))}
+                </View>
+                <Field
+                  label="Account label"
+                  value={newPayoutAccountLabel}
+                  onChangeText={setNewPayoutAccountLabel}
+                  placeholder={
+                    newPayoutMethodType === 'bank'
+                      ? 'BPI Savings ****1234'
+                      : newPayoutMethodType === 'gcash'
+                        ? 'GCash 09171234567'
+                        : 'PayMaya 09171234567'
+                  }
+                />
+                <Field
+                  label="Account holder name"
+                  value={newPayoutAccountName}
+                  onChangeText={setNewPayoutAccountName}
+                  placeholder="Full name on the account"
+                />
+                <Field
+                  label="Last 4 digits"
+                  value={newPayoutAccountLast4}
+                  onChangeText={setNewPayoutAccountLast4}
+                  placeholder="1234"
+                  keyboardType="number-pad"
+                />
+                <PrimaryButton
+                  label={
+                    busyAction === 'save-payout-method'
+                      ? 'Saving...'
+                      : 'Save Payout Method'
+                  }
+                  onPress={() => void saveNewPayoutMethod()}
+                  disabled={
+                    !newPayoutAccountLabel.trim() ||
+                    busyAction === 'save-payout-method'
+                  }
+                />
+              </Card>
             </Section>
 
             <Section title="Payout Requests">
@@ -5393,6 +5765,51 @@ export default function App() {
     );
   }
 
+  async function loadSupportTicketReplies(ticketId: string) {
+    if (!session) {
+      return;
+    }
+    try {
+      const replies = await listSupportTicketReplies(ticketId, apiOptions);
+      setSupportReplies((current) => ({ ...current, [ticketId]: replies }));
+    } catch (error) {
+      setNotice(readError(error));
+    }
+  }
+
+  function toggleSupportTicket(ticketId: string) {
+    if (expandedSupportTicketId === ticketId) {
+      setExpandedSupportTicketId(null);
+      return;
+    }
+    setExpandedSupportTicketId(ticketId);
+    setSupportReplyDraft('');
+    if (!supportReplies[ticketId]) {
+      void loadSupportTicketReplies(ticketId);
+    }
+  }
+
+  async function submitSupportReply(ticketId: string) {
+    const message = supportReplyDraft.trim();
+    if (!message || !session) {
+      return;
+    }
+    setBusyAction(`support-reply-${ticketId}`);
+    try {
+      const reply = await createSupportTicketReply(ticketId, message, apiOptions);
+      setSupportReplies((current) => {
+        const existing = current[ticketId] ?? [];
+        return { ...current, [ticketId]: [...existing, reply] };
+      });
+      setSupportReplyDraft('');
+      setNotice('Reply sent.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   function renderSupportPanel() {
     return (
       <Section title="Support">
@@ -5414,22 +5831,88 @@ export default function App() {
           onPress={() => void submitSupportTicket()}
           disabled={!session || busyAction === 'support'}
         />
-        {supportTickets.slice(0, 3).map((ticket) => (
-          <Card key={ticket.id}>
-            <View style={styles.rowBetween}>
-              <View style={styles.flex}>
-                <Text style={styles.cardTitle}>{ticket.subject}</Text>
-                <Text style={styles.cardMeta}>{ticket.message ?? ticket.category ?? 'Support ticket'}</Text>
-                {ticket.attachments?.length ? (
-                  <Text style={styles.noticeText}>
-                    {ticket.attachments.length} evidence file{ticket.attachments.length === 1 ? '' : 's'} attached
+        {supportTickets.slice(0, 5).map((ticket) => {
+          const isExpanded = expandedSupportTicketId === ticket.id;
+          const replies = supportReplies[ticket.id] ?? [];
+          const canReply = ticket.status !== 'closed' && ticket.status !== 'resolved';
+          return (
+            <Card key={ticket.id} onPress={() => toggleSupportTicket(ticket.id)}>
+              <View style={styles.rowBetween}>
+                <View style={styles.flex}>
+                  <Text style={styles.cardTitle}>{ticket.subject}</Text>
+                  <Text style={styles.cardMeta}>
+                    {ticket.message ?? ticket.category ?? 'Support ticket'}
                   </Text>
-                ) : null}
+                  {ticket.attachments?.length ? (
+                    <Text style={styles.noticeText}>
+                      {ticket.attachments.length} evidence file
+                      {ticket.attachments.length === 1 ? '' : 's'} attached
+                    </Text>
+                  ) : null}
+                </View>
+                <Badge
+                  label={ticket.status.replace('_', ' ')}
+                  tone={ticket.status === 'resolved' ? 'success' : 'warning'}
+                />
               </View>
-              <Badge label={ticket.status.replace('_', ' ')} tone={ticket.status === 'resolved' ? 'success' : 'warning'} />
-            </View>
-          </Card>
-        ))}
+              {isExpanded ? (
+                <View style={styles.supportRepliesBlock}>
+                  {replies.length === 0 ? (
+                    <Text style={styles.noticeText}>
+                      No replies yet. Support will reply here.
+                    </Text>
+                  ) : (
+                    replies.map((reply) => {
+                      const mine = reply.repliedBy === profile?.user.id;
+                      return (
+                        <View
+                          key={reply.id}
+                          style={[
+                            styles.messageBubble,
+                            mine && styles.messageBubbleMine,
+                          ]}
+                        >
+                          <Text style={styles.cardMeta}>
+                            {mine ? 'You' : 'Support'} ·{' '}
+                            {reply.createdAt ? formatDateTime(reply.createdAt) : ''}
+                          </Text>
+                          <Text style={styles.cardBody}>{reply.message}</Text>
+                        </View>
+                      );
+                    })
+                  )}
+                  {canReply ? (
+                    <>
+                      <Field
+                        label="Your reply"
+                        value={supportReplyDraft}
+                        onChangeText={setSupportReplyDraft}
+                        placeholder="Share more details for support"
+                        multiline
+                      />
+                      <PrimaryButton
+                        label={
+                          busyAction === `support-reply-${ticket.id}`
+                            ? 'Sending…'
+                            : 'Send reply'
+                        }
+                        onPress={() => void submitSupportReply(ticket.id)}
+                        disabled={
+                          !supportReplyDraft.trim() ||
+                          busyAction === `support-reply-${ticket.id}`
+                        }
+                      />
+                    </>
+                  ) : (
+                    <Text style={styles.noticeText}>
+                      This ticket is {ticket.status}. Open a new ticket for further help.
+                    </Text>
+                  )}
+                </View>
+              ) : null}
+            </Card>
+          );
+        })}
       </Section>
     );
   }
@@ -5939,6 +6422,88 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
+  },
+  supportRepliesBlock: {
+    borderTopColor: palette.lineSoft,
+    borderTopWidth: 1,
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+  },
+  dateChip: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    minWidth: 68,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  dateChipSelected: {
+    backgroundColor: palette.mint,
+    borderColor: palette.mint,
+  },
+  dateChipDow: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  dateChipDowSelected: {
+    color: palette.white,
+  },
+  dateChipDay: {
+    color: palette.ink,
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  dateChipDaySelected: {
+    color: palette.white,
+  },
+  dateChipMonth: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+    textTransform: 'uppercase',
+  },
+  timeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  timeTile: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexBasis: '31%',
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+  },
+  timeTileSelected: {
+    backgroundColor: palette.mint,
+    borderColor: palette.mint,
+  },
+  timeTileDisabled: {
+    backgroundColor: palette.lineSoft,
+    borderColor: palette.lineSoft,
+  },
+  timeTileText: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  timeTileTextSelected: {
+    color: palette.white,
+  },
+  timeTileTextDisabled: {
+    color: palette.faint,
   },
   horizontalRail: {
     gap: spacing.md,

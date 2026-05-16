@@ -3,11 +3,14 @@ import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  AdminProviderApplicationDocumentSummary,
   AdminProviderApplicationSummary,
   AdminProviderApplicationStatus,
   approveAdminProviderApplication,
   getAdminProviderApplication,
+  getAdminProviderApplicationDocument,
   rejectAdminProviderApplication,
+  requestAdminProviderApplicationInfo,
 } from "../../services/serveaseAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -263,6 +266,20 @@ const DOCUMENT_TYPES = [
   { id: "insurance", name: "Insurance Certificate", file: "insurance-cert-2026.pdf", date: "Mar 1, 2026", status: "pending", color: "bg-indigo-100", iconColor: "text-indigo-500" },
 ];
 
+type ReviewDocument = (typeof DOCUMENT_TYPES)[number] & {
+  documentId?: string;
+  previewUrl?: string | null;
+  downloadUrl?: string | null;
+};
+
+const DOCUMENT_COLOR_PALETTE = [
+  { color: "bg-blue-100", iconColor: "text-blue-500" },
+  { color: "bg-amber-100", iconColor: "text-amber-500" },
+  { color: "bg-teal-100", iconColor: "text-teal-500" },
+  { color: "bg-cyan-100", iconColor: "text-cyan-500" },
+  { color: "bg-indigo-100", iconColor: "text-indigo-500" },
+];
+
 /* ─── HELPERS ────────────────────────────────────────────────────── */
 type VerifStatus = null | "loading" | "verified" | "no-match" | "error";
 
@@ -290,6 +307,43 @@ function getVerifResult(status: VerifStatus) {
   if (status === "verified") return <span className="inline-flex items-center gap-1.5 text-[#16A34A] text-sm"><CheckCircle className="w-3.5 h-3.5" />Verified</span>;
   if (status === "no-match") return <span className="inline-flex items-center gap-1.5 text-red-600 text-sm"><XCircle className="w-3.5 h-3.5" />No Match</span>;
   if (status === "error") return <span className="inline-flex items-center gap-1.5 text-amber-600 text-sm"><AlertCircle className="w-3.5 h-3.5" />Error – Retry</span>;
+}
+
+function toReviewDocument(
+  document: AdminProviderApplicationDocumentSummary,
+  index: number,
+): ReviewDocument {
+  const color = DOCUMENT_COLOR_PALETTE[index % DOCUMENT_COLOR_PALETTE.length];
+  const sourcePath = document.storagePath ?? document.fileUrl ?? document.documentType;
+  const file = sourcePath.split("/").pop() || document.documentType;
+  const createdAt = document.createdAt ? new Date(document.createdAt) : null;
+  const date =
+    createdAt && Number.isFinite(createdAt.getTime())
+      ? createdAt.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "Date unavailable";
+
+  return {
+    id: document.id,
+    documentId: document.id,
+    name: document.documentType
+      .replace(/[_-]+/g, " ")
+      .replace(/\b\w/g, letter => letter.toUpperCase()),
+    file,
+    date,
+    status:
+      document.status === "approved"
+        ? "verified"
+        : document.status === "rejected"
+          ? "rejected"
+          : "pending",
+    previewUrl: document.previewUrl,
+    downloadUrl: document.downloadUrl,
+    ...color,
+  };
 }
 
 const TAB_EMPTY_ICONS: Record<string, React.ReactNode> = {
@@ -331,7 +385,7 @@ export function ProviderApplicationReview() {
   const [compareMode, setCompareMode] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [rotation, setRotation] = useState(0);
-  const [selectedDoc, setSelectedDoc] = useState<typeof DOCUMENT_TYPES[0] | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<ReviewDocument | null>(null);
   const [nbiNumber, setNbiNumber] = useState("");
   const [prcNumber, setPrcNumber] = useState("");
   const [tinNumber, setTinNumber] = useState("");
@@ -363,6 +417,7 @@ export function ProviderApplicationReview() {
   const [showDocModal, setShowDocModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [requestMessage, setRequestMessage] = useState("");
+  const [isSendingInfoRequest, setIsSendingInfoRequest] = useState(false);
   const [govIdType, setGovIdType] = useState(application?.govIdType || "PhilSys National ID");
   const [govIdNumber, setGovIdNumber] = useState(application?.govIdNumber || "");
   const [ocrRunning, setOcrRunning] = useState(false);
@@ -427,7 +482,10 @@ export function ProviderApplicationReview() {
   /* ── Derived values ── */
   const checkedCount          = checklist.filter(c => c.checked).length;
   const canApprove            = checkedCount === checklist.length;
-  const verifiedDocs          = DOCUMENT_TYPES.filter(d => d.status === "verified").length;
+  const displayedDocuments = backendApplication
+    ? backendApplication.documents.map(toReviewDocument)
+    : DOCUMENT_TYPES;
+  const verifiedDocs          = displayedDocuments.filter(d => d.status === "verified").length;
   const businessCheckedCount  = businessChecklist.filter(c => c.checked).length;
 
   /* ── Handlers ── */
@@ -453,12 +511,36 @@ export function ProviderApplicationReview() {
     setAdminNote("");
   };
 
-  const openDocModal = (doc: typeof DOCUMENT_TYPES[0]) => {
-    setSelectedDoc(doc);
+  const openDocModal = async (doc: ReviewDocument) => {
+    if (accessToken && applicationId && doc.documentId) {
+      try {
+        const liveDocument = await getAdminProviderApplicationDocument(
+          accessToken,
+          applicationId,
+          doc.documentId,
+        );
+        setSelectedDoc(toReviewDocument(liveDocument, 0));
+      } catch (error) {
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Provider document failed to load.",
+        );
+        setSelectedDoc(doc);
+      }
+    } else {
+      setSelectedDoc(doc);
+    }
     setZoomLevel(100);
     setRotation(0);
     setCompareMode(false);
     setShowDocModal(true);
+  };
+
+  const handleDownloadDocument = () => {
+    if (selectedDoc?.downloadUrl) {
+      window.open(selectedDoc.downloadUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleApproveConfirm = async () => {
@@ -499,6 +581,31 @@ export function ProviderApplicationReview() {
       navigate("/provider-applications");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "Rejection failed.");
+    }
+  };
+
+  const handleRequestInfoConfirm = async () => {
+    if (!requestMessage.trim() || !accessToken || !applicationId) {
+      return;
+    }
+
+    setIsSendingInfoRequest(true);
+    try {
+      await requestAdminProviderApplicationInfo(
+        accessToken,
+        applicationId,
+        requestMessage.trim(),
+      );
+      setRequestMessage("");
+      setShowRequestModal(false);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Information request failed.",
+      );
+    } finally {
+      setIsSendingInfoRequest(false);
     }
   };
 
@@ -835,12 +942,12 @@ export function ProviderApplicationReview() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileText className="w-4 h-4 text-[#16A34A]" />
                   Uploaded Documents
-                  <span className="ml-auto text-xs text-gray-400 font-normal">{verifiedDocs}/{DOCUMENT_TYPES.length} Verified</span>
+                  <span className="ml-auto text-xs text-gray-400 font-normal">{verifiedDocs}/{displayedDocuments.length} Verified</span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {DOCUMENT_TYPES.map(doc => (
+                  {displayedDocuments.map(doc => (
                     <div
                       key={doc.id}
                       className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 hover:shadow-sm transition-all group"
@@ -869,6 +976,11 @@ export function ProviderApplicationReview() {
                       </div>
                     </div>
                   ))}
+                  {displayedDocuments.length === 0 && (
+                    <div className="col-span-full rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
+                      No provider documents have been submitted.
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1179,7 +1291,13 @@ export function ProviderApplicationReview() {
               <Button size="sm" variant="outline" className="gap-1.5 text-xs shrink-0" onClick={() => { setZoomLevel(100); setRotation(0); }}>
                 Reset
               </Button>
-              <Button size="sm" variant="outline" className="gap-1.5 text-xs shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs shrink-0"
+                onClick={handleDownloadDocument}
+                disabled={!selectedDoc?.downloadUrl}
+              >
                 <Download className="w-3 h-3" />Download
               </Button>
               <Button
@@ -1196,17 +1314,30 @@ export function ProviderApplicationReview() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2 min-w-0">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Document Preview</p>
-                  <div className="w-full min-w-0 rounded-xl overflow-hidden" style={{ height: "280px" }}>
-                    <div
-                      className={`${selectedDoc?.color} w-full h-full flex items-center justify-center overflow-hidden`}
-                      style={{
-                        transform: `rotate(${rotation}deg) scale(${zoomLevel / 100})`,
-                        transition: "transform 0.25s ease",
-                        transformOrigin: "center center",
-                      }}
-                    >
-                      <FileText className={`w-16 h-16 ${selectedDoc?.iconColor} opacity-40 pointer-events-none`} />
-                    </div>
+                  <div className="w-full min-w-0 rounded-xl overflow-hidden bg-gray-50" style={{ height: "280px" }}>
+                    {selectedDoc?.previewUrl ? (
+                      <iframe
+                        title={`${selectedDoc.name} preview`}
+                        src={selectedDoc.previewUrl}
+                        className="w-full h-full border-0 bg-white"
+                        style={{
+                          transform: `rotate(${rotation}deg) scale(${zoomLevel / 100})`,
+                          transition: "transform 0.25s ease",
+                          transformOrigin: "center center",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        className={`${selectedDoc?.color} w-full h-full flex items-center justify-center overflow-hidden`}
+                        style={{
+                          transform: `rotate(${rotation}deg) scale(${zoomLevel / 100})`,
+                          transition: "transform 0.25s ease",
+                          transformOrigin: "center center",
+                        }}
+                      >
+                        <FileText className={`w-16 h-16 ${selectedDoc?.iconColor} opacity-40 pointer-events-none`} />
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2 min-w-0">
@@ -1231,20 +1362,33 @@ export function ProviderApplicationReview() {
                 </div>
               </div>
             ) : (
-              <div className="w-full min-w-0 rounded-xl overflow-hidden" style={{ height: "380px" }}>
-                <div
-                  className={`${selectedDoc?.color} w-full h-full flex items-center justify-center overflow-hidden`}
-                  style={{
-                    transform: `rotate(${rotation}deg) scale(${zoomLevel / 100})`,
-                    transition: "transform 0.25s ease",
-                    transformOrigin: "center center",
-                  }}
-                >
-                  <div className="text-center space-y-2 pointer-events-none select-none">
-                    <FileText className={`w-20 h-20 ${selectedDoc?.iconColor} opacity-40 mx-auto`} />
-                    <p className="text-xs text-gray-400 font-mono break-all px-4">{selectedDoc?.file}</p>
+              <div className="w-full min-w-0 rounded-xl overflow-hidden bg-gray-50" style={{ height: "380px" }}>
+                {selectedDoc?.previewUrl ? (
+                  <iframe
+                    title={`${selectedDoc.name} preview`}
+                    src={selectedDoc.previewUrl}
+                    className="w-full h-full border-0 bg-white"
+                    style={{
+                      transform: `rotate(${rotation}deg) scale(${zoomLevel / 100})`,
+                      transition: "transform 0.25s ease",
+                      transformOrigin: "center center",
+                    }}
+                  />
+                ) : (
+                  <div
+                    className={`${selectedDoc?.color} w-full h-full flex items-center justify-center overflow-hidden`}
+                    style={{
+                      transform: `rotate(${rotation}deg) scale(${zoomLevel / 100})`,
+                      transition: "transform 0.25s ease",
+                      transformOrigin: "center center",
+                    }}
+                  >
+                    <div className="text-center space-y-2 pointer-events-none select-none">
+                      <FileText className={`w-20 h-20 ${selectedDoc?.iconColor} opacity-40 mx-auto`} />
+                      <p className="text-xs text-gray-400 font-mono break-all px-4">{selectedDoc?.file}</p>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -1353,10 +1497,15 @@ export function ProviderApplicationReview() {
             <Button variant="outline" onClick={() => setShowRequestModal(false)}>Cancel</Button>
             <Button
               className="gap-2 bg-amber-500 hover:bg-amber-600"
-              disabled={!requestMessage.trim()}
-              onClick={() => setShowRequestModal(false)}
+              disabled={!requestMessage.trim() || isSendingInfoRequest}
+              onClick={handleRequestInfoConfirm}
             >
-              <Send className="w-4 h-4" />Send Request
+              {isSendingInfoRequest ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              Send Request
             </Button>
           </DialogFooter>
         </DialogContent>

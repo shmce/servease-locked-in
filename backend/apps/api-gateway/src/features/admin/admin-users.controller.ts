@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   Headers,
-  HttpCode,
   HttpException,
   Param,
   Patch,
@@ -25,10 +24,15 @@ import {
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminUsersGatewayService } from './admin-users.service';
-import { AdminUserSummary, AdminUsersSummaryStats } from './admin-users.types';
+import {
+  AdminUserSummary,
+  AdminUsersSummaryStats,
+  CreateAdminUserRequest,
+} from './admin-users.types';
 
 const validUserStatuses = new Set(['active', 'suspended', 'inactive']);
 const validUserRoles = new Set(['customer', 'provider', 'admin']);
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type AuditRequest = { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } };
 
@@ -42,19 +46,37 @@ export class AdminUsersController {
   ) {}
 
   @Post()
-  @HttpCode(501)
   async create(
     @Headers('authorization') authorization: string | undefined,
-  ): Promise<{ error: { code: string; message: string } }> {
-    await this.requireAdmin(authorization).catch(() => {
-      throw this.error('admin_required', 'An admin account is required.', 403);
-    });
-    return {
-      error: {
-        code: 'not_implemented',
-        message: 'Admin user creation is not yet implemented.',
-      },
-    };
+    @Req() request: AuditRequest,
+    @Body() body: CreateAdminUserRequest,
+  ): Promise<{ data: AdminUserSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const input = this.normalizeCreateInput(body);
+      const user = await this.adminUsersGatewayService.createUser(input);
+      void this.adminAuditGatewayService.createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: 'Created admin user',
+        actionType: 'create',
+        entityType: 'User',
+        entityId: user.id,
+        details: `Admin user ${user.email} was created.`,
+        ipAddress: this.getClientIp(request),
+        metadata: {
+          userId: user.id,
+          email: user.email,
+          accessRole: input.accessRole,
+          sendInvitation: input.sendInvitation,
+          requireTwoFactor: input.requireTwoFactor,
+        },
+      }).catch(() => undefined);
+      return { data: user };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
   }
 
   @Get('summary')
@@ -126,6 +148,30 @@ export class AdminUsersController {
     const forwardedFor = request.headers?.['x-forwarded-for'];
     if (Array.isArray(forwardedFor)) return forwardedFor[0] ?? null;
     return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+  }
+
+  private normalizeCreateInput(body?: Partial<CreateAdminUserRequest>): CreateAdminUserRequest {
+    const email = body?.email?.trim().toLowerCase() ?? '';
+    const fullName = body?.fullName?.trim() ?? '';
+    if (
+      !email ||
+      !EMAIL_PATTERN.test(email) ||
+      !body?.password ||
+      body.password.length < 8 ||
+      !fullName
+    ) {
+      throw new InvalidAdminRequestError();
+    }
+
+    return {
+      email,
+      password: body.password,
+      fullName,
+      contactNumber: body.contactNumber?.trim() || null,
+      accessRole: body.accessRole?.trim() || null,
+      sendInvitation: Boolean(body.sendInvitation),
+      requireTwoFactor: Boolean(body.requireTwoFactor),
+    };
   }
 
   private toHttpException(error: unknown): HttpException {

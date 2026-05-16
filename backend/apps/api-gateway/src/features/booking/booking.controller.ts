@@ -138,15 +138,11 @@ export class BookingController {
       }
       const userId = await this.authTokenService.authenticate(authorization);
       const providerId = await this.resolveOptionalProviderId(userId);
-      await this.bookingGatewayService.findBooking(
-        bookingId,
-        userId,
-        providerId,
-      );
       return {
         data: await this.bookingGatewayService.transitionStatus(
           bookingId,
           userId,
+          providerId,
           body.currentStatus,
           body.nextStatus,
           body.reason,

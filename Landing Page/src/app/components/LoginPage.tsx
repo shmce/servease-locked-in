@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { createSupabaseBrowserClient } from "../lib/supabase-browser";
@@ -130,6 +131,21 @@ export function LoginPage() {
           >
             {isSubmitting ? "Signing in..." : "Sign In"}
           </button>
+
+          <div className="space-y-2 text-center">
+            <Link
+              href="/forgot-password"
+              className="block font-['Poppins',sans-serif] text-sm text-[#00A356] font-semibold"
+            >
+              Forgot your password?
+            </Link>
+            <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
+              New to ServEase?{" "}
+              <Link href="/register" className="text-[#00A356] font-semibold">
+                Create a customer account
+              </Link>
+            </p>
+          </div>
         </form>
       </div>
     </div>

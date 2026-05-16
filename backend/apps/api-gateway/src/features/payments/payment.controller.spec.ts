@@ -1,6 +1,7 @@
 import { BookingGatewayService } from '../booking/booking.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
+import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { PaymentController } from './payment.controller';
 import { PaymentGatewayService } from './payment.service';
 
@@ -50,6 +51,110 @@ describe('PaymentController', () => {
       paymentMethod: 'cash_on_service',
     });
     expect(response.data.id).toBe('payment-1');
+  });
+
+  it('rejects payment creation when the authenticated user is only the provider', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('provider-user-1'),
+    } as unknown as AuthTokenService;
+    const catalogServiceClient = {
+      findProviderProfileByUserId: jest.fn().mockResolvedValue({
+        id: 'provider-1',
+      }),
+    } as unknown as CatalogServiceClient;
+    const bookingGatewayService = {
+      findBooking: jest.fn().mockResolvedValue({
+        id: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        totalAmount: 1200,
+      }),
+    } as unknown as BookingGatewayService;
+    const paymentGatewayService = {
+      createPayment: jest.fn(),
+    } as unknown as PaymentGatewayService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      bookingGatewayService,
+      authTokenService,
+      catalogServiceClient,
+    );
+
+    await expect(
+      controller.create('Bearer token', {
+        bookingId: 'booking-1',
+        paymentMethod: 'cash_on_service',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_payment_request',
+        },
+      },
+    });
+    expect(paymentGatewayService.createPayment).not.toHaveBeenCalled();
+  });
+
+  it('notifies the provider owner when a customer reserves payment', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('customer-1'),
+    } as unknown as AuthTokenService;
+    const catalogServiceClient = {
+      findProviderProfileByUserId: jest.fn().mockResolvedValue(null),
+      findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
+        userId: 'provider-user-1',
+        businessName: 'Provider Co.',
+      }),
+    } as unknown as CatalogServiceClient;
+    const bookingGatewayService = {
+      findBooking: jest.fn().mockResolvedValue({
+        id: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        serviceTitle: 'Home cleaning',
+        totalAmount: 1200,
+      }),
+    } as unknown as BookingGatewayService;
+    const paymentGatewayService = {
+      createPayment: jest.fn().mockResolvedValue({
+        id: 'payment-1',
+        bookingId: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        amount: 1200,
+        status: 'paid',
+      }),
+    } as unknown as PaymentGatewayService;
+    const notificationServiceClient = {
+      createNotification: jest.fn().mockResolvedValue({ id: 'notification-1' }),
+    } as unknown as NotificationServiceClient;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      bookingGatewayService,
+      authTokenService,
+      catalogServiceClient,
+      notificationServiceClient,
+    );
+
+    await controller.create('Bearer token', {
+      bookingId: 'booking-1',
+      paymentMethod: 'cash_on_service',
+    });
+
+    expect(catalogServiceClient.findProviderOwnerByProviderId).toHaveBeenCalledWith(
+      'provider-1',
+    );
+    expect(notificationServiceClient.createNotification).toHaveBeenCalledWith({
+      userId: 'provider-user-1',
+      type: 'payment_reserved',
+      title: 'Payment reserved',
+      body: 'A customer reserved payment for Home cleaning.',
+      metadata: {
+        bookingId: 'booking-1',
+        paymentId: 'payment-1',
+        status: 'paid',
+      },
+    });
   });
 
   it('revalidates promo codes against the visible booking before payment creation', async () => {
@@ -151,6 +256,48 @@ describe('PaymentController', () => {
       1200,
     );
     expect(response.data.finalAmount).toBe(1080);
+  });
+
+  it('rejects promo validation when the authenticated user is only the provider', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('provider-user-1'),
+    } as unknown as AuthTokenService;
+    const catalogServiceClient = {
+      findProviderProfileByUserId: jest.fn().mockResolvedValue({
+        id: 'provider-1',
+      }),
+    } as unknown as CatalogServiceClient;
+    const bookingGatewayService = {
+      findBooking: jest.fn().mockResolvedValue({
+        id: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        totalAmount: 1200,
+      }),
+    } as unknown as BookingGatewayService;
+    const paymentGatewayService = {
+      validatePromotion: jest.fn(),
+    } as unknown as PaymentGatewayService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      bookingGatewayService,
+      authTokenService,
+      catalogServiceClient,
+    );
+
+    await expect(
+      controller.validatePromotion('Bearer token', {
+        bookingId: 'booking-1',
+        code: 'SERVEASE10',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_payment_request',
+        },
+      },
+    });
+    expect(paymentGatewayService.validatePromotion).not.toHaveBeenCalled();
   });
 
   it('routes payout account requests through the authenticated provider profile', async () => {

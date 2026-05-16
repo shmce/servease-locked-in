@@ -27,6 +27,11 @@ export interface ProviderProfileSummary {
   reviewCount: number;
 }
 
+export interface ProviderOwnerSummary {
+  userId: string;
+  businessName: string | null;
+}
+
 export interface CurrentUserProfile {
   user: CurrentUserIdentity;
   customerProfile: CustomerProfileSummary | null;
@@ -38,6 +43,10 @@ export interface UpdateCurrentUserProfileInput {
   contactNumber?: string | null;
   address?: string | null;
   businessName?: string | null;
+  bio?: string | null;
+  serviceDescription?: string | null;
+  serviceArea?: string | null;
+  yearsExperience?: number | null;
 }
 
 export interface UpdateCurrentUserPasswordInput {

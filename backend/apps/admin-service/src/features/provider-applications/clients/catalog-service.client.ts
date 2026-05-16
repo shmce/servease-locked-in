@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  AdminProviderApplicationDocumentSummary,
   AdminProviderApplicationSummary,
   ListProviderApplicationsFilter,
 } from '../admin-provider-application.types';
@@ -34,6 +35,16 @@ export class CatalogServiceClient {
   ): Promise<AdminProviderApplicationSummary> {
     return this.request<AdminProviderApplicationSummary>(
       `/internal/providers/applications/${applicationId}`,
+      'GET',
+    );
+  }
+
+  getProviderApplicationDocument(
+    applicationId: string,
+    documentId: string,
+  ): Promise<AdminProviderApplicationDocumentSummary> {
+    return this.request<AdminProviderApplicationDocumentSummary>(
+      `/internal/providers/applications/${applicationId}/documents/${documentId}`,
       'GET',
     );
   }

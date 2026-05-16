@@ -22,6 +22,7 @@ describe('ProviderProfileService', () => {
       replaceOwnedServices: jest.fn(),
       listProviderApplications: jest.fn(),
       getProviderApplication: jest.fn(),
+      getProviderApplicationDocument: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -55,6 +56,7 @@ describe('ProviderProfileService', () => {
       replaceOwnedServices: jest.fn(),
       listProviderApplications: jest.fn(),
       getProviderApplication: jest.fn(),
+      getProviderApplicationDocument: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -92,6 +94,7 @@ describe('ProviderProfileService', () => {
       replaceOwnedServices: jest.fn(),
       listProviderApplications: jest.fn(),
       getProviderApplication: jest.fn(),
+      getProviderApplicationDocument: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -107,6 +110,52 @@ describe('ProviderProfileService', () => {
     });
   });
 
+  it('updates provider profile detail fields', async () => {
+    const repository: ProviderProfileRepository = {
+      findByUserId: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn().mockResolvedValue({
+        id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+        businessName: 'Updated Repairs',
+        bio: 'Licensed home repair provider.',
+        serviceDescription: 'Electrical and plumbing support.',
+        serviceArea: 'Metro Manila',
+        yearsExperience: 9,
+        verificationStatus: 'approved',
+        averageRating: 4.8,
+        reviewCount: 12,
+      }),
+      listPortfolioMedia: jest.fn(),
+      addPortfolioMedia: jest.fn(),
+      deletePortfolioMedia: jest.fn(),
+      listOwnedServices: jest.fn(),
+      replaceOwnedServices: jest.fn(),
+      listProviderApplications: jest.fn(),
+      getProviderApplication: jest.fn(),
+      getProviderApplicationDocument: jest.fn(),
+      decideProviderApplication: jest.fn(),
+    };
+    const service = new ProviderProfileService(repository);
+
+    await service.update({
+      userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      businessName: 'Updated Repairs',
+      bio: 'Licensed home repair provider.',
+      serviceDescription: 'Electrical and plumbing support.',
+      serviceArea: 'Metro Manila',
+      yearsExperience: 9,
+    });
+
+    expect(repository.update).toHaveBeenCalledWith({
+      userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      businessName: 'Updated Repairs',
+      bio: 'Licensed home repair provider.',
+      serviceDescription: 'Electrical and plumbing support.',
+      serviceArea: 'Metro Manila',
+      yearsExperience: 9,
+    });
+  });
+
   it('replaces owned provider services after validating titles', async () => {
     const repository: ProviderProfileRepository = {
       findByUserId: jest.fn(),
@@ -119,6 +168,7 @@ describe('ProviderProfileService', () => {
       replaceOwnedServices: jest.fn().mockResolvedValue([]),
       listProviderApplications: jest.fn(),
       getProviderApplication: jest.fn(),
+      getProviderApplicationDocument: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -140,6 +190,51 @@ describe('ProviderProfileService', () => {
     expect(repository.replaceOwnedServices).toHaveBeenCalledWith(
       '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
       services,
+    );
+  });
+
+  it('loads provider application documents after validating identifiers', async () => {
+    const repository: ProviderProfileRepository = {
+      findByUserId: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      listPortfolioMedia: jest.fn(),
+      addPortfolioMedia: jest.fn(),
+      deletePortfolioMedia: jest.fn(),
+      listOwnedServices: jest.fn(),
+      replaceOwnedServices: jest.fn(),
+      listProviderApplications: jest.fn(),
+      getProviderApplication: jest.fn(),
+      getProviderApplicationDocument: jest.fn().mockResolvedValue({
+        id: '33333333-3333-4333-8333-333333333333',
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        userId: '22222222-2222-4222-8222-222222222222',
+        documentType: 'government_id',
+        fileUrl: null,
+        storagePath: 'provider-documents/user-1/government-id.jpg',
+        status: 'pending',
+        createdAt: null,
+        previewUrl: 'https://storage.test/preview',
+        downloadUrl: 'https://storage.test/download',
+      }),
+      decideProviderApplication: jest.fn(),
+    };
+    const service = new ProviderProfileService(repository);
+
+    await expect(
+      service.getProviderApplicationDocument(
+        '11111111-1111-4111-8111-111111111111',
+        '33333333-3333-4333-8333-333333333333',
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: '33333333-3333-4333-8333-333333333333',
+        previewUrl: 'https://storage.test/preview',
+      }),
+    );
+    expect(repository.getProviderApplicationDocument).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      '33333333-3333-4333-8333-333333333333',
     );
   });
 });

@@ -353,7 +353,8 @@ export function CancelBookingPage() {
       id,
       bookingData.status,
       "cancelled",
-      reason || explanation || null,
+      reason,
+      explanation,
     )
       .catch(() => {})
       .finally(() => {

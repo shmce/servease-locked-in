@@ -68,6 +68,13 @@ export class CurrentUserController {
         contactNumber: body.contactNumber?.trim() || null,
         address: body.address?.trim() || null,
         businessName: body.businessName?.trim() || null,
+        bio: body.bio?.trim() || null,
+        serviceDescription: body.serviceDescription?.trim() || null,
+        serviceArea: body.serviceArea?.trim() || null,
+        yearsExperience:
+          body.yearsExperience === undefined || body.yearsExperience === null
+            ? null
+            : Number(body.yearsExperience),
       });
       return { data };
     } catch (error) {

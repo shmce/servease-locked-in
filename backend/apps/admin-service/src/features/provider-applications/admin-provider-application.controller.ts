@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpException, Param, Post, Query } from '@nestjs/common';
 import { AdminProviderApplicationService } from './admin-provider-application.service';
 import {
+  AdminProviderApplicationDocumentSummary,
   AdminProviderApplicationSummary,
   ProviderApplicationStatus,
 } from './admin-provider-application.types';
@@ -53,6 +54,27 @@ export class AdminProviderApplicationController {
       throw this.error(
         'admin_dependency_unavailable',
         'Admin provider application lookup failed.',
+        503,
+      );
+    }
+  }
+
+  @Get(':applicationId/documents/:documentId')
+  async getDocument(
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+  ): Promise<{ data: AdminProviderApplicationDocumentSummary }> {
+    try {
+      return {
+        data: await this.providerApplicationService.getProviderApplicationDocument(
+          applicationId,
+          documentId,
+        ),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin provider application document lookup failed.',
         503,
       );
     }

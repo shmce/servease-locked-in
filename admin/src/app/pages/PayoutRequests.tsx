@@ -38,6 +38,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import {
   listAdminPayouts,
+  approveAdminSettlement,
   updateAdminPayoutStatus,
   type AdminPayoutStatus,
   type AdminPayoutSummary,
@@ -167,9 +168,24 @@ export function PayoutRequests() {
   };
 
   const handleApprove = () => {
-    if (selectedPayout) {
-      void updatePayout(selectedPayout, "processing");
-    }
+    if (!selectedPayout || !accessToken) return;
+
+    setUpdatingPayoutId(selectedPayout);
+    approveAdminSettlement(accessToken, selectedPayout)
+      .then((updated) => {
+        setPayoutRequests((current) =>
+          current.map((payout) => (payout.id === updated.id ? updated : payout)),
+        );
+        toast.success(`Settlement ${updated.reference ?? updated.id} approved for processing.`);
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Unable to approve settlement.");
+      })
+      .finally(() => {
+        setUpdatingPayoutId(null);
+        setSelectedPayout(null);
+        setShowApproveDialog(false);
+      });
   };
 
   const getStatusBadge = (status: AdminPayoutStatus) => {

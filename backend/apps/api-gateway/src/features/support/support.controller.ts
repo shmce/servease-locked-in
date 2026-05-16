@@ -9,7 +9,7 @@ import {
   SupportDependencyUnavailableError,
 } from './support.errors';
 import { SupportGatewayService } from './support.service';
-import { SupportTicketSummary } from './support.types';
+import { SupportTicketReplySummary, SupportTicketSummary } from './support.types';
 
 @Controller('v1/support/tickets')
 export class SupportController {
@@ -26,6 +26,44 @@ export class SupportController {
       const userId = await this.authTokenService.authenticate(authorization);
       return {
         data: await this.supportGatewayService.listTickets(userId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':ticketId/replies')
+  async listReplies(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('ticketId') ticketId: string,
+  ): Promise<{ data: SupportTicketReplySummary[] }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.supportGatewayService.listReplies(userId, ticketId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':ticketId/replies')
+  async addReply(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('ticketId') ticketId: string,
+    @Body() body: { message?: string },
+  ): Promise<{ data: SupportTicketReplySummary }> {
+    try {
+      if (!body.message?.trim()) {
+        throw new InvalidSupportTicketRequestError();
+      }
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.supportGatewayService.addReply(
+          userId,
+          ticketId,
+          body.message,
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);

@@ -18,3 +18,13 @@ export interface AdminUsersSummaryStats {
   recentCount: number;
   newThisMonth: number;
 }
+
+export interface CreateAdminUserRequest {
+  email: string;
+  password: string;
+  fullName: string;
+  contactNumber?: string | null;
+  accessRole?: string | null;
+  sendInvitation?: boolean | null;
+  requireTwoFactor?: boolean | null;
+}

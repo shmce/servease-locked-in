@@ -4,7 +4,7 @@ import {
   SupportTicketNotFoundError,
 } from './ticket.errors';
 import { SupportTicketService } from './ticket.service';
-import { SupportTicketSummary } from './ticket.types';
+import { SupportTicketReplySummary, SupportTicketSummary } from './ticket.types';
 
 @Controller('internal/support/tickets')
 export class SupportTicketController {
@@ -29,6 +29,38 @@ export class SupportTicketController {
     try {
       return {
         data: await this.ticketService.getTicket(userId ?? '', ticketId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':ticketId/replies')
+  async listReplies(
+    @Query('userId') userId: string,
+    @Param('ticketId') ticketId: string,
+  ): Promise<{ data: SupportTicketReplySummary[] }> {
+    try {
+      return {
+        data: await this.ticketService.listReplies(userId ?? '', ticketId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':ticketId/replies')
+  async addReply(
+    @Param('ticketId') ticketId: string,
+    @Body() body: { userId?: string; message?: string },
+  ): Promise<{ data: SupportTicketReplySummary }> {
+    try {
+      return {
+        data: await this.ticketService.addReply(
+          body.userId ?? '',
+          ticketId,
+          body.message ?? '',
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);

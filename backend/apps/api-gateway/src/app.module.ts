@@ -13,9 +13,11 @@ import { AdminPaymentGatewayService } from './features/admin/admin-payment.servi
 import { AdminProviderApplicationController } from './features/admin/admin-provider-application.controller';
 import { AdminProviderApplicationGatewayService } from './features/admin/admin-provider-application.service';
 import { AdminPromotionController } from './features/admin/admin-promotion.controller';
+import { AdminReviewController } from './features/admin/admin-review.controller';
 import { AdminBroadcastController } from './features/admin/admin-broadcast.controller';
 import { AdminReportController } from './features/admin/admin-report.controller';
 import { AdminIntegrationController } from './features/admin/admin-integration.controller';
+import { AdminSettlementController } from './features/admin/admin-settlement.controller';
 import { AdminRefundController } from './features/admin/admin-refund.controller';
 import { AdminCatalogController } from './features/admin/admin-catalog.controller';
 import { AdminCatalogGatewayService } from './features/admin/admin-catalog.service';
@@ -96,6 +98,8 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     AdminBroadcastController,
     AdminReportController,
     AdminIntegrationController,
+    AdminSettlementController,
+    AdminReviewController,
     RegistrationController,
     ReferralController,
     UserPreferenceController,

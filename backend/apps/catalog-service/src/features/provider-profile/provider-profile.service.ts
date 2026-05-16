@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   CreateProviderProfileInput,
+  AdminProviderApplicationDocumentSummary,
   ProviderPortfolioMediaInput,
   ProviderPortfolioMediaSummary,
   ProviderOwnedServiceInput,
@@ -35,6 +36,10 @@ export interface ProviderProfileRepository {
   getProviderApplication(
     applicationId: string,
   ): Promise<AdminProviderApplicationSummary | null>;
+  getProviderApplicationDocument(
+    applicationId: string,
+    documentId: string,
+  ): Promise<AdminProviderApplicationDocumentSummary | null>;
   decideProviderApplication(input: {
     applicationId: string;
     adminUserId: string;
@@ -82,6 +87,10 @@ export class EmptyProviderProfileRepository implements ProviderProfileRepository
   }
 
   async getProviderApplication(): Promise<AdminProviderApplicationSummary | null> {
+    return null;
+  }
+
+  async getProviderApplicationDocument(): Promise<AdminProviderApplicationDocumentSummary | null> {
     return null;
   }
 
@@ -165,6 +174,20 @@ export class ProviderProfileService {
     applicationId: string,
   ): Promise<AdminProviderApplicationSummary | null> {
     return this.providerProfileRepository.getProviderApplication(applicationId);
+  }
+
+  getProviderApplicationDocument(
+    applicationId: string,
+    documentId: string,
+  ): Promise<AdminProviderApplicationDocumentSummary | null> {
+    if (!applicationId || !documentId) {
+      throw new Error('invalid_provider_application_request');
+    }
+
+    return this.providerProfileRepository.getProviderApplicationDocument(
+      applicationId,
+      documentId,
+    );
   }
 
   decideProviderApplication(input: {

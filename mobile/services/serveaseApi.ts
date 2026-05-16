@@ -232,6 +232,15 @@ export interface PayoutMethodSummary {
   createdAt: string | null;
 }
 
+export interface UpsertPayoutMethodRequest {
+  methodId?: string | null;
+  methodType: PayoutMethodType;
+  accountLabel: string;
+  accountName?: string | null;
+  accountNumberLast4?: string | null;
+  isDefault?: boolean | null;
+}
+
 export interface PayoutAccountSummary {
   availableBalance: number;
   pendingBalance: number;
@@ -301,6 +310,14 @@ export interface CreateSupportTicketRequest {
   message?: string | null;
   category?: string | null;
   attachments?: MediaAttachmentInput[];
+}
+
+export interface SupportTicketReplySummary {
+  id: string;
+  ticketId: string;
+  repliedBy: string;
+  message: string;
+  createdAt: string | null;
 }
 
 export interface NotificationSummary {
@@ -986,6 +1003,18 @@ export function listProviderPayoutMethods(
   });
 }
 
+export function upsertProviderPayoutMethod(
+  body: UpsertPayoutMethodRequest,
+  options: ApiOptions = {},
+): Promise<PayoutMethodSummary> {
+  return request<PayoutMethodSummary>('/v1/payments/payout-methods', {
+    ...options,
+    method: 'PUT',
+    body,
+    requiresAuth: true,
+  });
+}
+
 export function listProviderPayouts(
   options: ApiOptions = {},
 ): Promise<PayoutSummary[]> {
@@ -1093,6 +1122,36 @@ export function getSupportTicket(
     method: 'GET',
     requiresAuth: true,
   });
+}
+
+export function listSupportTicketReplies(
+  ticketId: string,
+  options: ApiOptions = {},
+): Promise<SupportTicketReplySummary[]> {
+  return request<SupportTicketReplySummary[]>(
+    `/v1/support/tickets/${encodeURIComponent(ticketId)}/replies`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function createSupportTicketReply(
+  ticketId: string,
+  message: string,
+  options: ApiOptions = {},
+): Promise<SupportTicketReplySummary> {
+  return request<SupportTicketReplySummary>(
+    `/v1/support/tickets/${encodeURIComponent(ticketId)}/replies`,
+    {
+      ...options,
+      method: 'POST',
+      body: { message },
+      requiresAuth: true,
+    },
+  );
 }
 
 export function listNotifications(

@@ -55,7 +55,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
     area: "Finance",
     screen: "Failed Payments",
     status: "partial",
-    currentSupport: "Derives refunded/cancelled payment exceptions from admin payments.",
+    currentSupport: "Loads gateway-backed refunded/cancelled payment exceptions from the dedicated failures endpoint.",
     existingEndpoints: ["GET /v1/admin/payments", "GET /v1/admin/payments/failures"],
     backendNeeded: [],
     notes: "Failure reason, gateway code, retry history, and dispute linkage need dedicated backend fields.",
@@ -74,7 +74,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "PATCH /v1/admin/support/tickets/:ticketId/assignee",
     ],
     backendNeeded: [],
-    notes: "Full support ticket workflow including replies and assignee management is now wired.",
+    notes: "Full support ticket workflow including replies and assignee management is now wired. Customers can also view and post replies from mobile via /v1/support/tickets/:id/replies.",
   },
   {
     area: "Marketplace",
@@ -124,22 +124,77 @@ export const backendSupportMatrix: BackendSupportItem[] = [
     area: "Providers",
     screen: "Provider Applications",
     status: "partial",
-    currentSupport: "Backend exposes live provider profile applications and approve/reject verification decisions. Document endpoint returns 501 stub.",
+    currentSupport: "Backend exposes live provider profile applications, approve/reject verification decisions, provider document preview/download URLs, and request-info notifications through the gateway.",
     existingEndpoints: [
       "GET /v1/admin/provider-applications",
       "GET /v1/admin/provider-applications/:id",
       "POST /v1/admin/provider-applications/:id/approve",
       "POST /v1/admin/provider-applications/:id/reject",
+      "POST /v1/admin/provider-applications/:id/request-info",
       "GET /v1/admin/provider-applications/:id/documents/:documentId",
+      "GET /v1/admin/provider-applications/:id/documents/:documentId/download",
     ],
     backendNeeded: [],
-    notes: "Document preview/download stub returns 501. A storage-backed contract is needed to serve actual files.",
+    notes: "Document endpoints return provider_catalog.provider_documents metadata and signed storage URLs when only storage_path is available. Request-info sends a provider notification and audit log.",
+  },
+  {
+    area: "Operations",
+    screen: "Reviews moderation",
+    status: "wired",
+    currentSupport:
+      "Lists every review across providers, supports rating distribution and flag filter, and lets admins hide or restore reviews end-to-end.",
+    existingEndpoints: [
+      "GET /v1/admin/reviews",
+      "PATCH /v1/admin/reviews/:reviewId/flag",
+    ],
+    backendNeeded: [],
+    notes:
+      "Backed by review-service internal admin routes (list, set flag). Mobile-created reviews and provider replies now have an admin moderation surface.",
+  },
+  {
+    area: "Users",
+    screen: "Customers",
+    status: "wired",
+    currentSupport:
+      "Customers page lists every customer-role user with live status, signup date, contact, and search across name/email/phone/ID.",
+    existingEndpoints: [
+      "GET /v1/admin/users?role=customer",
+      "GET /v1/admin/users/summary",
+    ],
+    backendNeeded: [],
+    notes:
+      "Per-customer booking and revenue aggregates are not yet exposed; admin Dashboard surfaces platform-wide booking and revenue metrics instead.",
+  },
+  {
+    area: "Providers",
+    screen: "Availability viewer",
+    status: "wired",
+    currentSupport:
+      "Service Provider Details → Availability tab loads the live weekly windows and upcoming days off through the existing public schedule endpoint.",
+    existingEndpoints: ["GET /v1/provider/availability/:providerId"],
+    backendNeeded: [],
+    notes:
+      "Read-only on the admin side today; mutations stay with the provider via /v1/provider/availability/windows and /v1/provider/availability/days-off.",
+  },
+  {
+    area: "Providers",
+    screen: "Portfolio moderation",
+    status: "wired",
+    currentSupport:
+      "Service Provider Details → Portfolio tab loads live media for the provider and lets admins remove any inappropriate item with an audit log entry.",
+    existingEndpoints: [
+      "GET /v1/admin/providers/:providerId/portfolio",
+      "DELETE /v1/admin/providers/:providerId/portfolio/:mediaId",
+    ],
+    backendNeeded: [],
+    notes:
+      "Admin endpoints reuse the catalog-service portfolio routes; deletes resolve the provider's owner userId via getProvider and write an admin audit log.",
   },
   {
     area: "Operations",
     screen: "Bookings and Ongoing Services",
     status: "partial",
-    currentSupport: "Lists platform bookings and supports admin cancellation/escalation through backend APIs. Provider messaging stub returns 501.",
+    currentSupport: "Lists platform bookings and supports admin cancellation, escalation, and provider notification messages through backend APIs.",
     existingEndpoints: [
       "GET /v1/admin/bookings",
       "GET /v1/admin/bookings/:id",
@@ -148,13 +203,13 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "POST /v1/admin/bookings/:id/provider-messages",
     ],
     backendNeeded: [],
-    notes: "Provider messaging stub returns 501. A dedicated messaging-service contract is needed for real delivery.",
+    notes: "Escalations and provider messages are delivered as provider-owner notifications with audit logs. Threaded admin/provider messaging still needs a dedicated messaging contract.",
   },
   {
     area: "Finance",
     screen: "Payouts, Refunds, Settlements, Commission",
     status: "partial",
-    currentSupport: "Payout requests and refund review are backend-backed with admin mutations and audit logs. Settlement approval stub returns 501.",
+    currentSupport: "Payout requests, refund review, and settlement list/approve/reject actions are backend-backed with admin mutations and audit logs.",
     existingEndpoints: [
       "GET /v1/admin/payments/payouts",
       "PATCH /v1/admin/payments/payouts/:payoutId/status",
@@ -163,16 +218,18 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "POST /v1/admin/refunds/:id/reject",
       "GET /v1/admin/commission-rules",
       "PATCH /v1/admin/commission-rules/:id",
+      "GET /v1/admin/settlements",
       "POST /v1/admin/settlements/:id/approve",
+      "POST /v1/admin/settlements/:id/reject",
     ],
     backendNeeded: [],
-    notes: "Settlement approval stub returns 501. A settlement service contract is needed for real processing.",
+    notes: "Settlement list uses payout summaries. Approval maps the payout to processing; rejection maps it to cancelled. Both actions record admin audit logs. Release history and detailed lifecycle views still need dedicated contracts.",
   },
   {
     area: "Marketing",
     screen: "Promotions and Broadcasts",
     status: "partial",
-    currentSupport: "Promotion code listing and create/update/delete APIs are backend-backed. Broadcast endpoint stub returns 501.",
+    currentSupport: "Promotion code listing and create/update/delete APIs are backend-backed. Broadcasts send gateway-backed notifications to active role-based audiences.",
     existingEndpoints: [
       "GET /v1/admin/promotions",
       "POST /v1/admin/promotions",
@@ -181,7 +238,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "POST /v1/admin/broadcasts",
     ],
     backendNeeded: [],
-    notes: "Broadcast stub returns 501. Audience targeting, scheduling, and delivery need a broadcast service contract.",
+    notes: "Broadcast delivery is notification-backed for active customers, providers, admins, or all users. Scheduling and richer targeting remain future work.",
   },
   {
     area: "Account",
@@ -196,7 +253,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
     area: "Account",
     screen: "Profile and Security",
     status: "partial",
-    currentSupport: "Profile and password updates call shared account backend endpoints. 2FA stubs return 501; sessions returns empty array.",
+    currentSupport: "Profile and password updates call shared account backend endpoints from Profile and Security screens. 2FA stubs return 501; sessions returns empty array.",
     existingEndpoints: [
       "GET /v1/me",
       "PATCH /v1/me",
@@ -212,7 +269,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
     area: "Reports",
     screen: "Reports and Analytics",
     status: "partial",
-    currentSupport: "Revenue report can export live payment rows. Report generation stubs return 501.",
+    currentSupport: "Revenue report can export live payment rows. Booking Analytics exports gateway-backed booking CSV. Remaining report generation stubs return 501.",
     existingEndpoints: [
       "GET /v1/admin/payments",
       "GET /v1/admin/reports/revenue.pdf",
@@ -221,13 +278,13 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "POST /v1/admin/reports/:type/schedules",
     ],
     backendNeeded: [],
-    notes: "All report stubs return 501. PDF rendering, CSV generation, and scheduled reports need backend workers.",
+    notes: "Booking CSV export is backed by admin booking data. PDF rendering, generated report history, and scheduled reports still need backend workers.",
   },
   {
     area: "Platform",
     screen: "Admin Roles, Audit Trail, Integrations",
     status: "partial",
-    currentSupport: "Audit Trail lists and exports backend audit logs; user listing and status management are wired. User creation and integration stubs return 501.",
+    currentSupport: "Audit Trail lists and exports backend audit logs; user listing, admin user creation, and user status management are wired. Integration stubs return 501.",
     existingEndpoints: [
       "GET /v1/admin/audit-logs",
       "GET /v1/admin/audit-logs/export",
@@ -239,6 +296,6 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "POST /v1/admin/integrations/:provider/test",
     ],
     backendNeeded: [],
-    notes: "Admin user creation and integration management stubs return 501. Real role assignment and credential storage need dedicated contracts.",
+    notes: "Admin user creation creates a Supabase Auth account and identity_and_user.users row with role=admin. Real RBAC/invitations and integration credential storage still need dedicated contracts.",
   },
 ];

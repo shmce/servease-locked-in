@@ -25,6 +25,7 @@ import {
   PaymentDependencyUnavailableError,
   PaymentNotFoundError,
 } from './payment.errors';
+import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { PaymentGatewayService } from './payment.service';
 import {
   PaymentSummary,
@@ -45,6 +46,7 @@ export class PaymentController {
     private readonly bookingGatewayService: BookingGatewayService,
     private readonly authTokenService: AuthTokenService,
     private readonly catalogServiceClient: CatalogServiceClient,
+    private readonly notificationServiceClient?: NotificationServiceClient,
   ) {}
 
   @Get()
@@ -79,6 +81,8 @@ export class PaymentController {
         participant.visibility.providerId,
       );
 
+      this.assertPaymentActorIsCustomer(participant.userId, booking.customerId);
+
       if (!Number.isFinite(booking.totalAmount) || booking.totalAmount <= 0) {
         throw new InvalidPaymentRequestError();
       }
@@ -99,14 +103,18 @@ export class PaymentController {
         amount = promotion.finalAmount;
       }
 
+      const payment = await this.paymentGatewayService.createPayment({
+        bookingId: booking.id,
+        customerId: booking.customerId,
+        providerId: booking.providerId,
+        amount,
+        paymentMethod: body.paymentMethod,
+      });
+
+      await this.notifyProviderPaymentCreated(payment, booking.serviceTitle);
+
       return {
-        data: await this.paymentGatewayService.createPayment({
-          bookingId: booking.id,
-          customerId: booking.customerId,
-          providerId: booking.providerId,
-          amount,
-          paymentMethod: body.paymentMethod,
-        }),
+        data: payment,
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -129,6 +137,8 @@ export class PaymentController {
         participant.userId,
         participant.visibility.providerId,
       );
+
+      this.assertPaymentActorIsCustomer(participant.userId, booking.customerId);
 
       if (!Number.isFinite(booking.totalAmount) || booking.totalAmount <= 0) {
         throw new InvalidPaymentRequestError();
@@ -330,6 +340,43 @@ export class PaymentController {
       userId: participant.userId,
       providerId: participant.visibility.providerId,
     };
+  }
+
+  private assertPaymentActorIsCustomer(
+    userId: string,
+    customerId: string | null | undefined,
+  ): void {
+    if (userId !== customerId) {
+      throw new InvalidPaymentRequestError();
+    }
+  }
+
+  private async notifyProviderPaymentCreated(
+    payment: PaymentSummary,
+    serviceTitle?: string | null,
+  ): Promise<void> {
+    if (!this.notificationServiceClient || !payment.providerId) {
+      return;
+    }
+
+    const providerOwner =
+      await this.catalogServiceClient.findProviderOwnerByProviderId(
+        payment.providerId,
+      );
+
+    await this.notificationServiceClient.createNotification({
+      userId: providerOwner.userId,
+      type: 'payment_reserved',
+      title: 'Payment reserved',
+      body: `A customer reserved payment for ${
+        serviceTitle ?? 'a service booking'
+      }.`,
+      metadata: {
+        bookingId: payment.bookingId,
+        paymentId: payment.id,
+        status: payment.status,
+      },
+    });
   }
 
   private toHttpException(error: unknown): HttpException {

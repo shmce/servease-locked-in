@@ -20,6 +20,7 @@ import {
   ProviderOwnedServiceSummary,
   AdminProviderApplicationSummary,
   ProviderProfileSummary,
+  UpdateProviderProfileInput,
 } from './provider-profile.types';
 
 const UUID_PATTERN =
@@ -94,7 +95,7 @@ export class ProviderProfileController {
   @Patch('by-user/:userId')
   async update(
     @Param('userId') userId: string,
-    @Body() body: { businessName: string },
+    @Body() body: UpdateProviderProfileInput,
   ): Promise<{ data: ProviderProfileSummary }> {
     if (!UUID_PATTERN.test(userId) || !body.businessName?.trim()) {
       throw new HttpException(
@@ -114,6 +115,13 @@ export class ProviderProfileController {
         data: await this.providerProfileService.update({
           userId,
           businessName: body.businessName.trim(),
+          bio: body.bio?.trim() || null,
+          serviceDescription: body.serviceDescription?.trim() || null,
+          serviceArea: body.serviceArea?.trim() || null,
+          yearsExperience:
+            body.yearsExperience === undefined || body.yearsExperience === null
+              ? null
+              : Number(body.yearsExperience),
         }),
       };
     } catch {
@@ -166,6 +174,33 @@ export class ProviderProfileController {
       return { data };
     } catch {
       throw this.dependencyError('Provider application lookup failed.');
+    }
+  }
+
+  @Get('applications/:applicationId/documents/:documentId')
+  async getApplicationDocument(
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+  ) {
+    if (!UUID_PATTERN.test(applicationId) || !UUID_PATTERN.test(documentId)) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      const data =
+        await this.providerProfileService.getProviderApplicationDocument(
+          applicationId,
+          documentId,
+        );
+      if (!data) {
+        throw this.notFound('Provider application document was not found.');
+      }
+      return { data };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw this.dependencyError('Provider application document lookup failed.');
     }
   }
 
@@ -319,6 +354,19 @@ export class ProviderProfileController {
         },
       },
       503,
+    );
+  }
+
+  private notFound(message: string): HttpException {
+    return new HttpException(
+      {
+        error: {
+          code: 'provider_profile_not_found',
+          message,
+          details: {},
+        },
+      },
+      404,
     );
   }
 }

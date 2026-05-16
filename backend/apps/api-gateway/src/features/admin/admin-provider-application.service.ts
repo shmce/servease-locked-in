@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AdminServiceClient } from './clients/admin-service.client';
 import {
+  AdminProviderApplicationDocumentSummary,
   AdminProviderApplicationSummary,
   ListProviderApplicationsFilter,
 } from './admin-provider-application.types';
@@ -19,6 +20,16 @@ export class AdminProviderApplicationGatewayService {
     applicationId: string,
   ): Promise<AdminProviderApplicationSummary> {
     return this.adminServiceClient.getProviderApplication(applicationId);
+  }
+
+  getProviderApplicationDocument(
+    applicationId: string,
+    documentId: string,
+  ): Promise<AdminProviderApplicationDocumentSummary> {
+    return this.adminServiceClient.getProviderApplicationDocument(
+      applicationId,
+      documentId,
+    );
   }
 
   decideProviderApplication(input: {

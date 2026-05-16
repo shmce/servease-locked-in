@@ -182,6 +182,14 @@ export interface SupportTicketSummary {
   attachments?: SupportTicketAttachmentSummary[]
 }
 
+export interface SupportTicketReplySummary {
+  id: string
+  ticketId: string
+  repliedBy: string
+  message: string
+  createdAt: string | null
+}
+
 export interface CreateSupportTicketRequest {
   subject: string
   message?: string | null
@@ -328,6 +336,10 @@ export interface UpdateCurrentUserProfileRequest {
   contactNumber?: string | null
   address?: string | null
   businessName?: string | null
+  bio?: string | null
+  serviceDescription?: string | null
+  serviceArea?: string | null
+  yearsExperience?: number | null
 }
 
 export interface UpdateCurrentUserPasswordRequest {
@@ -588,7 +600,11 @@ export function updateProviderBookingStatus(
   currentStatus: BookingStatus,
   nextStatus: BookingStatus,
   reason?: string | null,
+  explanation?: string | null,
 ): Promise<BookingSummary> {
+  const normalizedReason = reason?.trim() || null
+  const normalizedExplanation = explanation?.trim() || null
+
   return request<BookingSummary>(
     `/v1/bookings/${encodeURIComponent(bookingId)}/status`,
     {
@@ -597,7 +613,8 @@ export function updateProviderBookingStatus(
       body: {
         currentStatus,
         nextStatus,
-        reason: reason || null,
+        reason: normalizedReason,
+        explanation: normalizedExplanation,
       },
     },
   )
@@ -791,6 +808,18 @@ export function addProviderPortfolioMedia(
   })
 }
 
+export async function listCurrentProviderPortfolioMedia(
+  token: string,
+): Promise<ProviderPortfolioMediaSummary[]> {
+  const snapshot = await getProviderProfile(token)
+
+  return [...snapshot.portfolio].sort(
+    (left, right) =>
+      left.sortOrder - right.sortOrder ||
+      (left.createdAt ?? '').localeCompare(right.createdAt ?? ''),
+  )
+}
+
 export function deleteProviderPortfolioMedia(token: string, mediaId: string): Promise<void> {
   return request<void>(`/v1/catalog/provider/portfolio/${encodeURIComponent(mediaId)}`, {
     method: 'DELETE',
@@ -828,6 +857,31 @@ export function createSupportTicket(
   return request<SupportTicketSummary>('/v1/support/tickets', { method: 'POST', token, body })
 }
 
+export function listSupportTicketReplies(
+  token: string,
+  ticketId: string,
+): Promise<SupportTicketReplySummary[]> {
+  return request<SupportTicketReplySummary[]>(
+    `/v1/support/tickets/${encodeURIComponent(ticketId)}/replies`,
+    { token },
+  )
+}
+
+export function createSupportTicketReply(
+  token: string,
+  ticketId: string,
+  message: string,
+): Promise<SupportTicketReplySummary> {
+  return request<SupportTicketReplySummary>(
+    `/v1/support/tickets/${encodeURIComponent(ticketId)}/replies`,
+    {
+      method: 'POST',
+      token,
+      body: { message },
+    },
+  )
+}
+
 async function request<T>(
   path: string,
   { method = 'GET', token, body, query, idempotencyKey }: RequestOptions = {},
@@ -852,6 +906,10 @@ async function request<T>(
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+
+  if (response.status === 204) {
+    return undefined as T
+  }
 
   const payload = (await response.json().catch(() => ({}))) as {
     data?: T

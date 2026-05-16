@@ -22,3 +22,68 @@ export interface SupportTicketAttachmentSummary {
   fileSize: number | null;
   createdAt: string | null;
 }
+
+export interface CreateSupportTicketInput {
+  subject: string;
+  message: string;
+  category?: string | null;
+}
+
+interface ApiResponse<T> {
+  data?: T;
+  error?: {
+    message?: string;
+  };
+}
+
+export function listSupportTickets(
+  accessToken: string,
+): Promise<SupportTicketSummary[]> {
+  return fetchSupportTicketApi<SupportTicketSummary[]>('/api/support-tickets', {
+    accessToken,
+  });
+}
+
+export function createSupportTicket(
+  accessToken: string,
+  input: CreateSupportTicketInput,
+): Promise<SupportTicketSummary> {
+  return fetchSupportTicketApi<SupportTicketSummary>('/api/support-tickets', {
+    accessToken,
+    method: 'POST',
+    body: input,
+  });
+}
+
+async function fetchSupportTicketApi<T>(
+  path: string,
+  options: {
+    accessToken: string;
+    method?: 'GET' | 'POST';
+    body?: unknown;
+  },
+): Promise<T> {
+  const response = await fetch(path, {
+    method: options.method ?? 'GET',
+    headers: {
+      authorization: `Bearer ${options.accessToken}`,
+      accept: 'application/json',
+      ...(options.body ? { 'content-type': 'application/json' } : {}),
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  }).catch(() => null);
+
+  if (!response) {
+    throw new Error('Could not reach support. Please try again.');
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | ApiResponse<T>
+    | null;
+
+  if (!response.ok || !payload?.data) {
+    throw new Error(payload?.error?.message ?? 'Support request failed.');
+  }
+
+  return payload.data;
+}

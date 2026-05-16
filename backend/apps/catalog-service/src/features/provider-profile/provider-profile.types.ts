@@ -20,6 +20,10 @@ export interface CreateProviderProfileInput {
 export interface UpdateProviderProfileInput {
   userId: string;
   businessName: string;
+  bio?: string | null;
+  serviceDescription?: string | null;
+  serviceArea?: string | null;
+  yearsExperience?: number | null;
 }
 
 export interface ProviderPortfolioMediaInput {
@@ -73,6 +77,19 @@ export interface ProviderOwnedServiceSummary {
 
 export type ProviderApplicationStatus = 'pending' | 'approved' | 'rejected';
 
+export interface AdminProviderApplicationDocumentSummary {
+  id: string;
+  applicationId: string;
+  userId: string;
+  documentType: string;
+  fileUrl: string | null;
+  storagePath: string | null;
+  status: ProviderApplicationStatus;
+  createdAt: string | null;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+}
+
 export interface AdminProviderApplicationSummary {
   id: string;
   applicationReference: string;
@@ -95,4 +112,5 @@ export interface AdminProviderApplicationSummary {
   latestDecidedBy: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  documents: AdminProviderApplicationDocumentSummary[];
 }

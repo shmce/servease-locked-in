@@ -20,8 +20,15 @@ import {
   TableRow,
 } from "../components/ui/table";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import {
   Search,
-  Filter,
   Calendar,
   CheckCircle,
   XCircle,
@@ -29,10 +36,14 @@ import {
   Activity,
   DollarSign,
   TrendingUp,
-  CalendarClock,
+  Eye,
+  AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  cancelAdminBooking,
+  escalateAdminBooking,
+  getAdminBooking,
   listAdminBookings,
   type AdminBookingStatus,
   type AdminBookingSummary,
@@ -48,6 +59,14 @@ export function AllBookings() {
   const [activeTab, setActiveTab] = useState<BookingTab>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [dateFilter, setDateFilter] = useState<string>("all");
+  const [selectedBooking, setSelectedBooking] = useState<AdminBookingSummary | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [escalateOpen, setEscalateOpen] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelExplanation, setCancelExplanation] = useState("");
+  const [escalationReason, setEscalationReason] = useState("");
+  const [isActionBusy, setIsActionBusy] = useState(false);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -181,6 +200,88 @@ export function AllBookings() {
         );
     }
   };
+
+  const upsertBooking = (booking: AdminBookingSummary) => {
+    setBookings((current) =>
+      current.map((item) => (item.id === booking.id ? booking : item)),
+    );
+    setSelectedBooking(booking);
+  };
+
+  const openBookingDetail = async (booking: AdminBookingSummary) => {
+    setSelectedBooking(booking);
+    setDetailOpen(true);
+
+    if (!accessToken) return;
+
+    try {
+      upsertBooking(await getAdminBooking(accessToken, booking.id));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to inspect booking.");
+    }
+  };
+
+  const openCancelDialog = (booking: AdminBookingSummary) => {
+    setSelectedBooking(booking);
+    setCancelReason("");
+    setCancelExplanation("");
+    setCancelOpen(true);
+  };
+
+  const openEscalateDialog = (booking: AdminBookingSummary) => {
+    setSelectedBooking(booking);
+    setEscalationReason("");
+    setEscalateOpen(true);
+  };
+
+  const confirmCancelBooking = async () => {
+    if (!accessToken || !selectedBooking) return;
+    if (!cancelReason.trim()) {
+      toast.error("Provide a cancellation reason.");
+      return;
+    }
+
+    setIsActionBusy(true);
+    try {
+      const updated = await cancelAdminBooking(accessToken, selectedBooking.id, {
+        reason: cancelReason.trim(),
+        explanation: cancelExplanation.trim() || null,
+      });
+      upsertBooking(updated);
+      setCancelOpen(false);
+      toast.success(`Booking ${updated.bookingReference} cancelled.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to cancel booking.");
+    } finally {
+      setIsActionBusy(false);
+    }
+  };
+
+  const confirmEscalateBooking = async () => {
+    if (!accessToken || !selectedBooking) return;
+    if (!escalationReason.trim()) {
+      toast.error("Provide an escalation reason.");
+      return;
+    }
+
+    setIsActionBusy(true);
+    try {
+      const updated = await escalateAdminBooking(accessToken, selectedBooking.id, {
+        reason: escalationReason.trim(),
+        priority: "high",
+      });
+      upsertBooking(updated);
+      setEscalateOpen(false);
+      toast.success(`Booking ${updated.bookingReference} escalated.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to escalate booking.");
+    } finally {
+      setIsActionBusy(false);
+    }
+  };
+
+  const canCancel = (status: AdminBookingStatus) =>
+    status === "pending" || status === "confirmed" || status === "in_progress";
 
   return (
     <div className="space-y-6">
@@ -381,12 +482,13 @@ export function AllBookings() {
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Escalations</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredBookings.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                       {isLoading ? "Loading bookings..." : "No backend bookings found"}
                     </TableCell>
                   </TableRow>
@@ -444,6 +546,36 @@ export function AllBookings() {
                             </Badge>
                           )}
                         </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => void openBookingDetail(booking)}
+                            >
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => openEscalateDialog(booking)}
+                            >
+                              <AlertTriangle className="w-4 h-4 mr-1" />
+                              Escalate
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={!canCancel(booking.status)}
+                              onClick={() => openCancelDialog(booking)}
+                              className="text-red-700 hover:text-red-800"
+                            >
+                              <XCircle className="w-4 h-4 mr-1" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })
@@ -453,6 +585,166 @@ export function AllBookings() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Booking Detail</DialogTitle>
+            <DialogDescription>
+              Inspect the current gateway record and operational history.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedBooking ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+              <Detail label="Booking ID" value={selectedBooking.bookingReference} />
+              <Detail label="Status" value={selectedBooking.status.replace("_", " ")} />
+              <Detail label="Customer" value={selectedBooking.customerFullName ?? selectedBooking.customerId} />
+              <Detail label="Customer Contact" value={selectedBooking.customerContactNumber ?? "Not provided"} />
+              <Detail label="Provider ID" value={selectedBooking.providerId} />
+              <Detail label="Service" value={selectedBooking.serviceTitle ?? "Service booking"} />
+              <Detail label="Scheduled" value={new Date(selectedBooking.scheduledAt).toLocaleString()} />
+              <Detail label="Amount" value={`₱${selectedBooking.totalAmount.toLocaleString()}`} />
+              <Detail label="Address" value={selectedBooking.serviceAddress ?? "No address recorded"} wide />
+              <Detail label="Escalations" value={String(selectedBooking.escalationCount)} />
+              <Detail label="Latest Escalation" value={selectedBooking.latestEscalationReason ?? "None"} wide />
+              <Detail label="Cancel Reason" value={selectedBooking.cancelReason ?? "None"} wide />
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDetailOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel Booking</DialogTitle>
+            <DialogDescription>
+              This changes the booking through Booking Service and writes an audit log.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedBooking ? (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border bg-gray-50 p-4">
+                <p className="font-mono text-sm font-semibold text-gray-900">
+                  {selectedBooking.bookingReference}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {selectedBooking.customerFullName ?? selectedBooking.customerId}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason
+                </label>
+                <textarea
+                  className="w-full min-h-[96px] resize-none rounded-lg border p-3"
+                  value={cancelReason}
+                  onChange={(event) => setCancelReason(event.target.value)}
+                  placeholder="Reason shown in operations history"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Explanation
+                </label>
+                <textarea
+                  className="w-full min-h-[96px] resize-none rounded-lg border p-3"
+                  value={cancelExplanation}
+                  onChange={(event) => setCancelExplanation(event.target.value)}
+                  placeholder="Optional internal explanation"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelOpen(false)}>
+              Keep Booking
+            </Button>
+            <Button
+              onClick={() => void confirmCancelBooking()}
+              disabled={isActionBusy}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              <XCircle className="w-4 h-4 mr-2" />
+              Confirm Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={escalateOpen} onOpenChange={setEscalateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Escalate Booking</DialogTitle>
+            <DialogDescription>
+              Create a high-priority Booking Service escalation for admin follow-up.
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedBooking ? (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border bg-gray-50 p-4">
+                <p className="font-mono text-sm font-semibold text-gray-900">
+                  {selectedBooking.bookingReference}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Current escalations: {selectedBooking.escalationCount}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Escalation Reason
+                </label>
+                <textarea
+                  className="w-full min-h-[120px] resize-none rounded-lg border p-3"
+                  value={escalationReason}
+                  onChange={(event) => setEscalationReason(event.target.value)}
+                  placeholder="Reason for escalation"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEscalateOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void confirmEscalateBooking()}
+              disabled={isActionBusy}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              Escalate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function Detail({
+  label,
+  value,
+  wide,
+}: {
+  label: string;
+  value: string;
+  wide?: boolean;
+}) {
+  return (
+    <div className={wide ? "md:col-span-2" : undefined}>
+      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-gray-900">{value}</p>
     </div>
   );
 }

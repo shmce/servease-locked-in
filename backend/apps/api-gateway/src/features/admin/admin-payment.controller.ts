@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { AdminAuditGatewayService } from './admin-audit.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
@@ -131,20 +131,29 @@ export class AdminPaymentController {
   }
 
   @Post('settlements/:settlementId/approve')
-  @HttpCode(501)
   async approveSettlement(
     @Headers('authorization') authorization: string | undefined,
-    @Param('settlementId') _settlementId: string,
-  ): Promise<{ error: { code: string; message: string } }> {
-    await this.requireAdmin(authorization).catch(() => {
-      throw this.error('admin_required', 'An admin account is required.', 403);
-    });
-    return {
-      error: {
-        code: 'not_implemented',
-        message: 'Settlement approval is not yet implemented.',
-      },
-    };
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('settlementId') settlementId: string,
+  ): Promise<{ data: PayoutSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const payout = await this.adminPaymentGatewayService.updatePayoutStatus(
+        settlementId,
+        'processing',
+      );
+      void this.recordAudit(admin, request, {
+        action: 'Approved settlement for processing',
+        actionType: 'approve',
+        entityType: 'Settlement',
+        entityId: payout.id,
+        details: `Settlement ${payout.reference ?? payout.id} for provider ${payout.providerId} approved for processing.`,
+        metadata: { payoutId: payout.id, providerId: payout.providerId, status: payout.status },
+      });
+      return { data: payout };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
   }
 
   @Patch('payouts/:payoutId/status')

@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NotificationDependencyUnavailableError } from '../notification.errors';
-import { NotificationSummary } from '../notification.types';
+import {
+  CreateNotificationRequest,
+  NotificationSummary,
+} from '../notification.types';
 
 @Injectable()
 export class NotificationServiceClient {
@@ -27,9 +30,19 @@ export class NotificationServiceClient {
     );
   }
 
+  createNotification(
+    input: CreateNotificationRequest,
+  ): Promise<NotificationSummary> {
+    return this.request<NotificationSummary>(
+      '/internal/notifications',
+      'POST',
+      input,
+    );
+  }
+
   private async request<T>(
     path: string,
-    method: 'GET' | 'PATCH',
+    method: 'GET' | 'PATCH' | 'POST',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(

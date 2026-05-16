@@ -5,7 +5,7 @@ export interface RegisterUserInput {
   password: string;
   fullName: string;
   contactNumber?: string | null;
-  role: Exclude<UserRole, 'admin'>;
+  role: UserRole;
 }
 
 export type RegisteredUserResponse = InternalUserResponse;

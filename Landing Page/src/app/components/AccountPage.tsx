@@ -15,40 +15,33 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import type { BookingSummary } from "../lib/bookings";
+import {
+  listCustomerBookings,
+  type BookingSummary,
+} from "../lib/bookings";
 import { createSupabaseBrowserClient } from "../lib/supabase-browser";
-import type {
-  CurrentUserProfile,
-  UpdateCurrentUserProfileInput,
+import {
+  getCurrentUserProfile,
+  updateCurrentUserProfile,
+  updateCurrentUserPassword,
+  type CurrentUserProfile,
 } from "../lib/current-user";
-import type { SupportTicketSummary } from "../lib/support-tickets";
-
-interface ProfileResponse {
-  data?: CurrentUserProfile;
-  error?: {
-    message?: string;
-  };
-}
-
-interface TicketResponse {
-  data?: SupportTicketSummary[];
-  error?: {
-    message?: string;
-  };
-}
-
-interface BookingResponse {
-  data?: BookingSummary[];
-  error?: {
-    message?: string;
-  };
-}
+import {
+  listSupportTickets,
+  type SupportTicketSummary,
+} from "../lib/support-tickets";
 
 interface ProfileFormState {
   fullName: string;
   contactNumber: string;
   address: string;
   businessName: string;
+}
+
+interface PasswordFormState {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
 }
 
 function createSupabaseState() {
@@ -89,13 +82,20 @@ export function AccountPage() {
     address: "",
     businessName: "",
   });
+  const [passwordForm, setPasswordForm] = useState<PasswordFormState>({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
   const [error, setError] = useState(setupError);
   const [supportError, setSupportError] = useState("");
   const [bookingError, setBookingError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(!setupError);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const loadAccount = async () => {
     if (!supabase) {
@@ -108,6 +108,7 @@ export function AccountPage() {
     setError("");
     setSupportError("");
     setBookingError("");
+    setPasswordError("");
     setSuccess("");
 
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -117,49 +118,52 @@ export function AccountPage() {
       return;
     }
 
-    const headers = {
-      authorization: `Bearer ${sessionData.session.access_token}`,
-    };
+    const accessToken = sessionData.session.access_token;
     const [profileResponse, ticketsResponse, bookingsResponse] = await Promise.all([
-      fetch("/api/me", { headers }),
-      fetch("/api/support-tickets", { headers }),
-      fetch("/api/bookings", { headers }),
+      getCurrentUserProfile(accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
+      listSupportTickets(accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
+      listCustomerBookings(accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
     ]);
-    const profilePayload = (await profileResponse.json().catch(() => null)) as
-      | ProfileResponse
-      | null;
-    const ticketsPayload = (await ticketsResponse.json().catch(() => null)) as
-      | TicketResponse
-      | null;
-    const bookingsPayload = (await bookingsResponse.json().catch(() => null)) as
-      | BookingResponse
-      | null;
 
-    if (!profileResponse.ok || !profilePayload?.data) {
-      setError(profilePayload?.error?.message ?? "Could not load your profile.");
+    if ("error" in profileResponse) {
+      setError(
+        profileResponse.error instanceof Error
+          ? profileResponse.error.message
+          : "Could not load your profile.",
+      );
       setIsLoading(false);
       return;
     }
 
-    setProfile(profilePayload.data);
-    setForm(createProfileForm(profilePayload.data));
+    setProfile(profileResponse.data);
+    setForm(createProfileForm(profileResponse.data));
 
-    if (!ticketsResponse.ok || !ticketsPayload?.data) {
+    if ("error" in ticketsResponse) {
       setSupportError(
-        ticketsPayload?.error?.message ?? "Could not load your support tickets.",
+        ticketsResponse.error instanceof Error
+          ? ticketsResponse.error.message
+          : "Could not load your support tickets.",
       );
       setTickets([]);
     } else {
-      setTickets(ticketsPayload.data);
+      setTickets(ticketsResponse.data);
     }
 
-    if (!bookingsResponse.ok || !bookingsPayload?.data) {
+    if ("error" in bookingsResponse) {
       setBookingError(
-        bookingsPayload?.error?.message ?? "Could not load your bookings.",
+        bookingsResponse.error instanceof Error
+          ? bookingsResponse.error.message
+          : "Could not load your bookings.",
       );
       setBookings([]);
     } else {
-      setBookings(bookingsPayload.data);
+      setBookings(bookingsResponse.data);
     }
 
     setIsLoading(false);
@@ -189,43 +193,28 @@ export function AccountPage() {
       return;
     }
 
-    const body: UpdateCurrentUserProfileInput = {
-      fullName: form.fullName,
-      contactNumber: form.contactNumber || null,
-      address: form.address || null,
-      businessName: form.businessName || null,
-    };
+    try {
+      const updated = await updateCurrentUserProfile(
+        sessionData.session.access_token,
+        {
+          fullName: form.fullName,
+          contactNumber: form.contactNumber || null,
+          address: form.address || null,
+          businessName: form.businessName || null,
+        },
+      );
 
-    const response = await fetch("/api/me", {
-      method: "PATCH",
-      headers: {
-        authorization: `Bearer ${sessionData.session.access_token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(body),
-    }).catch(() => null);
-
-    if (!response) {
-      setError("Could not reach the profile service.");
+      setProfile(updated);
+      setForm(createProfileForm(updated));
+      setIsEditing(false);
+      setSuccess("Profile updated.");
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Could not update your profile.",
+      );
+    } finally {
       setIsSaving(false);
-      return;
     }
-
-    const payload = (await response.json().catch(() => null)) as
-      | ProfileResponse
-      | null;
-
-    if (!response.ok || !payload?.data) {
-      setError(payload?.error?.message ?? "Could not update your profile.");
-      setIsSaving(false);
-      return;
-    }
-
-    setProfile(payload.data);
-    setForm(createProfileForm(payload.data));
-    setIsEditing(false);
-    setIsSaving(false);
-    setSuccess("Profile updated.");
   };
 
   const handleCancelEdit = () => {
@@ -235,6 +224,56 @@ export function AccountPage() {
     setError("");
     setSuccess("");
     setIsEditing(false);
+  };
+
+  const handleChangePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!supabase) {
+      setPasswordError(setupError || "Supabase login is not configured.");
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters.");
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError("New passwords do not match.");
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setPasswordError("");
+    setSuccess("");
+
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.access_token) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      await updateCurrentUserPassword(sessionData.session.access_token, {
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+      });
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setSuccess("Password updated.");
+    } catch (error) {
+      setPasswordError(
+        error instanceof Error ? error.message : "Could not update your password.",
+      );
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleSignOut = async () => {
@@ -436,6 +475,64 @@ export function AccountPage() {
             <section className="bg-white rounded-2xl shadow-md p-6">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-12 h-12 rounded-xl bg-[#00BF63]/10 flex items-center justify-center">
+                  <ShieldCheck className="text-[#00BF63]" size={24} />
+                </div>
+                <div>
+                  <h2 className="font-['Poppins',sans-serif] text-xl text-gray-900">
+                    Security
+                  </h2>
+                  <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                    Update the password for this customer account.
+                  </p>
+                </div>
+              </div>
+
+              {passwordError && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="font-['Poppins',sans-serif] text-sm text-red-700">
+                    {passwordError}
+                  </p>
+                </div>
+              )}
+
+              <form onSubmit={handleChangePassword} className="grid gap-4 md:grid-cols-3">
+                <PasswordInput
+                  label="Current Password"
+                  value={passwordForm.currentPassword}
+                  onChange={(value) =>
+                    setPasswordForm({ ...passwordForm, currentPassword: value })
+                  }
+                />
+                <PasswordInput
+                  label="New Password"
+                  value={passwordForm.newPassword}
+                  onChange={(value) =>
+                    setPasswordForm({ ...passwordForm, newPassword: value })
+                  }
+                />
+                <PasswordInput
+                  label="Confirm New Password"
+                  value={passwordForm.confirmPassword}
+                  onChange={(value) =>
+                    setPasswordForm({ ...passwordForm, confirmPassword: value })
+                  }
+                />
+                <div className="md:col-span-3">
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="inline-flex items-center gap-2 rounded-lg bg-black px-4 py-2 font-['Poppins',sans-serif] text-sm text-white disabled:opacity-70"
+                  >
+                    <ShieldCheck size={16} />
+                    {isChangingPassword ? "Updating..." : "Update Password"}
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <section className="bg-white rounded-2xl shadow-md p-6">
+              <div className="flex items-center gap-3 mb-5">
+                <div className="w-12 h-12 rounded-xl bg-[#00BF63]/10 flex items-center justify-center">
                   <CalendarCheck className="text-[#00BF63]" size={24} />
                 </div>
                 <div>
@@ -563,6 +660,31 @@ function TextInput({
       <input
         type="text"
         required={required}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 font-['Poppins',sans-serif] text-sm focus:border-[#00BF63] focus:outline-none"
+      />
+    </label>
+  );
+}
+
+function PasswordInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="font-['Poppins',sans-serif] text-sm text-gray-700 block mb-1">
+        {label}
+      </span>
+      <input
+        type="password"
+        required
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 font-['Poppins',sans-serif] text-sm focus:border-[#00BF63] focus:outline-none"

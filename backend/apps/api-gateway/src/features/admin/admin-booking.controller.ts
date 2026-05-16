@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   Headers,
-  HttpCode,
   HttpException,
   Param,
   Post,
@@ -14,6 +13,8 @@ import { AdminAuditGatewayService } from './admin-audit.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
 import { CurrentUserProfile } from '../current-user/current-user.types';
+import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
+import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import {
   AuthRequiredError,
   InvalidAuthTokenError,
@@ -30,6 +31,7 @@ import {
   AdminBookingSummary,
   AdminBookingsSummaryStats,
   AdminOperationsAlerts,
+  AdminProviderMessageResult,
   CancelAdminBookingRequest,
   EscalateAdminBookingRequest,
 } from './admin-booking.types';
@@ -56,6 +58,8 @@ export class AdminBookingController {
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
     private readonly authTokenService: AuthTokenService,
     private readonly currentUserService: CurrentUserService,
+    private readonly catalogServiceClient: CatalogServiceClient,
+    private readonly notificationServiceClient: NotificationServiceClient,
   ) {}
 
   @Get('operations/alerts')
@@ -162,6 +166,21 @@ export class AdminBookingController {
           reason: body.reason,
         },
       });
+      if (booking.customerId) {
+        void this.notificationServiceClient
+          .createNotification({
+            userId: booking.customerId,
+            type: 'booking_cancelled_by_admin',
+            title: 'Booking cancelled by support',
+            body: `Booking ${booking.bookingReference} was cancelled: ${body.reason}`,
+            metadata: {
+              bookingId: booking.id,
+              bookingReference: booking.bookingReference,
+              reason: body.reason,
+            },
+          })
+          .catch(() => undefined);
+      }
       return { data: booking };
     } catch (error) {
       throw this.toHttpException(error);
@@ -201,6 +220,24 @@ export class AdminBookingController {
           reason: body.reason,
         },
       });
+      void this.catalogServiceClient
+        .findProviderOwnerByProviderId(booking.providerId)
+        .then((providerOwner) =>
+          this.notificationServiceClient.createNotification({
+            userId: providerOwner.userId,
+            type: 'admin_booking_escalated',
+            title: 'Booking escalated by ServEase admin',
+            body: `Booking ${booking.bookingReference} was escalated: ${body.reason}`,
+            metadata: {
+              bookingId: booking.id,
+              bookingReference: booking.bookingReference,
+              priority: body.priority ?? 'medium',
+              reason: body.reason,
+              adminUserId: admin.user.id,
+            },
+          }),
+        )
+        .catch(() => undefined);
       return { data: booking };
     } catch (error) {
       throw this.toHttpException(error);
@@ -208,20 +245,60 @@ export class AdminBookingController {
   }
 
   @Post(':bookingId/provider-messages')
-  @HttpCode(501)
   async sendProviderMessage(
     @Headers('authorization') authorization: string | undefined,
-    @Param('bookingId') _bookingId: string,
-  ): Promise<{ error: { code: string; message: string } }> {
-    await this.requireAdmin(authorization).catch(() => {
-      throw this.error('admin_required', 'An admin account is required.', 403);
-    });
-    return {
-      error: {
-        code: 'not_implemented',
-        message: 'Provider messaging is not yet implemented.',
-      },
-    };
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('bookingId') bookingId: string,
+    @Body() body: { message?: string },
+  ): Promise<{ data: AdminProviderMessageResult }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const message = body.message?.trim();
+      if (!bookingId || !message) {
+        throw new InvalidAdminRequestError();
+      }
+
+      const booking = await this.adminBookingGatewayService.getBooking(bookingId);
+      const providerOwner =
+        await this.catalogServiceClient.findProviderOwnerByProviderId(
+          booking.providerId,
+        );
+      const notification =
+        await this.notificationServiceClient.createNotification({
+          userId: providerOwner.userId,
+          type: 'admin_provider_message',
+          title: 'Message from ServEase admin',
+          body: message,
+          metadata: {
+            bookingId: booking.id,
+            bookingReference: booking.bookingReference,
+            adminUserId: admin.user.id,
+          },
+        });
+
+      void this.recordAudit(admin, request, {
+        action: 'Messaged provider',
+        actionType: 'update',
+        entityId: booking.id,
+        details: `Sent provider message for booking ${booking.bookingReference}.`,
+        metadata: {
+          bookingId: booking.id,
+          bookingReference: booking.bookingReference,
+          providerId: booking.providerId,
+          notificationId: notification.id,
+        },
+      });
+
+      return {
+        data: {
+          bookingId: booking.id,
+          providerUserId: providerOwner.userId,
+          notificationId: notification.id,
+        },
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
   }
 
   private async requireAdmin(

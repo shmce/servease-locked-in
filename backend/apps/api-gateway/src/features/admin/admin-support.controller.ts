@@ -14,6 +14,8 @@ import {
 } from './admin-support.errors';
 import { AdminSupportGatewayService } from './admin-support.service';
 import { SupportTicketReplySummary, SupportTicketSummary } from './admin-support.types';
+import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
+import { Optional } from '@nestjs/common';
 
 const validSupportStatuses = new Set(['open', 'in_progress', 'resolved', 'closed']);
 
@@ -24,6 +26,8 @@ export class AdminSupportController {
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
     private readonly authTokenService: AuthTokenService,
     private readonly currentUserService: CurrentUserService,
+    @Optional()
+    private readonly notificationServiceClient?: NotificationServiceClient,
   ) {}
 
   @Get()
@@ -85,9 +89,32 @@ export class AdminSupportController {
       if (!body.repliedBy?.trim() || !body.message?.trim()) {
         throw new InvalidAdminRequestError();
       }
-      return {
-        data: await this.adminSupportGatewayService.addReply(ticketId, body.repliedBy, body.message),
-      };
+      const reply = await this.adminSupportGatewayService.addReply(
+        ticketId,
+        body.repliedBy,
+        body.message,
+      );
+      if (this.notificationServiceClient) {
+        const ticket = await this.adminSupportGatewayService
+          .getSupportTicket(ticketId)
+          .catch(() => null);
+        if (ticket?.userId) {
+          void this.notificationServiceClient
+            .createNotification({
+              userId: ticket.userId,
+              type: 'support_reply',
+              title: 'Support team replied',
+              body: body.message.slice(0, 160),
+              metadata: {
+                ticketId,
+                replyId: reply.id,
+                subject: ticket.subject ?? null,
+              },
+            })
+            .catch(() => undefined);
+        }
+      }
+      return { data: reply };
     } catch (error) {
       throw this.toHttpException(error);
     }
@@ -137,6 +164,31 @@ export class AdminSupportController {
         ipAddress: this.getClientIp(request),
         metadata: { ticketId: ticket.id, status: ticket.status },
       }).catch(() => undefined);
+      if (this.notificationServiceClient && ticket.userId) {
+        void this.notificationServiceClient
+          .createNotification({
+            userId: ticket.userId,
+            type: `support_ticket_${ticket.status}`,
+            title:
+              ticket.status === 'resolved'
+                ? 'Your support ticket was resolved'
+                : ticket.status === 'closed'
+                  ? 'Your support ticket was closed'
+                  : 'Support ticket update',
+            body:
+              ticket.status === 'resolved'
+                ? 'Thanks for your patience — the support team marked your ticket as resolved.'
+                : ticket.status === 'closed'
+                  ? 'Your ticket was closed. Open a new one if you still need help.'
+                  : `Status updated to ${ticket.status.replace('_', ' ')}.`,
+            metadata: {
+              ticketId: ticket.id,
+              status: ticket.status,
+              subject: ticket.subject ?? null,
+            },
+          })
+          .catch(() => undefined);
+      }
       return {
         data: ticket,
       };

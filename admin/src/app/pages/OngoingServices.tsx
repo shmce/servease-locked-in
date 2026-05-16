@@ -40,11 +40,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
-import { notifyBackendRequired } from "../utils/backendRequired";
 import {
   cancelAdminBooking,
   escalateAdminBooking,
   listAdminBookings,
+  sendAdminProviderMessage,
   type AdminBookingStatus,
   type AdminBookingSummary,
 } from "../../services/serveaseAdminApi";
@@ -452,13 +452,28 @@ export function OngoingServices() {
     }
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!selectedService || !contactMessage.trim()) {
       toast.error("Please enter a message");
       return;
     }
 
-    notifyBackendRequired("Messaging service providers", "POST /v1/admin/bookings/:id/provider-messages");
+    if (!accessToken) return;
+
+    try {
+      await sendAdminProviderMessage(
+        accessToken,
+        selectedService.id,
+        contactMessage,
+      );
+      setContactModalOpen(false);
+      setContactMessage("");
+      toast.success(`Message sent to ${selectedService.provider}.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to message provider.",
+      );
+    }
   };
 
   const formatTime = (dateTime: string) => {

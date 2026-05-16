@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { SupportDependencyUnavailableError } from '../support.errors';
 import {
   CreateSupportTicketRequest,
+  SupportTicketReplySummary,
   SupportTicketSummary,
 } from '../support.types';
 
@@ -29,6 +30,28 @@ export class SupportServiceClient {
     return this.request<SupportTicketSummary[]>(
       `/internal/support/tickets?userId=${encodeURIComponent(userId)}`,
       'GET',
+    );
+  }
+
+  listReplies(
+    userId: string,
+    ticketId: string,
+  ): Promise<SupportTicketReplySummary[]> {
+    return this.request<SupportTicketReplySummary[]>(
+      `/internal/support/tickets/${encodeURIComponent(ticketId)}/replies?userId=${encodeURIComponent(userId)}`,
+      'GET',
+    );
+  }
+
+  addReply(
+    userId: string,
+    ticketId: string,
+    message: string,
+  ): Promise<SupportTicketReplySummary> {
+    return this.request<SupportTicketReplySummary>(
+      `/internal/support/tickets/${encodeURIComponent(ticketId)}/replies`,
+      'POST',
+      { userId, message },
     );
   }
 

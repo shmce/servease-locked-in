@@ -37,3 +37,16 @@ export interface FlagReviewInput {
   reporterId: string;
   reason: string;
 }
+
+export interface ListAdminReviewsFilters {
+  providerId?: string | null;
+  flaggedOnly?: boolean;
+  limit?: number;
+}
+
+export interface SetReviewFlaggedInput {
+  reviewId: string;
+  isFlagged: boolean;
+  reason?: string | null;
+  adminId?: string | null;
+}

@@ -1,20 +1,17 @@
 import {
-  Body,
   Controller,
   Get,
+  Header,
   Headers,
   HttpCode,
   HttpException,
-  Param,
   Post,
 } from '@nestjs/common';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
-import {
-  AuthRequiredError,
-  InvalidAuthTokenError,
-} from '../current-user/current-user.errors';
 import { AdminRequiredError } from './admin-support.errors';
+import { AdminBookingGatewayService } from './admin-booking.service';
+import { AdminBookingSummary } from './admin-booking.types';
 
 const notImplemented = {
   error: {
@@ -28,6 +25,7 @@ export class AdminReportController {
   constructor(
     private readonly authTokenService: AuthTokenService,
     private readonly currentUserService: CurrentUserService,
+    private readonly adminBookingGatewayService: AdminBookingGatewayService,
   ) {}
 
   @Get('revenue.pdf')
@@ -42,22 +40,38 @@ export class AdminReportController {
   }
 
   @Get('bookings.csv')
-  @HttpCode(501)
+  @Header('content-type', 'text/csv; charset=utf-8')
+  @Header(
+    'content-disposition',
+    'attachment; filename="servease-bookings.csv"',
+  )
   async bookingsCsv(
     @Headers('authorization') authorization: string | undefined,
-  ): Promise<{ error: { code: string; message: string } }> {
-    await this.requireAdmin(authorization).catch(() => {
-      throw this.error('admin_required', 'An admin account is required.', 403);
-    });
-    return notImplemented;
+  ): Promise<string> {
+    try {
+      await this.requireAdmin(authorization);
+      const bookings = await this.adminBookingGatewayService.listBookings({
+        limit: 1000,
+        query: null,
+        status: null,
+      });
+      return this.toBookingsCsv(bookings);
+    } catch (error) {
+      if (error instanceof AdminRequiredError) {
+        throw this.error('admin_required', 'An admin account is required.', 403);
+      }
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Booking report export failed.',
+        503,
+      );
+    }
   }
 
   @Post(':type')
   @HttpCode(501)
   async generate(
     @Headers('authorization') authorization: string | undefined,
-    @Param('type') _type: string,
-    @Body() _body: Record<string, unknown>,
   ): Promise<{ error: { code: string; message: string } }> {
     await this.requireAdmin(authorization).catch(() => {
       throw this.error('admin_required', 'An admin account is required.', 403);
@@ -69,8 +83,6 @@ export class AdminReportController {
   @HttpCode(501)
   async schedule(
     @Headers('authorization') authorization: string | undefined,
-    @Param('type') _type: string,
-    @Body() _body: Record<string, unknown>,
   ): Promise<{ error: { code: string; message: string } }> {
     await this.requireAdmin(authorization).catch(() => {
       throw this.error('admin_required', 'An admin account is required.', 403);
@@ -84,6 +96,45 @@ export class AdminReportController {
     if (currentUser.user.role !== 'admin') {
       throw new AdminRequiredError();
     }
+  }
+
+  private toBookingsCsv(bookings: AdminBookingSummary[]): string {
+    const headers = [
+      'bookingReference',
+      'customer',
+      'providerId',
+      'serviceTitle',
+      'serviceAddress',
+      'scheduledAt',
+      'status',
+      'totalAmount',
+      'cancelReason',
+      'cancelExplanation',
+      'createdAt',
+    ];
+    const rows = bookings.map((booking) => [
+      booking.bookingReference,
+      booking.customerFullName ?? booking.customerId,
+      booking.providerId,
+      booking.serviceTitle ?? '',
+      booking.serviceAddress ?? '',
+      booking.scheduledAt,
+      booking.status,
+      String(booking.totalAmount),
+      booking.cancelReason ?? '',
+      booking.cancelExplanation ?? '',
+      booking.createdAt ?? '',
+    ]);
+    return [headers, ...rows]
+      .map((row) => row.map((value) => this.escapeCsv(value)).join(','))
+      .join('\n');
+  }
+
+  private escapeCsv(value: string): string {
+    if (/[",\n\r]/.test(value)) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
   }
 
   private error(code: string, message: string, status: number): HttpException {

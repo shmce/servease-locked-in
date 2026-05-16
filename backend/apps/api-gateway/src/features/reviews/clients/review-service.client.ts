@@ -42,9 +42,36 @@ export class ReviewServiceClient {
     );
   }
 
+  listForAdmin(filters: {
+    providerId?: string | null;
+    flaggedOnly?: boolean;
+    limit?: number;
+  }): Promise<ReviewSummary[]> {
+    const params = new URLSearchParams();
+    if (filters.providerId) params.set('providerId', filters.providerId);
+    if (filters.flaggedOnly) params.set('flagged', 'true');
+    if (filters.limit) params.set('limit', String(filters.limit));
+    const qs = params.toString();
+    return this.request<ReviewSummary[]>(
+      `/internal/reviews/admin${qs ? `?${qs}` : ''}`,
+      'GET',
+    );
+  }
+
+  setReviewFlagged(
+    reviewId: string,
+    body: { isFlagged: boolean; reason?: string | null; adminId?: string | null },
+  ): Promise<ReviewSummary> {
+    return this.request<ReviewSummary>(
+      `/internal/reviews/${encodeURIComponent(reviewId)}/flagged`,
+      'PATCH',
+      body,
+    );
+  }
+
   private async request<T>(
     path: string,
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PATCH',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(

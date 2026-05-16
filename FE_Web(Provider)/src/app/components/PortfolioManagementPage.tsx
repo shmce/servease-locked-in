@@ -1,8 +1,15 @@
-import { useState } from "react";
-import { Plus, X, Save, Upload, Star, Edit2, GripVertical, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Plus, Save, Star, Edit2, GripVertical, Trash2 } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { useNavigate } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
+import {
+  addProviderPortfolioMedia,
+  deleteProviderPortfolioMedia,
+  getStoredProviderAccessToken,
+  listCurrentProviderPortfolioMedia,
+  type ProviderPortfolioMediaSummary,
+} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -121,12 +128,51 @@ const styles = {
 
 interface PortfolioItem {
   id: string;
+  persisted: boolean;
   beforeImage: string;
   afterImage: string;
   description: string;
   category: string;
   date: string;
   featured: boolean;
+}
+
+function toEditorItem(item: ProviderPortfolioMediaSummary, index: number): PortfolioItem {
+  const date = item.createdAt
+    ? new Date(item.createdAt).toISOString().split("T")[0]
+    : new Date().toISOString().split("T")[0];
+
+  return {
+    id: item.id,
+    persisted: true,
+    beforeImage: item.fileUrl,
+    afterImage: item.fileUrl,
+    description: item.caption || item.fileName || `Portfolio item ${index + 1}`,
+    category: item.mimeType?.startsWith("image/") ? "Image" : "Portfolio",
+    date,
+    featured: item.sortOrder === 0,
+  };
+}
+
+function toContextItem(item: PortfolioItem) {
+  return {
+    id: item.id,
+    imageUrl: item.afterImage || item.beforeImage,
+    title: item.description || "Portfolio item",
+    description: item.description,
+    category: item.category,
+    featured: item.featured,
+  };
+}
+
+function fileNameFromUrl(fileUrl: string): string | null {
+  try {
+    const path = new URL(fileUrl).pathname;
+    const fileName = decodeURIComponent(path.split("/").filter(Boolean).pop() ?? "");
+    return fileName || null;
+  } catch {
+    return null;
+  }
 }
 
 export function PortfolioManagementPage() {
@@ -136,6 +182,7 @@ export function PortfolioManagementPage() {
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>(() =>
     providerData.portfolioItems.map((item) => ({
       id: item.id,
+      persisted: true,
       beforeImage: item.imageUrl,
       afterImage: item.imageUrl,
       description: item.description,
@@ -148,10 +195,55 @@ export function PortfolioManagementPage() {
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [isReordering, setIsReordering] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [portfolioError, setPortfolioError] = useState<string | null>(null);
+
+  const applyPortfolioItems = (items: PortfolioItem[]) => {
+    setPortfolioItems(items);
+    setProviderData({
+      ...providerData,
+      portfolioItems: items.map(toContextItem),
+    });
+  };
+
+  const refreshPortfolio = async () => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      setPortfolioError("Sign in to manage live portfolio media.");
+      return;
+    }
+
+    setIsLoading(true);
+    setPortfolioError(null);
+
+    try {
+      const media = await listCurrentProviderPortfolioMedia(token);
+      const items = media.map(toEditorItem);
+      setPortfolioItems(items);
+      setProviderData({
+        ...providerData,
+        portfolioItems: items.map(toContextItem),
+      });
+    } catch (error) {
+      setPortfolioError(
+        error instanceof Error ? error.message : "Unable to load portfolio media.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refreshPortfolio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const addNewProject = () => {
     const newItem: PortfolioItem = {
-      id: Date.now().toString(),
+      id: `draft-${Date.now().toString()}`,
+      persisted: false,
       beforeImage: "",
       afterImage: "",
       description: "",
@@ -163,13 +255,57 @@ export function PortfolioManagementPage() {
     setEditingId(newItem.id);
   };
 
-  const deleteItem = (id: string) => {
-    setPortfolioItems(portfolioItems.filter((item) => item.id !== id));
+  const deleteItem = async (id: string) => {
+    const item = portfolioItems.find((current) => current.id === id);
+
+    if (!item) {
+      return;
+    }
+
+    if (item.persisted) {
+      const token = getStoredProviderAccessToken();
+
+      if (!token) {
+        setPortfolioError("Sign in to remove live portfolio media.");
+        return;
+      }
+
+      setIsSaving(true);
+      setPortfolioError(null);
+
+      try {
+        await deleteProviderPortfolioMedia(token, item.id);
+      } catch (error) {
+        setPortfolioError(
+          error instanceof Error ? error.message : "Unable to delete portfolio media.",
+        );
+        setIsSaving(false);
+        return;
+      }
+
+      setIsSaving(false);
+    }
+
+    applyPortfolioItems(portfolioItems.filter((current) => current.id !== id));
   };
 
   const updateItem = (id: string, field: keyof PortfolioItem, value: string | boolean) => {
     setPortfolioItems(
       portfolioItems.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const updateImageUrl = (id: string, value: string) => {
+    setPortfolioItems(
+      portfolioItems.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              beforeImage: value,
+              afterImage: value,
+            }
+          : item,
+      ),
     );
   };
 
@@ -199,8 +335,52 @@ export function PortfolioManagementPage() {
   };
 
   const handleSaveOrder = () => {
-    console.log("Saving order...", portfolioItems);
     setIsReordering(false);
+    setPortfolioError("Portfolio order is shown locally; backend ordering still needs a dedicated endpoint.");
+  };
+
+  const savePortfolio = async () => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      setPortfolioError("Sign in to save live portfolio media.");
+      return;
+    }
+
+    const drafts = portfolioItems.filter((item) => !item.persisted);
+    const invalidDraft = drafts.find((item) => !(item.afterImage || item.beforeImage).trim());
+
+    if (invalidDraft) {
+      setPortfolioError("Add an image URL before saving a new portfolio item.");
+      setEditingId(invalidDraft.id);
+      return;
+    }
+
+    setIsSaving(true);
+    setPortfolioError(null);
+
+    try {
+      for (const item of drafts) {
+        const fileUrl = (item.afterImage || item.beforeImage).trim();
+        await addProviderPortfolioMedia(token, {
+          fileUrl,
+          fileName: fileNameFromUrl(fileUrl),
+          mimeType: "image/jpeg",
+          caption: item.description.trim() || null,
+        });
+      }
+
+      setEditingId(null);
+      setIsReordering(false);
+      await refreshPortfolio();
+      navigate("/provider/edit-profile");
+    } catch (error) {
+      setPortfolioError(
+        error instanceof Error ? error.message : "Unable to save portfolio media.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -217,9 +397,11 @@ export function PortfolioManagementPage() {
             </div>
             <button
               onClick={addNewProject}
+              disabled={isLoading || isSaving}
               style={{
                 ...styles.button,
                 ...styles.primaryButton,
+                opacity: isLoading || isSaving ? 0.7 : 1,
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = "#059669";
@@ -233,6 +415,27 @@ export function PortfolioManagementPage() {
             </button>
           </div>
         </div>
+
+        {(isLoading || portfolioError) && (
+          <div
+            style={{
+              ...styles.card,
+              marginBottom: "24px",
+              borderColor: portfolioError ? "#FCA5A5" : "#D1FAE5",
+              backgroundColor: portfolioError ? "#FEF2F2" : "#ECFDF5",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "14px",
+                color: portfolioError ? "#991B1B" : "#065F46",
+                fontWeight: "600",
+              }}
+            >
+              {portfolioError ?? "Loading live portfolio media..."}
+            </p>
+          </div>
+        )}
 
         {/* Save Order Button - Appears after reordering */}
         {isReordering && (
@@ -371,14 +574,16 @@ export function PortfolioManagementPage() {
                     <Edit2 style={{ width: "16px", height: "16px", color: "#6B7280" }} />
                   </button>
                   <button
-                    onClick={() => deleteItem(item.id)}
+                    onClick={() => void deleteItem(item.id)}
+                    disabled={isSaving}
                     style={{
                       width: "36px",
                       height: "36px",
                       borderRadius: "8px",
                       backgroundColor: "#FEE2E2",
                       border: "1px solid #FCA5A5",
-                      cursor: "pointer",
+                      cursor: isSaving ? "not-allowed" : "pointer",
+                      opacity: isSaving ? 0.7 : 1,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -505,6 +710,28 @@ export function PortfolioManagementPage() {
                   }}
                 >
                   <div style={{ marginBottom: "12px" }}>
+                    <label style={styles.label}>Public image URL</label>
+                    <input
+                      type="url"
+                      value={item.afterImage}
+                      onChange={(e) => updateImageUrl(item.id, e.target.value)}
+                      placeholder="https://..."
+                      style={styles.input}
+                      disabled={item.persisted}
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = "#00BF63";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "#E5E7EB";
+                      }}
+                    />
+                    {item.persisted && (
+                      <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "6px" }}>
+                        Existing portfolio image URLs come from the backend. Remove and add a new item to replace media.
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
                     <label style={styles.label}>Description</label>
                     <textarea
                       value={item.description}
@@ -512,6 +739,7 @@ export function PortfolioManagementPage() {
                       placeholder="Describe this project..."
                       rows={3}
                       style={styles.textarea}
+                      disabled={item.persisted}
                       onFocus={(e) => {
                         e.currentTarget.style.borderColor = "#00BF63";
                       }}
@@ -529,6 +757,7 @@ export function PortfolioManagementPage() {
                         onChange={(e) => updateItem(item.id, "category", e.target.value)}
                         placeholder="e.g., Deep Cleaning"
                         style={styles.input}
+                        disabled={item.persisted}
                         onFocus={(e) => {
                           e.currentTarget.style.borderColor = "#00BF63";
                         }}
@@ -544,6 +773,7 @@ export function PortfolioManagementPage() {
                         value={item.date}
                         onChange={(e) => updateItem(item.id, "date", e.target.value)}
                         style={styles.input}
+                        disabled={item.persisted}
                         onFocus={(e) => {
                           e.currentTarget.style.borderColor = "#00BF63";
                         }}
@@ -610,27 +840,12 @@ export function PortfolioManagementPage() {
             Cancel
           </button>
           <button
-            onClick={() => {
-              // Save portfolio items to context
-              setProviderData({
-                ...providerData,
-                portfolioItems: portfolioItems.map(item => ({
-                  id: item.id,
-                  imageUrl: item.afterImage || item.beforeImage,
-                  title: item.description,
-                  description: item.description,
-                  category: item.category,
-                  featured: item.featured,
-                })),
-              });
-              setEditingId(null);
-              setIsReordering(false);
-              // Navigate back to edit profile
-              navigate("/provider/edit-profile");
-            }}
+            onClick={() => void savePortfolio()}
+            disabled={isSaving}
             style={{
               ...styles.button,
               ...styles.primaryButton,
+              opacity: isSaving ? 0.7 : 1,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = "#059669";
@@ -640,7 +855,7 @@ export function PortfolioManagementPage() {
             }}
           >
             <Save style={{ width: "18px", height: "18px" }} />
-            Save All Changes
+            {isSaving ? "Saving..." : "Save All Changes"}
           </button>
         </div>
       )}

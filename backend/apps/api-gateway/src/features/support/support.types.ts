@@ -27,6 +27,14 @@ export interface SupportTicketAttachmentInput {
   fileSize?: number | null;
 }
 
+export interface SupportTicketReplySummary {
+  id: string;
+  ticketId: string;
+  repliedBy: string;
+  message: string;
+  createdAt: string | null;
+}
+
 export interface SupportTicketAttachmentSummary {
   id: string;
   ticketId: string;

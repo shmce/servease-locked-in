@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpException, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpException, Param, Post, Query, Req } from '@nestjs/common';
 import { AdminAuditGatewayService } from './admin-audit.service';
 import { AdminProviderApplicationGatewayService } from './admin-provider-application.service';
 import {
+  AdminProviderApplicationDocumentSummary,
+  AdminProviderApplicationInfoRequestResult,
   AdminProviderApplicationSummary,
   ProviderApplicationStatus,
 } from './admin-provider-application.types';
@@ -17,6 +19,7 @@ import {
   AdminRequiredError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
+import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 
 const validStatuses = new Set(['pending', 'approved', 'rejected']);
 
@@ -27,6 +30,7 @@ export class AdminProviderApplicationController {
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
     private readonly authTokenService: AuthTokenService,
     private readonly currentUserService: CurrentUserService,
+    private readonly notificationServiceClient: NotificationServiceClient,
   ) {}
 
   @Get()
@@ -54,21 +58,31 @@ export class AdminProviderApplicationController {
   }
 
   @Get(':applicationId/documents/:documentId')
-  @HttpCode(501)
   async getDocument(
     @Headers('authorization') authorization: string | undefined,
-    @Param('applicationId') _applicationId: string,
-    @Param('documentId') _documentId: string,
-  ): Promise<{ error: { code: string; message: string } }> {
-    await this.requireAdmin(authorization).catch(() => {
-      throw this.error('admin_required', 'An admin account is required.', 403);
-    });
-    return {
-      error: {
-        code: 'not_implemented',
-        message: 'Document preview is not yet implemented.',
-      },
-    };
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+  ): Promise<{ data: AdminProviderApplicationDocumentSummary }> {
+    try {
+      await this.requireAdmin(authorization);
+      return {
+        data: await this.providerApplicationService.getProviderApplicationDocument(
+          applicationId,
+          documentId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':applicationId/documents/:documentId/download')
+  async getDocumentDownload(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('applicationId') applicationId: string,
+    @Param('documentId') documentId: string,
+  ): Promise<{ data: AdminProviderApplicationDocumentSummary }> {
+    return this.getDocument(authorization, applicationId, documentId);
   }
 
   @Get(':applicationId')
@@ -112,6 +126,50 @@ export class AdminProviderApplicationController {
       decision: 'rejected',
       reason: body.reason ?? '',
     });
+  }
+
+  @Post(':applicationId/request-info')
+  async requestInfo(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('applicationId') applicationId: string,
+    @Body() body: { message?: string },
+  ): Promise<{ data: AdminProviderApplicationInfoRequestResult }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const message = body.message?.trim() ?? '';
+      if (!message) {
+        throw new InvalidAdminRequestError();
+      }
+
+      const application =
+        await this.providerApplicationService.getProviderApplication(
+          applicationId,
+        );
+      const notification =
+        await this.notificationServiceClient.createNotification({
+          userId: application.userId,
+          type: 'provider_application_info_requested',
+          title: 'More information needed for your provider application',
+          body: message,
+          metadata: {
+            applicationId: application.id,
+            applicationReference: application.applicationReference,
+            adminUserId: admin.user.id,
+          },
+        });
+      void this.recordInfoRequestAudit(admin, request, application, message);
+
+      return {
+        data: {
+          applicationId: application.id,
+          providerUserId: application.userId,
+          notificationId: notification.id,
+        },
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
   }
 
   private async decide(
@@ -171,6 +229,30 @@ export class AdminProviderApplicationController {
         userId: application.userId,
         decision: input.decision,
         reason: input.reason,
+      },
+    }).catch(() => undefined);
+  }
+
+  private recordInfoRequestAudit(
+    admin: CurrentUserProfile,
+    request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    application: AdminProviderApplicationSummary,
+    message: string,
+  ): Promise<unknown> {
+    return this.adminAuditGatewayService.createAuditLog({
+      adminUserId: admin.user.id,
+      adminEmail: admin.user.email,
+      adminName: admin.user.fullName,
+      action: 'Requested provider application information',
+      actionType: 'update',
+      entityType: 'ProviderApplication',
+      entityId: application.id,
+      details: `Requested more information for ${application.applicationReference}.`,
+      ipAddress: this.getClientIp(request),
+      metadata: {
+        providerId: application.id,
+        userId: application.userId,
+        message,
       },
     }).catch(() => undefined);
   }

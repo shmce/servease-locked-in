@@ -4,8 +4,15 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   getAdminManagedProvider,
   updateAdminManagedProviderStatus,
+  listAdminProviderPortfolio,
+  deleteAdminProviderPortfolioMedia,
+  getAdminProviderAvailability,
   AdminProviderSummary,
+  AdminProviderPortfolioMediaSummary,
+  AdminAvailabilitySchedule,
+  AdminAvailabilityDayOfWeek,
 } from "../../services/serveaseAdminApi";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -228,7 +235,27 @@ const PROVIDERS: Record<string, {
 const DEFAULT_PROVIDER = PROVIDERS["PRV-001"];
 
 /* ─── SHARED CONSTANTS ───────────────────────────────────────────── */
-const TABS = ["Overview", "Documents", "Portfolio", "References", "Background Check", "Activity Logs"];
+const TABS = ["Overview", "Documents", "Portfolio", "Availability", "References", "Background Check", "Activity Logs"];
+
+const DAY_ORDER: AdminAvailabilityDayOfWeek[] = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+];
+
+const DAY_LABELS: Record<AdminAvailabilityDayOfWeek, string> = {
+  monday: "Monday",
+  tuesday: "Tuesday",
+  wednesday: "Wednesday",
+  thursday: "Thursday",
+  friday: "Friday",
+  saturday: "Saturday",
+  sunday: "Sunday",
+};
 
 const DOCUMENT_TYPES = [
   { id: "gov-id", name: "Government ID", file: "national-id-verified.jpg", date: "Jan 10, 2024", color: "bg-blue-100", iconColor: "text-blue-500" },
@@ -306,6 +333,76 @@ export function ServiceProviderDetails() {
   const [revokeReason, setRevokeReason] = useState("");
   const [rotation, setRotation] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [portfolio, setPortfolio] = useState<AdminProviderPortfolioMediaSummary[]>([]);
+  const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const [portfolioError, setPortfolioError] = useState<string | null>(null);
+  const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!apiProvider?.id || !accessToken || activeTab !== "Portfolio") return;
+    let cancelled = false;
+    setPortfolioLoading(true);
+    setPortfolioError(null);
+    listAdminProviderPortfolio(accessToken, apiProvider.id)
+      .then((media) => {
+        if (!cancelled) setPortfolio(media);
+      })
+      .catch((error) => {
+        if (!cancelled)
+          setPortfolioError(
+            error instanceof Error ? error.message : "Unable to load portfolio.",
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setPortfolioLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiProvider?.id, accessToken, activeTab]);
+
+  const [availability, setAvailability] = useState<AdminAvailabilitySchedule | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!apiProvider?.id || !accessToken || activeTab !== "Availability") return;
+    let cancelled = false;
+    setAvailabilityLoading(true);
+    setAvailabilityError(null);
+    getAdminProviderAvailability(accessToken, apiProvider.id)
+      .then((schedule) => {
+        if (!cancelled) setAvailability(schedule);
+      })
+      .catch((error) => {
+        if (!cancelled)
+          setAvailabilityError(
+            error instanceof Error ? error.message : "Unable to load availability.",
+          );
+      })
+      .finally(() => {
+        if (!cancelled) setAvailabilityLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiProvider?.id, accessToken, activeTab]);
+
+  const handleRemovePortfolioMedia = async (mediaId: string) => {
+    if (!accessToken || !apiProvider?.id) return;
+    setDeletingMediaId(mediaId);
+    try {
+      await deleteAdminProviderPortfolioMedia(accessToken, apiProvider.id, mediaId);
+      setPortfolio((current) => current.filter((item) => item.id !== mediaId));
+      toast.success("Portfolio media removed.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to remove media.",
+      );
+    } finally {
+      setDeletingMediaId(null);
+    }
+  };
 
   const openDocModal = (doc: typeof DOCUMENT_TYPES[0]) => {
     setSelectedDoc(doc);
@@ -739,8 +836,179 @@ export function ServiceProviderDetails() {
         </Card>
       )}
 
+      {/* ─── PORTFOLIO TAB ─── */}
+      {activeTab === "Portfolio" && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ImageOff className="w-4 h-4 text-[#16A34A]" />
+              Provider Portfolio · Moderation
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {portfolioError ? (
+              <p className="text-sm text-red-600 mb-3">{portfolioError}</p>
+            ) : null}
+            {portfolioLoading ? (
+              <p className="text-sm text-gray-500 py-6 text-center">Loading portfolio…</p>
+            ) : portfolio.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <ImageOff className="w-10 h-10 text-gray-200 mb-3" />
+                <p className="text-gray-400 text-sm font-medium">No portfolio media uploaded</p>
+                <p className="text-gray-300 text-xs mt-1">
+                  Items added by this provider on mobile will appear here for review.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {portfolio.map((media) => (
+                  <div
+                    key={media.id}
+                    className="border border-gray-200 rounded-lg overflow-hidden flex flex-col"
+                  >
+                    <div className="aspect-square bg-gray-100">
+                      {media.fileUrl ? (
+                        <img
+                          src={media.fileUrl}
+                          alt={media.caption ?? "Portfolio media"}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-gray-300">
+                          <ImageOff className="w-6 h-6" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2 space-y-1">
+                      <p className="text-xs text-gray-700 line-clamp-2">
+                        {media.caption ?? <span className="italic text-gray-400">No caption</span>}
+                      </p>
+                      <p className="text-[10px] text-gray-400">
+                        {media.createdAt
+                          ? new Date(media.createdAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })
+                          : ""}
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="w-full"
+                        onClick={() => void handleRemovePortfolioMedia(media.id)}
+                        disabled={deletingMediaId === media.id}
+                      >
+                        {deletingMediaId === media.id ? "Removing…" : "Remove media"}
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ─── AVAILABILITY TAB ─── */}
+      {activeTab === "Availability" && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[#16A34A]" />
+              Weekly availability &amp; days off
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-6">
+            {availabilityError ? (
+              <p className="text-sm text-red-600">{availabilityError}</p>
+            ) : null}
+            {availabilityLoading ? (
+              <p className="text-sm text-gray-500 py-6 text-center">Loading availability…</p>
+            ) : !availability ? (
+              <p className="text-sm text-gray-500 py-6 text-center">
+                Availability data not yet loaded.
+              </p>
+            ) : (
+              <>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Weekly windows</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {DAY_ORDER.map((day) => {
+                      const windows = availability.windows.filter(
+                        (window) => window.dayOfWeek === day && window.isActive,
+                      );
+                      return (
+                        <div
+                          key={day}
+                          className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2"
+                        >
+                          <span className="text-sm font-medium text-gray-700">
+                            {DAY_LABELS[day]}
+                          </span>
+                          {windows.length === 0 ? (
+                            <Badge variant="outline" className="text-xs">Unavailable</Badge>
+                          ) : (
+                            <div className="flex flex-wrap gap-1 justify-end">
+                              {windows.map((window) => (
+                                <Badge
+                                  key={window.id}
+                                  className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0] text-xs"
+                                >
+                                  {window.startTime} – {window.endTime}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">
+                    Upcoming days off
+                  </h3>
+                  {availability.daysOff.length === 0 ? (
+                    <p className="text-xs text-gray-400">No days off scheduled.</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {availability.daysOff
+                        .slice()
+                        .sort((a, b) => a.offDate.localeCompare(b.offDate))
+                        .map((dayOff) => (
+                          <li
+                            key={dayOff.id}
+                            className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                          >
+                            <span className="text-gray-700 font-medium">
+                              {new Date(dayOff.offDate).toLocaleDateString("en-US", {
+                                weekday: "short",
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {dayOff.reason ?? "No reason given"}
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ─── EMPTY STATE TABS ─── */}
-      {activeTab !== "Overview" && activeTab !== "Documents" && activeTab !== "Activity Logs" && (
+      {activeTab !== "Overview" &&
+        activeTab !== "Documents" &&
+        activeTab !== "Activity Logs" &&
+        activeTab !== "Portfolio" &&
+        activeTab !== "Availability" && (
         <Card className="border-dashed border-gray-200">
           <CardContent className="flex flex-col items-center justify-center py-20 text-center">
             {TAB_EMPTY_ICONS[activeTab] ?? <FileText className="w-10 h-10 text-gray-200 mb-3" />}

@@ -50,6 +50,13 @@ export interface GatewayProviderRegistrationRequest {
   serviceArea: string;
 }
 
+interface ApiResponse<T> {
+  data?: T;
+  error?: {
+    message?: string;
+  };
+}
+
 export function buildGatewayProviderRegistrationPayload(
   draft: ProviderRegistrationDraft,
 ): GatewayProviderRegistrationRequest {
@@ -81,6 +88,34 @@ export function buildGatewayProviderRegistrationPayload(
 
 export function clearProviderRegistrationDraft(): void {
   providerRegistrationStorageKeys.forEach((key) => sessionStorage.removeItem(key));
+}
+
+export async function submitProviderRegistration(
+  draft: ProviderRegistrationDraft,
+): Promise<unknown> {
+  const response = await fetch('/api/provider-registration', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(draft),
+  }).catch(() => null);
+
+  if (!response) {
+    throw new Error('Could not reach the registration service.');
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | ApiResponse<unknown>
+    | null;
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.error?.message ?? 'Registration failed. Please try again.',
+    );
+  }
+
+  return payload?.data ?? null;
 }
 
 export function readProviderRegistrationDraft(): ProviderRegistrationDraft {

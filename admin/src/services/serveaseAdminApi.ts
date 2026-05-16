@@ -29,6 +29,7 @@ export type AdminAuditActionType =
   | 'update'
 export type AdminProviderApplicationStatus = 'pending' | 'approved' | 'rejected'
 export type AdminCommissionRuleStatus = 'active' | 'pending' | 'inactive'
+export type AdminBroadcastAudience = 'admins' | 'all' | 'customers' | 'providers'
 
 export interface SupabaseAuthSession {
   accessToken: string
@@ -154,6 +155,30 @@ export interface AdminCommissionRuleSummary {
   createdAt: string | null
 }
 
+export interface AdminReviewSummary {
+  id: string
+  bookingId: string
+  providerId: string
+  reviewerId: string
+  reviewerFullName: string | null
+  rating: number
+  reviewText: string | null
+  isFlagged: boolean
+  createdAt: string | null
+}
+
+export interface SendAdminBroadcastRequest {
+  audience: AdminBroadcastAudience
+  title: string
+  message: string
+}
+
+export interface AdminBroadcastResult {
+  audience: AdminBroadcastAudience
+  deliveredCount: number
+  failedCount: number
+}
+
 export interface AdminPromotionSummary {
   id: string
   code: string
@@ -194,6 +219,16 @@ export interface AdminUserSummary {
   role: AdminUserRole
   status: AdminUserStatus
   createdAt: string | null
+}
+
+export interface CreateAdminUserRequest {
+  email: string
+  password: string
+  fullName: string
+  contactNumber?: string | null
+  accessRole?: string | null
+  sendInvitation?: boolean | null
+  requireTwoFactor?: boolean | null
 }
 
 export interface AdminUsersSummaryStats {
@@ -339,6 +374,12 @@ export interface AdminBookingsSummaryStats {
   recentCount: number
 }
 
+export interface AdminProviderMessageResult {
+  bookingId: string
+  providerUserId: string
+  notificationId: string
+}
+
 export interface AdminOperationsAlerts {
   pendingBookings: number
   overdueBookings: number
@@ -395,6 +436,26 @@ export interface AdminProviderApplicationSummary {
   latestDecidedBy: string | null
   createdAt: string | null
   updatedAt: string | null
+  documents: AdminProviderApplicationDocumentSummary[]
+}
+
+export interface AdminProviderApplicationDocumentSummary {
+  id: string
+  applicationId: string
+  userId: string
+  documentType: string
+  fileUrl: string | null
+  storagePath: string | null
+  status: AdminProviderApplicationStatus
+  createdAt: string | null
+  previewUrl: string | null
+  downloadUrl: string | null
+}
+
+export interface AdminProviderApplicationInfoRequestResult {
+  applicationId: string
+  providerUserId: string
+  notificationId: string
 }
 
 export interface AdminProviderApplicationFilter {
@@ -575,6 +636,14 @@ export function listAdminPayments(
   })
 }
 
+export function listAdminPaymentFailures(
+  token: string,
+): Promise<AdminPaymentSummary[]> {
+  return request<AdminPaymentSummary[]>('/v1/admin/payments/failures', {
+    token,
+  })
+}
+
 export function getAdminPayment(
   token: string,
   paymentId: string,
@@ -625,6 +694,44 @@ export function updateAdminPayoutStatus(
   )
 }
 
+export function listAdminSettlements(
+  token: string,
+  status?: AdminPayoutStatus | null,
+): Promise<AdminPayoutSummary[]> {
+  return request<AdminPayoutSummary[]>('/v1/admin/settlements', {
+    token,
+    query: {
+      status: status ?? undefined,
+    },
+  })
+}
+
+export function approveAdminSettlement(
+  token: string,
+  settlementId: string,
+): Promise<AdminPayoutSummary> {
+  return request<AdminPayoutSummary>(
+    `/v1/admin/settlements/${encodeURIComponent(settlementId)}/approve`,
+    {
+      method: 'POST',
+      token,
+    },
+  )
+}
+
+export function rejectAdminSettlement(
+  token: string,
+  settlementId: string,
+): Promise<AdminPayoutSummary> {
+  return request<AdminPayoutSummary>(
+    `/v1/admin/settlements/${encodeURIComponent(settlementId)}/reject`,
+    {
+      method: 'POST',
+      token,
+    },
+  )
+}
+
 export function listAdminRefunds(
   token: string,
   status?: AdminRefundStatus | null,
@@ -663,6 +770,51 @@ export function rejectAdminRefund(
       body: { reason },
     },
   )
+}
+
+export function listAdminReviews(
+  token: string,
+  options: {
+    providerId?: string | null
+    flaggedOnly?: boolean | null
+    limit?: number | null
+  } = {},
+): Promise<AdminReviewSummary[]> {
+  return request<AdminReviewSummary[]>('/v1/admin/reviews', {
+    token,
+    query: {
+      providerId: options.providerId ?? undefined,
+      flagged: options.flaggedOnly ? 'true' : undefined,
+      limit: options.limit ? String(options.limit) : undefined,
+    },
+  })
+}
+
+export function setAdminReviewFlagged(
+  token: string,
+  reviewId: string,
+  isFlagged: boolean,
+  reason?: string | null,
+): Promise<AdminReviewSummary> {
+  return request<AdminReviewSummary>(
+    `/v1/admin/reviews/${encodeURIComponent(reviewId)}/flag`,
+    {
+      method: 'PATCH',
+      token,
+      body: { isFlagged, reason: reason ?? null },
+    },
+  )
+}
+
+export function sendAdminBroadcast(
+  token: string,
+  body: SendAdminBroadcastRequest,
+): Promise<AdminBroadcastResult> {
+  return request<AdminBroadcastResult>('/v1/admin/broadcasts', {
+    method: 'POST',
+    token,
+    body,
+  })
 }
 
 export function listAdminCommissionRules(
@@ -877,6 +1029,21 @@ export function escalateAdminBooking(
   )
 }
 
+export function sendAdminProviderMessage(
+  token: string,
+  bookingId: string,
+  message: string,
+): Promise<AdminProviderMessageResult> {
+  return request<AdminProviderMessageResult>(
+    `/v1/admin/bookings/${encodeURIComponent(bookingId)}/provider-messages`,
+    {
+      method: 'POST',
+      token,
+      body: { message },
+    },
+  )
+}
+
 export function listAdminAuditLogs(
   token: string,
   filter: AdminAuditLogFilter = {},
@@ -920,6 +1087,34 @@ export function getAdminProviderApplication(
     `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}`,
     {
       token,
+    },
+  )
+}
+
+export function getAdminProviderApplicationDocument(
+  token: string,
+  applicationId: string,
+  documentId: string,
+): Promise<AdminProviderApplicationDocumentSummary> {
+  return request<AdminProviderApplicationDocumentSummary>(
+    `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}/documents/${encodeURIComponent(documentId)}`,
+    {
+      token,
+    },
+  )
+}
+
+export function requestAdminProviderApplicationInfo(
+  token: string,
+  applicationId: string,
+  message: string,
+): Promise<AdminProviderApplicationInfoRequestResult> {
+  return request<AdminProviderApplicationInfoRequestResult>(
+    `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}/request-info`,
+    {
+      method: 'POST',
+      token,
+      body: { message },
     },
   )
 }
@@ -989,6 +1184,24 @@ export async function exportAdminAuditLogsCsv(
   return response.text()
 }
 
+export async function exportAdminBookingsCsv(token: string): Promise<string> {
+  const response = await fetch(
+    `${getAdminApiBaseUrl()}/v1/admin/reports/bookings.csv`,
+    {
+      headers: {
+        accept: 'text/csv',
+        authorization: `Bearer ${token.trim()}`,
+      },
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(`Gateway request failed with ${response.status}`)
+  }
+
+  return response.text()
+}
+
 export function getAdminUsersSummary(token: string): Promise<AdminUsersSummaryStats> {
   return request<AdminUsersSummaryStats>('/v1/admin/users/summary', { token })
 }
@@ -1012,6 +1225,17 @@ export function updateAdminUserStatus(
     `/v1/admin/users/${encodeURIComponent(userId)}/status`,
     { method: 'PATCH', token, body: { status } },
   )
+}
+
+export function createAdminUser(
+  token: string,
+  body: CreateAdminUserRequest,
+): Promise<AdminUserSummary> {
+  return request<AdminUserSummary>('/v1/admin/users', {
+    method: 'POST',
+    token,
+    body,
+  })
 }
 
 export function listAdminCategories(token: string): Promise<AdminCategoryItem[]> {
@@ -1140,6 +1364,81 @@ export function updateAdminManagedProviderStatus(
   )
 }
 
+export interface AdminProviderPortfolioMediaSummary {
+  id: string
+  providerId: string
+  uploadedBy: string | null
+  fileUrl: string
+  fileName: string | null
+  mimeType: string | null
+  storagePath: string | null
+  fileSize: number | null
+  caption: string | null
+  sortOrder: number
+  createdAt: string | null
+}
+
+export function listAdminProviderPortfolio(
+  token: string,
+  providerId: string,
+): Promise<AdminProviderPortfolioMediaSummary[]> {
+  return request<AdminProviderPortfolioMediaSummary[]>(
+    `/v1/admin/providers/${encodeURIComponent(providerId)}/portfolio`,
+    { token },
+  )
+}
+
+export function deleteAdminProviderPortfolioMedia(
+  token: string,
+  providerId: string,
+  mediaId: string,
+): Promise<void> {
+  return request<void>(
+    `/v1/admin/providers/${encodeURIComponent(providerId)}/portfolio/${encodeURIComponent(mediaId)}`,
+    { method: 'DELETE', token },
+  )
+}
+
+export type AdminAvailabilityDayOfWeek =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday'
+
+export interface AdminAvailabilityWindow {
+  id: string
+  dayOfWeek: AdminAvailabilityDayOfWeek
+  startTime: string
+  endTime: string
+  isActive: boolean
+  sortOrder: number
+}
+
+export interface AdminAvailabilityDayOff {
+  id: string
+  offDate: string
+  reason: string | null
+}
+
+export interface AdminAvailabilitySchedule {
+  providerId: string
+  windows: AdminAvailabilityWindow[]
+  daysOff: AdminAvailabilityDayOff[]
+}
+
+export function getAdminProviderAvailability(
+  token: string,
+  providerId: string,
+): Promise<AdminAvailabilitySchedule> {
+  return request<AdminAvailabilitySchedule>(
+    `/v1/provider/availability/${encodeURIComponent(providerId)}`,
+    { token },
+  )
+}
+
 export function listAdminSupportTicketReplies(
   token: string,
   ticketId: string,
@@ -1213,6 +1512,13 @@ async function request<T>(
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   })
+
+  if (response.status === 204) {
+    if (!response.ok) {
+      throw new Error(`Gateway request failed with ${response.status}`)
+    }
+    return undefined as T
+  }
 
   const payload = (await response.json().catch(() => ({}))) as {
     data?: T

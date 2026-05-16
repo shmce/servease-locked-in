@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InvalidSupportTicketRequestError } from './ticket.errors';
 import {
   CreateSupportTicketInput,
+  SupportTicketReplySummary,
   SupportTicketSummary,
 } from './ticket.types';
 import { SupabaseSupportTicketRepository } from './supabase-ticket.repository';
@@ -45,5 +46,31 @@ export class SupportTicketService {
     }
 
     return this.ticketRepository.listTickets(userId);
+  }
+
+  async listReplies(
+    userId: string,
+    ticketId: string,
+  ): Promise<SupportTicketReplySummary[]> {
+    if (!userId || !ticketId) {
+      throw new InvalidSupportTicketRequestError();
+    }
+
+    await this.ticketRepository.getTicket(userId, ticketId);
+    return this.ticketRepository.listReplies(ticketId);
+  }
+
+  async addReply(
+    userId: string,
+    ticketId: string,
+    message: string,
+  ): Promise<SupportTicketReplySummary> {
+    const trimmed = message?.trim() ?? '';
+    if (!userId || !ticketId || !trimmed) {
+      throw new InvalidSupportTicketRequestError();
+    }
+
+    await this.ticketRepository.getTicket(userId, ticketId);
+    return this.ticketRepository.addReply(ticketId, userId, trimmed);
   }
 }

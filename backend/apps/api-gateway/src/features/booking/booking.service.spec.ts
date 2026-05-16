@@ -1,6 +1,9 @@
 import { BookingGatewayService } from './booking.service';
 import { BookingServiceClient } from './clients/booking-service.client';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
+import { InvalidBookingTransitionError } from './booking.errors';
+import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
+import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 
 describe('BookingGatewayService', () => {
   it('forwards booking creation with the authenticated user id', async () => {
@@ -30,6 +33,48 @@ describe('BookingGatewayService', () => {
     );
     expect(booking.customerFullName).toBe('Casey Customer');
     expect(booking.customerContactNumber).toBe('+639170001001');
+  });
+
+  it('creates a provider notification when a customer books a service', async () => {
+    const client = {
+      createBooking: jest.fn().mockResolvedValue(createBookingSummary()),
+    } as unknown as BookingServiceClient;
+    const notificationClient = {
+      createNotification: jest.fn().mockResolvedValue({ id: 'notification-1' }),
+    };
+    const catalogClient = {
+      findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
+        userId: 'provider-user-1',
+        businessName: 'GreenFix Home Services',
+      }),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      notificationClient as unknown as NotificationServiceClient,
+      catalogClient as unknown as CatalogServiceClient,
+    );
+
+    await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+      providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      serviceAddress: '123 Test St',
+      scheduledAt: '2026-05-20T08:00:00.000Z',
+    });
+
+    expect(catalogClient.findProviderOwnerByProviderId).toHaveBeenCalledWith(
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    );
+    expect(notificationClient.createNotification).toHaveBeenCalledWith({
+      userId: 'provider-user-1',
+      type: 'booking_created',
+      title: 'New booking request',
+      body: 'Casey Customer requested Deep Clean.',
+      metadata: {
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        bookingReference: 'SE-ABC123',
+        status: 'pending',
+      },
+    });
   });
 
   it('forwards booking list visibility ids and enriches customer contact once per customer', async () => {
@@ -197,6 +242,127 @@ describe('BookingGatewayService', () => {
     );
     expect(snapshot.phase).toBe('on_the_way');
   });
+
+  it('rejects provider-only transitions from the booking customer', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary()),
+      transitionStatus: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.transitionStatus(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        null,
+        'pending',
+        'confirmed',
+      ),
+    ).rejects.toBeInstanceOf(InvalidBookingTransitionError);
+
+    expect(client.findBooking).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      null,
+    );
+    expect(client.transitionStatus).not.toHaveBeenCalled();
+  });
+
+  it('allows assigned providers to confirm pending bookings', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary()),
+      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'confirmed',
+      })),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    const booking = await service.transitionStatus(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      'pending',
+      'confirmed',
+    );
+
+    expect(client.transitionStatus).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'pending',
+      'confirmed',
+      undefined,
+      undefined,
+    );
+    expect(booking.status).toBe('confirmed');
+  });
+
+  it('creates a customer notification when a provider changes booking status', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary()),
+      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'confirmed',
+      })),
+    } as unknown as BookingServiceClient;
+    const notificationClient = {
+      createNotification: jest.fn().mockResolvedValue({ id: 'notification-1' }),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      notificationClient as unknown as NotificationServiceClient,
+      { findProviderOwnerByProviderId: jest.fn() } as unknown as CatalogServiceClient,
+    );
+
+    await service.transitionStatus(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      'pending',
+      'confirmed',
+    );
+
+    expect(notificationClient.createNotification).toHaveBeenCalledWith({
+      userId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      type: 'booking_status_updated',
+      title: 'Booking confirmed',
+      body: 'Your Deep Clean booking was confirmed.',
+      metadata: {
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        bookingReference: 'SE-ABC123',
+        status: 'confirmed',
+      },
+    });
+  });
+
+  it('allows customers to cancel their own cancellable bookings', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'confirmed',
+      })),
+      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'cancelled',
+      })),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    const booking = await service.transitionStatus(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      null,
+      'confirmed',
+      'cancelled',
+    );
+
+    expect(client.transitionStatus).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      'confirmed',
+      'cancelled',
+      undefined,
+      undefined,
+    );
+    expect(booking.status).toBe('cancelled');
+  });
 });
 
 function createAuthClient(): AuthServiceClient {
@@ -210,4 +376,21 @@ function createAuthClient(): AuthServiceClient {
       status: 'active',
     }),
   } as unknown as AuthServiceClient;
+}
+
+function createBookingSummary(overrides = {}) {
+  return {
+    id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+    bookingReference: 'SE-ABC123',
+    customerId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+    providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    serviceId: 'service-1',
+    serviceTitle: 'Deep Clean',
+    serviceAddress: '123 Test St',
+    scheduledAt: '2026-05-20T08:00:00.000Z',
+    status: 'pending',
+    totalAmount: 1200,
+    attachments: [],
+    ...overrides,
+  };
 }

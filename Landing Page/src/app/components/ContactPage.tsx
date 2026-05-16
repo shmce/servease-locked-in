@@ -3,16 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { Mail, Phone, MapPin, Send } from "lucide-react";
+import { createSupportTicket } from "../lib/support-tickets";
 import { createSupabaseBrowserClient } from "../lib/supabase-browser";
-
-interface SupportTicketResponse {
-  data?: {
-    id?: string;
-  };
-  error?: {
-    message?: string;
-  };
-}
 
 function createSupabaseState() {
   try {
@@ -70,44 +62,32 @@ export function ContactPage() {
       form.message.trim(),
     ].join("\n");
 
-    const response = await fetch("/api/support-tickets", {
-      method: "POST",
-      headers: {
-        authorization: `Bearer ${sessionData.session.access_token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        subject: form.subject,
-        message: messageWithContact,
-        category: "general",
-      }),
-    }).catch(() => null);
+    try {
+      const ticket = await createSupportTicket(
+        sessionData.session.access_token,
+        {
+          subject: form.subject,
+          message: messageWithContact,
+          category: "general",
+        },
+      );
 
-    if (!response) {
-      setFeedback("Could not reach support. Please try again.");
+      setFeedback(
+        ticket.id
+          ? `Thank you. Your support ticket ${ticket.id} has been created.`
+          : "Thank you. Your support ticket has been created.",
+      );
+      setForm({ name: "", email: "", subject: "", message: "" });
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Could not submit your support request.",
+      );
       setIsError(true);
+    } finally {
       setIsSubmitting(false);
-      return;
     }
-
-    const payload = (await response.json().catch(() => null)) as
-      | SupportTicketResponse
-      | null;
-
-    setIsSubmitting(false);
-
-    if (!response.ok) {
-      setFeedback(payload?.error?.message ?? "Could not submit your support request.");
-      setIsError(true);
-      return;
-    }
-
-    setFeedback(
-      payload?.data?.id
-        ? `Thank you. Your support ticket ${payload.data.id} has been created.`
-        : "Thank you. Your support ticket has been created.",
-    );
-    setForm({ name: "", email: "", subject: "", message: "" });
   };
 
   return (

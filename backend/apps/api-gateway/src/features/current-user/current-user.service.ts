@@ -57,7 +57,13 @@ export class CurrentUserService {
       user.role === 'provider' || user.role === 'admin'
         ? await this.catalogServiceClient.updateProviderProfile(
             user.id,
-            input.businessName ?? user.fullName ?? user.email,
+            {
+              businessName: input.businessName ?? user.fullName ?? user.email,
+              bio: input.bio ?? null,
+              serviceDescription: input.serviceDescription ?? null,
+              serviceArea: input.serviceArea ?? null,
+              yearsExperience: input.yearsExperience ?? null,
+            },
           )
         : null;
 

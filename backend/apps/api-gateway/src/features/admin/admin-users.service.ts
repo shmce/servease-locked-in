@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { AdminServiceClient } from './clients/admin-service.client';
-import { AdminUserSummary, AdminUsersSummaryStats } from './admin-users.types';
+import {
+  AdminUserSummary,
+  AdminUsersSummaryStats,
+  CreateAdminUserRequest,
+} from './admin-users.types';
 
 @Injectable()
 export class AdminUsersGatewayService {
@@ -16,5 +20,9 @@ export class AdminUsersGatewayService {
 
   updateUserStatus(userId: string, status: string): Promise<AdminUserSummary> {
     return this.adminServiceClient.updateAdminUserStatus(userId, status);
+  }
+
+  createUser(input: CreateAdminUserRequest): Promise<AdminUserSummary> {
+    return this.adminServiceClient.createAdminUser(input);
   }
 }

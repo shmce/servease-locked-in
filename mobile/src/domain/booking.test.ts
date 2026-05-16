@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   activeBookingCount,
   bookingStatusChip,
+  buildBookingTransitionRequest,
   buildProviderBookingSlots,
   nextBookingStatuses,
   providerPayoutTotal,
@@ -32,6 +33,30 @@ describe('booking domain helpers', () => {
     ]);
     assert.deepEqual(nextBookingStatuses('pending', 'customer'), ['cancelled']);
     assert.deepEqual(nextBookingStatuses('completed', 'customer'), []);
+  });
+
+  it('preserves cancellation reasons in booking transition requests', () => {
+    assert.deepEqual(
+      buildBookingTransitionRequest(
+        'confirmed',
+        'cancelled',
+        'Provider asked to reschedule',
+      ),
+      {
+        currentStatus: 'confirmed',
+        nextStatus: 'cancelled',
+        reason: 'Provider asked to reschedule',
+        explanation: 'Provider asked to reschedule',
+      },
+    );
+
+    assert.deepEqual(
+      buildBookingTransitionRequest('pending', 'confirmed', '  '),
+      {
+        currentStatus: 'pending',
+        nextStatus: 'confirmed',
+      },
+    );
   });
 
   it('summarizes active bookings and provider payouts', () => {

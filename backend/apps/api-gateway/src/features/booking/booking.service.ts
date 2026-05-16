@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { BookingServiceClient } from './clients/booking-service.client';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { CurrentUserIdentity } from '../current-user/current-user.types';
+import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
+import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import {
   AddBookingAttachmentRequest,
   BookingAttachmentSummary,
@@ -13,21 +15,26 @@ import {
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
 } from './booking.types';
+import { InvalidBookingTransitionError } from './booking.errors';
 
 @Injectable()
 export class BookingGatewayService {
   constructor(
     private readonly bookingServiceClient: BookingServiceClient,
     private readonly authServiceClient: AuthServiceClient,
+    private readonly notificationServiceClient?: NotificationServiceClient,
+    private readonly catalogServiceClient?: CatalogServiceClient,
   ) {}
 
   async createBooking(
     customerId: string,
     input: CreateBookingRequest,
   ): Promise<BookingSummary> {
-    return this.enrichBooking(
+    const booking = await this.enrichBooking(
       await this.bookingServiceClient.createBooking(customerId, input),
     );
+    await this.notifyProviderBookingCreated(booking);
+    return booking;
   }
 
   async listBookings(
@@ -68,12 +75,20 @@ export class BookingGatewayService {
   async transitionStatus(
     bookingId: string,
     actorId: string,
+    providerId: string | null,
     currentStatus: BookingStatus,
     nextStatus: BookingStatus,
     reason?: string | null,
     explanation?: string | null,
   ): Promise<BookingSummary> {
-    return this.enrichBooking(
+    const visibleBooking = await this.bookingServiceClient.findBooking(
+      bookingId,
+      actorId,
+      providerId,
+    );
+    this.assertActorCanTransition(visibleBooking, actorId, providerId, nextStatus);
+
+    const booking = await this.enrichBooking(
       await this.bookingServiceClient.transitionStatus(
         bookingId,
         actorId,
@@ -83,6 +98,108 @@ export class BookingGatewayService {
         explanation,
       ),
     );
+    await this.notifyBookingStatusChanged(booking, actorId, providerId);
+    return booking;
+  }
+
+  private async notifyProviderBookingCreated(
+    booking: BookingSummary,
+  ): Promise<void> {
+    if (!this.notificationServiceClient || !this.catalogServiceClient) {
+      return;
+    }
+
+    const providerOwner =
+      await this.catalogServiceClient.findProviderOwnerByProviderId(
+        booking.providerId,
+      );
+
+    await this.notificationServiceClient.createNotification({
+      userId: providerOwner.userId,
+      type: 'booking_created',
+      title: 'New booking request',
+      body: `${booking.customerFullName ?? 'A customer'} requested ${
+        booking.serviceTitle ?? 'a service booking'
+      }.`,
+      metadata: this.bookingNotificationMetadata(booking),
+    });
+  }
+
+  private async notifyBookingStatusChanged(
+    booking: BookingSummary,
+    actorId: string,
+    providerId: string | null,
+  ): Promise<void> {
+    if (!this.notificationServiceClient) {
+      return;
+    }
+
+    if (providerId && booking.providerId === providerId) {
+      await this.notificationServiceClient.createNotification({
+        userId: booking.customerId,
+        type: 'booking_status_updated',
+        title: `Booking ${this.statusLabel(booking.status)}`,
+        body: `Your ${booking.serviceTitle ?? 'service'} booking was ${this.statusLabel(
+          booking.status,
+        )}.`,
+        metadata: this.bookingNotificationMetadata(booking),
+      });
+      return;
+    }
+
+    if (booking.customerId === actorId && this.catalogServiceClient) {
+      const providerOwner =
+        await this.catalogServiceClient.findProviderOwnerByProviderId(
+          booking.providerId,
+        );
+      await this.notificationServiceClient.createNotification({
+        userId: providerOwner.userId,
+        type: 'booking_status_updated',
+        title: `Booking ${this.statusLabel(booking.status)}`,
+        body: `${booking.customerFullName ?? 'A customer'} ${this.statusLabel(
+          booking.status,
+        )} ${booking.serviceTitle ?? 'a service'} booking.`,
+        metadata: this.bookingNotificationMetadata(booking),
+      });
+    }
+  }
+
+  private bookingNotificationMetadata(
+    booking: BookingSummary,
+  ): Record<string, string> {
+    return {
+      bookingId: booking.id,
+      bookingReference: booking.bookingReference,
+      status: booking.status,
+    };
+  }
+
+  private statusLabel(status: BookingStatus): string {
+    return status.replace('_', ' ');
+  }
+
+  private assertActorCanTransition(
+    booking: BookingSummary,
+    actorId: string,
+    providerId: string | null,
+    nextStatus: BookingStatus,
+  ): void {
+    const isBookingCustomer = booking.customerId === actorId;
+    const isAssignedProvider =
+      providerId !== null && booking.providerId === providerId;
+
+    if (nextStatus === 'cancelled' && (isBookingCustomer || isAssignedProvider)) {
+      return;
+    }
+
+    if (
+      isAssignedProvider &&
+      ['confirmed', 'rejected', 'in_progress', 'completed'].includes(nextStatus)
+    ) {
+      return;
+    }
+
+    throw new InvalidBookingTransitionError();
   }
 
   addAttachment(

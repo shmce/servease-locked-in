@@ -3,6 +3,11 @@ import { Camera, Plus, X, Save, ChevronRight } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { useNavigate } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
+import { useProviderAuth } from "../context/ProviderAuthContext";
+import {
+  getStoredProviderAccessToken,
+  updateCurrentUserProfile,
+} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -115,6 +120,7 @@ interface Certification {
 export function EditProfilePage() {
   const navigate = useNavigate();
   const providerData = useProviderData();
+  const providerAuth = useProviderAuth();
   const { profile, updateProfile, services, portfolioItems } = providerData;
   
   const [businessName, setBusinessName] = useState(profile.businessName);
@@ -135,6 +141,8 @@ export function EditProfilePage() {
   const [website, setWebsite] = useState(profile.website);
   const [coverPhotoUrl, setCoverPhotoUrl] = useState(profile.coverPhotoUrl);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState(profile.profilePhotoUrl);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const maxBioLength = 500;
 
@@ -216,21 +224,75 @@ export function EditProfilePage() {
     setCertifications(updated);
   };
 
-  const handleSave = () => {
-    // Update profile with context
-    updateProfile({
-      businessName,
-      bio,
-      serviceAreas,
-      yearsExperience,
-      languages,
-      facebook,
-      instagram,
-      website,
-    });
-    
-    // Navigate back to profile
-    navigate("/provider/profile");
+  const handleSave = async () => {
+    const token = getStoredProviderAccessToken();
+    const yearsExperienceValue = yearsExperience.trim()
+      ? Number(yearsExperience)
+      : null;
+
+    if (!token) {
+      setProfileError("Sign in to save provider profile changes.");
+      return;
+    }
+
+    if (!businessName.trim()) {
+      setProfileError("Business name is required.");
+      return;
+    }
+
+    if (
+      yearsExperienceValue !== null &&
+      (!Number.isFinite(yearsExperienceValue) || yearsExperienceValue < 0)
+    ) {
+      setProfileError("Years of experience must be a valid number.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setProfileError(null);
+
+    try {
+      const nextProfile = await updateCurrentUserProfile(token, {
+        fullName:
+          providerAuth.profile?.user.fullName?.trim() ||
+          businessName.trim(),
+        contactNumber: providerAuth.profile?.user.contactNumber ?? null,
+        businessName: businessName.trim(),
+        bio: bio.trim() || null,
+        serviceDescription: bio.trim() || null,
+        serviceArea: serviceAreas.trim() || null,
+        yearsExperience: yearsExperienceValue,
+      });
+
+      updateProfile({
+        businessName:
+          nextProfile.providerProfile?.businessName ||
+          businessName.trim(),
+        bio: nextProfile.providerProfile?.bio || bio,
+        serviceAreas:
+          nextProfile.providerProfile?.serviceArea ||
+          serviceAreas,
+        yearsExperience:
+          nextProfile.providerProfile?.yearsExperience === null ||
+          nextProfile.providerProfile?.yearsExperience === undefined
+            ? yearsExperience
+            : String(nextProfile.providerProfile.yearsExperience),
+        languages,
+        facebook,
+        instagram,
+        website,
+        coverPhotoUrl,
+        profilePhotoUrl,
+      });
+
+      navigate("/provider/profile");
+    } catch (error) {
+      setProfileError(
+        error instanceof Error ? error.message : "Unable to save provider profile.",
+      );
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   return (
@@ -242,6 +304,11 @@ export function EditProfilePage() {
           <p style={{ fontSize: "16px", color: "#6B7280" }}>
             Update your business information and professional details
           </p>
+          {profileError && (
+            <p style={{ fontSize: "14px", color: "#B91C1C", marginTop: "12px" }}>
+              {profileError}
+            </p>
+          )}
         </div>
 
         {/* Cover Photo */}
@@ -978,20 +1045,27 @@ export function EditProfilePage() {
           Cancel
         </button>
         <button
-          onClick={handleSave}
+          onClick={() => void handleSave()}
+          disabled={isSavingProfile}
           style={{
             ...styles.button,
             ...styles.primaryButton,
+            opacity: isSavingProfile ? 0.7 : 1,
+            cursor: isSavingProfile ? "not-allowed" : "pointer",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = "#059669";
+            if (!isSavingProfile) {
+              e.currentTarget.style.backgroundColor = "#059669";
+            }
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "#00BF63";
+            if (!isSavingProfile) {
+              e.currentTarget.style.backgroundColor = "#00BF63";
+            }
           }}
         >
           <Save style={{ width: "18px", height: "18px" }} />
-          Save Changes
+          {isSavingProfile ? "Saving..." : "Save Changes"}
         </button>
       </div>
     </div>

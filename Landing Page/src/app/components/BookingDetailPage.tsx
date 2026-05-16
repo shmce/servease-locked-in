@@ -13,19 +13,18 @@ import {
   UserRound,
   XCircle,
 } from "lucide-react";
-import type {
-  BookingServiceUpdateSummary,
-  BookingSummary,
+import {
+  getCustomerBooking,
+  listBookingServiceUpdates,
+  transitionBookingStatus,
+  type BookingServiceUpdateSummary,
+  type BookingSummary,
 } from "../lib/bookings";
-import type { CurrentUserProfile } from "../lib/current-user";
+import {
+  getCurrentUserProfile,
+  type CurrentUserProfile,
+} from "../lib/current-user";
 import { createSupabaseBrowserClient } from "../lib/supabase-browser";
-
-interface ApiResponse<T> {
-  data?: T;
-  error?: {
-    message?: string;
-  };
-}
 
 interface TransitionAction {
   label: string;
@@ -80,38 +79,37 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
       return;
     }
 
-    const headers = {
-      authorization: `Bearer ${sessionData.session.access_token}`,
-    };
+    const accessToken = sessionData.session.access_token;
     const [bookingResponse, profileResponse, updatesResponse] = await Promise.all([
-      fetch(`/api/bookings/${bookingId}`, { headers }),
-      fetch("/api/me", { headers }),
-      fetch(`/api/bookings/${bookingId}/service-updates`, { headers }),
+      getCustomerBooking(bookingId, accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
+      getCurrentUserProfile(accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
+      listBookingServiceUpdates(bookingId, accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
     ]);
-    const bookingPayload = (await bookingResponse.json().catch(() => null)) as
-      | ApiResponse<BookingSummary>
-      | null;
-    const profilePayload = (await profileResponse.json().catch(() => null)) as
-      | ApiResponse<CurrentUserProfile>
-      | null;
-    const updatesPayload = (await updatesResponse.json().catch(() => null)) as
-      | ApiResponse<BookingServiceUpdateSummary[]>
-      | null;
 
-    if (!bookingResponse.ok || !bookingPayload?.data) {
-      setError(bookingPayload?.error?.message ?? "Could not load this booking.");
+    if ("error" in bookingResponse) {
+      setError(
+        bookingResponse.error instanceof Error
+          ? bookingResponse.error.message
+          : "Could not load this booking.",
+      );
       setIsLoading(false);
       return;
     }
 
-    setBooking(bookingPayload.data);
+    setBooking(bookingResponse.data);
 
-    if (profileResponse.ok && profilePayload?.data) {
-      setProfile(profilePayload.data);
+    if ("data" in profileResponse) {
+      setProfile(profileResponse.data);
     }
 
-    if (updatesResponse.ok && updatesPayload?.data) {
-      setUpdates(updatesPayload.data);
+    if ("data" in updatesResponse) {
+      setUpdates(updatesResponse.data);
     } else {
       setUpdates([]);
     }
@@ -141,39 +139,26 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
       return;
     }
 
-    const response = await fetch(`/api/bookings/${booking.id}`, {
-      method: "PATCH",
-      headers: {
-        authorization: `Bearer ${sessionData.session.access_token}`,
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        currentStatus: booking.status,
-        nextStatus: action.nextStatus,
-        reason: action.reason ?? null,
-        explanation: null,
-      }),
-    }).catch(() => null);
-
-    if (!response) {
-      setError("Could not reach the booking service.");
+    try {
+      const updated = await transitionBookingStatus(
+        sessionData.session.access_token,
+        {
+          bookingId: booking.id,
+          currentStatus: booking.status,
+          nextStatus: action.nextStatus,
+          reason: action.reason ?? null,
+          explanation: null,
+        },
+      );
+      setBooking(updated);
+      setSuccess(`Booking moved to ${formatStatus(updated.status)}.`);
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Could not update this booking.",
+      );
+    } finally {
       setIsTransitioning(false);
-      return;
     }
-
-    const payload = (await response.json().catch(() => null)) as
-      | ApiResponse<BookingSummary>
-      | null;
-
-    if (!response.ok || !payload?.data) {
-      setError(payload?.error?.message ?? "Could not update this booking.");
-      setIsTransitioning(false);
-      return;
-    }
-
-    setBooking(payload.data);
-    setSuccess(`Booking moved to ${formatStatus(payload.data.status)}.`);
-    setIsTransitioning(false);
   };
 
   const actions = booking && profile ? getAvailableActions(booking, profile) : [];

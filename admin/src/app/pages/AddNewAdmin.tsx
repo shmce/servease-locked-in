@@ -14,7 +14,8 @@ import {
 } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
-import { notifyBackendRequired } from "../utils/backendRequired";
+import { useAuth } from "../contexts/AuthContext";
+import { createAdminUser } from "../../services/serveaseAdminApi";
 import {
   ArrowLeft,
   UserPlus,
@@ -94,6 +95,7 @@ const roles = [
 
 export function AddNewAdmin() {
   const navigate = useNavigate();
+  const { accessToken } = useAuth();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -104,6 +106,7 @@ export function AddNewAdmin() {
   const [require2FA, setRequire2FA] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordCopied, setPasswordCopied] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   function generatePassword() {
     const chars =
@@ -129,7 +132,7 @@ export function AddNewAdmin() {
     setTimeout(() => setPasswordCopied(false), 2000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
@@ -152,12 +155,29 @@ export function AddNewAdmin() {
       return;
     }
 
-    notifyBackendRequired(
-      sendInvitation
-        ? "Creating admin users and sending invitations"
-        : "Creating admin users",
-      "POST /v1/admin/users",
-    );
+    if (!accessToken) {
+      toast.error("Admin session is required");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await createAdminUser(accessToken, {
+        email: email.trim().toLowerCase(),
+        password,
+        fullName: `${firstName.trim()} ${lastName.trim()}`.trim(),
+        contactNumber: phone.trim(),
+        accessRole: selectedRole,
+        sendInvitation,
+        requireTwoFactor: require2FA,
+      });
+      toast.success("Admin user created");
+      navigate("/admin-roles");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to create admin user");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const selectedRoleData = roles.find((role) => role.id === selectedRole);
@@ -422,9 +442,14 @@ export function AddNewAdmin() {
             <Button
               type="submit"
               className="bg-[#00BF63] hover:bg-[#00A055]"
+              disabled={isSubmitting}
             >
-              <UserPlus className="w-4 h-4 mr-2" />
-              Create Admin User
+              {isSubmitting ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <UserPlus className="w-4 h-4 mr-2" />
+              )}
+              {isSubmitting ? "Creating..." : "Create Admin User"}
             </Button>
           </div>
         </div>

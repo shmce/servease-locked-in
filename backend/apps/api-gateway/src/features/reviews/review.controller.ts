@@ -1,11 +1,23 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpException,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { BookingNotFoundError } from '../booking/booking.errors';
 import { BookingGatewayService } from '../booking/booking.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
+import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import {
   AuthRequiredError,
   InvalidAuthTokenError,
+  ProfileDependencyUnavailableError,
 } from '../current-user/current-user.errors';
+import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import {
   InvalidReviewRequestError,
   ReviewDependencyUnavailableError,
@@ -19,6 +31,8 @@ export class ReviewController {
     private readonly reviewGatewayService: ReviewGatewayService,
     private readonly bookingGatewayService: BookingGatewayService,
     private readonly authTokenService: AuthTokenService,
+    private readonly catalogServiceClient: CatalogServiceClient,
+    private readonly notificationServiceClient?: NotificationServiceClient,
   ) {}
 
   @Get()
@@ -56,14 +70,18 @@ export class ReviewController {
         throw new InvalidReviewRequestError();
       }
 
+      const review = await this.reviewGatewayService.createReview({
+        bookingId: booking.id,
+        providerId: booking.providerId,
+        reviewerId: userId,
+        rating: body.rating,
+        reviewText: body.reviewText ?? null,
+      });
+
+      await this.notifyProviderReviewCreated(review);
+
       return {
-        data: await this.reviewGatewayService.createReview({
-          bookingId: booking.id,
-          providerId: booking.providerId,
-          reviewerId: userId,
-          rating: body.rating,
-          reviewText: body.reviewText ?? null,
-        }),
+        data: review,
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -82,11 +100,17 @@ export class ReviewController {
       }
 
       const userId = await this.authTokenService.authenticate(authorization);
+      const providerProfile =
+        await this.catalogServiceClient.findProviderProfileByUserId(userId);
+
+      if (!providerProfile) {
+        throw new InvalidReviewRequestError();
+      }
 
       return {
         data: await this.reviewGatewayService.createReviewResponse(
           reviewId,
-          userId,
+          providerProfile.id,
           body.responseText.trim(),
         ),
       };
@@ -133,7 +157,10 @@ export class ReviewController {
       return this.error('booking_not_found', 'Booking was not found.', 404);
     }
 
-    if (error instanceof ReviewDependencyUnavailableError) {
+    if (
+      error instanceof ReviewDependencyUnavailableError ||
+      error instanceof ProfileDependencyUnavailableError
+    ) {
       return this.error(
         'review_dependency_unavailable',
         'Review service is unavailable.',
@@ -155,5 +182,31 @@ export class ReviewController {
       },
       status,
     );
+  }
+
+  private async notifyProviderReviewCreated(
+    review: ReviewSummary,
+  ): Promise<void> {
+    if (!this.notificationServiceClient) {
+      return;
+    }
+
+    const providerOwner =
+      await this.catalogServiceClient.findProviderOwnerByProviderId(
+        review.providerId,
+      );
+
+    await this.notificationServiceClient.createNotification({
+      userId: providerOwner.userId,
+      type: 'review_created',
+      title: 'New customer review',
+      body: `A customer left a ${review.rating}-star review.`,
+      metadata: {
+        bookingId: review.bookingId,
+        providerId: review.providerId,
+        reviewId: review.id,
+        rating: String(review.rating),
+      },
+    });
   }
 }

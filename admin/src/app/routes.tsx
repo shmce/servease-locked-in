@@ -42,6 +42,7 @@ import { UserReports } from "./pages/reports/UserReports";
 import { PerformanceReports } from "./pages/reports/PerformanceReports";
 import { ComplianceReports } from "./pages/reports/ComplianceReports";
 import { BackendSupportMatrix } from "./pages/BackendSupportMatrix";
+import { Reviews } from "./pages/Reviews";
 
 // Wrapper component for protected routes
 function ProtectedRootLayout() {
@@ -94,6 +95,7 @@ export const router = createBrowserRouter([
       { path: "disputes-resolutions", Component: DisputesResolutions },
       { path: "ongoing-services", Component: OngoingServices },
       { path: "support", Component: Support },
+      { path: "reviews", Component: Reviews },
 
       // Finance
       { path: "transactions", Component: Transactions },

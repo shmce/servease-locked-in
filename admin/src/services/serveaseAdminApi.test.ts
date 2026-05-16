@@ -90,6 +90,40 @@ describe("serveaseAdminApi", () => {
     expect(payments[0].id).toBe("pay-1");
   });
 
+  it("loads failed payment exceptions through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "pay-1",
+            bookingId: "booking-1",
+            customerId: "customer-1",
+            providerId: "provider-1",
+            amount: 1000,
+            platformFee: 100,
+            providerPayout: 900,
+            status: "cancelled",
+            paymentMethod: "card",
+            paidAt: null,
+            createdAt: null,
+          },
+        ],
+      }),
+    });
+
+    const { listAdminPaymentFailures } = await import("./serveaseAdminApi");
+    const payments = await listAdminPaymentFailures("admin-token");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/payments/failures",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(payments[0].status).toBe("cancelled");
+  });
+
   it("updates current admin profile and password through shared account endpoints", async () => {
     fetchMock
       .mockResolvedValueOnce({
@@ -252,7 +286,208 @@ describe("serveaseAdminApi", () => {
     expect(disputes[0].id).toBe("dispute-1");
   });
 
-  it("loads and decides provider applications through the gateway", async () => {
+  it("loads and updates admin bookings through the gateway", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: "booking-1",
+              bookingReference: "SE-ABC123",
+              customerId: "customer-1",
+              customerFullName: "Casey Customer",
+              customerContactNumber: "+639170001001",
+              providerId: "provider-1",
+              serviceId: null,
+              serviceTitle: "Deep Clean",
+              serviceAddress: "123 Test St",
+              scheduledAt: "2026-05-20T08:00:00.000Z",
+              status: "pending",
+              totalAmount: 1200,
+              cancelReason: null,
+              cancelExplanation: null,
+              cancelledAt: null,
+              createdAt: null,
+              updatedAt: null,
+              escalationCount: 0,
+              latestEscalationPriority: null,
+              latestEscalationReason: null,
+              latestEscalatedAt: null,
+              attachments: [],
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            id: "booking-1",
+            bookingReference: "SE-ABC123",
+            customerId: "customer-1",
+            providerId: "provider-1",
+            serviceId: null,
+            serviceTitle: "Deep Clean",
+            serviceAddress: "123 Test St",
+            scheduledAt: "2026-05-20T08:00:00.000Z",
+            status: "pending",
+            totalAmount: 1200,
+            cancelReason: null,
+            cancelExplanation: null,
+            cancelledAt: null,
+            createdAt: null,
+            updatedAt: null,
+            escalationCount: 0,
+            latestEscalationPriority: null,
+            latestEscalationReason: null,
+            latestEscalatedAt: null,
+            attachments: [],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            id: "booking-1",
+            bookingReference: "SE-ABC123",
+            customerId: "customer-1",
+            providerId: "provider-1",
+            serviceId: null,
+            serviceTitle: "Deep Clean",
+            serviceAddress: "123 Test St",
+            scheduledAt: "2026-05-20T08:00:00.000Z",
+            status: "cancelled",
+            totalAmount: 1200,
+            cancelReason: "Customer safety issue",
+            cancelExplanation: "Admin intervention",
+            cancelledAt: "2026-05-20T08:30:00.000Z",
+            createdAt: null,
+            updatedAt: null,
+            escalationCount: 0,
+            latestEscalationPriority: null,
+            latestEscalationReason: null,
+            latestEscalatedAt: null,
+            attachments: [],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            id: "booking-1",
+            bookingReference: "SE-ABC123",
+            customerId: "customer-1",
+            providerId: "provider-1",
+            serviceId: null,
+            serviceTitle: "Deep Clean",
+            serviceAddress: "123 Test St",
+            scheduledAt: "2026-05-20T08:00:00.000Z",
+            status: "pending",
+            totalAmount: 1200,
+            cancelReason: null,
+            cancelExplanation: null,
+            cancelledAt: null,
+            createdAt: null,
+            updatedAt: null,
+            escalationCount: 1,
+            latestEscalationPriority: "high",
+            latestEscalationReason: "Needs review",
+            latestEscalatedAt: "2026-05-20T08:35:00.000Z",
+            attachments: [],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            bookingId: "booking-1",
+            providerUserId: "provider-user-1",
+            notificationId: "notification-1",
+          },
+        }),
+      });
+
+    const {
+      cancelAdminBooking,
+      escalateAdminBooking,
+      getAdminBooking,
+      listAdminBookings,
+      sendAdminProviderMessage,
+    } = await import("./serveaseAdminApi");
+    const bookings = await listAdminBookings("admin-token", {
+      status: "pending",
+      query: "Casey",
+      limit: 25,
+    });
+    const booking = await getAdminBooking("admin-token", "booking-1");
+    const cancelled = await cancelAdminBooking("admin-token", "booking-1", {
+      reason: "Customer safety issue",
+      explanation: "Admin intervention",
+    });
+    const escalated = await escalateAdminBooking("admin-token", "booking-1", {
+      reason: "Needs review",
+      priority: "high",
+    });
+    const providerMessage = await sendAdminProviderMessage(
+      "admin-token",
+      "booking-1",
+      "Please contact the customer before arrival.",
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://gateway.test/v1/admin/bookings?status=pending&query=Casey&limit=25",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://gateway.test/v1/admin/bookings/booking-1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://gateway.test/v1/admin/bookings/booking-1/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          reason: "Customer safety issue",
+          explanation: "Admin intervention",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "http://gateway.test/v1/admin/bookings/booking-1/escalate",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          reason: "Needs review",
+          priority: "high",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "http://gateway.test/v1/admin/bookings/booking-1/provider-messages",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          message: "Please contact the customer before arrival.",
+        }),
+      }),
+    );
+    expect(bookings[0].bookingReference).toBe("SE-ABC123");
+    expect(booking.id).toBe("booking-1");
+    expect(cancelled.status).toBe("cancelled");
+    expect(escalated.escalationCount).toBe(1);
+    expect(providerMessage.notificationId).toBe("notification-1");
+  });
+
+  it("loads, decides, and fetches provider application documents through the gateway", async () => {
     fetchMock
       .mockResolvedValueOnce({
         ok: true,
@@ -280,6 +515,7 @@ describe("serveaseAdminApi", () => {
               latestDecidedBy: null,
               createdAt: null,
               updatedAt: null,
+              documents: [],
             },
           ],
         }),
@@ -309,13 +545,43 @@ describe("serveaseAdminApi", () => {
             latestDecidedBy: "admin-1",
             createdAt: null,
             updatedAt: null,
+            documents: [],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            id: "document-1",
+            applicationId: "provider-1",
+            userId: "user-1",
+            documentType: "government_id",
+            fileUrl: null,
+            storagePath: "provider-documents/user-1/government-id.jpg",
+            status: "pending",
+            createdAt: "2026-05-16T01:00:00.000Z",
+            previewUrl: "https://storage.test/preview",
+            downloadUrl: "https://storage.test/download",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            applicationId: "provider-1",
+            providerUserId: "user-1",
+            notificationId: "notification-1",
           },
         }),
       });
 
     const {
       approveAdminProviderApplication,
+      getAdminProviderApplicationDocument,
       listAdminProviderApplications,
+      requestAdminProviderApplicationInfo,
     } = await import("./serveaseAdminApi");
     const applications = await listAdminProviderApplications("admin-token", {
       status: "pending",
@@ -325,6 +591,16 @@ describe("serveaseAdminApi", () => {
       "admin-token",
       "provider-1",
       "Approved",
+    );
+    const document = await getAdminProviderApplicationDocument(
+      "admin-token",
+      "provider-1",
+      "document-1",
+    );
+    const infoRequest = await requestAdminProviderApplicationInfo(
+      "admin-token",
+      "provider-1",
+      "Please upload a clearer government ID.",
     );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -340,8 +616,129 @@ describe("serveaseAdminApi", () => {
         body: JSON.stringify({ reason: "Approved" }),
       }),
     );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://gateway.test/v1/admin/provider-applications/provider-1/documents/document-1",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "http://gateway.test/v1/admin/provider-applications/provider-1/request-info",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          message: "Please upload a clearer government ID.",
+        }),
+      }),
+    );
     expect(applications[0].verificationStatus).toBe("pending");
     expect(approved.verificationStatus).toBe("approved");
+    expect(document.previewUrl).toBe("https://storage.test/preview");
+    expect(infoRequest.notificationId).toBe("notification-1");
+  });
+
+  it("loads and moderates reviews through the gateway", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: "review-1",
+              bookingId: "booking-1",
+              providerId: "provider-1",
+              reviewerId: "customer-1",
+              reviewerFullName: "Casey Customer",
+              rating: 2,
+              reviewText: "Abusive comment",
+              isFlagged: true,
+              createdAt: "2026-05-16T00:00:00.000Z",
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            id: "review-1",
+            bookingId: "booking-1",
+            providerId: "provider-1",
+            reviewerId: "customer-1",
+            reviewerFullName: "Casey Customer",
+            rating: 2,
+            reviewText: "Abusive comment",
+            isFlagged: false,
+            createdAt: "2026-05-16T00:00:00.000Z",
+          },
+        }),
+      });
+
+    const { listAdminReviews, setAdminReviewFlagged } = await import(
+      "./serveaseAdminApi"
+    );
+    const reviews = await listAdminReviews("admin-token", {
+      flaggedOnly: true,
+      limit: 50,
+    });
+    const restored = await setAdminReviewFlagged(
+      "admin-token",
+      "review-1",
+      false,
+      "Restored by admin",
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://gateway.test/v1/admin/reviews?flagged=true&limit=50",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://gateway.test/v1/admin/reviews/review-1/flag",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({
+          isFlagged: false,
+          reason: "Restored by admin",
+        }),
+      }),
+    );
+    expect(reviews[0].isFlagged).toBe(true);
+    expect(restored.isFlagged).toBe(false);
+  });
+
+  it("sends admin broadcasts through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          audience: "customers",
+          deliveredCount: 12,
+          failedCount: 0,
+        },
+      }),
+    });
+
+    const { sendAdminBroadcast } = await import("./serveaseAdminApi");
+    const result = await sendAdminBroadcast("admin-token", {
+      audience: "customers",
+      title: "Holiday schedule",
+      message: "ServEase support hours are updated this week.",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/broadcasts",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          audience: "customers",
+          title: "Holiday schedule",
+          message: "ServEase support hours are updated this week.",
+        }),
+      }),
+    );
+    expect(result.deliveredCount).toBe(12);
   });
 
   it("loads and creates admin promotions through the gateway", async () => {
@@ -652,6 +1049,182 @@ describe("serveaseAdminApi", () => {
     );
     expect(logs[0].entityType).toBe("Payment");
     expect(csv).toContain("audit-1");
+  });
+
+  it("exports booking analytics CSV through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "bookingReference,status\nSRV-001,completed",
+    });
+
+    const { exportAdminBookingsCsv } = await import("./serveaseAdminApi");
+    const csv = await exportAdminBookingsCsv("admin-token");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/reports/bookings.csv",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          accept: "text/csv",
+          authorization: "Bearer admin-token",
+        }),
+      }),
+    );
+    expect(csv).toContain("SRV-001");
+  });
+
+  it("creates admin users through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "admin-2",
+          email: "ops@example.com",
+          fullName: "Ops Admin",
+          contactNumber: "+639171234567",
+          role: "admin",
+          status: "active",
+          createdAt: "2026-05-17T00:00:00.000Z",
+        },
+      }),
+    });
+
+    const { createAdminUser } = await import("./serveaseAdminApi");
+    const user = await createAdminUser("admin-token", {
+      email: "ops@example.com",
+      password: "Password#2026",
+      fullName: "Ops Admin",
+      contactNumber: "+639171234567",
+      accessRole: "operations-manager",
+      sendInvitation: true,
+      requireTwoFactor: false,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/users",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          email: "ops@example.com",
+          password: "Password#2026",
+          fullName: "Ops Admin",
+          contactNumber: "+639171234567",
+          accessRole: "operations-manager",
+          sendInvitation: true,
+          requireTwoFactor: false,
+        }),
+      }),
+    );
+    expect(user.role).toBe("admin");
+  });
+
+  it("approves settlement payouts through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "payout-1",
+          providerId: "provider-1",
+          amount: 1000,
+          processingFee: 20,
+          netAmount: 980,
+          status: "processing",
+          payoutMethodId: null,
+          methodType: null,
+          accountLabel: null,
+          reference: "PAY-001",
+          periodStart: null,
+          periodEnd: null,
+          requestedAt: null,
+          paidAt: null,
+          createdAt: null,
+        },
+      }),
+    });
+
+    const { approveAdminSettlement } = await import("./serveaseAdminApi");
+    const payout = await approveAdminSettlement("admin-token", "payout-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/settlements/payout-1/approve",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(payout.status).toBe("processing");
+  });
+
+  it("lists settlements through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "payout-1",
+            providerId: "provider-1",
+            amount: 1000,
+            processingFee: 20,
+            netAmount: 980,
+            status: "requested",
+            payoutMethodId: null,
+            methodType: null,
+            accountLabel: null,
+            reference: "PAY-001",
+            periodStart: null,
+            periodEnd: null,
+            requestedAt: null,
+            paidAt: null,
+            createdAt: null,
+          },
+        ],
+      }),
+    });
+
+    const { listAdminSettlements } = await import("./serveaseAdminApi");
+    const payouts = await listAdminSettlements("admin-token", "requested");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/settlements?status=requested",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(payouts[0].status).toBe("requested");
+  });
+
+  it("rejects settlement payouts through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "payout-1",
+          providerId: "provider-1",
+          amount: 1000,
+          processingFee: 20,
+          netAmount: 980,
+          status: "cancelled",
+          payoutMethodId: null,
+          methodType: null,
+          accountLabel: null,
+          reference: "PAY-001",
+          periodStart: null,
+          periodEnd: null,
+          requestedAt: null,
+          paidAt: null,
+          createdAt: null,
+        },
+      }),
+    });
+
+    const { rejectAdminSettlement } = await import("./serveaseAdminApi");
+    const payout = await rejectAdminSettlement("admin-token", "payout-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/settlements/payout-1/reject",
+      expect.objectContaining({
+        method: "POST",
+      }),
+    );
+    expect(payout.status).toBe("cancelled");
   });
 
   it("raises gateway error messages from structured error payloads", async () => {
