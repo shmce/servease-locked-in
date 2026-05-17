@@ -65,6 +65,7 @@ export class MessagingServiceClient {
         senderId: input.senderId,
         senderRole: input.senderRole,
         content: input.content,
+        attachment: input.attachment ?? null,
         customerId: input.customerId,
         providerId: input.providerId,
       },

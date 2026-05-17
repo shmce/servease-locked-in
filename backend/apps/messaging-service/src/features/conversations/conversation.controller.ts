@@ -89,6 +89,13 @@ export class ConversationController {
       senderId: string;
       senderRole: MessageSenderRole;
       content: string;
+      attachment?: {
+        fileUrl: string;
+        fileName?: string | null;
+        mimeType?: string | null;
+        storagePath?: string | null;
+        fileSize?: number | null;
+      } | null;
       customerId?: string | null;
       providerId?: string | null;
     },
@@ -100,6 +107,7 @@ export class ConversationController {
           senderId: body.senderId,
           senderRole: body.senderRole,
           content: body.content,
+          attachment: body.attachment ?? null,
           customerId: body.customerId ?? null,
           providerId: body.providerId ?? null,
         }),

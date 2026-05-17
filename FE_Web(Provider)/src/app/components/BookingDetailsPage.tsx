@@ -18,10 +18,15 @@ import {
   X,
 } from "lucide-react";
 import {
+  createProviderBookingAttachment,
+  createProviderBookingServiceUpdate,
   getProviderBooking,
   getStoredProviderAccessToken,
+  listProviderBookingServiceUpdates,
   updateProviderBookingStatus,
+  uploadProviderProgressPhoto,
   type BookingStatus,
+  type BookingServiceUpdateSummary,
   type BookingSummary,
 } from "../../services/serveaseProviderApi";
 
@@ -416,8 +421,12 @@ export function BookingDetailsPage() {
   const navigate = useNavigate();
   const [chatMessage, setChatMessage] = useState("");
   const [apiBooking, setApiBooking] = useState<BookingSummary | null>(null);
+  const [serviceUpdates, setServiceUpdates] = useState<BookingServiceUpdateSummary[]>([]);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isPostingProgress, setIsPostingProgress] = useState(false);
+  const [progressMessage, setProgressMessage] = useState("");
+  const [progressPhoto, setProgressPhoto] = useState<File | null>(null);
 
   useEffect(() => {
     const loadBooking = async () => {
@@ -429,7 +438,12 @@ export function BookingDetailsPage() {
 
       try {
         setDetailError(null);
-        setApiBooking(await getProviderBooking(token, id));
+        const [booking, updates] = await Promise.all([
+          getProviderBooking(token, id),
+          listProviderBookingServiceUpdates(token, id).catch(() => []),
+        ]);
+        setApiBooking(booking);
+        setServiceUpdates(updates);
       } catch (error) {
         setDetailError(
           error instanceof Error ? error.message : "Unable to load booking details.",
@@ -527,6 +541,50 @@ export function BookingDetailsPage() {
       );
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const submitProgressUpdate = async () => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token || !apiBooking || !progressMessage.trim()) {
+      return;
+    }
+
+    setIsPostingProgress(true);
+    setDetailError(null);
+
+    try {
+      let attachmentId: string | null = null;
+
+      if (progressPhoto) {
+        const uploaded = await uploadProviderProgressPhoto(token, progressPhoto);
+        const attachment = await createProviderBookingAttachment(token, apiBooking.id, {
+          mediaKind: "provider_progress",
+          fileUrl: uploaded.publicUrl,
+          fileName: progressPhoto.name,
+          mimeType: progressPhoto.type || uploaded.contentType,
+          storagePath: uploaded.path,
+          fileSize: uploaded.size,
+          caption: progressMessage.trim(),
+        });
+        attachmentId = attachment.id;
+      }
+
+      const created = await createProviderBookingServiceUpdate(token, apiBooking.id, {
+        updateType: "progress",
+        message: progressMessage.trim(),
+        attachmentId,
+      });
+      setServiceUpdates((current) => [created, ...current]);
+      setProgressMessage("");
+      setProgressPhoto(null);
+    } catch (error) {
+      setDetailError(
+        error instanceof Error ? error.message : "Unable to post service progress.",
+      );
+    } finally {
+      setIsPostingProgress(false);
     }
   };
 
@@ -628,6 +686,19 @@ export function BookingDetailsPage() {
       // Handle message sending
       setChatMessage("");
     }
+  };
+
+  const formatServiceUpdateTime = (value: string | null): string => {
+    if (!value) {
+      return "";
+    }
+
+    return new Date(value).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
   };
 
   const initials = booking.customer.name
@@ -895,6 +966,41 @@ export function BookingDetailsPage() {
 
               {booking.status === "in-progress" && (
                 <>
+                  <div style={{ display: "grid", gap: "12px" }}>
+                    <textarea
+                      value={progressMessage}
+                      onChange={(event) => setProgressMessage(event.target.value)}
+                      placeholder="Share a progress update for the customer..."
+                      rows={4}
+                      style={{
+                        ...styles.input,
+                        minHeight: "110px",
+                        resize: "vertical",
+                        fontFamily: "inherit",
+                      }}
+                    />
+                    <label
+                      style={{
+                        ...styles.button,
+                        ...styles.outlinedButton,
+                        justifyContent: "center",
+                        cursor: isPostingProgress ? "not-allowed" : "pointer",
+                        opacity: isPostingProgress ? 0.7 : 1,
+                      }}
+                    >
+                      <Upload size={16} />
+                      {progressPhoto ? progressPhoto.name : "Attach Progress Photo"}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        disabled={isPostingProgress}
+                        onChange={(event) =>
+                          setProgressPhoto(event.currentTarget.files?.[0] ?? null)
+                        }
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                  </div>
                   <div style={styles.actionButtons}>
                     <button
                       disabled={isUpdating}
@@ -905,12 +1011,71 @@ export function BookingDetailsPage() {
                       {isUpdating ? "Updating..." : "Complete Service"}
                     </button>
                     <button style={{ ...styles.button, ...styles.outlinedButton }}>
-                      <Upload size={16} />
-                      Upload Photos
+                      <ImageIcon size={16} />
+                      View Photos
+                    </button>
+                    <button
+                      disabled={isPostingProgress || !progressMessage.trim()}
+                      style={{
+                        ...styles.button,
+                        ...styles.primaryButton,
+                        gridColumn: "1 / -1",
+                        opacity: isPostingProgress || !progressMessage.trim() ? 0.7 : 1,
+                        cursor:
+                          isPostingProgress || !progressMessage.trim()
+                            ? "not-allowed"
+                            : "pointer",
+                      }}
+                      onClick={() => void submitProgressUpdate()}
+                    >
+                      <Send size={16} />
+                      {isPostingProgress ? "Posting..." : "Post Progress Update"}
                     </button>
                   </div>
                 </>
               )}
+
+              <div style={{ marginTop: "24px", borderTop: "1px solid #F3F4F6", paddingTop: "18px" }}>
+                <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#111827", marginBottom: "12px" }}>
+                  Service Updates
+                </h3>
+                {serviceUpdates.length > 0 ? (
+                  <div style={{ display: "grid", gap: "10px" }}>
+                    {serviceUpdates.map((update) => (
+                      <div
+                        key={update.id}
+                        style={{
+                          border: "1px solid #D1FAE5",
+                          backgroundColor: "#F0FDF8",
+                          borderRadius: "10px",
+                          padding: "12px",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "6px" }}>
+                          <span style={{ fontSize: "12px", fontWeight: "700", color: "#065F46", textTransform: "uppercase" }}>
+                            {update.updateType}
+                          </span>
+                          <span style={{ fontSize: "11px", color: "#6B7280" }}>
+                            {formatServiceUpdateTime(update.createdAt)}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: "13px", color: "#374151", lineHeight: "1.6" }}>
+                          {update.message || "Service update posted."}
+                        </p>
+                        {update.attachmentId && (
+                          <p style={{ fontSize: "12px", color: "#00BF63", fontWeight: "600", marginTop: "6px" }}>
+                            Photo attached
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: "13px", color: "#6B7280" }}>
+                    No service updates posted yet.
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Chat / Messages */}

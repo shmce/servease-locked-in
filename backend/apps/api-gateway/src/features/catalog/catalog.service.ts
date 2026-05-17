@@ -6,6 +6,8 @@ import {
   ProviderOwnedServiceInput,
   ProviderOwnedServiceSummary,
   ProviderPortfolioMediaInput,
+  ProviderPortfolioMediaReplacementInput,
+  ProviderPortfolioOrderItem,
   ProviderPortfolioMediaSummary,
   ProviderServiceListing,
 } from './catalog.types';
@@ -44,6 +46,25 @@ export class CatalogGatewayService {
 
   deleteProviderPortfolioMedia(userId: string, mediaId: string): Promise<void> {
     return this.catalogServiceClient.deleteProviderPortfolioMedia(userId, mediaId);
+  }
+
+  replaceProviderPortfolioMedia(
+    userId: string,
+    mediaId: string,
+    input: ProviderPortfolioMediaReplacementInput,
+  ): Promise<ProviderPortfolioMediaSummary> {
+    return this.catalogServiceClient.replaceProviderPortfolioMedia(
+      userId,
+      mediaId,
+      input,
+    );
+  }
+
+  reorderProviderPortfolioMedia(
+    userId: string,
+    items: ProviderPortfolioOrderItem[],
+  ): Promise<ProviderPortfolioMediaSummary[]> {
+    return this.catalogServiceClient.reorderProviderPortfolioMedia(userId, items);
   }
 
   listProviderOwnedServices(

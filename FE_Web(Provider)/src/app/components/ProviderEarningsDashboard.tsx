@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { 
   DollarSign, 
   Clock, 
@@ -30,6 +30,7 @@ import {
   listProviderPayments,
   type PaymentSummary,
 } from "../../services/serveaseProviderApi";
+import { pickQueryItemId } from "../utils/providerDeeplinks";
 
 // Styles object for reusability
 const styles = {
@@ -226,6 +227,8 @@ function buildTrendData(payments: PaymentSummary[]) {
 }
 
 export function ProviderEarningsDashboard() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState<"today" | "week" | "month" | "all">("month");
   const [payments, setPayments] = useState<PaymentSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -243,7 +246,20 @@ export function ProviderEarningsDashboard() {
       setLoadError(null);
 
       try {
-        setPayments(await listProviderPayments(token));
+        const providerPayments = await listProviderPayments(token);
+        const requestedPaymentId = pickQueryItemId(
+          location.search,
+          "paymentId",
+          providerPayments.map((payment) => payment.id),
+        );
+
+        setPayments(providerPayments);
+
+        if (requestedPaymentId) {
+          navigate(`/provider/earningsdetails?paymentId=${encodeURIComponent(String(requestedPaymentId))}`, {
+            replace: true,
+          });
+        }
       } catch (error) {
         setLoadError(error instanceof Error ? error.message : "Unable to load earnings.");
       } finally {
@@ -252,7 +268,7 @@ export function ProviderEarningsDashboard() {
     };
 
     void loadPayments();
-  }, []);
+  }, [location.search, navigate]);
 
   // Sample data
   const earningsTrendData = [

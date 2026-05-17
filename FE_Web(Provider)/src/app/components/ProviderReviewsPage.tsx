@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { useLocation } from "react-router";
 import {
   getStoredProviderAccessToken,
   getProviderProfile,
@@ -19,6 +20,7 @@ import {
   flagReview,
   type ReviewSummary,
 } from "../../services/serveaseProviderApi";
+import { pickQueryItemId } from "../utils/providerDeeplinks";
 
 // Styles object for reusability
 const styles = {
@@ -195,6 +197,7 @@ function mapApiReviewToLocal(r: ReviewSummary): Review {
 }
 
 export function ProviderReviewsPage() {
+  const location = useLocation();
   const [activeFilter, setActiveFilter] = useState("All Reviews");
   const [sortBy, setSortBy] = useState("Newest");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -205,6 +208,7 @@ export function ProviderReviewsPage() {
   const [reportDetails, setReportDetails] = useState("");
   const [showReportReasonDropdown, setShowReportReasonDropdown] = useState(false);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [highlightedReviewId, setHighlightedReviewId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -217,10 +221,25 @@ export function ProviderReviewsPage() {
       .then((snapshot) =>
         listProviderReviews(token, snapshot.provider.id)
       )
-      .then((data) => setReviews(data.map(mapApiReviewToLocal)))
+      .then((data) => {
+        const mappedReviews = data.map(mapApiReviewToLocal);
+        const requestedReviewId = pickQueryItemId(
+          location.search,
+          "reviewId",
+          mappedReviews.map((review) => review.id),
+        );
+
+        setReviews(mappedReviews);
+        setHighlightedReviewId(requestedReviewId ? String(requestedReviewId) : null);
+
+        if (requestedReviewId) {
+          setActiveFilter("All Reviews");
+          setSortBy("Newest");
+        }
+      })
       .catch(() => setReviews([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [location.search]);
 
   const totalReviews = reviews.length;
   const averageRating =
@@ -702,17 +721,30 @@ export function ProviderReviewsPage() {
             gap: "24px",
           }}
         >
-          {displayedReviews.map((review) => (
+          {displayedReviews.map((review) => {
+            const isHighlighted = highlightedReviewId === review.id;
+            return (
             <div
               key={review.id}
-              style={styles.reviewCard}
+              data-provider-review-id={review.id}
+              style={{
+                ...styles.reviewCard,
+                ...(isHighlighted
+                  ? {
+                      border: "2px solid #00BF63",
+                      boxShadow: "0 0 0 4px rgba(0, 191, 99, 0.12)",
+                    }
+                  : {}),
+              }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.boxShadow =
                   "0 4px 12px rgba(0, 0, 0, 0.1)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.boxShadow =
-                  "0 1px 3px rgba(0, 0, 0, 0.1)";
+                  isHighlighted
+                    ? "0 0 0 4px rgba(0, 191, 99, 0.12)"
+                    : "0 1px 3px rgba(0, 0, 0, 0.1)";
               }}
             >
               {/* Header */}
@@ -879,7 +911,8 @@ export function ProviderReviewsPage() {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Respond Modal */}

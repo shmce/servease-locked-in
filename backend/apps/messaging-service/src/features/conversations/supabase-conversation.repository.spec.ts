@@ -47,6 +47,7 @@ describe('SupabaseConversationRepository', () => {
         content: 'Hello',
         delivery_status: 'sent',
         created_at: '2026-05-15T10:00:00.000Z',
+        attachment: null,
       },
       error: null,
     });
@@ -69,6 +70,7 @@ describe('SupabaseConversationRepository', () => {
       p_content: 'Hello',
       p_customer_id: 'customer-1',
       p_provider_id: null,
+      p_attachment: null,
     });
     expect(message.content).toBe('Hello');
   });

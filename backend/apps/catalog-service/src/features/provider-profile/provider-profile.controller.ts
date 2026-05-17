@@ -15,6 +15,7 @@ import { ProviderProfileService } from './provider-profile.service';
 import {
   CreateProviderProfileInput,
   ProviderPortfolioMediaInput,
+  ProviderPortfolioOrderItem,
   ProviderPortfolioMediaSummary,
   ProviderOwnedServiceInput,
   ProviderOwnedServiceSummary,
@@ -177,6 +178,26 @@ export class ProviderProfileController {
     }
   }
 
+  @Get('applications/by-user/:userId')
+  async getApplicationByUser(
+    @Param('userId') userId: string,
+  ): Promise<{ data: AdminProviderApplicationSummary }> {
+    if (!UUID_PATTERN.test(userId)) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      const data =
+        await this.providerProfileService.getProviderApplicationByUserId(userId);
+      if (!data) {
+        throw new Error('provider_application_not_found');
+      }
+      return { data };
+    } catch {
+      throw this.dependencyError('Provider application lookup failed.');
+    }
+  }
+
   @Get('applications/:applicationId/documents/:documentId')
   async getApplicationDocument(
     @Param('applicationId') applicationId: string,
@@ -286,6 +307,61 @@ export class ProviderProfileController {
       await this.providerProfileService.deletePortfolioMedia(body.userId, mediaId);
     } catch {
       throw this.dependencyError('Provider portfolio delete failed.');
+    }
+  }
+
+  @Put('portfolio/order')
+  async reorderPortfolio(
+    @Body() body: { userId: string; items?: ProviderPortfolioOrderItem[] },
+  ): Promise<{ data: ProviderPortfolioMediaSummary[] }> {
+    if (
+      !UUID_PATTERN.test(body.userId) ||
+      !Array.isArray(body.items) ||
+      body.items.length === 0 ||
+      body.items.some(
+        (item) =>
+          !UUID_PATTERN.test(item.id) ||
+          !Number.isInteger(item.sortOrder) ||
+          item.sortOrder < 0,
+      )
+    ) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      return {
+        data: await this.providerProfileService.reorderPortfolioMedia(
+          body.userId,
+          body.items,
+        ),
+      };
+    } catch {
+      throw this.dependencyError('Provider portfolio reorder failed.');
+    }
+  }
+
+  @Put('portfolio/:mediaId')
+  async replacePortfolio(
+    @Param('mediaId') mediaId: string,
+    @Body() body: ProviderPortfolioMediaInput,
+  ): Promise<{ data: ProviderPortfolioMediaSummary }> {
+    if (
+      !UUID_PATTERN.test(body.userId) ||
+      !UUID_PATTERN.test(mediaId) ||
+      !body.fileUrl?.trim()
+    ) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      return {
+        data: await this.providerProfileService.replacePortfolioMedia({
+          ...body,
+          mediaId,
+        }),
+      };
+    } catch {
+      throw this.dependencyError('Provider portfolio replacement failed.');
     }
   }
 

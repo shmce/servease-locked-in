@@ -22,6 +22,19 @@ export interface RegisteredAccountResponse {
   providerProfile: ProviderProfileSummary | null;
 }
 
+export interface ProviderApplicationStatusResponse {
+  id: string;
+  applicationReference: string;
+  businessName: string | null;
+  serviceArea: string | null;
+  serviceDescription: string | null;
+  verificationStatus: 'pending' | 'approved' | 'rejected';
+  latestDecisionReason: string | null;
+  latestDecisionAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 export interface PasswordResetRequest {
   email: string;
   redirectTo?: string | null;

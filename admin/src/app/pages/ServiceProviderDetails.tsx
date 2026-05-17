@@ -2,16 +2,26 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  getAdminProviderApplication,
+  getAdminProviderApplicationDocument,
   getAdminManagedProvider,
   updateAdminManagedProviderStatus,
+  listAdminProviderApplications,
   listAdminProviderPortfolio,
   deleteAdminProviderPortfolioMedia,
   getAdminProviderAvailability,
+  AdminProviderApplicationSummary,
   AdminProviderSummary,
   AdminProviderPortfolioMediaSummary,
   AdminAvailabilitySchedule,
   AdminAvailabilityDayOfWeek,
 } from "../../services/serveaseAdminApi";
+import {
+  countVerifiedProviderDocuments,
+  findProviderApplicationForDetails,
+  ProviderDocumentItem,
+  toProviderDocumentItems,
+} from "../utils/providerApplicationDocuments";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -286,6 +296,17 @@ function getBgCheckBadge(status: string) {
   }
 }
 
+function getDocumentStatusBadge(status: ProviderDocumentItem["status"]) {
+  switch (status) {
+    case "verified":
+      return <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0] text-xs"><CheckCircle className="w-3 h-3 mr-1" />Verified</Badge>;
+    case "pending":
+      return <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+    case "rejected":
+      return <Badge className="bg-red-50 text-red-700 border-red-200 text-xs"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
+  }
+}
+
 const TAB_EMPTY_ICONS: Record<string, React.ReactNode> = {
   Portfolio: <ImageOff className="w-10 h-10 text-gray-200 mb-3" />,
   References: <Users className="w-10 h-10 text-gray-200 mb-3" />,
@@ -329,14 +350,65 @@ export function ServiceProviderDetails() {
   const [activeTab, setActiveTab] = useState("Documents");
   const [showRevokeModal, setShowRevokeModal] = useState(false);
   const [showDocModal, setShowDocModal] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState<typeof DOCUMENT_TYPES[0] | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<ProviderDocumentItem | null>(null);
   const [revokeReason, setRevokeReason] = useState("");
   const [rotation, setRotation] = useState(0);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [providerApplication, setProviderApplication] =
+    useState<AdminProviderApplicationSummary | null>(null);
+  const [documentsLoading, setDocumentsLoading] = useState(false);
+  const [documentsError, setDocumentsError] = useState<string | null>(null);
   const [portfolio, setPortfolio] = useState<AdminProviderPortfolioMediaSummary[]>([]);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
   const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id || !accessToken || activeTab !== "Documents") return;
+
+    let cancelled = false;
+    const providerId = id;
+    const token = accessToken;
+
+    async function loadProviderApplicationDocuments() {
+      setDocumentsLoading(true);
+      setDocumentsError(null);
+
+      try {
+        const directApplication = await getAdminProviderApplication(token, providerId).catch(
+          () => null,
+        );
+        const resolvedApplication =
+          directApplication ??
+          findProviderApplicationForDetails(
+            await listAdminProviderApplications(token, { limit: 100 }),
+            {
+              providerId,
+              businessName: provider.businessName,
+            },
+          );
+
+        if (!cancelled) setProviderApplication(resolvedApplication);
+      } catch (error) {
+        if (!cancelled) {
+          setProviderApplication(null);
+          setDocumentsError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load provider application documents.",
+          );
+        }
+      } finally {
+        if (!cancelled) setDocumentsLoading(false);
+      }
+    }
+
+    void loadProviderApplicationDocuments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id, accessToken, activeTab, provider.businessName]);
 
   useEffect(() => {
     if (!apiProvider?.id || !accessToken || activeTab !== "Portfolio") return;
@@ -404,11 +476,49 @@ export function ServiceProviderDetails() {
     }
   };
 
-  const openDocModal = (doc: typeof DOCUMENT_TYPES[0]) => {
-    setSelectedDoc(doc);
+  const fallbackDocuments: ProviderDocumentItem[] = DOCUMENT_TYPES.map((doc) => ({
+    ...doc,
+    status: "verified" as const,
+  }));
+  const displayedDocuments = providerApplication
+    ? toProviderDocumentItems(providerApplication.documents)
+    : fallbackDocuments;
+  const verifiedDocuments = countVerifiedProviderDocuments(displayedDocuments);
+
+  const openDocModal = async (doc: ProviderDocumentItem) => {
+    if (accessToken && providerApplication?.id && doc.documentId) {
+      try {
+        const liveDocument = await getAdminProviderApplicationDocument(
+          accessToken,
+          providerApplication.id,
+          doc.documentId,
+        );
+        const [freshDocument] = toProviderDocumentItems([liveDocument]);
+
+        setSelectedDoc({
+          ...freshDocument,
+          color: doc.color,
+          iconColor: doc.iconColor,
+        });
+      } catch (error) {
+        setDocumentsError(
+          error instanceof Error ? error.message : "Provider document failed to load.",
+        );
+        setSelectedDoc(doc);
+      }
+    } else {
+      setSelectedDoc(doc);
+    }
     setRotation(0);
     setZoomLevel(100);
     setShowDocModal(true);
+  };
+
+  const handleDownloadSelectedDoc = () => {
+    const url = selectedDoc?.downloadUrl ?? selectedDoc?.previewUrl;
+    if (!url) return;
+
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   if (loadError) {
@@ -607,37 +717,54 @@ export function ServiceProviderDetails() {
                 <CardTitle className="text-base flex items-center gap-2">
                   <FileText className="w-4 h-4 text-[#16A34A]" />
                   Uploaded Documents
-                  <span className="ml-auto text-xs text-gray-400 font-normal">{DOCUMENT_TYPES.length}/{DOCUMENT_TYPES.length} Verified</span>
+                  <span className="ml-auto text-xs text-gray-400 font-normal">
+                    {verifiedDocuments}/{displayedDocuments.length} Verified
+                  </span>
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {DOCUMENT_TYPES.map(doc => (
-                    <div key={doc.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 hover:shadow-sm transition-all group">
-                      <div className={`${doc.color} rounded-lg h-20 flex items-center justify-center mb-3 relative overflow-hidden`}>
-                        <FileText className={`w-8 h-8 ${doc.iconColor} opacity-60`} />
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
-                          <button onClick={() => openDocModal(doc)} className="bg-white rounded-full p-1.5 shadow-md">
-                            <ZoomIn className="w-3.5 h-3.5 text-gray-700" />
-                          </button>
+                {documentsError ? (
+                  <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                    {documentsError}
+                  </p>
+                ) : null}
+                {documentsLoading ? (
+                  <p className="text-sm text-gray-500 py-8 text-center">Loading provider documents…</p>
+                ) : displayedDocuments.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <FileText className="w-10 h-10 text-gray-200 mb-3" />
+                    <p className="text-gray-400 text-sm font-medium">No application documents found</p>
+                    <p className="text-gray-300 text-xs mt-1">
+                      Uploaded application documents will appear here once available.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {displayedDocuments.map(doc => (
+                      <div key={doc.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 hover:shadow-sm transition-all group">
+                        <div className={`${doc.color} rounded-lg h-20 flex items-center justify-center mb-3 relative overflow-hidden`}>
+                          <FileText className={`w-8 h-8 ${doc.iconColor} opacity-60`} />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
+                            <button onClick={() => void openDocModal(doc)} className="bg-white rounded-full p-1.5 shadow-md">
+                              <ZoomIn className="w-3.5 h-3.5 text-gray-700" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <p className="text-sm font-semibold text-gray-900">{doc.name}</p>
+                          <p className="text-xs text-gray-500 truncate font-mono">{doc.file}</p>
+                          <p className="text-xs text-gray-400">Uploaded {doc.date}</p>
+                          <div className="flex items-center justify-between">
+                            {getDocumentStatusBadge(doc.status)}
+                            <button onClick={() => void openDocModal(doc)} className="text-xs text-[#16A34A] hover:text-[#15803D] font-medium">
+                              View Full Size
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div className="space-y-1.5">
-                        <p className="text-sm font-semibold text-gray-900">{doc.name}</p>
-                        <p className="text-xs text-gray-500 truncate font-mono">{doc.file}</p>
-                        <p className="text-xs text-gray-400">Uploaded {doc.date}</p>
-                        <div className="flex items-center justify-between">
-                          <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0] text-xs">
-                            <CheckCircle className="w-3 h-3 mr-1" />Verified
-                          </Badge>
-                          <button onClick={() => openDocModal(doc)} className="text-xs text-[#16A34A] hover:text-[#15803D] font-medium">
-                            View Full Size
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1028,9 +1155,7 @@ export function ServiceProviderDetails() {
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-[#16A34A]" />
               {selectedDoc?.name}
-              <Badge className="ml-1 bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0] text-xs">
-                <CheckCircle className="w-3 h-3 mr-1" />Verified
-              </Badge>
+              {selectedDoc ? getDocumentStatusBadge(selectedDoc.status) : null}
             </DialogTitle>
           </DialogHeader>
 
@@ -1051,7 +1176,13 @@ export function ServiceProviderDetails() {
               <Button size="sm" variant="outline" className="gap-1.5 text-xs shrink-0" onClick={() => { setZoomLevel(100); setRotation(0); }}>
                 Reset
               </Button>
-              <Button size="sm" variant="outline" className="gap-1.5 text-xs shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs shrink-0"
+                onClick={handleDownloadSelectedDoc}
+                disabled={!selectedDoc?.downloadUrl && !selectedDoc?.previewUrl}
+              >
                 <Download className="w-3 h-3" />Download
               </Button>
             </div>
@@ -1066,10 +1197,18 @@ export function ServiceProviderDetails() {
                   transformOrigin: "center center",
                 }}
               >
-                <div className="text-center space-y-3 pointer-events-none select-none">
-                  <FileText className={`w-24 h-24 ${selectedDoc?.iconColor} opacity-40 mx-auto`} />
-                  <p className="text-xs text-gray-400 font-mono break-all px-4">{selectedDoc?.file}</p>
-                </div>
+                {selectedDoc?.previewUrl ? (
+                  <iframe
+                    src={selectedDoc.previewUrl}
+                    title={selectedDoc.name}
+                    className="w-full h-full border-0 bg-white"
+                  />
+                ) : (
+                  <div className="text-center space-y-3 pointer-events-none select-none">
+                    <FileText className={`w-24 h-24 ${selectedDoc?.iconColor} opacity-40 mx-auto`} />
+                    <p className="text-xs text-gray-400 font-mono break-all px-4">{selectedDoc?.file}</p>
+                  </div>
+                )}
               </div>
             </div>
 

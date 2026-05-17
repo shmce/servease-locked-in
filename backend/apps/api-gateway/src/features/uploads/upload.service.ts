@@ -34,6 +34,7 @@ interface SupabaseStorageClient {
 const allowedKinds: UploadKind[] = [
   'booking_reference',
   'support_evidence',
+  'message_attachment',
   'provider_portfolio',
   'provider_progress',
 ];

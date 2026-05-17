@@ -136,6 +136,7 @@ export class AdminBookingController {
       );
     }
 
+    console.error('[admin-booking] unexpected error:', error);
     return this.error(
       'admin_dependency_unavailable',
       'Admin booking workflow failed.',

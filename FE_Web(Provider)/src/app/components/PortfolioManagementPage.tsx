@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Plus, Save, Star, Edit2, GripVertical, Trash2 } from "lucide-react";
+import { Plus, Save, Star, Edit2, GripVertical, Trash2, Upload } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { useNavigate } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
@@ -8,6 +8,9 @@ import {
   deleteProviderPortfolioMedia,
   getStoredProviderAccessToken,
   listCurrentProviderPortfolioMedia,
+  replaceProviderPortfolioMedia,
+  reorderProviderPortfolioMedia,
+  uploadProviderPortfolioMedia,
   type ProviderPortfolioMediaSummary,
 } from "../../services/serveaseProviderApi";
 
@@ -197,6 +200,7 @@ export function PortfolioManagementPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [replacingItemId, setReplacingItemId] = useState<string | null>(null);
   const [portfolioError, setPortfolioError] = useState<string | null>(null);
 
   const applyPortfolioItems = (items: PortfolioItem[]) => {
@@ -309,6 +313,50 @@ export function PortfolioManagementPage() {
     );
   };
 
+  const replacePersistedImage = async (id: string, file: File | undefined) => {
+    if (!file) {
+      return;
+    }
+
+    const item = portfolioItems.find((current) => current.id === id);
+
+    if (!item?.persisted) {
+      return;
+    }
+
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      setPortfolioError("Sign in to replace live portfolio media.");
+      return;
+    }
+
+    setReplacingItemId(id);
+    setPortfolioError(null);
+
+    try {
+      const upload = await uploadProviderPortfolioMedia(token, file);
+      const replaced = await replaceProviderPortfolioMedia(token, id, {
+        fileUrl: upload.publicUrl,
+        fileName: file.name,
+        mimeType: file.type || upload.contentType,
+        storagePath: upload.path,
+        fileSize: upload.size,
+        caption: item.description.trim() || null,
+      });
+      const updatedItems = portfolioItems.map((current, index) =>
+        current.id === id ? toEditorItem(replaced, index) : current,
+      );
+      applyPortfolioItems(updatedItems);
+    } catch (error) {
+      setPortfolioError(
+        error instanceof Error ? error.message : "Unable to replace portfolio media.",
+      );
+    } finally {
+      setReplacingItemId(null);
+    }
+  };
+
   const handleDragStart = (id: string) => {
     setDraggedItem(id);
     setIsReordering(true);
@@ -334,9 +382,42 @@ export function PortfolioManagementPage() {
     setDraggedItem(null);
   };
 
-  const handleSaveOrder = () => {
-    setIsReordering(false);
-    setPortfolioError("Portfolio order is shown locally; backend ordering still needs a dedicated endpoint.");
+  const handleSaveOrder = async () => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      setPortfolioError("Sign in to save live portfolio media order.");
+      return;
+    }
+
+    const persistedItems = portfolioItems.filter((item) => item.persisted);
+
+    if (persistedItems.length === 0) {
+      setIsReordering(false);
+      return;
+    }
+
+    setIsSaving(true);
+    setPortfolioError(null);
+
+    try {
+      const media = await reorderProviderPortfolioMedia(
+        token,
+        persistedItems.map((item, index) => ({
+          id: item.id,
+          sortOrder: index,
+        })),
+      );
+      const items = media.map(toEditorItem);
+      applyPortfolioItems(items);
+      setIsReordering(false);
+    } catch (error) {
+      setPortfolioError(
+        error instanceof Error ? error.message : "Unable to save portfolio order.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const savePortfolio = async () => {
@@ -726,9 +807,33 @@ export function PortfolioManagementPage() {
                       }}
                     />
                     {item.persisted && (
-                      <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "6px" }}>
-                        Existing portfolio image URLs come from the backend. Remove and add a new item to replace media.
-                      </p>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px" }}>
+                        <label
+                          style={{
+                            ...styles.button,
+                            ...styles.secondaryButton,
+                            cursor: replacingItemId === item.id ? "not-allowed" : "pointer",
+                            opacity: replacingItemId === item.id ? 0.7 : 1,
+                          }}
+                        >
+                          <Upload style={{ width: "16px", height: "16px" }} />
+                          {replacingItemId === item.id ? "Replacing..." : "Replace Image"}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            disabled={replacingItemId === item.id || isSaving}
+                            onChange={(event) => {
+                              const file = event.currentTarget.files?.[0];
+                              event.currentTarget.value = "";
+                              void replacePersistedImage(item.id, file);
+                            }}
+                            style={{ display: "none" }}
+                          />
+                        </label>
+                        <p style={{ fontSize: "12px", color: "#6B7280" }}>
+                          Upload a new image to replace this saved portfolio item.
+                        </p>
+                      </div>
                     )}
                   </div>
                   <div style={{ marginBottom: "12px" }}>

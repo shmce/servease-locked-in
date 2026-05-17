@@ -50,52 +50,9 @@ export class AdminPaymentController {
     }
   }
 
-  @Get(':paymentId')
-  async get(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('paymentId') paymentId: string,
-  ): Promise<{ data: PaymentSummary }> {
-    try {
-      await this.requireAdmin(authorization);
-      return {
-        data: await this.adminPaymentGatewayService.getPayment(paymentId),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
-  @Patch(':paymentId/status')
-  async updatePaymentStatus(
-    @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
-    @Param('paymentId') paymentId: string,
-    @Body() body: { status?: string },
-  ): Promise<{ data: PaymentSummary }> {
-    try {
-      const admin = await this.requireAdmin(authorization);
-      if (!body.status || !validPaymentStatuses.has(body.status)) {
-        throw new InvalidAdminRequestError();
-      }
-      const payment = await this.adminPaymentGatewayService.updatePaymentStatus(
-        paymentId,
-        body.status,
-      );
-      void this.recordAudit(admin, request, {
-        action: `Updated payment status to ${body.status}`,
-        actionType: 'update',
-        entityType: 'Payment',
-        entityId: payment.id,
-        details: `Payment ${payment.id} for booking ${payment.bookingId} is now ${payment.status}.`,
-        metadata: { paymentId: payment.id, bookingId: payment.bookingId, status: payment.status },
-      });
-      return {
-        data: payment,
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
+  // Static prefix routes BEFORE :paymentId, otherwise the wildcard captures
+  // them (e.g. /failures would resolve to getPayment("failures")). See
+  // feedback-route-order.
 
   @Get('payouts')
   async listPayouts(
@@ -182,6 +139,55 @@ export class AdminPaymentController {
       });
       return {
         data: payout,
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  // :paymentId catch-all routes go LAST so static prefixes resolve first.
+
+  @Get(':paymentId')
+  async get(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('paymentId') paymentId: string,
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      await this.requireAdmin(authorization);
+      return {
+        data: await this.adminPaymentGatewayService.getPayment(paymentId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':paymentId/status')
+  async updatePaymentStatus(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('paymentId') paymentId: string,
+    @Body() body: { status?: string },
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      if (!body.status || !validPaymentStatuses.has(body.status)) {
+        throw new InvalidAdminRequestError();
+      }
+      const payment = await this.adminPaymentGatewayService.updatePaymentStatus(
+        paymentId,
+        body.status,
+      );
+      void this.recordAudit(admin, request, {
+        action: `Updated payment status to ${body.status}`,
+        actionType: 'update',
+        entityType: 'Payment',
+        entityId: payment.id,
+        details: `Payment ${payment.id} for booking ${payment.bookingId} is now ${payment.status}.`,
+        metadata: { paymentId: payment.id, bookingId: payment.bookingId, status: payment.status },
+      });
+      return {
+        data: payment,
       };
     } catch (error) {
       throw this.toHttpException(error);

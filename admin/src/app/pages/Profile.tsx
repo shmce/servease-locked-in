@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  getCurrentUser,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
 } from "../../services/serveaseAdminApi";
@@ -173,7 +174,7 @@ export function Profile() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: admin?.name ?? "Admin User",
-    email: admin?.email ?? "admin@servease.ph",
+    email: admin?.email ?? "",
     phone: "",
   });
 
@@ -193,7 +194,7 @@ export function Profile() {
 
   const [profileData, setProfileData] = useState({
     name: admin?.name ?? "Admin User",
-    email: admin?.email ?? "admin@servease.ph",
+    email: admin?.email ?? "",
     phone: "",
     role: "Super Admin",
     accountCreated: "January 15, 2025",
@@ -208,6 +209,44 @@ export function Profile() {
       email: admin.email,
     }));
   }, [admin]);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    let cancelled = false;
+
+    getCurrentUser(accessToken)
+      .then((profile) => {
+        if (cancelled) return;
+        const nextName = profile.user.fullName ?? profile.user.email;
+        const nextEmail = profile.user.email;
+        const nextPhone = profile.user.contactNumber ?? "";
+
+        setProfileData((current) => ({
+          ...current,
+          name: nextName,
+          email: nextEmail,
+          phone: nextPhone,
+          role: profile.user.role === "admin" ? "Super Admin" : current.role,
+        }));
+        setEditFormData((current) => ({
+          ...current,
+          name: nextName,
+          email: nextEmail,
+          phone: nextPhone,
+        }));
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          toast.error(
+            error instanceof Error ? error.message : "Unable to load profile.",
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
 
   const permissions =
     rolePermissions[profileData.role as keyof typeof rolePermissions] || [];

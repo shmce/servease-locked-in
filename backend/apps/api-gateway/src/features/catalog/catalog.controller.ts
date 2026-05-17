@@ -8,6 +8,7 @@ import {
   HttpException,
   Param,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { AuthTokenService } from '../current-user/auth-token.service';
@@ -24,6 +25,8 @@ import {
   CatalogCategory,
   CatalogServiceItem,
   ProviderPortfolioMediaInput,
+  ProviderPortfolioMediaReplacementInput,
+  ProviderPortfolioOrderItem,
   ProviderPortfolioMediaSummary,
   ProviderServiceListing,
 } from './catalog.types';
@@ -130,6 +133,47 @@ export class CatalogController {
     }
   }
 
+  @Put('provider/portfolio/order')
+  async reorderProviderPortfolioMedia(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { items?: ProviderPortfolioOrderItem[] },
+  ): Promise<{ data: ProviderPortfolioMediaSummary[] }> {
+    try {
+      this.validatePortfolioOrder(body.items);
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.catalogGatewayService.reorderProviderPortfolioMedia(
+          userId,
+          body.items,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Put('provider/portfolio/:mediaId')
+  async replaceProviderPortfolioMedia(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('mediaId') mediaId: string,
+    @Body() body: ProviderPortfolioMediaReplacementInput,
+  ): Promise<{ data: ProviderPortfolioMediaSummary }> {
+    try {
+      this.validateOptionalUuid(mediaId);
+      this.validatePortfolioMedia(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.catalogGatewayService.replaceProviderPortfolioMedia(
+          userId,
+          mediaId,
+          body,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private validateOptionalUuid(value?: string): void {
     if (value && !UUID_PATTERN.test(value)) {
       throw new InvalidCatalogFilterError();
@@ -138,6 +182,23 @@ export class CatalogController {
 
   private validatePortfolioMedia(body: ProviderPortfolioMediaInput): void {
     if (!body.fileUrl?.trim()) {
+      throw new InvalidCatalogFilterError();
+    }
+  }
+
+  private validatePortfolioOrder(
+    items?: ProviderPortfolioOrderItem[],
+  ): asserts items is ProviderPortfolioOrderItem[] {
+    if (
+      !Array.isArray(items) ||
+      items.length === 0 ||
+      items.some(
+        (item) =>
+          !item.id ||
+          !Number.isInteger(item.sortOrder) ||
+          item.sortOrder < 0,
+      )
+    ) {
       throw new InvalidCatalogFilterError();
     }
   }

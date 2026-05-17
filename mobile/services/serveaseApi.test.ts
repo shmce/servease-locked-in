@@ -509,6 +509,7 @@ describe('serveaseApi', () => {
           content: 'Hello provider',
           deliveryStatus: 'sent',
           createdAt: '2026-05-20T02:01:00.000Z',
+          attachment: null,
         },
       });
     };
@@ -534,7 +535,10 @@ describe('serveaseApi', () => {
       calls[1]?.url,
       'http://gateway.test/v1/conversations/conversation-1/messages',
     );
-    assert.deepEqual(calls[1]?.body, { content: 'Hello provider' });
+    assert.deepEqual(calls[1]?.body, {
+      content: 'Hello provider',
+      attachment: null,
+    });
     assert.equal(calls[1]?.authorization, 'Bearer access-token');
     assert.equal(message.content, 'Hello provider');
   });

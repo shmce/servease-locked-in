@@ -3,6 +3,8 @@ import {
   CreateProviderProfileInput,
   AdminProviderApplicationDocumentSummary,
   ProviderPortfolioMediaInput,
+  ProviderPortfolioMediaReplacementInput,
+  ProviderPortfolioOrderItem,
   ProviderPortfolioMediaSummary,
   ProviderOwnedServiceInput,
   ProviderOwnedServiceSummary,
@@ -22,6 +24,13 @@ export interface ProviderProfileRepository {
   addPortfolioMedia(
     input: ProviderPortfolioMediaInput,
   ): Promise<ProviderPortfolioMediaSummary>;
+  replacePortfolioMedia(
+    input: ProviderPortfolioMediaReplacementInput,
+  ): Promise<ProviderPortfolioMediaSummary>;
+  reorderPortfolioMedia(
+    userId: string,
+    items: ProviderPortfolioOrderItem[],
+  ): Promise<ProviderPortfolioMediaSummary[]>;
   deletePortfolioMedia(userId: string, mediaId: string): Promise<void>;
   listOwnedServices(userId: string): Promise<ProviderOwnedServiceSummary[]>;
   replaceOwnedServices(
@@ -35,6 +44,9 @@ export interface ProviderProfileRepository {
   }): Promise<AdminProviderApplicationSummary[]>;
   getProviderApplication(
     applicationId: string,
+  ): Promise<AdminProviderApplicationSummary | null>;
+  getProviderApplicationByUserId(
+    userId: string,
   ): Promise<AdminProviderApplicationSummary | null>;
   getProviderApplicationDocument(
     applicationId: string,
@@ -70,6 +82,14 @@ export class EmptyProviderProfileRepository implements ProviderProfileRepository
     throw new Error('provider_profile_repository_not_configured');
   }
 
+  async replacePortfolioMedia(): Promise<ProviderPortfolioMediaSummary> {
+    throw new Error('provider_profile_repository_not_configured');
+  }
+
+  async reorderPortfolioMedia(): Promise<ProviderPortfolioMediaSummary[]> {
+    throw new Error('provider_profile_repository_not_configured');
+  }
+
   async deletePortfolioMedia(): Promise<void> {
     throw new Error('provider_profile_repository_not_configured');
   }
@@ -87,6 +107,10 @@ export class EmptyProviderProfileRepository implements ProviderProfileRepository
   }
 
   async getProviderApplication(): Promise<AdminProviderApplicationSummary | null> {
+    return null;
+  }
+
+  async getProviderApplicationByUserId(): Promise<AdminProviderApplicationSummary | null> {
     return null;
   }
 
@@ -132,6 +156,37 @@ export class ProviderProfileService {
     return this.providerProfileRepository.addPortfolioMedia(input);
   }
 
+  replacePortfolioMedia(
+    input: ProviderPortfolioMediaReplacementInput,
+  ): Promise<ProviderPortfolioMediaSummary> {
+    if (!input.userId || !input.mediaId || !input.fileUrl.trim()) {
+      throw new Error('invalid_provider_portfolio_request');
+    }
+
+    return this.providerProfileRepository.replacePortfolioMedia(input);
+  }
+
+  reorderPortfolioMedia(
+    userId: string,
+    items: ProviderPortfolioOrderItem[],
+  ): Promise<ProviderPortfolioMediaSummary[]> {
+    if (
+      !userId ||
+      !Array.isArray(items) ||
+      items.length === 0 ||
+      items.some(
+        (item) =>
+          !item.id ||
+          !Number.isInteger(item.sortOrder) ||
+          item.sortOrder < 0,
+      )
+    ) {
+      throw new Error('invalid_provider_portfolio_order_request');
+    }
+
+    return this.providerProfileRepository.reorderPortfolioMedia(userId, items);
+  }
+
   deletePortfolioMedia(userId: string, mediaId: string): Promise<void> {
     return this.providerProfileRepository.deletePortfolioMedia(userId, mediaId);
   }
@@ -174,6 +229,12 @@ export class ProviderProfileService {
     applicationId: string,
   ): Promise<AdminProviderApplicationSummary | null> {
     return this.providerProfileRepository.getProviderApplication(applicationId);
+  }
+
+  getProviderApplicationByUserId(
+    userId: string,
+  ): Promise<AdminProviderApplicationSummary | null> {
+    return this.providerProfileRepository.getProviderApplicationByUserId(userId);
   }
 
   getProviderApplicationDocument(

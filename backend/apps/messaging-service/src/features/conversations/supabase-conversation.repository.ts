@@ -16,7 +16,7 @@ import {
 interface SupabaseRpcClient {
   rpc(
     functionName: string,
-    args: Record<string, string | null>,
+    args: Record<string, unknown>,
   ): PromiseLike<{
     data: ConversationRow[] | MessageRow[] | null;
     error: { message: string; code?: string } | null;
@@ -45,6 +45,13 @@ interface MessageRow {
   content: string;
   delivery_status: string | null;
   created_at: string | null;
+  attachment?: {
+    fileUrl?: string | null;
+    fileName?: string | null;
+    mimeType?: string | null;
+    storagePath?: string | null;
+    fileSize?: number | null;
+  } | null;
 }
 
 @Injectable()
@@ -152,6 +159,7 @@ export class SupabaseConversationRepository {
         p_content: input.content,
         p_customer_id: input.customerId,
         p_provider_id: input.providerId,
+        p_attachment: input.attachment ?? null,
       })
       .maybeSingle();
 
@@ -189,6 +197,15 @@ export class SupabaseConversationRepository {
       content: row.content,
       deliveryStatus: row.delivery_status,
       createdAt: row.created_at,
+      attachment: row.attachment?.fileUrl
+        ? {
+            fileUrl: row.attachment.fileUrl,
+            fileName: row.attachment.fileName ?? null,
+            mimeType: row.attachment.mimeType ?? null,
+            storagePath: row.attachment.storagePath ?? null,
+            fileSize: row.attachment.fileSize ?? null,
+          }
+        : null,
     };
   }
 }

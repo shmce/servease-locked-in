@@ -49,21 +49,17 @@ import {
 } from "recharts";
 import { useData } from "../../contexts/DataContext";
 import { useNavigate } from "react-router";
-import type { Booking } from "../../types";
 import { useAuth } from "../contexts/AuthContext";
 import { useAdminGatewayData } from "../../hooks/useAdminGatewayData";
+import { buildDashboardLiveMetrics } from "../utils/dashboardLiveMetrics";
 
 export function Dashboard() {
   const navigate = useNavigate();
   const { admin } = useAuth();
   const adminGateway = useAdminGatewayData();
   const {
-    dashboardStats,
-    bookings,
     serviceProviders,
     customers,
-    payoutRequests,
-    disputes,
     getCategoryById,
   } = useData();
 
@@ -87,38 +83,33 @@ export function Dashboard() {
   });
 
   // ── Computed metrics ─────────────────────────────────────────────
-  const activeBookingsToday = bookings.filter(
-    (b) => b.status === "In Progress" || b.status === "Confirmed"
-  ).length;
-  const completedBookings = bookings.filter((b) => b.status === "Completed").length;
-  const cancelledBookings = bookings.filter((b) => b.status === "Cancelled").length;
-
-  const localTotalRevenue = bookings
-    .filter((b) => b.status === "Completed" && b.paymentStatus === "Paid")
-    .reduce((sum, b) => sum + b.amount, 0);
-
-  const localCommissionEarnings = bookings
-    .filter((b) => b.status === "Completed" && b.paymentStatus === "Paid")
-    .reduce((sum, b) => sum + b.commissionAmount, 0);
+  const liveMetrics = buildDashboardLiveMetrics({
+    bookingsSummary: adminGateway.bookingsSummary,
+    payouts: adminGateway.payouts,
+    disputes: adminGateway.disputes,
+    usersSummary: adminGateway.usersSummary,
+  });
+  const {
+    activeBookingsToday,
+    completedBookings,
+    cancelledBookings,
+    pendingPayouts,
+    openDisputes,
+  } = liveMetrics;
+  const liveCustomerCount = adminGateway.summary.usersByRole?.customer ?? customers.length;
 
   const totalRevenue =
     adminGateway.summary.paymentCount > 0
       ? adminGateway.summary.paidPaymentAmount
-      : localTotalRevenue;
+      : adminGateway.summary.bookingsRevenue;
   const commissionEarnings =
     adminGateway.summary.paymentCount > 0
       ? adminGateway.summary.platformFees
-      : localCommissionEarnings;
+      : 0;
   const pendingApprovals = adminGateway.providerListings.filter(
     (provider) => provider.verificationStatus === "pending",
   ).length;
   const openSupportTickets = adminGateway.summary.openSupportTicketCount;
-  const pendingPayouts = payoutRequests.filter((p) => p.status === "Pending").length;
-  const openDisputes = disputes.filter((d) => d.status === "Open" || d.status === "Under Review").length;
-
-  const activeProviders = serviceProviders.filter((sp) => sp.status === "Active").length;
-  const pendingProviderApprovals = 0;
-  const totalUsers = customers.length + serviceProviders.length;
   const providerCategoryName = (categoryId: string) =>
     getCategoryById(categoryId)?.name ?? "";
 
@@ -130,7 +121,7 @@ export function Dashboard() {
     { month: "Dec 2025", customers: 450 },
     { month: "Jan 2026", customers: 435 },
     { month: "Feb 2026", customers: 468 },
-    { month: "Mar 2026", customers: customers.length },
+    { month: "Mar 2026", customers: liveCustomerCount },
   ];
 
   // ── Chart 2: Service Providers Overview — preserved exactly ──────
@@ -206,42 +197,6 @@ export function Dashboard() {
     { type: "Open Disputes",           count: openDisputes,    fill: "#ef4444" },
   ];
 
-  // ── getStatusBadge — preserved exactly ──────────────────────────
-  const getStatusBadge = (status: Booking["status"]) => {
-    switch (status) {
-      case "Completed":
-        return (
-          <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]">
-            <CheckCircle className="w-3 h-3 mr-1" />Completed
-          </Badge>
-        );
-      case "In Progress":
-        return (
-          <Badge className="bg-blue-100 text-blue-700 border-blue-200">
-            <Activity className="w-3 h-3 mr-1" />In Progress
-          </Badge>
-        );
-      case "Confirmed":
-        return (
-          <Badge className="bg-purple-100 text-purple-700 border-purple-200">
-            <CheckCircle className="w-3 h-3 mr-1" />Confirmed
-          </Badge>
-        );
-      case "Pending":
-        return (
-          <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">
-            <Clock className="w-3 h-3 mr-1" />Pending
-          </Badge>
-        );
-      case "Cancelled":
-        return (
-          <Badge className="bg-red-100 text-red-700 border-red-200">
-            <XCircle className="w-3 h-3 mr-1" />Cancelled
-          </Badge>
-        );
-    }
-  };
-
   // ── Top providers — preserved exactly ───────────────────────────
   const topProviders = useMemo(() => {
     if (adminGateway.providerListings.length > 0) {
@@ -299,11 +254,6 @@ export function Dashboard() {
         valueLabel: "revenue",
       }));
   }, [adminGateway.providerListings, serviceProviders]);
-
-  // ── Recent bookings — preserved (variable kept, section removed) ─
-  const recentBookings = [...bookings]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 5);
 
   // ── Alerts ───────────────────────────────────────────────────────
   const ops = adminGateway.summary.operationsAlerts;

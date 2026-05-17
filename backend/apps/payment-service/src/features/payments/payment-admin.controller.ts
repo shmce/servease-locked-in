@@ -34,35 +34,8 @@ export class PaymentAdminController {
     }
   }
 
-  @Get(':paymentId')
-  async get(
-    @Param('paymentId') paymentId: string,
-  ): Promise<{ data: PaymentSummary }> {
-    try {
-      return {
-        data: await this.paymentAdminService.getPayment(paymentId),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
-  @Patch(':paymentId/status')
-  async updateStatus(
-    @Param('paymentId') paymentId: string,
-    @Body() body: { status?: string },
-  ): Promise<{ data: PaymentSummary }> {
-    try {
-      return {
-        data: await this.paymentAdminService.updatePaymentStatus(
-          paymentId,
-          body.status ?? '',
-        ),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
+  // Static prefix routes MUST be declared BEFORE :paymentId routes so they
+  // don't get captured by `@Get(':paymentId')`. See feedback-route-order.
 
   @Get('promotions')
   async listPromotions(
@@ -280,6 +253,38 @@ export class PaymentAdminController {
           status: body.status ?? 'active',
           adminUserId: body.adminUserId ?? '',
         }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  // :paymentId catch-all routes go LAST.
+
+  @Get(':paymentId')
+  async get(
+    @Param('paymentId') paymentId: string,
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.paymentAdminService.getPayment(paymentId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':paymentId/status')
+  async updateStatus(
+    @Param('paymentId') paymentId: string,
+    @Body() body: { status?: string },
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.paymentAdminService.updatePaymentStatus(
+          paymentId,
+          body.status ?? '',
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);

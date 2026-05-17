@@ -118,3 +118,126 @@ describe('SupabaseProviderProfileRepository provider application documents', () 
     });
   });
 });
+
+describe('SupabaseProviderProfileRepository provider portfolio order', () => {
+  it('replaces portfolio media through the ownership-safe RPC', async () => {
+    const row = {
+      id: '33333333-3333-4333-8333-333333333333',
+      provider_id: '11111111-1111-4111-8111-111111111111',
+      uploaded_by: '22222222-2222-4222-8222-222222222222',
+      file_url: 'https://storage.test/replacement.jpg',
+      file_name: 'replacement.jpg',
+      mime_type: 'image/jpeg',
+      storage_path: 'provider_portfolio/provider-user-1/replacement.jpg',
+      file_size: 4096,
+      caption: 'Replacement project',
+      sort_order: 0,
+      created_at: '2026-05-17T01:00:00.000Z',
+    };
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: row,
+      error: null,
+    });
+    const client = {
+      rpc: jest.fn().mockReturnValue({ maybeSingle }),
+    };
+    const repository = new SupabaseProviderProfileRepository(
+      client as unknown as never,
+    );
+
+    const result = await repository.replacePortfolioMedia({
+      userId: row.uploaded_by,
+      mediaId: row.id,
+      fileUrl: row.file_url,
+      fileName: row.file_name,
+      mimeType: row.mime_type,
+      storagePath: row.storage_path,
+      fileSize: row.file_size,
+      caption: row.caption,
+    });
+
+    expect(client.rpc).toHaveBeenCalledWith(
+      'servease_replace_provider_portfolio_media',
+      {
+        p_user_id: row.uploaded_by,
+        p_media_id: row.id,
+        p_file_url: row.file_url,
+        p_file_name: row.file_name,
+        p_mime_type: row.mime_type,
+        p_storage_path: row.storage_path,
+        p_file_size: row.file_size,
+        p_caption: row.caption,
+      },
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: row.id,
+        fileUrl: row.file_url,
+        storagePath: row.storage_path,
+      }),
+    );
+  });
+
+  it('updates portfolio media order through the ownership-safe RPC', async () => {
+    const rows = [
+      {
+        id: '33333333-3333-4333-8333-333333333333',
+        provider_id: '11111111-1111-4111-8111-111111111111',
+        uploaded_by: '22222222-2222-4222-8222-222222222222',
+        file_url: 'https://cdn.servease.test/after.jpg',
+        file_name: 'after.jpg',
+        mime_type: 'image/jpeg',
+        storage_path: null,
+        file_size: 2048,
+        caption: 'After cleaning',
+        sort_order: 0,
+        created_at: '2026-05-17T02:00:00.000Z',
+      },
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        provider_id: '11111111-1111-4111-8111-111111111111',
+        uploaded_by: '22222222-2222-4222-8222-222222222222',
+        file_url: 'https://cdn.servease.test/before.jpg',
+        file_name: 'before.jpg',
+        mime_type: 'image/jpeg',
+        storage_path: null,
+        file_size: 1024,
+        caption: 'Before cleaning',
+        sort_order: 1,
+        created_at: '2026-05-17T01:00:00.000Z',
+      },
+    ];
+    const client = {
+      rpc: jest.fn().mockResolvedValue({
+        data: rows,
+        error: null,
+      }),
+    };
+    const repository = new SupabaseProviderProfileRepository(
+      client as unknown as never,
+    );
+
+    const result = await repository.reorderPortfolioMedia(
+      '22222222-2222-4222-8222-222222222222',
+      [
+        { id: rows[0].id, sortOrder: 0 },
+        { id: rows[1].id, sortOrder: 1 },
+      ],
+    );
+
+    expect(client.rpc).toHaveBeenCalledWith(
+      'servease_update_provider_portfolio_order',
+      {
+        p_user_id: '22222222-2222-4222-8222-222222222222',
+        p_items: [
+          { id: rows[0].id, sortOrder: 0 },
+          { id: rows[1].id, sortOrder: 1 },
+        ],
+      },
+    );
+    expect(result).toEqual([
+      expect.objectContaining({ id: rows[0].id, sortOrder: 0 }),
+      expect.objectContaining({ id: rows[1].id, sortOrder: 1 }),
+    ]);
+  });
+});

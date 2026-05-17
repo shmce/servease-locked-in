@@ -7,6 +7,8 @@ import {
   ProviderOwnedServiceInput,
   ProviderOwnedServiceSummary,
   ProviderPortfolioMediaInput,
+  ProviderPortfolioMediaReplacementInput,
+  ProviderPortfolioOrderItem,
   ProviderPortfolioMediaSummary,
   ProviderServiceListing,
 } from '../catalog.types';
@@ -72,6 +74,32 @@ export class CatalogServiceClient {
       `/internal/providers/portfolio/${mediaId}`,
       'DELETE',
       { userId },
+    );
+  }
+
+  async replaceProviderPortfolioMedia(
+    userId: string,
+    mediaId: string,
+    input: ProviderPortfolioMediaReplacementInput,
+  ): Promise<ProviderPortfolioMediaSummary> {
+    return this.request<ProviderPortfolioMediaSummary>(
+      `/internal/providers/portfolio/${mediaId}`,
+      'PUT',
+      {
+        userId,
+        ...input,
+      },
+    );
+  }
+
+  async reorderProviderPortfolioMedia(
+    userId: string,
+    items: ProviderPortfolioOrderItem[],
+  ): Promise<ProviderPortfolioMediaSummary[]> {
+    return this.request<ProviderPortfolioMediaSummary[]>(
+      '/internal/providers/portfolio/order',
+      'PUT',
+      { userId, items },
     );
   }
 

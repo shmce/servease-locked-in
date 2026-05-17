@@ -86,6 +86,43 @@ describe('CatalogServiceClient', () => {
       jest.restoreAllMocks();
     }
   });
+
+  it('loads the current provider application status by user id', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          id: 'provider-application-1',
+          applicationReference: 'PA-1234567890',
+          businessName: 'GreenFix Home Services',
+          serviceArea: 'Metro Manila',
+          serviceDescription: 'Cleaning and repair',
+          verificationStatus: 'pending',
+          latestDecisionReason: 'Please upload your updated ID.',
+          latestDecisionAt: '2026-05-17T08:00:00.000Z',
+          createdAt: '2026-05-17T07:00:00.000Z',
+          updatedAt: '2026-05-17T08:00:00.000Z',
+        },
+      }),
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const client = new CatalogServiceClient(configService());
+      const status = await client.getProviderApplicationByUserId(
+        '22222222-2222-4222-8222-222222222222',
+      );
+
+      expect(status?.applicationReference).toBe('PA-1234567890');
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://catalog-service.test/internal/providers/applications/by-user/22222222-2222-4222-8222-222222222222',
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      jest.restoreAllMocks();
+    }
+  });
 });
 
 function configService(): ConfigService {

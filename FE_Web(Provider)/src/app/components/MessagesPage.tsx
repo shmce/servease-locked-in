@@ -4,11 +4,14 @@ import { Search, Send, Paperclip, ExternalLink, Star } from 'lucide-react';
 import {
   getStoredProviderAccessToken,
   listProviderConversationMessages,
+  listProviderBookings,
   listProviderConversations,
   sendProviderConversationMessage,
+  uploadProviderMessageAttachment,
   type ConversationMessage,
   type ConversationSummary,
 } from '../../services/serveaseProviderApi';
+import { enrichProviderConversationsWithBookings } from '../utils/providerConversationEnrichment';
 import { pickQueryItemId } from '../utils/providerDeeplinks';
 
 // Styles object for reusability across provider dashboard pages.
@@ -144,6 +147,7 @@ interface Message {
   id: number | string;
   text?: string;
   imageUri?: string;
+  attachmentName?: string | null;
   timestamp: string;
   sender: 'provider' | 'customer';
 }
@@ -157,6 +161,7 @@ interface Booking {
 
 interface Conversation {
   id: number | string;
+  bookingId?: string | null;
   name: string;
   avatar: string;
   photo?: string;
@@ -199,6 +204,8 @@ function toUiMessage(message: ConversationMessage): Message {
   return {
     id: message.id,
     text: message.content,
+    imageUri: message.attachment?.fileUrl ?? undefined,
+    attachmentName: message.attachment?.fileName ?? null,
     timestamp: formatTimestamp(message.createdAt),
     sender: message.senderRole,
   };
@@ -211,6 +218,7 @@ function toUiConversation(conversation: ConversationSummary): Conversation {
 
   return {
     id: conversation.id,
+    bookingId: conversation.bookingId,
     name: customerLabel,
     avatar: initialsFromId(conversation.customerId),
     lastMessage: conversation.lastMessageAt
@@ -297,8 +305,14 @@ export function MessagesPage() {
       setMessageError(null);
 
       try {
-        const gatewayConversations = await listProviderConversations(token);
-        const mappedConversations = gatewayConversations.map(toUiConversation);
+        const [gatewayConversations, providerBookings] = await Promise.all([
+          listProviderConversations(token),
+          listProviderBookings(token).catch(() => []),
+        ]);
+        const mappedConversations = enrichProviderConversationsWithBookings(
+          gatewayConversations.map(toUiConversation),
+          providerBookings,
+        );
         setConversations(mappedConversations);
         setSelectedConversation((current) =>
           pickQueryItemId(
@@ -466,16 +480,28 @@ export function MessagesPage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (selectedConversation !== null && ev.target?.result) {
-        const newMessage: Message = {
-          id: Date.now(),
-          imageUri: ev.target.result as string,
-          timestamp: getCurrentTimestamp(),
-          sender: 'provider',
-        };
+    const token = getStoredProviderAccessToken();
+    if (!token || selectedConversation === null || typeof selectedConversation !== 'string') {
+      setMessageError('Sign in and select a live conversation before sending attachments.');
+      e.target.value = '';
+      return;
+    }
 
+    setIsSendingMessage(true);
+    setMessageError(null);
+
+    void uploadProviderMessageAttachment(token, file)
+      .then((upload) =>
+        sendProviderConversationMessage(token, selectedConversation, 'Sent an image', {
+          fileUrl: upload.publicUrl,
+          fileName: file.name,
+          mimeType: file.type,
+          storagePath: upload.path,
+          fileSize: upload.size,
+        }),
+      )
+      .then((sentMessage) => {
+        const newMessage = toUiMessage(sentMessage);
         setConversations((prevConversations) =>
           prevConversations.map((conv) =>
             conv.id === selectedConversation
@@ -483,11 +509,16 @@ export function MessagesPage() {
               : conv
           )
         );
-      }
-    };
-    reader.readAsDataURL(file);
-    
-    // Reset file input
+      })
+      .catch((error) => {
+        setMessageError(
+          error instanceof Error ? error.message : 'Unable to send attachment.',
+        );
+      })
+      .finally(() => {
+        setIsSendingMessage(false);
+      });
+
     e.target.value = '';
   };
 
@@ -833,7 +864,7 @@ export function MessagesPage() {
                             {message.imageUri ? (
                               <img 
                                 src={message.imageUri} 
-                                alt="Attachment" 
+                                alt={message.attachmentName ?? 'Attachment'}
                                 style={{ 
                                   maxWidth: '200px', 
                                   maxHeight: '150px', 

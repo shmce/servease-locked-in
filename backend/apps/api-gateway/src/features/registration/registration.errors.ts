@@ -16,6 +16,18 @@ export class RegistrationDependencyUnavailableError extends Error {
   }
 }
 
+export class ProviderApplicationNotFoundError extends Error {
+  constructor() {
+    super('provider_application_not_found');
+  }
+}
+
+export class ProviderApplicationDependencyUnavailableError extends Error {
+  constructor() {
+    super('provider_application_dependency_unavailable');
+  }
+}
+
 export class InvalidPasswordResetRequestError extends Error {
   constructor() {
     super('invalid_password_reset_request');

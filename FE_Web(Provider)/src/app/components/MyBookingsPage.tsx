@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Search, Filter, MapPin, Clock, Calendar, Phone, MessageCircle, Navigation, CheckCircle, X, ChevronRight } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { getStoredProviderAccessToken, listProviderBookings, type BookingSummary } from "../../services/serveaseProviderApi";
+import { pickQueryItem } from "../utils/providerDeeplinks";
 
 const styles = {
   container: {
@@ -353,6 +354,7 @@ function mapApiBookingToLocal(b: BookingSummary): Booking {
 
 export function MyBookingsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<"upcoming" | "in-progress" | "completed" | "cancelled">("upcoming");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -370,10 +372,20 @@ export function MyBookingsPage() {
       return;
     }
     listProviderBookings(token)
-      .then((data) => setBookings(data.map(mapApiBookingToLocal)))
+      .then((data) => {
+        const mappedBookings = data.map(mapApiBookingToLocal);
+        const requestedBooking = pickQueryItem(location.search, "bookingId", mappedBookings);
+
+        setBookings(mappedBookings);
+
+        if (requestedBooking) {
+          setActiveTab(requestedBooking.status);
+          navigate(`/provider/booking-details/${requestedBooking.id}`, { replace: true });
+        }
+      })
       .catch(() => setBookings([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [location.search, navigate]);
 
   const filteredBookings = bookings.filter((booking) => {
     if (booking.status !== activeTab) return false;

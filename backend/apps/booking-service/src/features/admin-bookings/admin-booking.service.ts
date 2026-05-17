@@ -54,7 +54,7 @@ export class AdminBookingService {
       (filter.status && !validBookingStatuses.has(filter.status)) ||
       (filter.limit !== null &&
         filter.limit !== undefined &&
-        (!Number.isInteger(filter.limit) || filter.limit < 1 || filter.limit > 200))
+        (!Number.isInteger(filter.limit) || filter.limit < 1 || filter.limit > 1000))
     ) {
       throw new InvalidAdminBookingRequestError();
     }

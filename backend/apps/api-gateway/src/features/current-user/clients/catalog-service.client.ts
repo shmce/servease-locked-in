@@ -6,7 +6,10 @@ import {
   ProviderProfileSummary,
 } from '../current-user.types';
 import { RegistrationDependencyUnavailableError } from '../../registration/registration.errors';
-import { RegisterAccountRequest } from '../../registration/registration.types';
+import {
+  ProviderApplicationStatusResponse,
+  RegisterAccountRequest,
+} from '../../registration/registration.types';
 
 @Injectable()
 export class CatalogServiceClient {
@@ -80,6 +83,27 @@ export class CatalogServiceClient {
       userId: payload.data.userId,
       businessName: payload.data.businessName,
     };
+  }
+
+  async getProviderApplicationByUserId(
+    userId: string,
+  ): Promise<ProviderApplicationStatusResponse | null> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/providers/applications/by-user/${userId}`,
+    );
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: ProviderApplicationStatusResponse;
+    };
+    return payload.data;
   }
 
   async updateProviderProfile(

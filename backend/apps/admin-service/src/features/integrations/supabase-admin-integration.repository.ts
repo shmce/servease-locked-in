@@ -33,14 +33,9 @@ export class SupabaseAdminIntegrationRepository {
   }
 
   async listIntegrations(): Promise<AdminIntegrationSummary[]> {
-    const { data, error } = await this.client
-      .schema('admin')
-      .from('integrations')
-      .select(
-        'provider,display_name,category,is_enabled,status,webhook_url,api_key_preview,last_tested_at,last_error,updated_by,updated_at,created_at',
-      )
-      .order('category', { ascending: true })
-      .order('display_name', { ascending: true });
+    const { data, error } = await this.client.rpc(
+      'servease_admin_list_integrations',
+    );
 
     if (error) {
       throw new Error(`Failed to list integrations: ${error.message}`);
@@ -54,95 +49,64 @@ export class SupabaseAdminIntegrationRepository {
   async getIntegration(
     provider: string,
   ): Promise<AdminIntegrationSummary | null> {
-    const { data, error } = await this.client
-      .schema('admin')
-      .from('integrations')
-      .select(
-        'provider,display_name,category,is_enabled,status,webhook_url,api_key_preview,last_tested_at,last_error,updated_by,updated_at,created_at',
-      )
-      .eq('provider', provider)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Failed to get integration: ${error.message}`);
-    }
-
-    return data ? this.mapIntegration(data as AdminIntegrationRow) : null;
+    const list = await this.listIntegrations();
+    return list.find((item) => item.provider === provider) ?? null;
   }
 
   async updateCredentials(
     input: UpdateAdminIntegrationCredentialsInput,
   ): Promise<AdminIntegrationSummary> {
-    const patch: Record<string, unknown> = {
-      updated_by: input.adminUserId,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (input.isEnabled !== undefined && input.isEnabled !== null) {
-      patch.is_enabled = input.isEnabled;
-      patch.status = input.isEnabled ? 'active' : 'inactive';
-    }
-
-    if (input.webhookUrl !== undefined) {
-      patch.webhook_url = input.webhookUrl;
-    }
-
-    if (input.apiKeyPreview !== undefined) {
-      patch.api_key_preview = input.apiKeyPreview;
-    }
-
-    const { data, error } = await this.client
-      .schema('admin')
-      .from('integrations')
-      .update(patch)
-      .eq('provider', input.provider)
-      .select(
-        'provider,display_name,category,is_enabled,status,webhook_url,api_key_preview,last_tested_at,last_error,updated_by,updated_at,created_at',
-      )
-      .maybeSingle();
+    const { data, error } = await this.client.rpc(
+      'servease_admin_update_integration_credentials',
+      {
+        p_provider: input.provider,
+        p_admin_user_id: input.adminUserId,
+        p_is_enabled:
+          input.isEnabled === undefined ? null : input.isEnabled,
+        p_webhook_url:
+          input.webhookUrl === undefined ? null : input.webhookUrl,
+        p_api_key_preview:
+          input.apiKeyPreview === undefined ? null : input.apiKeyPreview,
+        p_apply_webhook: input.webhookUrl !== undefined,
+        p_apply_api_key: input.apiKeyPreview !== undefined,
+      },
+    );
 
     if (error) {
       throw new Error(`Failed to update integration: ${error.message}`);
     }
 
-    if (!data) {
+    const rows = (data ?? []) as AdminIntegrationRow[];
+    if (rows.length === 0) {
       throw new AdminIntegrationNotFoundError(input.provider);
     }
 
-    return this.mapIntegration(data as AdminIntegrationRow);
+    return this.mapIntegration(rows[0]);
   }
 
   async recordTestResult(
     input: RecordAdminIntegrationTestInput,
   ): Promise<AdminIntegrationSummary> {
-    const now = new Date().toISOString();
-    const status: AdminIntegrationStatus = input.success ? 'active' : 'error';
-
-    const { data, error } = await this.client
-      .schema('admin')
-      .from('integrations')
-      .update({
-        status,
-        last_tested_at: now,
-        last_error: input.success ? null : input.errorMessage ?? 'Test failed.',
-        updated_by: input.adminUserId,
-        updated_at: now,
-      })
-      .eq('provider', input.provider)
-      .select(
-        'provider,display_name,category,is_enabled,status,webhook_url,api_key_preview,last_tested_at,last_error,updated_by,updated_at,created_at',
-      )
-      .maybeSingle();
+    const { data, error } = await this.client.rpc(
+      'servease_admin_record_integration_test',
+      {
+        p_provider: input.provider,
+        p_admin_user_id: input.adminUserId,
+        p_success: input.success,
+        p_error_message: input.errorMessage ?? null,
+      },
+    );
 
     if (error) {
       throw new Error(`Failed to record integration test: ${error.message}`);
     }
 
-    if (!data) {
+    const rows = (data ?? []) as AdminIntegrationRow[];
+    if (rows.length === 0) {
       throw new AdminIntegrationNotFoundError(input.provider);
     }
 
-    return this.mapIntegration(data as AdminIntegrationRow);
+    return this.mapIntegration(rows[0]);
   }
 
   private mapIntegration(row: AdminIntegrationRow): AdminIntegrationSummary {

@@ -135,6 +135,7 @@ import {
   PayoutMethodType,
   PayoutSummary,
   ReferralSummary,
+  CurrentUserSessionSummary,
   UserPreferenceSummary,
   ProviderAvailabilitySchedule,
   ProviderListing,
@@ -188,6 +189,7 @@ import {
   listProviderReviews,
   listBookingServiceUpdates,
   listBookingTimelineEvents,
+  listCurrentUserSessions,
   listSupportTickets,
   markNotificationRead,
   openConversation,
@@ -252,6 +254,9 @@ export default function App() {
   const [referralSummary, setReferralSummary] = useState<ReferralSummary | null>(null);
   const [userPreferences, setUserPreferences] =
     useState<UserPreferenceSummary | null>(null);
+  const [activeSessions, setActiveSessions] = useState<
+    CurrentUserSessionSummary[]
+  >([]);
   const [reviews, setReviews] = useState<ReviewSummary[]>([]);
   const [supportTickets, setSupportTickets] = useState<SupportTicketSummary[]>([]);
   const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
@@ -724,6 +729,7 @@ export default function App() {
     setProviderPayouts([]);
     setReferralSummary(null);
     setUserPreferences(null);
+    setActiveSessions([]);
     setSupportTickets([]);
     setNotifications([]);
     setSelectedBookingServiceUpdates([]);
@@ -872,6 +878,7 @@ export default function App() {
         nextOwnReviews,
         nextProviderDashboard,
         nextOwnedServices,
+        nextSessions,
       ] = await Promise.all([
         nextRole === 'provider'
           ? listProviderBookings(options)
@@ -911,6 +918,7 @@ export default function App() {
         nextRole === 'provider'
           ? listProviderOwnedServices(options).catch(() => [])
           : Promise.resolve([]),
+        listCurrentUserSessions(options).catch(() => []),
       ]);
 
       setBookings(nextBookings);
@@ -930,6 +938,7 @@ export default function App() {
       setOwnReviews(nextOwnReviews as ReviewSummary[]);
       setProviderDashboard(nextProviderDashboard as ProviderDashboardSummary | null);
       setOwnedServices(nextOwnedServices as ProviderOwnedServiceSummary[]);
+      setActiveSessions(nextSessions);
       setSelectedPayoutMethodId((current) => {
         if (current && nextPayoutMethods.some((method) => method.id === current)) {
           return current;
@@ -3803,6 +3812,26 @@ export default function App() {
                   })
                 }
               />
+            </SettingsSection>
+            <SettingsSection title="Active sessions">
+              {activeSessions.length === 0 ? (
+                <SettingsRow icon={Lock} label="No active session detected." />
+              ) : (
+                activeSessions.map((session) => (
+                  <SettingsRow
+                    key={session.id}
+                    icon={Lock}
+                    label={session.email || 'This device'}
+                    value={
+                      session.lastSignInAt
+                        ? `Last sign-in ${new Date(
+                            session.lastSignInAt,
+                          ).toLocaleString()}`
+                        : 'Never signed in'
+                    }
+                  />
+                ))
+              )}
             </SettingsSection>
           </View>
         </ScrollView>

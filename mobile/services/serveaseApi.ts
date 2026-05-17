@@ -161,6 +161,15 @@ export interface ConversationMessage {
   content: string;
   deliveryStatus: string | null;
   createdAt: string | null;
+  attachment: ConversationMessageAttachment | null;
+}
+
+export interface ConversationMessageAttachment {
+  fileUrl: string;
+  fileName: string | null;
+  mimeType: string | null;
+  storagePath: string | null;
+  fileSize: number | null;
 }
 
 export type PaymentStatus = 'pending' | 'paid' | 'cancelled' | 'refunded';
@@ -454,9 +463,18 @@ export interface UpdateCurrentUserPasswordResponse {
   ok: true;
 }
 
+export interface CurrentUserSessionSummary {
+  id: string;
+  email: string;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+  isCurrent: boolean;
+}
+
 export type UploadKind =
   | 'booking_reference'
   | 'support_evidence'
+  | 'message_attachment'
   | 'provider_portfolio'
   | 'provider_progress';
 
@@ -721,6 +739,16 @@ export function updateCurrentUserPassword(
   });
 }
 
+export function listCurrentUserSessions(
+  options: ApiOptions = {},
+): Promise<CurrentUserSessionSummary[]> {
+  return request<CurrentUserSessionSummary[]>('/v1/me/sessions', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
 export function createBooking(
   body: CreateBookingRequest,
   options: ApiOptions = {},
@@ -898,14 +926,26 @@ export function listConversationMessages(
 export function createConversationMessage(
   conversationId: string,
   content: string,
-  options: ApiOptions = {},
+  attachmentOrOptions: ConversationMessageAttachment | ApiOptions | null = null,
+  maybeOptions: ApiOptions = {},
 ): Promise<ConversationMessage> {
+  const hasAttachment =
+    attachmentOrOptions !== null &&
+    typeof attachmentOrOptions === 'object' &&
+    'fileUrl' in attachmentOrOptions;
+  const attachment = hasAttachment
+    ? (attachmentOrOptions as ConversationMessageAttachment)
+    : null;
+  const options = hasAttachment
+    ? maybeOptions
+    : ((attachmentOrOptions as ApiOptions | null) ?? maybeOptions);
+
   return request<ConversationMessage>(
     `/v1/conversations/${encodeURIComponent(conversationId)}/messages`,
     {
       ...options,
       method: 'POST',
-      body: { content },
+      body: { content, attachment },
       requiresAuth: true,
     },
   );

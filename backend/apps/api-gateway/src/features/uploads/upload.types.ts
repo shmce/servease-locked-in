@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 export type UploadKind =
   | 'booking_reference'
   | 'support_evidence'
+  | 'message_attachment'
   | 'provider_portfolio'
   | 'provider_progress';
 

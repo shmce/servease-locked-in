@@ -101,6 +101,10 @@ describe('CurrentUserController', () => {
         contactNumber: '+639000000001',
         address: 'Updated address',
         businessName: null,
+        bio: null,
+        serviceDescription: null,
+        serviceArea: null,
+        yearsExperience: null,
       },
     );
   });

@@ -60,6 +60,7 @@ export class InternalUserController {
           404,
         );
       }
+      console.error('[auth-service sessions] unexpected error:', error);
       throw new HttpException(
         {
           error: {

@@ -17,6 +17,23 @@ export interface ConversationMessage {
   content: string;
   deliveryStatus: string | null;
   createdAt: string | null;
+  attachment: ConversationMessageAttachment | null;
+}
+
+export interface ConversationMessageAttachment {
+  fileUrl: string;
+  fileName: string | null;
+  mimeType: string | null;
+  storagePath: string | null;
+  fileSize: number | null;
+}
+
+export interface ConversationMessageAttachmentInput {
+  fileUrl: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  storagePath?: string | null;
+  fileSize?: number | null;
 }
 
 export interface ConversationVisibility {
@@ -35,4 +52,5 @@ export interface CreateConversationMessageRequest extends ConversationVisibility
   senderId: string;
   senderRole: MessageSenderRole;
   content: string;
+  attachment?: ConversationMessageAttachmentInput | null;
 }

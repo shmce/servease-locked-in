@@ -128,6 +128,15 @@ export interface ConversationMessage {
   content: string
   deliveryStatus: string | null
   createdAt: string | null
+  attachment: ConversationMessageAttachment | null
+}
+
+export interface ConversationMessageAttachment {
+  fileUrl: string
+  fileName: string | null
+  mimeType: string | null
+  storagePath: string | null
+  fileSize: number | null
 }
 
 export interface NotificationSummary {
@@ -235,6 +244,72 @@ export interface ProviderPortfolioMediaSummary {
   fileSize: number | null
   caption: string | null
   sortOrder: number
+  createdAt: string | null
+}
+
+export interface ProviderPortfolioOrderItem {
+  id: string
+  sortOrder: number
+}
+
+export interface UploadSummary {
+  bucket: string
+  path: string
+  publicUrl: string
+  kind: 'message_attachment' | 'provider_portfolio' | 'provider_progress'
+  contentType: string
+  size: number
+}
+
+export type BookingAttachmentKind = 'booking_reference' | 'provider_progress'
+
+export interface BookingAttachmentInput {
+  mediaKind: BookingAttachmentKind
+  fileUrl: string
+  fileName?: string | null
+  mimeType?: string | null
+  storagePath?: string | null
+  fileSize?: number | null
+  caption?: string | null
+}
+
+export interface BookingAttachmentSummary {
+  id: string
+  bookingId: string
+  uploadedBy: string | null
+  mediaKind: BookingAttachmentKind
+  fileUrl: string
+  fileName: string | null
+  mimeType: string | null
+  storagePath: string | null
+  fileSize: number | null
+  caption: string | null
+  createdAt: string | null
+}
+
+export type BookingServiceUpdateType = 'checklist' | 'progress' | 'completion'
+
+export interface BookingServiceChecklist {
+  scopeConfirmed?: boolean
+  toolsReady?: boolean
+  instructionsReviewed?: boolean
+}
+
+export interface CreateBookingServiceUpdateRequest {
+  updateType: BookingServiceUpdateType
+  message?: string | null
+  checklist?: BookingServiceChecklist | null
+  attachmentId?: string | null
+}
+
+export interface BookingServiceUpdateSummary {
+  id: string
+  bookingId: string
+  actorId: string
+  updateType: BookingServiceUpdateType
+  message: string | null
+  checklist: BookingServiceChecklist | null
+  attachmentId: string | null
   createdAt: string | null
 }
 
@@ -363,6 +438,8 @@ export interface AddPortfolioMediaRequest {
   fileSize?: number | null
   caption?: string | null
 }
+
+export type ReplacePortfolioMediaRequest = AddPortfolioMediaRequest;
 
 interface SupabaseTokenResponse {
   access_token?: string
@@ -620,6 +697,48 @@ export function updateProviderBookingStatus(
   )
 }
 
+export function createProviderBookingAttachment(
+  token: string,
+  bookingId: string,
+  body: BookingAttachmentInput,
+): Promise<BookingAttachmentSummary> {
+  return request<BookingAttachmentSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/attachments`,
+    {
+      method: 'POST',
+      token,
+      body,
+    },
+  )
+}
+
+export function listProviderBookingServiceUpdates(
+  token: string,
+  bookingId: string,
+): Promise<BookingServiceUpdateSummary[]> {
+  return request<BookingServiceUpdateSummary[]>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/service-updates`,
+    {
+      token,
+    },
+  )
+}
+
+export function createProviderBookingServiceUpdate(
+  token: string,
+  bookingId: string,
+  body: CreateBookingServiceUpdateRequest,
+): Promise<BookingServiceUpdateSummary> {
+  return request<BookingServiceUpdateSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/service-updates`,
+    {
+      method: 'POST',
+      token,
+      body,
+    },
+  )
+}
+
 export function listProviderPayments(token: string): Promise<PaymentSummary[]> {
   return request<PaymentSummary[]>('/v1/payments', {
     token,
@@ -707,15 +826,49 @@ export function sendProviderConversationMessage(
   token: string,
   conversationId: string,
   content: string,
+  attachment?: ConversationMessageAttachment | null,
 ): Promise<ConversationMessage> {
   return request<ConversationMessage>(
     `/v1/conversations/${encodeURIComponent(conversationId)}/messages`,
     {
       method: 'POST',
       token,
-      body: { content },
+      body: { content, attachment: attachment ?? null },
     },
   )
+}
+
+export async function uploadProviderMessageAttachment(
+  token: string,
+  file: File,
+): Promise<UploadSummary> {
+  const formData = new FormData()
+  formData.set('kind', 'message_attachment')
+  formData.set('file', file)
+
+  return requestFormData<UploadSummary>('/v1/uploads', token, formData)
+}
+
+export async function uploadProviderPortfolioMedia(
+  token: string,
+  file: File,
+): Promise<UploadSummary> {
+  const formData = new FormData()
+  formData.set('kind', 'provider_portfolio')
+  formData.set('file', file)
+
+  return requestFormData<UploadSummary>('/v1/uploads', token, formData)
+}
+
+export async function uploadProviderProgressPhoto(
+  token: string,
+  file: File,
+): Promise<UploadSummary> {
+  const formData = new FormData()
+  formData.set('kind', 'provider_progress')
+  formData.set('file', file)
+
+  return requestFormData<UploadSummary>('/v1/uploads', token, formData)
 }
 
 export function listProviderNotifications(
@@ -827,6 +980,32 @@ export function deleteProviderPortfolioMedia(token: string, mediaId: string): Pr
   })
 }
 
+export function replaceProviderPortfolioMedia(
+  token: string,
+  mediaId: string,
+  body: ReplacePortfolioMediaRequest,
+): Promise<ProviderPortfolioMediaSummary> {
+  return request<ProviderPortfolioMediaSummary>(
+    `/v1/catalog/provider/portfolio/${encodeURIComponent(mediaId)}`,
+    {
+      method: 'PUT',
+      token,
+      body,
+    },
+  )
+}
+
+export function reorderProviderPortfolioMedia(
+  token: string,
+  items: ProviderPortfolioOrderItem[],
+): Promise<ProviderPortfolioMediaSummary[]> {
+  return request<ProviderPortfolioMediaSummary[]>('/v1/catalog/provider/portfolio/order', {
+    method: 'PUT',
+    token,
+    body: { items },
+  })
+}
+
 export function openProviderConversation(
   token: string,
   bookingId: string,
@@ -910,6 +1089,43 @@ async function request<T>(
   if (response.status === 204) {
     return undefined as T
   }
+
+  const payload = (await response.json().catch(() => ({}))) as {
+    data?: T
+    error?: {
+      code?: string
+      message?: string
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      payload.error?.message ??
+        payload.error?.code ??
+        `Gateway request failed with ${response.status}`,
+    )
+  }
+
+  if (!('data' in payload)) {
+    throw new Error('Gateway response did not include data.')
+  }
+
+  return payload.data as T
+}
+
+async function requestFormData<T>(
+  path: string,
+  token: string,
+  body: FormData,
+): Promise<T> {
+  const response = await fetch(`${getProviderApiBaseUrl()}${path}`, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${token.trim()}`,
+    },
+    body,
+  })
 
   const payload = (await response.json().catch(() => ({}))) as {
     data?: T

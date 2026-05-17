@@ -47,6 +47,7 @@ describe('ConversationService', () => {
       content: 'Hello',
       customerId: 'customer-1',
       providerId: null,
+      attachment: null,
     });
   });
 });

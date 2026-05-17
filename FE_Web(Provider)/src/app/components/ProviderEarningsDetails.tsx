@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import {
   DollarSign,
   Clock,
@@ -18,6 +18,7 @@ import {
   listProviderPayments,
   type PaymentSummary,
 } from "../../services/serveaseProviderApi";
+import { pickQueryItemId } from "../utils/providerDeeplinks";
 
 // Styles object for reusability
 const styles = {
@@ -244,6 +245,7 @@ function toTransaction(payment: PaymentSummary): Transaction {
 }
 
 export function ProviderEarningsDetails() {
+  const location = useLocation();
   const [dateFrom, setDateFrom] = useState("2026-03-01");
   const [dateTo, setDateTo] = useState("2026-03-19");
   const [serviceCategory, setServiceCategory] = useState("all");
@@ -281,6 +283,11 @@ export function ProviderEarningsDetails() {
   }, []);
 
   const transactions = liveTransactions;
+  const highlightedPaymentId = pickQueryItemId(
+    location.search,
+    "paymentId",
+    transactions.map((transaction) => transaction.id),
+  );
   const filteredTransactions = useMemo(
     () =>
       transactions.filter((transaction) => {
@@ -721,19 +728,26 @@ export function ProviderEarningsDetails() {
                 </tr>
               </thead>
               <tbody>
-                {filteredTransactions.map((transaction, index) => (
+                {filteredTransactions.map((transaction, index) => {
+                  const isHighlighted = highlightedPaymentId === transaction.id;
+                  const rowBackground = isHighlighted
+                    ? "#F0FDF4"
+                    : index % 2 === 0 ? "white" : "#FAFAFA";
+
+                  return (
                   <tr
                     key={transaction.id}
+                    data-provider-payment-id={transaction.id}
                     style={{
                       ...styles.tableRow,
-                      backgroundColor: index % 2 === 0 ? "white" : "#FAFAFA",
+                      backgroundColor: rowBackground,
+                      boxShadow: isHighlighted ? "inset 4px 0 0 #00BF63" : undefined,
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = "#F9FAFB";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor =
-                        index % 2 === 0 ? "white" : "#FAFAFA";
+                      e.currentTarget.style.backgroundColor = rowBackground;
                     }}
                   >
                     <td style={styles.tableCell}>
@@ -802,7 +816,8 @@ export function ProviderEarningsDetails() {
                       </a>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {filteredTransactions.length === 0 ? (
                   <tr>
                     <td

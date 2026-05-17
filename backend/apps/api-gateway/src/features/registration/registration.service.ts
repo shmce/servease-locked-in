@@ -5,10 +5,13 @@ import { UserServiceClient } from '../current-user/clients/user-service.client';
 import {
   InvalidPasswordResetRequestError,
   InvalidRegistrationRequestError,
+  ProviderApplicationDependencyUnavailableError,
+  ProviderApplicationNotFoundError,
 } from './registration.errors';
 import {
   PasswordResetRequest,
   PasswordResetResponse,
+  ProviderApplicationStatusResponse,
   RegisterAccountRequest,
   RegisteredAccountResponse,
 } from './registration.types';
@@ -63,6 +66,27 @@ export class RegistrationGatewayService {
       email: input.email.trim().toLowerCase(),
       redirectTo: input.redirectTo?.trim() || null,
     });
+  }
+
+  async getProviderApplicationStatus(
+    userId: string,
+  ): Promise<ProviderApplicationStatusResponse> {
+    try {
+      const application =
+        await this.catalogServiceClient.getProviderApplicationByUserId(userId);
+
+      if (!application) {
+        throw new ProviderApplicationNotFoundError();
+      }
+
+      return application;
+    } catch (error) {
+      if (error instanceof ProviderApplicationNotFoundError) {
+        throw error;
+      }
+
+      throw new ProviderApplicationDependencyUnavailableError();
+    }
   }
 
   private validate(input: RegisterAccountRequest): void {

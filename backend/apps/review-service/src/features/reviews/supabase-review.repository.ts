@@ -39,7 +39,7 @@ interface SupabaseTableBuilder {
 interface SupabaseRpcClient {
   rpc(
     functionName: string,
-    args: Record<string, string | number | null>,
+    args?: Record<string, string | number | boolean | null>,
   ): PromiseLike<{
     data: ReviewRow[] | ReviewResponseRow[] | null;
     error: { message: string; code?: string } | null;
@@ -165,58 +165,38 @@ export class SupabaseReviewRepository {
   }
 
   async listForAdmin(filters: ListAdminReviewsFilters): Promise<ReviewSummary[]> {
-    const table = this.adminTable();
-    let query = table
-      .select(
-        'id, booking_id, provider_id, reviewer_id, reviewer_full_name, rating, review_text, is_flagged, created_at',
-      )
-      .order('created_at', { ascending: false })
-      .limit(filters.limit ?? 100);
+    const { data, error } = await this.client.rpc('servease_admin_list_reviews', {
+      p_provider_id: filters.providerId ?? null,
+      p_flagged_only: filters.flaggedOnly ?? false,
+      p_limit: filters.limit ?? 100,
+    });
 
-    if (filters.flaggedOnly) {
-      query = query.eq('is_flagged', true);
-    }
-    if (filters.providerId) {
-      query = query.eq('provider_id', filters.providerId);
+    if (error) {
+      throw new Error(`Failed to list reviews for admin: ${error.message}`);
     }
 
-    const result = await (query as unknown as PromiseLike<SupabaseTableResult>);
-    if (result.error) {
-      throw new Error(`Failed to list reviews for admin: ${result.error.message}`);
-    }
-
-    return ((result.data ?? []) as ReviewRow[]).map((row) => this.mapReview(row));
+    return ((data ?? []) as ReviewRow[]).map((row) => this.mapReview(row));
   }
 
   async setFlagged(input: SetReviewFlaggedInput): Promise<ReviewSummary> {
-    const result = await this.adminTable()
-      .update({ is_flagged: input.isFlagged })
-      .eq('id', input.reviewId)
-      .select(
-        'id, booking_id, provider_id, reviewer_id, reviewer_full_name, rating, review_text, is_flagged, created_at',
-      )
-      .single();
+    const { data, error } = await this.client.rpc(
+      'servease_admin_set_review_flagged',
+      {
+        p_review_id: input.reviewId,
+        p_is_flagged: input.isFlagged,
+      },
+    );
 
-    if (result.error) {
-      throw new Error(`Failed to update review flag: ${result.error.message}`);
+    if (error) {
+      throw new Error(`Failed to update review flag: ${error.message}`);
     }
 
-    if (!result.data) {
+    const rows = (data ?? []) as ReviewRow[];
+    if (rows.length === 0) {
       throw new ReviewNotFoundError();
     }
 
-    return this.mapReview(result.data);
-  }
-
-  private adminTable(): SupabaseTableBuilder {
-    const schema = this.client.schema?.('trust_and_reputation');
-    if (schema) {
-      return schema.from('reviews');
-    }
-    if (this.client.from) {
-      return this.client.from('trust_and_reputation.reviews');
-    }
-    throw new Error('Supabase client does not expose table access for admin queries.');
+    return this.mapReview(rows[0]);
   }
 
   private mapReview(row: ReviewRow): ReviewSummary {

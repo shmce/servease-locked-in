@@ -51,6 +51,13 @@ export interface ProviderPortfolioMediaInput {
   caption?: string | null;
 }
 
+export type ProviderPortfolioMediaReplacementInput = ProviderPortfolioMediaInput;
+
+export interface ProviderPortfolioOrderItem {
+  id: string;
+  sortOrder: number;
+}
+
 export interface ProviderPortfolioMediaSummary {
   id: string;
   providerId: string;

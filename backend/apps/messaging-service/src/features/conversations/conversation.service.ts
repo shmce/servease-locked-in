@@ -52,13 +52,30 @@ export class ConversationService {
     input: CreateConversationMessageInput,
   ): Promise<ConversationMessage> {
     const content = input.content.trim();
-    if (!input.conversationId || !input.senderId || !content) {
+    if (
+      !input.conversationId ||
+      !input.senderId ||
+      (!content && !input.attachment?.fileUrl?.trim())
+    ) {
       throw new InvalidMessagingRequestError();
     }
 
     return this.conversationRepository.createMessage({
       ...input,
       content,
+      attachment: input.attachment?.fileUrl?.trim()
+        ? {
+            fileUrl: input.attachment.fileUrl.trim(),
+            fileName: input.attachment.fileName?.trim() || null,
+            mimeType: input.attachment.mimeType?.trim() || null,
+            storagePath: input.attachment.storagePath?.trim() || null,
+            fileSize:
+              input.attachment.fileSize === undefined ||
+              input.attachment.fileSize === null
+                ? null
+                : Number(input.attachment.fileSize),
+          }
+        : null,
     });
   }
 }

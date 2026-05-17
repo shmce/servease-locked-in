@@ -97,10 +97,20 @@ export class MessagingController {
   async createMessage(
     @Headers('authorization') authorization: string | undefined,
     @Param('conversationId') conversationId: string,
-    @Body() body: { content?: string },
+    @Body()
+    body: {
+      content?: string;
+      attachment?: {
+        fileUrl?: string;
+        fileName?: string | null;
+        mimeType?: string | null;
+        storagePath?: string | null;
+        fileSize?: number | null;
+      } | null;
+    },
   ): Promise<{ data: ConversationMessage }> {
     try {
-      if (!body.content?.trim()) {
+      if (!body.content?.trim() && !body.attachment?.fileUrl?.trim()) {
         throw new InvalidMessagingRequestError();
       }
 
@@ -120,7 +130,20 @@ export class MessagingController {
           conversationId,
           senderId: participant.userId,
           senderRole,
-          content: body.content,
+          content: body.content?.trim() || 'Sent an attachment',
+          attachment: body.attachment?.fileUrl?.trim()
+            ? {
+                fileUrl: body.attachment.fileUrl.trim(),
+                fileName: body.attachment.fileName?.trim() || null,
+                mimeType: body.attachment.mimeType?.trim() || null,
+                storagePath: body.attachment.storagePath?.trim() || null,
+                fileSize:
+                  body.attachment.fileSize === undefined ||
+                  body.attachment.fileSize === null
+                    ? null
+                    : Number(body.attachment.fileSize),
+              }
+            : null,
           customerId: participant.visibility.customerId,
           providerId: participant.visibility.providerId,
         }),

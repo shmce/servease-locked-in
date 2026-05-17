@@ -45,6 +45,8 @@ import {
 import { Badge } from "../../components/ui/badge";
 import { useAdminGatewayData } from "../../../hooks/useAdminGatewayData";
 import { notifyBackendRequired } from "../../utils/backendRequired";
+import { useAuth } from "../../contexts/AuthContext";
+import { exportAdminRevenueCsv } from "../../../services/serveaseAdminApi";
 
 // Revenue Data
 const revenueOverTimeData = [
@@ -108,6 +110,7 @@ function formatPeso(value: number) {
 
 export function Revenue() {
   const adminGateway = useAdminGatewayData();
+  const { accessToken } = useAuth();
   const [dateRange, setDateRange] = useState("last-30-days");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [serviceAreaFilter, setServiceAreaFilter] = useState("all");
@@ -115,6 +118,7 @@ export function Revenue() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   const liveRevenueRows = useMemo(() => {
     return adminGateway.payments.map((payment) => ({
@@ -149,51 +153,32 @@ export function Revenue() {
     };
   }, [liveRevenueRows]);
 
-  const handleExportCSV = () => {
-    const rows =
-      liveRevenueRows.length > 0
-        ? liveRevenueRows.map((row) => [
-            row.date,
-            row.paymentId,
-            row.bookingId,
-            row.gross,
-            row.net,
-            row.commission,
-            row.providerPayout,
-            row.status,
-            row.method,
-          ])
-        : revenueBreakdownData.map((row) => [
-            row.date,
-            row.category,
-            row.completedBookings,
-            row.gross,
-            row.net,
-            row.commission,
-          ]);
-    const headers =
-      liveRevenueRows.length > 0
-        ? [
-            "Date",
-            "Payment ID",
-            "Booking ID",
-            "Gross",
-            "Net",
-            "Commission",
-            "Provider Payout",
-            "Status",
-            "Method",
-          ]
-        : ["Date", "Category", "Completed Bookings", "Gross", "Net", "Commission"];
-    const csv = [headers, ...rows]
-      .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `revenue-report-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+  const handleExportCSV = async () => {
+    if (!accessToken) {
+      notifyBackendRequired("Exporting revenue CSV", "GET /v1/admin/reports/revenue.csv");
+      return;
+    }
+
+    setIsExportingCsv(true);
+    try {
+      const csv = await exportAdminRevenueCsv(accessToken);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `revenue-report-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      notifyBackendRequired(
+        error instanceof Error ? error.message : "Exporting revenue CSV failed",
+        "GET /v1/admin/reports/revenue.csv",
+      );
+    } finally {
+      setIsExportingCsv(false);
+    }
   };
 
   const handleExportPDF = () => {
@@ -216,9 +201,14 @@ export function Revenue() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={handleExportCSV} variant="outline" className="text-[14px] font-medium">
+          <Button
+            onClick={() => void handleExportCSV()}
+            variant="outline"
+            className="text-[14px] font-medium"
+            disabled={isExportingCsv}
+          >
             <Download className="w-4 h-4 mr-2" />
-            Export CSV
+            {isExportingCsv ? "Exporting..." : "Export CSV"}
           </Button>
           <Button onClick={handleExportPDF} className="bg-[#00BF63] hover:bg-[#00A356] text-[14px] font-medium">
             <FileText className="w-4 h-4 mr-2" />

@@ -6,6 +6,8 @@ import {
   AdminProviderApplicationDocumentSummary,
   AdminProviderApplicationSummary,
   ProviderPortfolioMediaInput,
+  ProviderPortfolioMediaReplacementInput,
+  ProviderPortfolioOrderItem,
   ProviderPortfolioMediaSummary,
   ProviderOwnedServiceInput,
   ProviderOwnedServiceSummary,
@@ -260,6 +262,54 @@ export class SupabaseProviderProfileRepository
     return this.mapPortfolioMedia(data as SupabasePortfolioMediaRow);
   }
 
+  async replacePortfolioMedia(
+    input: ProviderPortfolioMediaReplacementInput,
+  ): Promise<ProviderPortfolioMediaSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_replace_provider_portfolio_media', {
+        p_user_id: input.userId,
+        p_media_id: input.mediaId,
+        p_file_url: input.fileUrl,
+        p_file_name: input.fileName ?? null,
+        p_mime_type: input.mimeType ?? null,
+        p_storage_path: input.storagePath ?? null,
+        p_file_size: input.fileSize ?? null,
+        p_caption: input.caption ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to replace provider portfolio: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Failed to replace provider portfolio: missing media row');
+    }
+
+    return this.mapPortfolioMedia(data as SupabasePortfolioMediaRow);
+  }
+
+  async reorderPortfolioMedia(
+    userId: string,
+    items: ProviderPortfolioOrderItem[],
+  ): Promise<ProviderPortfolioMediaSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_update_provider_portfolio_order',
+      {
+        p_user_id: userId,
+        p_items: items,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to reorder provider portfolio: ${error.message}`);
+    }
+
+    return ((data ?? []) as SupabasePortfolioMediaRow[]).map((row) =>
+      this.mapPortfolioMedia(row),
+    );
+  }
+
   async deletePortfolioMedia(userId: string, mediaId: string): Promise<void> {
     const { error } = await this.client.rpc(
       'servease_delete_provider_portfolio_media',
@@ -347,6 +397,29 @@ export class SupabaseProviderProfileRepository
       ...application,
       documents: await this.listProviderApplicationDocuments(application),
     };
+  }
+
+  async getProviderApplicationByUserId(
+    userId: string,
+  ): Promise<AdminProviderApplicationSummary | null> {
+    const { data, error } = await this.client.rpc(
+      'servease_admin_list_provider_applications',
+      {
+        p_status: null,
+        p_query: userId,
+        p_limit: 1,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to get provider application: ${error.message}`);
+    }
+
+    const row = ((data ?? []) as SupabaseProviderApplicationRow[]).find(
+      (application) => application.user_id === userId,
+    );
+
+    return row ? this.mapProviderApplication(row) : null;
   }
 
   private async getProviderApplicationBase(

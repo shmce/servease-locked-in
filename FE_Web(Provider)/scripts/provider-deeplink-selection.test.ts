@@ -26,3 +26,38 @@ assert.equal(
   ]),
   null,
 )
+
+const bookings = [
+  { id: 'booking-1', status: 'upcoming' },
+  { id: 'booking-2', status: 'completed' },
+]
+
+assert.deepEqual(
+  deeplinks.pickQueryItem('?bookingId=booking-2', 'bookingId', bookings),
+  bookings[1],
+)
+assert.equal(
+  deeplinks.pickQueryItemStatus(
+    '?bookingId=booking-2',
+    'bookingId',
+    bookings,
+    'upcoming',
+  ),
+  'completed',
+)
+assert.equal(
+  deeplinks.pickQueryItemStatus(
+    '?bookingId=missing',
+    'bookingId',
+    bookings,
+    'upcoming',
+  ),
+  'upcoming',
+)
+assert.deepEqual(
+  deeplinks.pickQueryItem('?paymentId=payment-2', 'paymentId', [
+    { id: 'payment-1' },
+    { id: 'payment-2' },
+  ]),
+  { id: 'payment-2' },
+)

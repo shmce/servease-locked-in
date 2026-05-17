@@ -1,7 +1,17 @@
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, X, DollarSign, Users, CheckCircle, XCircle, MinusCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, X, DollarSign, CheckCircle, XCircle, MinusCircle } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
+import {
+  getStoredProviderAccessToken,
+  listProviderBookings,
+} from "../../services/serveaseProviderApi";
+import {
+  getCalendarBookingTotal,
+  getCalendarDateKey,
+  groupBookingsForProviderCalendar,
+  type ProviderCalendarBooking,
+} from "../utils/providerCalendarBookings";
 
 const styles = {
   container: {
@@ -55,12 +65,19 @@ const styles = {
   },
 };
 
-interface Booking {
-  id: number;
-  time: string;
-  service: string;
-  customer: string;
-}
+const defaultTimeSlots = [
+  "8:00 AM",
+  "9:00 AM",
+  "10:00 AM",
+  "11:00 AM",
+  "12:00 PM",
+  "1:00 PM",
+  "2:00 PM",
+  "3:00 PM",
+  "4:00 PM",
+  "5:00 PM",
+  "6:00 PM",
+];
 
 export function CalendarPage() {
   const navigate = useNavigate();
@@ -71,17 +88,32 @@ export function CalendarPage() {
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventTitle, setEventTitle] = useState("");
   const [eventTime, setEventTime] = useState("");
+  const [bookings, setBookings] = useState<Record<string, ProviderCalendarBooking[]>>({});
+  const [isLoadingBookings, setIsLoadingBookings] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
 
-  // Sample data
-  const bookings: { [key: string]: Booking[] } = {
-    "2026-03-20": [
-      { id: 1, time: "9:00 AM", service: "House Cleaning", customer: "John D." },
-      { id: 2, time: "2:00 PM", service: "Plumbing", customer: "Sarah M." },
-    ],
-    "2026-03-22": [
-      { id: 3, time: "10:00 AM", service: "Electrical", customer: "Mike R." },
-    ],
-  };
+  useEffect(() => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token) {
+      setBookingError("Sign in to view live booking calendar data.");
+      return;
+    }
+
+    setIsLoadingBookings(true);
+    setBookingError(null);
+
+    listProviderBookings(token)
+      .then((items) => {
+        setBookings(groupBookingsForProviderCalendar(items));
+      })
+      .catch((error) => {
+        setBookingError(
+          error instanceof Error ? error.message : "Unable to load booking calendar.",
+        );
+      })
+      .finally(() => setIsLoadingBookings(false));
+  }, []);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -108,12 +140,7 @@ export function CalendarPage() {
     return days;
   };
 
-const formatDate = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
+  const formatDate = (date: Date) => getCalendarDateKey(date);
 
   const isToday = (day: number) => {
     const today = new Date();
@@ -127,18 +154,6 @@ const formatDate = (date: Date) => {
   const isTodayDate = (date: Date) => {
     const today = new Date();
     return formatDate(date) === formatDate(today);
-  };
-
-  const hasBooking = (day: number) => {
-    const dateStr = formatDate(
-      new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-    );
-    return bookings[dateStr] && bookings[dateStr].length > 0;
-  };
-
-  const hasBookingDate = (date: Date) => {
-    const dateStr = formatDate(date);
-    return bookings[dateStr] && bookings[dateStr].length > 0;
   };
 
   const isBlocked = (day: number) => {
@@ -233,10 +248,15 @@ const isAvailable = (day: number) => {
   const selectedDateStr = selectedDate ? formatDate(selectedDate) : "";
   const selectedBookings = selectedDateStr ? bookings[selectedDateStr] || [] : [];
 
-  const timeSlots = [
-    "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM", "12:00 PM",
-    "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM", "6:00 PM",
-  ];
+  const timeSlots = useMemo(() => {
+    const bookingTimes = Object.values(bookings)
+      .flat()
+      .map((booking) => booking.time);
+
+    return Array.from(new Set([...defaultTimeSlots, ...bookingTimes])).sort(
+      compareCalendarTimes,
+    );
+  }, [bookings]);
 
   const weekDays = getWeekDays(currentDate);
 
@@ -250,6 +270,27 @@ const isAvailable = (day: number) => {
             Manage your bookings and availability
           </p>
         </div>
+
+        {(isLoadingBookings || bookingError) && (
+          <div
+            style={{
+              ...styles.card,
+              marginBottom: "24px",
+              borderColor: bookingError ? "#FCA5A5" : "#D1FAE5",
+              backgroundColor: bookingError ? "#FEF2F2" : "#ECFDF5",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "14px",
+                color: bookingError ? "#991B1B" : "#065F46",
+                fontWeight: "600",
+              }}
+            >
+              {bookingError ?? "Loading live booking calendar..."}
+            </p>
+          </div>
+        )}
 
         {/* Controls */}
         <div
@@ -438,7 +479,7 @@ const isAvailable = (day: number) => {
                       const dayBookings = bookings[dateStr] || [];
                       const hasBookingToday = dayBookings.length > 0;
                       const bookingCount = dayBookings.length;
-                      const dayEarnings = dayBookings.length * 1500; // Mock earnings
+                      const dayEarnings = getCalendarBookingTotal(dayBookings);
                       const isBlockedToday = isBlocked(day);
                       const isAvailableToday = isAvailable(day);
                       const isSelected =
@@ -847,7 +888,7 @@ const isAvailable = (day: number) => {
                   <span>•</span>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                     <DollarSign size={14} color="#00BF63" />
-                    ₱{selectedBookings.length * 1500}
+                    ₱{getCalendarBookingTotal(selectedBookings).toLocaleString("en-PH")}
                   </div>
                   <span>•</span>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
@@ -874,12 +915,14 @@ const isAvailable = (day: number) => {
                     {selectedBookings.map((booking) => (
                       <div
                         key={booking.id}
+                        onClick={() => navigate(`/provider/booking-details/${booking.id}`)}
                         style={{
                           backgroundColor: "#F0FDF8",
                           border: "1px solid #A7F3D0",
                           borderRadius: "12px",
                           padding: "12px",
                           marginBottom: "8px",
+                          cursor: "pointer",
                         }}
                       >
                         <div
@@ -1256,4 +1299,23 @@ const isAvailable = (day: number) => {
       )}
     </div>
   );
+}
+
+function compareCalendarTimes(left: string, right: string): number {
+  return timeToMinutes(left) - timeToMinutes(right);
+}
+
+function timeToMinutes(time: string): number {
+  const match = /^(\d{1,2}):(\d{2})\s(AM|PM)$/i.exec(time);
+
+  if (!match) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const meridiem = match[3].toUpperCase();
+  const normalizedHour = hour === 12 ? 0 : hour;
+
+  return normalizedHour * 60 + minute + (meridiem === "PM" ? 12 * 60 : 0);
 }

@@ -26,43 +26,8 @@ export class AdminPaymentController {
     }
   }
 
-  @Get(':paymentId')
-  async get(
-    @Param('paymentId') paymentId: string,
-  ): Promise<{ data: PaymentSummary }> {
-    try {
-      return {
-        data: await this.adminPaymentService.getPayment(paymentId),
-      };
-    } catch {
-      throw this.error(
-        'admin_dependency_unavailable',
-        'Admin payment workflow failed.',
-        503,
-      );
-    }
-  }
-
-  @Patch(':paymentId/status')
-  async updateStatus(
-    @Param('paymentId') paymentId: string,
-    @Body() body: { status?: string },
-  ): Promise<{ data: PaymentSummary }> {
-    try {
-      return {
-        data: await this.adminPaymentService.updatePaymentStatus(
-          paymentId,
-          body.status ?? '',
-        ),
-      };
-    } catch {
-      throw this.error(
-        'admin_dependency_unavailable',
-        'Admin payment workflow failed.',
-        503,
-      );
-    }
-  }
+  // Static prefix routes BEFORE :paymentId, otherwise the wildcard captures
+  // them. See feedback-route-order.
 
   @Get('payouts')
   async listPayouts(
@@ -200,6 +165,46 @@ export class AdminPaymentController {
       throw this.error(
         'admin_dependency_unavailable',
         'Admin commission workflow failed.',
+        503,
+      );
+    }
+  }
+
+  // :paymentId catch-alls LAST.
+
+  @Get(':paymentId')
+  async get(
+    @Param('paymentId') paymentId: string,
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.adminPaymentService.getPayment(paymentId),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin payment workflow failed.',
+        503,
+      );
+    }
+  }
+
+  @Patch(':paymentId/status')
+  async updateStatus(
+    @Param('paymentId') paymentId: string,
+    @Body() body: { status?: string },
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.adminPaymentService.updatePaymentStatus(
+          paymentId,
+          body.status ?? '',
+        ),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin payment workflow failed.',
         503,
       );
     }
