@@ -6,9 +6,11 @@ import {
   ListAdminAuditLogsFilter,
 } from '../admin-audit.types';
 import {
+  AdminBookingMessage,
   AdminBookingSummary,
   AdminBookingsSummaryStats,
   AdminOperationsAlerts,
+  AppendAdminBookingMessageRequest,
   CancelAdminBookingRequest,
   EscalateAdminBookingRequest,
   ListAdminBookingsFilter,
@@ -228,6 +230,26 @@ export class AdminServiceClient {
       {
         status,
       },
+    );
+  }
+
+  recordPaymentFailure(
+    paymentId: string,
+    failureReason: string,
+    failureCode: string | null,
+    disputeId: string | null,
+  ): Promise<PaymentSummary> {
+    return this.request<PaymentSummary>(
+      `/internal/admin/payments/${paymentId}/failure`,
+      'POST',
+      { failureReason, failureCode, disputeId },
+    );
+  }
+
+  retryPayment(paymentId: string): Promise<PaymentSummary> {
+    return this.request<PaymentSummary>(
+      `/internal/admin/payments/${paymentId}/retry`,
+      'POST',
     );
   }
 
@@ -476,6 +498,24 @@ export class AdminServiceClient {
   ): Promise<AdminBookingSummary> {
     return this.request<AdminBookingSummary>(
       `/internal/admin/bookings/${bookingId}/escalate`,
+      'POST',
+      input,
+    );
+  }
+
+  listBookingMessages(bookingId: string): Promise<AdminBookingMessage[]> {
+    return this.request<AdminBookingMessage[]>(
+      `/internal/admin/bookings/${bookingId}/messages`,
+      'GET',
+    );
+  }
+
+  appendBookingMessage(
+    bookingId: string,
+    input: AppendAdminBookingMessageRequest,
+  ): Promise<AdminBookingMessage> {
+    return this.request<AdminBookingMessage>(
+      `/internal/admin/bookings/${bookingId}/messages`,
       'POST',
       input,
     );

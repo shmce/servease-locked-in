@@ -29,6 +29,24 @@ export class AdminPaymentGatewayService {
     return this.adminServiceClient.updatePaymentStatus(paymentId, status);
   }
 
+  recordPaymentFailure(
+    paymentId: string,
+    failureReason: string,
+    failureCode: string | null,
+    disputeId: string | null,
+  ): Promise<PaymentSummary> {
+    return this.adminServiceClient.recordPaymentFailure(
+      paymentId,
+      failureReason,
+      failureCode,
+      disputeId,
+    );
+  }
+
+  retryPayment(paymentId: string): Promise<PaymentSummary> {
+    return this.adminServiceClient.retryPayment(paymentId);
+  }
+
   listPromotions(status?: string | null): Promise<PromotionSummary[]> {
     return this.adminServiceClient.listPromotions(status ?? null);
   }

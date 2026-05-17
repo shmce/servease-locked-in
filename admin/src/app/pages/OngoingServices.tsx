@@ -43,8 +43,10 @@ import { useAuth } from "../contexts/AuthContext";
 import {
   cancelAdminBooking,
   escalateAdminBooking,
+  listAdminBookingMessages,
   listAdminBookings,
   sendAdminProviderMessage,
+  type AdminBookingMessage,
   type AdminBookingStatus,
   type AdminBookingSummary,
 } from "../../services/serveaseAdminApi";
@@ -248,6 +250,21 @@ export function OngoingServices() {
   const [cancelReason, setCancelReason] = useState("");
   const [escalationReason, setEscalationReason] = useState("");
   const [contactMessage, setContactMessage] = useState("");
+  const [threadMessages, setThreadMessages] = useState<AdminBookingMessage[]>([]);
+  const [isLoadingThread, setIsLoadingThread] = useState(false);
+
+  const loadThreadFor = async (bookingId: string) => {
+    if (!accessToken) return;
+    setIsLoadingThread(true);
+    try {
+      const data = await listAdminBookingMessages(accessToken, bookingId);
+      setThreadMessages(data);
+    } catch {
+      setThreadMessages([]);
+    } finally {
+      setIsLoadingThread(false);
+    }
+  };
 
   useEffect(() => {
     if (!accessToken) return;
@@ -400,7 +417,9 @@ export function OngoingServices() {
   const handleContactProvider = (service: OngoingService) => {
     setSelectedService(service);
     setContactMessage("");
+    setThreadMessages([]);
     setContactModalOpen(true);
+    void loadThreadFor(service.id);
   };
 
   const handleConfirmCancel = async () => {
@@ -466,8 +485,8 @@ export function OngoingServices() {
         selectedService.id,
         contactMessage,
       );
-      setContactModalOpen(false);
       setContactMessage("");
+      await loadThreadFor(selectedService.id);
       toast.success(`Message sent to ${selectedService.provider}.`);
     } catch (error) {
       toast.error(
@@ -821,7 +840,46 @@ export function OngoingServices() {
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-2">Message</label>
+                <label className="text-sm font-medium text-gray-700 block mb-2">
+                  Conversation history
+                </label>
+                <div className="border rounded-lg bg-white max-h-64 overflow-y-auto p-3 space-y-3">
+                  {isLoadingThread ? (
+                    <p className="text-sm text-gray-500">Loading conversation...</p>
+                  ) : threadMessages.length === 0 ? (
+                    <p className="text-sm text-gray-500">No messages yet.</p>
+                  ) : (
+                    threadMessages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`rounded-lg p-3 text-sm ${
+                          msg.senderRole === "admin"
+                            ? "bg-blue-50 border border-blue-100"
+                            : "bg-gray-50 border border-gray-100"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-semibold capitalize">
+                            {msg.senderRole}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {new Date(msg.createdAt).toLocaleString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-gray-800 whitespace-pre-wrap">{msg.body}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-2">New message</label>
                 <textarea
                   className="w-full min-h-[100px] p-3 border rounded-lg resize-none"
                   placeholder="Enter your message..."
@@ -834,7 +892,8 @@ export function OngoingServices() {
                 <div className="flex gap-2">
                   <MessageSquare className="w-5 h-5 text-blue-600 flex-shrink-0" />
                   <p className="text-sm text-blue-700">
-                    This message will be logged in the internal messaging system.
+                    Messages are persisted in the booking thread and delivered to the
+                    provider as a notification.
                   </p>
                 </div>
               </div>

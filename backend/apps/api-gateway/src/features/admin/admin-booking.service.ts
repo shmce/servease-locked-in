@@ -2,9 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { CurrentUserIdentity } from '../current-user/current-user.types';
 import {
+  AdminBookingMessage,
   AdminBookingSummary,
   AdminBookingsSummaryStats,
   AdminOperationsAlerts,
+  AppendAdminBookingMessageRequest,
   CancelAdminBookingRequest,
   EscalateAdminBookingRequest,
   ListAdminBookingsFilter,
@@ -60,6 +62,17 @@ export class AdminBookingGatewayService {
         adminUserId,
       }),
     );
+  }
+
+  listMessages(bookingId: string): Promise<AdminBookingMessage[]> {
+    return this.adminServiceClient.listBookingMessages(bookingId);
+  }
+
+  appendMessage(
+    bookingId: string,
+    input: AppendAdminBookingMessageRequest,
+  ): Promise<AdminBookingMessage> {
+    return this.adminServiceClient.appendBookingMessage(bookingId, input);
   }
 
   private async enrichBookings(

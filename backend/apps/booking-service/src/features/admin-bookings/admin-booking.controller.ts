@@ -8,6 +8,8 @@ import { InvalidAdminBookingRequestError } from './admin-booking.errors';
 import { AdminBookingService } from './admin-booking.service';
 import {
   AdminBookingEscalationPriority,
+  AdminBookingMessage,
+  AdminBookingMessageRole,
   AdminBookingSummary,
   AdminBookingsSummaryStats,
   AdminOperationsAlerts,
@@ -88,6 +90,45 @@ export class AdminBookingController {
           adminUserId: body.adminUserId ?? '',
           reason: body.reason ?? '',
           explanation: body.explanation ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':bookingId/messages')
+  async listMessages(
+    @Param('bookingId') bookingId: string,
+  ): Promise<{ data: AdminBookingMessage[] }> {
+    try {
+      return {
+        data: await this.adminBookingService.listBookingMessages(bookingId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':bookingId/messages')
+  async appendMessage(
+    @Param('bookingId') bookingId: string,
+    @Body()
+    body: {
+      senderUserId?: string;
+      senderRole?: AdminBookingMessageRole;
+      body?: string;
+      metadata?: Record<string, unknown> | null;
+    },
+  ): Promise<{ data: AdminBookingMessage }> {
+    try {
+      return {
+        data: await this.adminBookingService.appendBookingMessage({
+          bookingId,
+          senderUserId: body.senderUserId ?? '',
+          senderRole: body.senderRole ?? 'admin',
+          body: body.body ?? '',
+          metadata: body.metadata ?? null,
         }),
       };
     } catch (error) {

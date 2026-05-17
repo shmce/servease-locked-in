@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import {
+  AdminBookingMessage,
   AdminBookingSummary,
   AdminBookingsSummaryStats,
   AdminOperationsAlerts,
+  AppendAdminBookingMessageRequest,
   CancelAdminBookingRequest,
   EscalateAdminBookingRequest,
   ListAdminBookingsFilter,
@@ -43,5 +45,16 @@ export class AdminBookingService {
     input: EscalateAdminBookingRequest,
   ): Promise<AdminBookingSummary> {
     return this.bookingServiceClient.escalateBooking(bookingId, input);
+  }
+
+  listMessages(bookingId: string): Promise<AdminBookingMessage[]> {
+    return this.bookingServiceClient.listMessages(bookingId);
+  }
+
+  appendMessage(
+    bookingId: string,
+    input: AppendAdminBookingMessageRequest,
+  ): Promise<AdminBookingMessage> {
+    return this.bookingServiceClient.appendMessage(bookingId, input);
   }
 }

@@ -76,3 +76,23 @@ export interface EscalateAdminBookingInput {
   reason: string;
   priority?: AdminBookingEscalationPriority | null;
 }
+
+export type AdminBookingMessageRole = 'admin' | 'provider' | 'customer';
+
+export interface AdminBookingMessage {
+  id: string;
+  bookingId: string;
+  senderUserId: string;
+  senderRole: AdminBookingMessageRole;
+  body: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AppendAdminBookingMessageInput {
+  bookingId: string;
+  senderUserId: string;
+  senderRole: AdminBookingMessageRole;
+  body: string;
+  metadata?: Record<string, unknown> | null;
+}

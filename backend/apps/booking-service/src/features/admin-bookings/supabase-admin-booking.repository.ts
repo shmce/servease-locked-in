@@ -11,9 +11,12 @@ import {
 } from '../booking-lifecycle/booking.types';
 import {
   AdminBookingEscalationPriority,
+  AdminBookingMessage,
+  AdminBookingMessageRole,
   AdminBookingSummary,
   AdminBookingsSummaryStats,
   AdminOperationsAlerts,
+  AppendAdminBookingMessageInput,
   CancelAdminBookingInput,
   EscalateAdminBookingInput,
   ListAdminBookingsFilter,
@@ -55,6 +58,16 @@ interface AdminBookingRow {
   latest_escalation_reason: string | null;
   latest_escalated_at: string | null;
   attachments?: unknown;
+}
+
+interface AdminBookingMessageRow {
+  id: string;
+  booking_id: string;
+  sender_user_id: string;
+  sender_role: AdminBookingMessageRole;
+  body: string;
+  metadata: unknown;
+  created_at: string;
 }
 
 interface BookingAttachmentRow {
@@ -203,6 +216,58 @@ export class SupabaseAdminBookingRepository {
     }
 
     return this.mapAdminBooking(data);
+  }
+
+  async listMessages(bookingId: string): Promise<AdminBookingMessage[]> {
+    const client = createSupabaseServiceClient();
+    const { data, error } = await client.rpc('servease_admin_list_booking_messages', {
+      p_booking_id: bookingId,
+    });
+
+    if (error) {
+      throw new Error(`Failed to list booking messages: ${error.message}`);
+    }
+
+    return ((data ?? []) as AdminBookingMessageRow[]).map((row) =>
+      this.mapBookingMessage(row),
+    );
+  }
+
+  async appendMessage(
+    input: AppendAdminBookingMessageInput,
+  ): Promise<AdminBookingMessage> {
+    const client = createSupabaseServiceClient();
+    const { data, error } = await client
+      .rpc('servease_admin_append_booking_message', {
+        p_booking_id: input.bookingId,
+        p_sender_user_id: input.senderUserId,
+        p_sender_role: input.senderRole,
+        p_body: input.body,
+        p_metadata: input.metadata ?? {},
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to append booking message: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Booking message insert returned no row');
+    }
+
+    return this.mapBookingMessage(data as AdminBookingMessageRow);
+  }
+
+  private mapBookingMessage(row: AdminBookingMessageRow): AdminBookingMessage {
+    return {
+      id: row.id,
+      bookingId: row.booking_id,
+      senderUserId: row.sender_user_id,
+      senderRole: row.sender_role,
+      body: row.body,
+      metadata: (row.metadata ?? null) as Record<string, unknown> | null,
+      createdAt: row.created_at,
+    };
   }
 
   async getOperationsAlerts(): Promise<AdminOperationsAlerts> {

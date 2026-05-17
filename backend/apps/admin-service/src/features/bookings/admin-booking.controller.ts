@@ -2,6 +2,8 @@ import { Body, Controller, Get, HttpException, Param, Post, Query } from '@nestj
 import { AdminBookingService } from './admin-booking.service';
 import {
   AdminBookingEscalationPriority,
+  AdminBookingMessage,
+  AdminBookingMessageRole,
   AdminBookingStatus,
   AdminBookingSummary,
   AdminBookingsSummaryStats,
@@ -98,6 +100,52 @@ export class AdminBookingController {
           adminUserId: body.adminUserId ?? '',
           reason: body.reason ?? '',
           explanation: body.explanation ?? null,
+        }),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin booking workflow failed.',
+        503,
+      );
+    }
+  }
+
+  @Get(':bookingId/messages')
+  async listMessages(
+    @Param('bookingId') bookingId: string,
+  ): Promise<{ data: AdminBookingMessage[] }> {
+    try {
+      return {
+        data: await this.adminBookingService.listMessages(bookingId),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin booking workflow failed.',
+        503,
+      );
+    }
+  }
+
+  @Post(':bookingId/messages')
+  async appendMessage(
+    @Param('bookingId') bookingId: string,
+    @Body()
+    body: {
+      senderUserId?: string;
+      senderRole?: AdminBookingMessageRole;
+      body?: string;
+      metadata?: Record<string, unknown> | null;
+    },
+  ): Promise<{ data: AdminBookingMessage }> {
+    try {
+      return {
+        data: await this.adminBookingService.appendMessage(bookingId, {
+          senderUserId: body.senderUserId ?? '',
+          senderRole: body.senderRole ?? 'admin',
+          body: body.body ?? '',
+          metadata: body.metadata ?? null,
         }),
       };
     } catch {

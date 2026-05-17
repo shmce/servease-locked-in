@@ -45,6 +45,30 @@ export class PaymentServiceClient {
     );
   }
 
+  recordPaymentFailure(
+    paymentId: string,
+    failureReason: string,
+    failureCode: string | null,
+    disputeId: string | null,
+  ): Promise<PaymentSummary> {
+    return this.request<PaymentSummary>(
+      `/internal/admin/payments/${paymentId}/failure`,
+      'POST',
+      {
+        failureReason,
+        failureCode,
+        disputeId,
+      },
+    );
+  }
+
+  retryPayment(paymentId: string): Promise<PaymentSummary> {
+    return this.request<PaymentSummary>(
+      `/internal/admin/payments/${paymentId}/retry`,
+      'POST',
+    );
+  }
+
   listPromotions(status?: string | null): Promise<PromotionSummary[]> {
     const searchParams = new URLSearchParams();
     if (status) {

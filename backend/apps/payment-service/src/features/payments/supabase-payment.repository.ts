@@ -134,6 +134,11 @@ interface PaymentRow {
   payment_method: string | null;
   paid_at: string | null;
   created_at: string | null;
+  failure_reason: string | null;
+  failure_code: string | null;
+  retry_count: number | string | null;
+  last_retry_at: string | null;
+  dispute_id: string | null;
 }
 
 interface RefundRow {
@@ -289,6 +294,50 @@ export class SupabasePaymentRepository {
 
     if (error) {
       throw new Error(`Failed to update payment: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPayment(data as PaymentRow);
+  }
+
+  async recordPaymentFailure(
+    paymentId: string,
+    failureReason: string,
+    failureCode: string | null,
+    disputeId: string | null,
+  ): Promise<PaymentSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_record_payment_failure', {
+        p_payment_id: paymentId,
+        p_failure_reason: failureReason,
+        p_failure_code: failureCode,
+        p_dispute_id: disputeId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to record payment failure: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPayment(data as PaymentRow);
+  }
+
+  async retryPayment(paymentId: string): Promise<PaymentSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_retry_payment', {
+        p_payment_id: paymentId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to retry payment: ${error.message}`);
     }
 
     if (!data) {
@@ -690,6 +739,11 @@ export class SupabasePaymentRepository {
       paymentMethod: row.payment_method,
       paidAt: row.paid_at,
       createdAt: row.created_at,
+      failureReason: row.failure_reason ?? null,
+      failureCode: row.failure_code ?? null,
+      retryCount: Number(row.retry_count ?? 0),
+      lastRetryAt: row.last_retry_at,
+      disputeId: row.dispute_id ?? null,
     };
   }
 

@@ -261,6 +261,43 @@ export class PaymentAdminController {
 
   // :paymentId catch-all routes go LAST.
 
+  @Post(':paymentId/failure')
+  async recordFailure(
+    @Param('paymentId') paymentId: string,
+    @Body()
+    body: {
+      failureReason?: string;
+      failureCode?: string | null;
+      disputeId?: string | null;
+    },
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.paymentAdminService.recordPaymentFailure(
+          paymentId,
+          body.failureReason ?? '',
+          body.failureCode ?? null,
+          body.disputeId ?? null,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':paymentId/retry')
+  async retry(
+    @Param('paymentId') paymentId: string,
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.paymentAdminService.retryPayment(paymentId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get(':paymentId')
   async get(
     @Param('paymentId') paymentId: string,

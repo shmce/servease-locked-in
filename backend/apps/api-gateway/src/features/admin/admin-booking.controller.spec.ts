@@ -92,6 +92,15 @@ describe('AdminBookingController', () => {
         providerId: 'provider-1',
         serviceTitle: 'Home cleaning',
       }),
+      appendMessage: jest.fn().mockResolvedValue({
+        id: 'message-1',
+        bookingId: 'booking-1',
+        senderUserId: 'admin-1',
+        senderRole: 'admin',
+        body: 'Please contact the customer before arrival.',
+        metadata: null,
+        createdAt: '2026-05-17T10:00:00.000Z',
+      }),
     } as unknown as AdminBookingGatewayService;
     const adminAuditGatewayService = {
       createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
@@ -139,6 +148,14 @@ describe('AdminBookingController', () => {
     expect(catalogServiceClient.findProviderOwnerByProviderId).toHaveBeenCalledWith(
       'provider-1',
     );
+    expect(adminBookingGatewayService.appendMessage).toHaveBeenCalledWith(
+      'booking-1',
+      expect.objectContaining({
+        senderUserId: 'admin-1',
+        senderRole: 'admin',
+        body: 'Please contact the customer before arrival.',
+      }),
+    );
     expect(notificationServiceClient.createNotification).toHaveBeenCalledWith({
       userId: 'provider-user-1',
       type: 'admin_provider_message',
@@ -148,8 +165,10 @@ describe('AdminBookingController', () => {
         bookingId: 'booking-1',
         bookingReference: 'SRV-001',
         adminUserId: 'admin-1',
+        messageId: 'message-1',
       },
     });
     expect(response.data.notificationId).toBe('notification-1');
+    expect(response.data.messageId).toBe('message-1');
   });
 });

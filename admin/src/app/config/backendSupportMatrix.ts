@@ -54,11 +54,16 @@ export const backendSupportMatrix: BackendSupportItem[] = [
   {
     area: "Finance",
     screen: "Failed Payments",
-    status: "partial",
-    currentSupport: "Loads gateway-backed refunded/cancelled payment exceptions from the dedicated failures endpoint.",
-    existingEndpoints: ["GET /v1/admin/payments", "GET /v1/admin/payments/failures"],
+    status: "wired",
+    currentSupport: "Lists cancelled/refunded payments with editable failure reason, gateway code, retry history, dispute linkage, and a retry action that resets the payment to pending.",
+    existingEndpoints: [
+      "GET /v1/admin/payments",
+      "GET /v1/admin/payments/failures",
+      "POST /v1/admin/payments/:paymentId/failure",
+      "POST /v1/admin/payments/:paymentId/retry",
+    ],
     backendNeeded: [],
-    notes: "Failure reason, gateway code, retry history, and dispute linkage need dedicated backend fields.",
+    notes: "Payments table now has failure_reason, failure_code, retry_count, last_retry_at, dispute_id columns. Admin can record failure metadata and re-queue failed payments through dedicated RPC functions.",
   },
   {
     area: "Support",
@@ -193,17 +198,19 @@ export const backendSupportMatrix: BackendSupportItem[] = [
   {
     area: "Operations",
     screen: "Bookings and Ongoing Services",
-    status: "partial",
-    currentSupport: "Lists platform bookings and supports admin cancellation, escalation, and provider notification messages through backend APIs.",
+    status: "wired",
+    currentSupport: "Lists platform bookings, supports admin cancellation, escalation, and provider notification messages. Provider messages persist into a per-booking admin thread that can be listed and appended via dedicated endpoints.",
     existingEndpoints: [
       "GET /v1/admin/bookings",
       "GET /v1/admin/bookings/:id",
       "POST /v1/admin/bookings/:id/cancel",
       "POST /v1/admin/bookings/:id/escalate",
       "POST /v1/admin/bookings/:id/provider-messages",
+      "GET /v1/admin/bookings/:id/messages",
+      "POST /v1/admin/bookings/:id/messages",
     ],
     backendNeeded: [],
-    notes: "Escalations and provider messages are delivered as provider-owner notifications with audit logs. Threaded admin/provider messaging still needs a dedicated messaging contract.",
+    notes: "Admin booking messages are stored in booking.admin_booking_messages with role-tagged entries (admin/provider/customer). The OngoingServices contact modal renders the persisted thread and provider notifications carry the persisted messageId.",
   },
   {
     area: "Finance",

@@ -74,6 +74,32 @@ export class PaymentAdminService {
     );
   }
 
+  async recordPaymentFailure(
+    paymentId: string,
+    failureReason: string,
+    failureCode: string | null,
+    disputeId: string | null,
+  ): Promise<PaymentSummary> {
+    if (!paymentId || !failureReason || !failureReason.trim()) {
+      throw new InvalidPaymentRequestError();
+    }
+
+    return this.paymentRepository.recordPaymentFailure(
+      paymentId,
+      failureReason.trim(),
+      failureCode ? failureCode.trim() : null,
+      disputeId ?? null,
+    );
+  }
+
+  async retryPayment(paymentId: string): Promise<PaymentSummary> {
+    if (!paymentId) {
+      throw new InvalidPaymentRequestError();
+    }
+
+    return this.paymentRepository.retryPayment(paymentId);
+  }
+
   async listPromotions(status?: string | null): Promise<PromotionSummary[]> {
     if (status && !validPromotionStatuses.has(status)) {
       throw new InvalidPaymentRequestError();

@@ -172,6 +172,51 @@ export class AdminPaymentController {
 
   // :paymentId catch-alls LAST.
 
+  @Post(':paymentId/failure')
+  async recordFailure(
+    @Param('paymentId') paymentId: string,
+    @Body()
+    body: {
+      failureReason?: string;
+      failureCode?: string | null;
+      disputeId?: string | null;
+    },
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.adminPaymentService.recordPaymentFailure(
+          paymentId,
+          body.failureReason ?? '',
+          body.failureCode ?? null,
+          body.disputeId ?? null,
+        ),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin payment workflow failed.',
+        503,
+      );
+    }
+  }
+
+  @Post(':paymentId/retry')
+  async retry(
+    @Param('paymentId') paymentId: string,
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.adminPaymentService.retryPayment(paymentId),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin payment workflow failed.',
+        503,
+      );
+    }
+  }
+
   @Get(':paymentId')
   async get(
     @Param('paymentId') paymentId: string,

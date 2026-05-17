@@ -104,6 +104,17 @@ export interface AdminPaymentSummary {
   paymentMethod: string | null
   paidAt: string | null
   createdAt: string | null
+  failureReason: string | null
+  failureCode: string | null
+  retryCount: number
+  lastRetryAt: string | null
+  disputeId: string | null
+}
+
+export interface RecordPaymentFailureRequest {
+  failureReason: string
+  failureCode?: string | null
+  disputeId?: string | null
 }
 
 export interface AdminPayoutSummary {
@@ -378,6 +389,19 @@ export interface AdminProviderMessageResult {
   bookingId: string
   providerUserId: string
   notificationId: string
+  messageId: string | null
+}
+
+export type AdminBookingMessageRole = 'admin' | 'provider' | 'customer'
+
+export interface AdminBookingMessage {
+  id: string
+  bookingId: string
+  senderUserId: string
+  senderRole: AdminBookingMessageRole
+  body: string
+  metadata: Record<string, unknown> | null
+  createdAt: string
 }
 
 export interface AdminOperationsAlerts {
@@ -679,6 +703,34 @@ export function updateAdminPaymentStatus(
       method: 'PATCH',
       token,
       body: { status },
+    },
+  )
+}
+
+export function recordAdminPaymentFailure(
+  token: string,
+  paymentId: string,
+  body: RecordPaymentFailureRequest,
+): Promise<AdminPaymentSummary> {
+  return request<AdminPaymentSummary>(
+    `/v1/admin/payments/${encodeURIComponent(paymentId)}/failure`,
+    {
+      method: 'POST',
+      token,
+      body,
+    },
+  )
+}
+
+export function retryAdminPayment(
+  token: string,
+  paymentId: string,
+): Promise<AdminPaymentSummary> {
+  return request<AdminPaymentSummary>(
+    `/v1/admin/payments/${encodeURIComponent(paymentId)}/retry`,
+    {
+      method: 'POST',
+      token,
     },
   )
 }
@@ -1054,6 +1106,35 @@ export function sendAdminProviderMessage(
       method: 'POST',
       token,
       body: { message },
+    },
+  )
+}
+
+export function listAdminBookingMessages(
+  token: string,
+  bookingId: string,
+): Promise<AdminBookingMessage[]> {
+  return request<AdminBookingMessage[]>(
+    `/v1/admin/bookings/${encodeURIComponent(bookingId)}/messages`,
+    { token },
+  )
+}
+
+export function appendAdminBookingMessage(
+  token: string,
+  bookingId: string,
+  body: {
+    message: string
+    senderRole?: AdminBookingMessageRole
+    metadata?: Record<string, unknown> | null
+  },
+): Promise<AdminBookingMessage> {
+  return request<AdminBookingMessage>(
+    `/v1/admin/bookings/${encodeURIComponent(bookingId)}/messages`,
+    {
+      method: 'POST',
+      token,
+      body,
     },
   )
 }

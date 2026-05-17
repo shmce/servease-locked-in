@@ -4,9 +4,12 @@ import { BookingStatus } from '../booking-lifecycle/booking.types';
 import { InvalidAdminBookingRequestError } from './admin-booking.errors';
 import {
   AdminBookingEscalationPriority,
+  AdminBookingMessage,
+  AdminBookingMessageRole,
   AdminBookingSummary,
   AdminBookingsSummaryStats,
   AdminOperationsAlerts,
+  AppendAdminBookingMessageInput,
   CancelAdminBookingInput,
   EscalateAdminBookingInput,
   ListAdminBookingsFilter,
@@ -90,6 +93,36 @@ export class AdminBookingService {
       ...input,
       reason: input.reason.trim(),
       explanation: input.explanation?.trim() || null,
+    });
+  }
+
+  async listBookingMessages(bookingId: string): Promise<AdminBookingMessage[]> {
+    if (!bookingId) {
+      throw new InvalidAdminBookingRequestError();
+    }
+    // Validate that booking exists, returns BookingNotFoundError if not.
+    await this.bookingRepository.getBooking(bookingId);
+    return this.bookingRepository.listMessages(bookingId);
+  }
+
+  async appendBookingMessage(
+    input: AppendAdminBookingMessageInput,
+  ): Promise<AdminBookingMessage> {
+    if (
+      !input.bookingId ||
+      !input.senderUserId ||
+      !input.body?.trim() ||
+      !(['admin', 'provider', 'customer'] as AdminBookingMessageRole[]).includes(
+        input.senderRole,
+      )
+    ) {
+      throw new InvalidAdminBookingRequestError();
+    }
+    await this.bookingRepository.getBooking(input.bookingId);
+    return this.bookingRepository.appendMessage({
+      ...input,
+      body: input.body.trim(),
+      metadata: input.metadata ?? null,
     });
   }
 

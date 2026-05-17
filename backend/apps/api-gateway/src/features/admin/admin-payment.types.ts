@@ -17,6 +17,17 @@ export interface PaymentSummary {
   paymentMethod: string | null;
   paidAt: string | null;
   createdAt: string | null;
+  failureReason: string | null;
+  failureCode: string | null;
+  retryCount: number;
+  lastRetryAt: string | null;
+  disputeId: string | null;
+}
+
+export interface RecordPaymentFailureRequest {
+  failureReason: string;
+  failureCode?: string | null;
+  disputeId?: string | null;
 }
 
 export interface PayoutSummary {

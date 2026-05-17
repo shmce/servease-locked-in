@@ -194,6 +194,75 @@ export class AdminPaymentController {
     }
   }
 
+  @Post(':paymentId/failure')
+  async recordFailure(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('paymentId') paymentId: string,
+    @Body()
+    body: {
+      failureReason?: string;
+      failureCode?: string | null;
+      disputeId?: string | null;
+    },
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      if (!body.failureReason || !body.failureReason.trim()) {
+        throw new InvalidAdminRequestError();
+      }
+      const payment = await this.adminPaymentGatewayService.recordPaymentFailure(
+        paymentId,
+        body.failureReason,
+        body.failureCode ?? null,
+        body.disputeId ?? null,
+      );
+      void this.recordAudit(admin, request, {
+        action: 'Recorded payment failure metadata',
+        actionType: 'update',
+        entityType: 'Payment',
+        entityId: payment.id,
+        details: `Payment ${payment.id} marked with failure reason "${body.failureReason}".`,
+        metadata: {
+          paymentId: payment.id,
+          failureReason: payment.failureReason,
+          failureCode: payment.failureCode,
+          disputeId: payment.disputeId,
+        },
+      });
+      return { data: payment };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':paymentId/retry')
+  async retryPayment(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('paymentId') paymentId: string,
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const payment = await this.adminPaymentGatewayService.retryPayment(paymentId);
+      void this.recordAudit(admin, request, {
+        action: 'Re-queued failed payment for retry',
+        actionType: 'update',
+        entityType: 'Payment',
+        entityId: payment.id,
+        details: `Payment ${payment.id} retry attempt #${payment.retryCount} scheduled at ${payment.lastRetryAt ?? 'unknown'}.`,
+        metadata: {
+          paymentId: payment.id,
+          retryCount: payment.retryCount,
+          lastRetryAt: payment.lastRetryAt,
+        },
+      });
+      return { data: payment };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);

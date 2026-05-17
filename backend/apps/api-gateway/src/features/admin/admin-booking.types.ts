@@ -82,4 +82,24 @@ export interface AdminProviderMessageResult {
   bookingId: string;
   providerUserId: string;
   notificationId: string;
+  messageId: string | null;
+}
+
+export type AdminBookingMessageRole = 'admin' | 'provider' | 'customer';
+
+export interface AdminBookingMessage {
+  id: string;
+  bookingId: string;
+  senderUserId: string;
+  senderRole: AdminBookingMessageRole;
+  body: string;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AppendAdminBookingMessageRequest {
+  senderUserId: string;
+  senderRole: AdminBookingMessageRole;
+  body: string;
+  metadata?: Record<string, unknown> | null;
 }

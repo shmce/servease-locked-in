@@ -27,6 +27,8 @@ import {
 import { AdminBookingGatewayService } from './admin-booking.service';
 import {
   AdminBookingEscalationPriority,
+  AdminBookingMessage,
+  AdminBookingMessageRole,
   AdminBookingStatus,
   AdminBookingSummary,
   AdminBookingsSummaryStats,
@@ -263,6 +265,29 @@ export class AdminBookingController {
         await this.catalogServiceClient.findProviderOwnerByProviderId(
           booking.providerId,
         );
+
+      // Persist the message into the booking thread first so the conversation
+      // is preserved even if the notification dispatch fails.
+      let persistedMessage: AdminBookingMessage | null = null;
+      try {
+        persistedMessage = await this.adminBookingGatewayService.appendMessage(
+          booking.id,
+          {
+            senderUserId: admin.user.id,
+            senderRole: 'admin',
+            body: message,
+            metadata: {
+              channel: 'provider_message',
+              providerId: booking.providerId,
+              providerUserId: providerOwner.userId,
+            },
+          },
+        );
+      } catch {
+        // Persisting must not block the user-visible notification.
+        persistedMessage = null;
+      }
+
       const notification =
         await this.notificationServiceClient.createNotification({
           userId: providerOwner.userId,
@@ -273,6 +298,7 @@ export class AdminBookingController {
             bookingId: booking.id,
             bookingReference: booking.bookingReference,
             adminUserId: admin.user.id,
+            messageId: persistedMessage?.id ?? null,
           },
         });
 
@@ -286,6 +312,7 @@ export class AdminBookingController {
           bookingReference: booking.bookingReference,
           providerId: booking.providerId,
           notificationId: notification.id,
+          messageId: persistedMessage?.id ?? null,
         },
       });
 
@@ -294,8 +321,76 @@ export class AdminBookingController {
           bookingId: booking.id,
           providerUserId: providerOwner.userId,
           notificationId: notification.id,
+          messageId: persistedMessage?.id ?? null,
         },
       };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':bookingId/messages')
+  async listMessages(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+  ): Promise<{ data: AdminBookingMessage[] }> {
+    try {
+      await this.requireAdmin(authorization);
+      if (!bookingId) {
+        throw new InvalidAdminRequestError();
+      }
+      return {
+        data: await this.adminBookingGatewayService.listMessages(bookingId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':bookingId/messages')
+  async appendMessage(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Param('bookingId') bookingId: string,
+    @Body()
+    body: {
+      message?: string;
+      senderRole?: AdminBookingMessageRole;
+      metadata?: Record<string, unknown> | null;
+    },
+  ): Promise<{ data: AdminBookingMessage }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const text = body.message?.trim();
+      if (!bookingId || !text) {
+        throw new InvalidAdminRequestError();
+      }
+
+      const booking = await this.adminBookingGatewayService.getBooking(bookingId);
+      const senderRole: AdminBookingMessageRole = body.senderRole ?? 'admin';
+      const persisted = await this.adminBookingGatewayService.appendMessage(
+        booking.id,
+        {
+          senderUserId: admin.user.id,
+          senderRole,
+          body: text,
+          metadata: body.metadata ?? null,
+        },
+      );
+
+      void this.recordAudit(admin, request, {
+        action: 'Added booking thread message',
+        actionType: 'update',
+        entityId: booking.id,
+        details: `Added admin booking thread message for ${booking.bookingReference}.`,
+        metadata: {
+          bookingId: booking.id,
+          messageId: persisted.id,
+          senderRole,
+        },
+      });
+
+      return { data: persisted };
     } catch (error) {
       throw this.toHttpException(error);
     }
