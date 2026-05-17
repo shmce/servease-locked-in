@@ -30,6 +30,14 @@ export type AdminAuditActionType =
 export type AdminProviderApplicationStatus = 'pending' | 'approved' | 'rejected'
 export type AdminCommissionRuleStatus = 'active' | 'pending' | 'inactive'
 export type AdminBroadcastAudience = 'admins' | 'all' | 'customers' | 'providers'
+export type AdminBroadcastRepeatRule = 'none' | 'daily' | 'weekly' | 'monthly'
+export type AdminBroadcastStatus = 'scheduled' | 'sent' | 'failed' | 'cancelled'
+export type AdminPayoutEventType =
+  | 'requested'
+  | 'approved'
+  | 'rejected'
+  | 'status_updated'
+  | 'bank_reference_reconciled'
 
 export interface SupabaseAuthSession {
   accessToken: string
@@ -74,6 +82,18 @@ export interface UpdateCurrentUserProfileRequest {
 export interface UpdateCurrentUserPasswordRequest {
   currentPassword: string
   newPassword: string
+}
+
+export interface TwoFactorProvisioningResponse {
+  enabled: false
+  secret: string
+  otpauthUrl: string
+  qrCodeDataUrl: string
+}
+
+export interface TwoFactorStatusResponse {
+  enabled: boolean
+  verifiedAt: string | null
 }
 
 export interface UserPreferenceSummary {
@@ -135,6 +155,17 @@ export interface AdminPayoutSummary {
   createdAt: string | null
 }
 
+export interface AdminPayoutEventSummary {
+  id: string
+  payoutId: string
+  eventType: AdminPayoutEventType
+  status: AdminPayoutStatus
+  bankReference: string | null
+  note: string | null
+  adminUserId: string | null
+  createdAt: string | null
+}
+
 export interface AdminRefundSummary {
   id: string
   paymentId: string
@@ -180,14 +211,27 @@ export interface AdminReviewSummary {
 
 export interface SendAdminBroadcastRequest {
   audience: AdminBroadcastAudience
+  audienceCohort?: string | null
   title: string
   message: string
+  scheduledAt?: string | null
+  repeatRule?: AdminBroadcastRepeatRule | null
 }
 
-export interface AdminBroadcastResult {
+export interface AdminBroadcastSummary {
+  id: string
+  adminUserId: string
   audience: AdminBroadcastAudience
+  audienceCohort: string | null
+  title: string
+  message: string
+  status: AdminBroadcastStatus
+  scheduledAt: string | null
+  repeatRule: AdminBroadcastRepeatRule
   deliveredCount: number
   failedCount: number
+  sentAt: string | null
+  createdAt: string | null
 }
 
 export interface AdminPromotionSummary {
@@ -647,6 +691,37 @@ export function listCurrentUserSessions(
   return request<CurrentUserSessionSummary[]>('/v1/me/sessions', { token })
 }
 
+export function enableCurrentUserTwoFactor(
+  token: string,
+): Promise<TwoFactorProvisioningResponse> {
+  return request<TwoFactorProvisioningResponse>('/v1/me/two-factor/enable', {
+    method: 'POST',
+    token,
+  })
+}
+
+export function verifyCurrentUserTwoFactor(
+  token: string,
+  code: string,
+): Promise<TwoFactorStatusResponse> {
+  return request<TwoFactorStatusResponse>('/v1/me/two-factor/verify', {
+    method: 'POST',
+    token,
+    body: { code },
+  })
+}
+
+export function disableCurrentUserTwoFactor(
+  token: string,
+  code?: string | null,
+): Promise<TwoFactorStatusResponse> {
+  return request<TwoFactorStatusResponse>('/v1/me/two-factor/disable', {
+    method: 'POST',
+    token,
+    body: { code: code ?? null },
+  })
+}
+
 export function getUserPreferences(token: string): Promise<UserPreferenceSummary> {
   return request<UserPreferenceSummary>('/v1/me/preferences', {
     token,
@@ -798,6 +873,33 @@ export function rejectAdminSettlement(
   )
 }
 
+export function listAdminSettlementHistory(
+  token: string,
+  settlementId: string,
+): Promise<AdminPayoutEventSummary[]> {
+  return request<AdminPayoutEventSummary[]>(
+    `/v1/admin/settlements/${encodeURIComponent(settlementId)}/history`,
+    {
+      token,
+    },
+  )
+}
+
+export function reconcileAdminSettlement(
+  token: string,
+  settlementId: string,
+  body: { bankReference: string; note?: string | null },
+): Promise<AdminPayoutSummary> {
+  return request<AdminPayoutSummary>(
+    `/v1/admin/settlements/${encodeURIComponent(settlementId)}/reconcile`,
+    {
+      method: 'POST',
+      token,
+      body,
+    },
+  )
+}
+
 export function listAdminRefunds(
   token: string,
   status?: AdminRefundStatus | null,
@@ -875,11 +977,21 @@ export function setAdminReviewFlagged(
 export function sendAdminBroadcast(
   token: string,
   body: SendAdminBroadcastRequest,
-): Promise<AdminBroadcastResult> {
-  return request<AdminBroadcastResult>('/v1/admin/broadcasts', {
+): Promise<AdminBroadcastSummary> {
+  return request<AdminBroadcastSummary>('/v1/admin/broadcasts', {
     method: 'POST',
     token,
     body,
+  })
+}
+
+export function listAdminBroadcasts(
+  token: string,
+  limit = 100,
+): Promise<AdminBroadcastSummary[]> {
+  return request<AdminBroadcastSummary[]>('/v1/admin/broadcasts', {
+    token,
+    query: { limit: String(limit) },
   })
 }
 

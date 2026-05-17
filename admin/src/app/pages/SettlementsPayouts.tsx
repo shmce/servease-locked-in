@@ -30,10 +30,13 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  listAdminSettlementHistory,
   listAdminSettlements,
   approveAdminSettlement,
+  reconcileAdminSettlement,
   rejectAdminSettlement,
   updateAdminPayoutStatus,
+  AdminPayoutEventSummary,
   AdminPayoutSummary,
   AdminPayoutStatus,
 } from "../../services/serveaseAdminApi";
@@ -43,6 +46,10 @@ type DisplayStatus = "requested" | "processing" | "paid" | "cancelled";
 export function SettlementsPayouts() {
   const { accessToken } = useAuth();
   const [payouts, setPayouts] = useState<AdminPayoutSummary[]>([]);
+  const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
+  const [payoutHistory, setPayoutHistory] = useState<AdminPayoutEventSummary[]>([]);
+  const [bankReference, setBankReference] = useState("");
+  const [reconcileNote, setReconcileNote] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<DisplayStatus | "all">("all");
 
@@ -63,6 +70,32 @@ export function SettlementsPayouts() {
       setPayouts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
     } catch {
       // silently ignore; row stays unchanged
+    }
+  };
+
+  const loadHistory = async (payoutId: string) => {
+    if (!accessToken) return;
+    setSelectedPayoutId(payoutId);
+    try {
+      setPayoutHistory(await listAdminSettlementHistory(accessToken, payoutId));
+    } catch {
+      setPayoutHistory([]);
+    }
+  };
+
+  const handleReconcile = async () => {
+    if (!accessToken || !selectedPayoutId || !bankReference.trim()) return;
+    try {
+      const updated = await reconcileAdminSettlement(accessToken, selectedPayoutId, {
+        bankReference: bankReference.trim(),
+        note: reconcileNote.trim() || null,
+      });
+      setPayouts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setBankReference("");
+      setReconcileNote("");
+      await loadHistory(selectedPayoutId);
+    } catch {
+      // row stays unchanged
     }
   };
 
@@ -317,8 +350,17 @@ export function SettlementsPayouts() {
                       </TableCell>
                       <TableCell>{getStatusBadge(payout.status)}</TableCell>
                       <TableCell>
-                        {payout.status === "requested" ? (
-                          <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            title="View history"
+                            onClick={() => void loadHistory(payout.id)}
+                          >
+                            <Clock className="w-4 h-4" />
+                          </Button>
+                          {payout.status === "requested" ? (
+                            <>
                             <Button
                               size="sm"
                               className="bg-green-600 hover:bg-green-700"
@@ -335,19 +377,18 @@ export function SettlementsPayouts() {
                             >
                               <XCircle className="w-4 h-4" />
                             </Button>
-                          </div>
-                        ) : payout.status === "processing" ? (
-                          <Button
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700"
-                            title="Mark as Paid"
-                            onClick={() => handleUpdateStatus(payout.id, "paid")}
-                          >
-                            <DollarSign className="w-4 h-4" />
-                          </Button>
-                        ) : (
-                          <span className="text-sm text-gray-400">—</span>
-                        )}
+                            </>
+                          ) : payout.status === "processing" ? (
+                            <Button
+                              size="sm"
+                              className="bg-green-600 hover:bg-green-700"
+                              title="Reconcile bank reference"
+                              onClick={() => void loadHistory(payout.id)}
+                            >
+                              <DollarSign className="w-4 h-4" />
+                            </Button>
+                          ) : null}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -386,6 +427,68 @@ export function SettlementsPayouts() {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Settlement history</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {selectedPayoutId ? (
+            <>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <p className="text-xs text-gray-500">Selected payout</p>
+                <p className="mt-1 font-mono text-sm text-gray-900">{selectedPayoutId}</p>
+              </div>
+              {payouts.find((payout) => payout.id === selectedPayoutId)?.status === "processing" && (
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] gap-3">
+                  <Input
+                    value={bankReference}
+                    onChange={(event) => setBankReference(event.target.value)}
+                    placeholder="Bank reference"
+                  />
+                  <Input
+                    value={reconcileNote}
+                    onChange={(event) => setReconcileNote(event.target.value)}
+                    placeholder="Optional note"
+                  />
+                  <Button
+                    className="bg-green-600 hover:bg-green-700"
+                    disabled={!bankReference.trim()}
+                    onClick={() => void handleReconcile()}
+                  >
+                    Reconcile
+                  </Button>
+                </div>
+              )}
+              <div className="space-y-3">
+                {payoutHistory.length === 0 ? (
+                  <p className="text-sm text-gray-500">No history events recorded.</p>
+                ) : (
+                  payoutHistory.map((event) => (
+                    <div key={event.id} className="rounded-lg border border-gray-200 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900">
+                          {event.eventType.replace(/_/g, " ")}
+                        </p>
+                        <p className="text-xs text-gray-500">{formatDate(event.createdAt)}</p>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Status: {event.status}
+                        {event.bankReference ? ` | Bank ref: ${event.bankReference}` : ""}
+                      </p>
+                      {event.note ? (
+                        <p className="mt-1 text-sm text-gray-500">{event.note}</p>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">Select a payout to view lifecycle history.</p>
+          )}
         </CardContent>
       </Card>
 

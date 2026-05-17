@@ -3,7 +3,9 @@ import { AdminPaymentService } from './admin-payment.service';
 import {
   CommissionRuleSummary,
   PaymentSummary,
+  PayoutEventSummary,
   PayoutSummary,
+  RecordPayoutEventRequest,
   RefundSummary,
 } from './admin-payment.types';
 
@@ -57,6 +59,41 @@ export class AdminPaymentController {
           payoutId,
           body.status ?? '',
         ),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin payout workflow failed.',
+        503,
+      );
+    }
+  }
+
+  @Get('payouts/:payoutId/events')
+  async listPayoutEvents(
+    @Param('payoutId') payoutId: string,
+  ): Promise<{ data: PayoutEventSummary[] }> {
+    try {
+      return {
+        data: await this.adminPaymentService.listPayoutEvents(payoutId),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin payout workflow failed.',
+        503,
+      );
+    }
+  }
+
+  @Post('payouts/:payoutId/events')
+  async recordPayoutEvent(
+    @Param('payoutId') payoutId: string,
+    @Body() body: RecordPayoutEventRequest,
+  ): Promise<{ data: PayoutEventSummary }> {
+    try {
+      return {
+        data: await this.adminPaymentService.recordPayoutEvent(payoutId, body),
       };
     } catch {
       throw this.error(

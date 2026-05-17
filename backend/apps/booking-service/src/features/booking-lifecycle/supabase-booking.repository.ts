@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import {
+  AttachmentForbiddenError,
+  AttachmentNotFoundError,
   BookingNotFoundError,
+  DisputeForbiddenError,
   InvalidBookingRequestError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
@@ -10,6 +13,8 @@ import {
   AddBookingAttachmentInput,
   BookingAttachmentKind,
   BookingAttachmentSummary,
+  BookingDisputeStatus,
+  BookingDisputeSummary,
   BookingServiceChecklist,
   BookingServiceUpdateSummary,
   BookingServiceUpdateType,
@@ -18,6 +23,7 @@ import {
   BookingTimelineEventSummary,
   CreateBookingServiceUpdateInput,
   CreateBookingInput,
+  RaiseBookingDisputeInput,
 } from './booking.types';
 
 interface SupabaseRpcClient {
@@ -70,6 +76,19 @@ interface BookingAttachmentRow {
   caption?: string | null;
   created_at?: string | null;
   createdAt?: string | null;
+}
+
+interface DisputeRow {
+  id: string;
+  booking_id: string;
+  raised_by: string;
+  category?: string | null;
+  reason: string;
+  description?: string | null;
+  status?: string | null;
+  resolved_at?: string | null;
+  resolved_by?: string | null;
+  created_at: string;
 }
 
 interface BookingServiceUpdateRow {
@@ -187,6 +206,101 @@ export class SupabaseBookingRepository {
     }
 
     return this.mapAttachment(data as unknown as BookingAttachmentRow);
+  }
+
+  async deleteAttachment(
+    bookingId: string,
+    attachmentId: string,
+    actorId: string,
+  ): Promise<BookingAttachmentSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_delete_booking_attachment', {
+        p_booking_id: bookingId,
+        p_attachment_id: attachmentId,
+        p_actor_id: actorId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('attachment_not_found')) {
+        throw new AttachmentNotFoundError();
+      }
+      if (error.message.includes('attachment_forbidden')) {
+        throw new AttachmentForbiddenError();
+      }
+      if (error.message.includes('invalid_attachment_request')) {
+        throw new InvalidBookingRequestError();
+      }
+      throw new Error(`Failed to delete booking attachment: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new AttachmentNotFoundError();
+    }
+
+    return this.mapAttachment(data as unknown as BookingAttachmentRow);
+  }
+
+  async raiseDispute(
+    input: RaiseBookingDisputeInput,
+  ): Promise<BookingDisputeSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_raise_booking_dispute', {
+        p_booking_id: input.bookingId,
+        p_actor_id: input.actorId,
+        p_category: input.category,
+        p_reason: input.reason,
+        p_description: input.description ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('invalid_dispute_request')) {
+        throw new InvalidBookingRequestError();
+      }
+      if (error.message.includes('booking_not_found')) {
+        throw new BookingNotFoundError();
+      }
+      if (error.message.includes('dispute_forbidden')) {
+        throw new DisputeForbiddenError();
+      }
+      throw new Error(`Failed to raise dispute: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Failed to raise dispute: missing row');
+    }
+
+    return this.mapDispute(data as unknown as DisputeRow);
+  }
+
+  async listMyDisputes(actorId: string): Promise<BookingDisputeSummary[]> {
+    const { data, error } = await this.client.rpc('servease_list_user_disputes', {
+      p_actor_id: actorId,
+    });
+
+    if (error) {
+      throw new Error(`Failed to list user disputes: ${error.message}`);
+    }
+
+    return ((data ?? []) as unknown as DisputeRow[]).map((row) =>
+      this.mapDispute(row),
+    );
+  }
+
+  private mapDispute(row: DisputeRow): BookingDisputeSummary {
+    return {
+      id: row.id,
+      bookingId: row.booking_id,
+      raisedBy: row.raised_by,
+      category: row.category ?? null,
+      reason: row.reason,
+      description: row.description ?? null,
+      status: (row.status ?? 'open') as BookingDisputeStatus,
+      resolvedAt: row.resolved_at ?? null,
+      resolvedBy: row.resolved_by ?? null,
+      createdAt: row.created_at,
+    };
   }
 
   async createServiceUpdate(

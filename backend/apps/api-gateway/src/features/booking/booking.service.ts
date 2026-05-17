@@ -7,6 +7,7 @@ import { NotificationServiceClient } from '../notifications/clients/notification
 import {
   AddBookingAttachmentRequest,
   BookingAttachmentSummary,
+  BookingDisputeSummary,
   BookingServiceUpdateSummary,
   BookingStatus,
   BookingSummary,
@@ -14,6 +15,7 @@ import {
   BookingTrackingSnapshot,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
+  RaiseBookingDisputeRequest,
 } from './booking.types';
 import { InvalidBookingTransitionError } from './booking.errors';
 
@@ -214,6 +216,29 @@ export class BookingGatewayService {
       actorId,
       customerId,
       providerId,
+    });
+  }
+
+  deleteAttachment(
+    bookingId: string,
+    attachmentId: string,
+    actorId: string,
+  ): Promise<BookingAttachmentSummary> {
+    return this.bookingServiceClient.deleteAttachment(
+      bookingId,
+      attachmentId,
+      actorId,
+    );
+  }
+
+  raiseDispute(
+    bookingId: string,
+    actorId: string,
+    input: RaiseBookingDisputeRequest,
+  ): Promise<BookingDisputeSummary> {
+    return this.bookingServiceClient.raiseDispute(bookingId, {
+      actorId,
+      ...input,
     });
   }
 

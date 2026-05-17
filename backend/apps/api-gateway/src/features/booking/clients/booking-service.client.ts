@@ -1,14 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  AttachmentForbiddenError,
+  AttachmentNotFoundError,
   BookingDependencyUnavailableError,
   BookingNotFoundError,
+  DisputeForbiddenError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
 } from '../booking.errors';
 import {
   AddBookingAttachmentRequest,
   BookingAttachmentSummary,
+  BookingDisputeSummary,
   BookingServiceUpdateSummary,
   BookingStatus,
   BookingSummary,
@@ -16,6 +20,7 @@ import {
   BookingTrackingSnapshot,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
+  RaiseBookingDisputeRequest,
 } from '../booking.types';
 
 @Injectable()
@@ -121,6 +126,29 @@ export class BookingServiceClient {
     );
   }
 
+  async deleteAttachment(
+    bookingId: string,
+    attachmentId: string,
+    actorId: string,
+  ): Promise<BookingAttachmentSummary> {
+    return this.request<BookingAttachmentSummary>(
+      `/internal/bookings/${bookingId}/attachments/${attachmentId}`,
+      'DELETE',
+      { actorId },
+    );
+  }
+
+  async raiseDispute(
+    bookingId: string,
+    input: RaiseBookingDisputeRequest & { actorId: string },
+  ): Promise<BookingDisputeSummary> {
+    return this.request<BookingDisputeSummary>(
+      `/internal/bookings/${bookingId}/disputes`,
+      'POST',
+      input,
+    );
+  }
+
   async listServiceUpdates(
     bookingId: string,
     customerId: string | null,
@@ -173,7 +201,7 @@ export class BookingServiceClient {
 
   private async request<T>(
     path: string,
-    method: 'GET' | 'POST' | 'PATCH',
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(
@@ -198,6 +226,15 @@ export class BookingServiceClient {
       }
       if (code === 'provider_unavailable') {
         throw new ProviderUnavailableError();
+      }
+      if (code === 'attachment_not_found') {
+        throw new AttachmentNotFoundError();
+      }
+      if (code === 'attachment_forbidden') {
+        throw new AttachmentForbiddenError();
+      }
+      if (code === 'dispute_forbidden') {
+        throw new DisputeForbiddenError();
       }
       throw new BookingDependencyUnavailableError();
     }

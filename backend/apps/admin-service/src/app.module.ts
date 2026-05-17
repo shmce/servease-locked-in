@@ -6,6 +6,9 @@ import { SupabaseAdminAuditRepository } from './features/audit/supabase-admin-au
 import { AdminBookingController } from './features/bookings/admin-booking.controller';
 import { AdminBookingService } from './features/bookings/admin-booking.service';
 import { BookingServiceClient as AdminBookingServiceClient } from './features/bookings/clients/booking-service.client';
+import { AdminBroadcastController } from './features/broadcasts/admin-broadcast.controller';
+import { AdminBroadcastService } from './features/broadcasts/admin-broadcast.service';
+import { SupabaseAdminBroadcastRepository } from './features/broadcasts/supabase-admin-broadcast.repository';
 import { AdminCatalogController } from './features/catalog/admin-catalog.controller';
 import { AdminCatalogGatewayService } from './features/catalog/admin-catalog.service';
 import { CatalogAdminServiceClient } from './features/catalog/clients/catalog-admin-service.client';
@@ -43,6 +46,7 @@ import { HealthController } from './features/health/health.controller';
     AdminDisputeController,
     AdminAuditController,
     AdminBookingController,
+    AdminBroadcastController,
     AdminProviderApplicationController,
     AdminIntegrationController,
   ],
@@ -62,6 +66,8 @@ import { HealthController } from './features/health/health.controller';
     SupabaseAdminAuditRepository,
     AdminBookingService,
     AdminBookingServiceClient,
+    AdminBroadcastService,
+    SupabaseAdminBroadcastRepository,
     AdminProviderApplicationService,
     CatalogServiceClient,
     AdminIntegrationService,

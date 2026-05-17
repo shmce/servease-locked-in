@@ -58,6 +58,22 @@ export interface UpdateCurrentUserPasswordResponse {
   ok: true;
 }
 
+export interface TwoFactorProvisioningResponse {
+  enabled: false;
+  secret: string;
+  otpauthUrl: string;
+  qrCodeDataUrl: string;
+}
+
+export interface TwoFactorStatusResponse {
+  enabled: boolean;
+  verifiedAt: string | null;
+}
+
+export interface TwoFactorVerificationInput {
+  code?: string | null;
+}
+
 export interface CurrentUserSessionSummary {
   id: string;
   email: string;

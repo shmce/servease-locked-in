@@ -93,6 +93,7 @@ export interface BookingSummary {
   scheduledAt: string
   status: BookingStatus
   totalAmount: number
+  attachments?: BookingAttachmentSummary[]
 }
 
 export type PaymentStatus = 'pending' | 'paid' | 'cancelled' | 'refunded'
@@ -287,6 +288,19 @@ export interface BookingAttachmentSummary {
   createdAt: string | null
 }
 
+export interface BookingDisputeSummary {
+  id: string
+  bookingId: string
+  raisedBy: string
+  category: string | null
+  reason: string
+  description: string | null
+  status: 'open' | 'resolved' | 'closed'
+  resolvedAt: string | null
+  resolvedBy: string | null
+  createdAt: string | null
+}
+
 export type BookingServiceUpdateType = 'checklist' | 'progress' | 'completion'
 
 export interface BookingServiceChecklist {
@@ -420,6 +434,18 @@ export interface UpdateCurrentUserProfileRequest {
 export interface UpdateCurrentUserPasswordRequest {
   currentPassword: string
   newPassword: string
+}
+
+export interface TwoFactorProvisioningResponse {
+  enabled: false
+  secret: string
+  otpauthUrl: string
+  qrCodeDataUrl: string
+}
+
+export interface TwoFactorStatusResponse {
+  enabled: boolean
+  verifiedAt: string | null
 }
 
 export interface ReferralSummary {
@@ -712,6 +738,39 @@ export function createProviderBookingAttachment(
   )
 }
 
+export function deleteProviderBookingAttachment(
+  token: string,
+  bookingId: string,
+  attachmentId: string,
+): Promise<BookingAttachmentSummary> {
+  return request<BookingAttachmentSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    {
+      method: 'DELETE',
+      token,
+    },
+  )
+}
+
+export function createProviderBookingDispute(
+  token: string,
+  bookingId: string,
+  body: {
+    category: string
+    reason: string
+    description?: string | null
+  },
+): Promise<BookingDisputeSummary> {
+  return request<BookingDisputeSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/disputes`,
+    {
+      method: 'POST',
+      token,
+      body,
+    },
+  )
+}
+
 export function listProviderBookingServiceUpdates(
   token: string,
   bookingId: string,
@@ -948,6 +1007,41 @@ export function updateCurrentUserPassword(
   body: UpdateCurrentUserPasswordRequest,
 ): Promise<{ ok: true }> {
   return request<{ ok: true }>('/v1/me/password', { method: 'PATCH', token, body })
+}
+
+export function deleteCurrentUserAccount(token: string): Promise<{ ok: true }> {
+  return request<{ ok: true }>('/v1/me', { method: 'DELETE', token })
+}
+
+export function enableCurrentUserTwoFactor(
+  token: string,
+): Promise<TwoFactorProvisioningResponse> {
+  return request<TwoFactorProvisioningResponse>('/v1/me/two-factor/enable', {
+    method: 'POST',
+    token,
+  })
+}
+
+export function verifyCurrentUserTwoFactor(
+  token: string,
+  code: string,
+): Promise<TwoFactorStatusResponse> {
+  return request<TwoFactorStatusResponse>('/v1/me/two-factor/verify', {
+    method: 'POST',
+    token,
+    body: { code },
+  })
+}
+
+export function disableCurrentUserTwoFactor(
+  token: string,
+  code?: string | null,
+): Promise<TwoFactorStatusResponse> {
+  return request<TwoFactorStatusResponse>('/v1/me/two-factor/disable', {
+    method: 'POST',
+    token,
+    body: { code: code ?? null },
+  })
 }
 
 export function addProviderPortfolioMedia(

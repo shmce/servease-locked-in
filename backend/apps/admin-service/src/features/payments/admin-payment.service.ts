@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import {
   PaymentSummary,
   CommissionRuleSummary,
+  PayoutEventSummary,
   PromotionSummary,
   PayoutSummary,
+  RecordPayoutEventRequest,
   RefundSummary,
   UpsertPromotionRequest,
   UpdateCommissionRuleRequest,
@@ -75,6 +77,17 @@ export class AdminPaymentService {
     status: string,
   ): Promise<PayoutSummary> {
     return this.paymentServiceClient.updatePayoutStatus(payoutId, status);
+  }
+
+  listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {
+    return this.paymentServiceClient.listPayoutEvents(payoutId);
+  }
+
+  recordPayoutEvent(
+    payoutId: string,
+    input: RecordPayoutEventRequest,
+  ): Promise<PayoutEventSummary> {
+    return this.paymentServiceClient.recordPayoutEvent(payoutId, input);
   }
 
   listRefunds(status?: string | null): Promise<RefundSummary[]> {

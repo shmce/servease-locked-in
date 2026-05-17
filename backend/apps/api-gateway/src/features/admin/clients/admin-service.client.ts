@@ -16,6 +16,10 @@ import {
   ListAdminBookingsFilter,
 } from '../admin-booking.types';
 import {
+  AdminBroadcastSummary,
+  CreateAdminBroadcastRequest,
+} from '../admin-broadcast.types';
+import {
   AdminCategoryItem,
   AdminProviderSummary,
   AdminServiceItem,
@@ -33,8 +37,10 @@ import {
   PaymentSummary,
   CommissionRuleSummary,
   PromotionSummary,
+  PayoutEventSummary,
   PayoutSummary,
   RefundSummary,
+  RecordPayoutEventRequest,
   UpsertPromotionRequest,
   UpdateCommissionRuleRequest,
 } from '../admin-payment.types';
@@ -311,6 +317,50 @@ export class AdminServiceClient {
       {
         status,
       },
+    );
+  }
+
+  listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {
+    return this.request<PayoutEventSummary[]>(
+      `/internal/admin/payments/payouts/${payoutId}/events`,
+      'GET',
+    );
+  }
+
+  recordPayoutEvent(
+    payoutId: string,
+    input: RecordPayoutEventRequest,
+  ): Promise<PayoutEventSummary> {
+    return this.request<PayoutEventSummary>(
+      `/internal/admin/payments/payouts/${payoutId}/events`,
+      'POST',
+      input,
+    );
+  }
+
+  listBroadcasts(limit?: number | null): Promise<AdminBroadcastSummary[]> {
+    const searchParams = new URLSearchParams();
+    if (limit) {
+      searchParams.set('limit', String(limit));
+    }
+    return this.request<AdminBroadcastSummary[]>(
+      `/internal/admin/broadcasts?${searchParams.toString()}`,
+      'GET',
+    );
+  }
+
+  createBroadcast(
+    input: CreateAdminBroadcastRequest & {
+      adminUserId: string;
+      status: 'scheduled' | 'sent' | 'failed';
+      deliveredCount: number;
+      failedCount: number;
+    },
+  ): Promise<AdminBroadcastSummary> {
+    return this.request<AdminBroadcastSummary>(
+      '/internal/admin/broadcasts',
+      'POST',
+      input,
     );
   }
 

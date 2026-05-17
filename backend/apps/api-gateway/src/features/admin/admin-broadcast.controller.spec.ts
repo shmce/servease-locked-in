@@ -3,6 +3,7 @@ import { CurrentUserService } from '../current-user/current-user.service';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { AdminAuditGatewayService } from './admin-audit.service';
 import { AdminBroadcastController } from './admin-broadcast.controller';
+import { AdminServiceClient } from './clients/admin-service.client';
 import { AdminUsersGatewayService } from './admin-users.service';
 
 describe('AdminBroadcastController', () => {
@@ -31,6 +32,25 @@ describe('AdminBroadcastController', () => {
     const adminAuditGatewayService = {
       createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
     } as unknown as AdminAuditGatewayService;
+    const adminServiceClient = {
+      createBroadcast: jest.fn().mockImplementation((input) =>
+        Promise.resolve({
+          id: 'broadcast-1',
+          adminUserId: input.adminUserId,
+          audience: input.audience,
+          audienceCohort: input.audienceCohort,
+          title: input.title,
+          message: input.message,
+          status: input.status,
+          scheduledAt: input.scheduledAt,
+          repeatRule: input.repeatRule,
+          deliveredCount: input.deliveredCount,
+          failedCount: input.failedCount,
+          sentAt: '2026-05-17T00:00:00.000Z',
+          createdAt: '2026-05-17T00:00:00.000Z',
+        }),
+      ),
+    } as unknown as AdminServiceClient;
     const controller = new AdminBroadcastController(
       { authenticate: jest.fn().mockResolvedValue('admin-1') } as unknown as AuthTokenService,
       {
@@ -46,6 +66,7 @@ describe('AdminBroadcastController', () => {
       adminUsersGatewayService,
       notificationServiceClient,
       adminAuditGatewayService,
+      adminServiceClient,
     );
 
     const response = await controller.create(
@@ -71,6 +92,7 @@ describe('AdminBroadcastController', () => {
       body: 'ServEase support hours are updated this week.',
       metadata: {
         audience: 'customers',
+        audienceCohort: null,
         adminUserId: 'admin-1',
       },
     });
@@ -85,7 +107,8 @@ describe('AdminBroadcastController', () => {
         }),
       }),
     );
-    expect(response.data).toEqual({
+    expect(response.data).toMatchObject({
+      id: 'broadcast-1',
       audience: 'customers',
       deliveredCount: 1,
       failedCount: 0,

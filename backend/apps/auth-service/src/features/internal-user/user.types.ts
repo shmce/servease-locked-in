@@ -32,3 +32,22 @@ export interface UserSessionRecord {
   createdAt: string | null;
   lastSignInAt: string | null;
 }
+
+export interface TwoFactorStateRecord {
+  userId: string;
+  secret: string | null;
+  enabled: boolean;
+  verifiedAt: string | null;
+}
+
+export interface TwoFactorProvisioningResponse {
+  enabled: false;
+  secret: string;
+  otpauthUrl: string;
+  qrCodeDataUrl: string;
+}
+
+export interface TwoFactorStatusResponse {
+  enabled: boolean;
+  verifiedAt: string | null;
+}

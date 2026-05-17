@@ -16,12 +16,15 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { notifyBackendRequired } from "../utils/backendRequired";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  disableCurrentUserTwoFactor,
+  enableCurrentUserTwoFactor,
   listCurrentUserSessions,
   updateCurrentUserPassword,
+  verifyCurrentUserTwoFactor,
   type CurrentUserSessionSummary,
+  type TwoFactorProvisioningResponse,
 } from "../../services/serveaseAdminApi";
 
 export function Security() {
@@ -30,7 +33,11 @@ export function Security() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const [twoFactorSetup, setTwoFactorSetup] =
+    useState<TwoFactorProvisioningResponse | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+  const [isUpdating2FA, setIsUpdating2FA] = useState(false);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
@@ -73,8 +80,41 @@ export function Security() {
     }
   };
 
-  const handleToggle2FA = () => {
-    notifyBackendRequired("Two-factor authentication", "POST /v1/me/two-factor");
+  const handleToggle2FA = async () => {
+    if (!accessToken) return;
+    setIsUpdating2FA(true);
+    try {
+      if (twoFactorEnabled) {
+        await disableCurrentUserTwoFactor(accessToken, twoFactorCode);
+        setTwoFactorEnabled(false);
+        setTwoFactorSetup(null);
+        setTwoFactorCode("");
+        toast.success("Two-factor authentication disabled.");
+      } else {
+        setTwoFactorSetup(await enableCurrentUserTwoFactor(accessToken));
+        toast.success("Scan the QR code and enter the verification code.");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update 2FA.");
+    } finally {
+      setIsUpdating2FA(false);
+    }
+  };
+
+  const handleVerify2FA = async () => {
+    if (!accessToken || !twoFactorCode.trim()) return;
+    setIsUpdating2FA(true);
+    try {
+      const result = await verifyCurrentUserTwoFactor(accessToken, twoFactorCode);
+      setTwoFactorEnabled(result.enabled);
+      setTwoFactorSetup(null);
+      setTwoFactorCode("");
+      toast.success("Two-factor authentication enabled.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Invalid verification code.");
+    } finally {
+      setIsUpdating2FA(false);
+    }
   };
 
   const [sessions, setSessions] = useState<CurrentUserSessionSummary[]>([]);
@@ -282,18 +322,58 @@ export function Security() {
               <Switch
                 id="2fa"
                 checked={twoFactorEnabled}
+                disabled={isUpdating2FA}
                 onCheckedChange={handleToggle2FA}
               />
             </div>
 
+            {twoFactorSetup && (
+              <div className="space-y-3 pt-4 border-t">
+                <img
+                  alt="Two-factor setup QR code"
+                  src={twoFactorSetup.qrCodeDataUrl}
+                  className="h-40 w-40 rounded border border-gray-200"
+                />
+                <p className="font-mono text-xs text-gray-500 break-all">
+                  {twoFactorSetup.secret}
+                </p>
+                <Input
+                  value={twoFactorCode}
+                  onChange={(event) => setTwoFactorCode(event.target.value)}
+                  placeholder="Enter 6-digit code"
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+                <Button
+                  className="w-full bg-[#00BF63] hover:bg-[#00A055]"
+                  disabled={isUpdating2FA || !twoFactorCode.trim()}
+                  onClick={() => void handleVerify2FA()}
+                >
+                  Verify Code
+                </Button>
+              </div>
+            )}
+
             {twoFactorEnabled && (
               <div className="space-y-3 pt-4 border-t">
-                <p className="text-sm font-medium text-gray-900">Backup Codes</p>
+                <p className="text-sm font-medium text-gray-900">Disable 2FA</p>
                 <p className="text-sm text-gray-500">
-                  Download backup codes to access your account if you lose your device.
+                  Enter a current authenticator code before disabling 2FA.
                 </p>
-                <Button variant="outline" className="w-full">
-                  Download Backup Codes
+                <Input
+                  value={twoFactorCode}
+                  onChange={(event) => setTwoFactorCode(event.target.value)}
+                  placeholder="Enter 6-digit code"
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={isUpdating2FA || !twoFactorCode.trim()}
+                  onClick={() => void handleToggle2FA()}
+                >
+                  Disable 2FA
                 </Button>
               </div>
             )}

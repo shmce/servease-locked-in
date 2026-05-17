@@ -1,8 +1,8 @@
 import {
   Controller,
+  Delete,
   Get,
   Headers,
-  HttpCode,
   HttpException,
   HttpStatus,
   Patch,
@@ -13,6 +13,7 @@ import {
   AccountInactiveError,
   AuthRequiredError,
   InvalidAuthTokenError,
+  InvalidTwoFactorRequestError,
   ProfileDependencyUnavailableError,
   UserNotFoundError,
 } from './current-user.errors';
@@ -25,6 +26,9 @@ import { CurrentUserService } from './current-user.service';
 import {
   CurrentUserProfile,
   CurrentUserSessionSummary,
+  TwoFactorProvisioningResponse,
+  TwoFactorStatusResponse,
+  TwoFactorVerificationInput,
   UpdateCurrentUserPasswordInput,
   UpdateCurrentUserPasswordResponse,
   UpdateCurrentUserProfileInput,
@@ -112,6 +116,19 @@ export class CurrentUserController {
     }
   }
 
+  @Delete()
+  async deleteAccount(
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: { ok: true } }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.deleteCurrentUser(userId);
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get('sessions')
   async listSessions(
     @Headers('authorization') authorization?: string,
@@ -126,39 +143,50 @@ export class CurrentUserController {
   }
 
   @Post('two-factor/enable')
-  @HttpCode(501)
   async enableTwoFactor(
     @Headers('authorization') authorization?: string,
-  ): Promise<{ error: { code: string; message: string } }> {
+  ): Promise<{ data: TwoFactorProvisioningResponse }> {
     try {
-      await this.authTokenService.authenticate(authorization);
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.enableTwoFactor(userId);
+      return { data };
     } catch (error) {
       throw this.toHttpException(error);
     }
-    return {
-      error: {
-        code: 'not_implemented',
-        message: 'Two-factor authentication is not yet implemented.',
-      },
-    };
+  }
+
+  @Post('two-factor/verify')
+  async verifyTwoFactor(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: TwoFactorVerificationInput,
+  ): Promise<{ data: TwoFactorStatusResponse }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.verifyTwoFactor(
+        userId,
+        body.code ?? '',
+      );
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
   }
 
   @Post('two-factor/disable')
-  @HttpCode(501)
   async disableTwoFactor(
     @Headers('authorization') authorization?: string,
-  ): Promise<{ error: { code: string; message: string } }> {
+    @Body() body?: TwoFactorVerificationInput,
+  ): Promise<{ data: TwoFactorStatusResponse }> {
     try {
-      await this.authTokenService.authenticate(authorization);
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.disableTwoFactor(
+        userId,
+        body?.code ?? null,
+      );
+      return { data };
     } catch (error) {
       throw this.toHttpException(error);
     }
-    return {
-      error: {
-        code: 'not_implemented',
-        message: 'Two-factor authentication is not yet implemented.',
-      },
-    };
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -196,6 +224,14 @@ export class CurrentUserController {
 
     if (error instanceof UserNotFoundError) {
       return this.error('user_not_found', 'User was not found.', 404);
+    }
+
+    if (error instanceof InvalidTwoFactorRequestError) {
+      return this.error(
+        'invalid_two_factor_request',
+        'Two-factor authentication request is invalid.',
+        400,
+      );
     }
 
     if (error instanceof ProfileDependencyUnavailableError) {

@@ -14,6 +14,7 @@ import { PaymentAdminService } from './payment-admin.service';
 import {
   CommissionRuleSummary,
   PaymentSummary,
+  PayoutEventSummary,
   PromotionSummary,
   PayoutSummary,
   RefundSummary,
@@ -169,6 +170,47 @@ export class PaymentAdminController {
           payoutId,
           body.status ?? '',
         ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('payouts/:payoutId/events')
+  async listPayoutEvents(
+    @Param('payoutId') payoutId: string,
+  ): Promise<{ data: PayoutEventSummary[] }> {
+    try {
+      return {
+        data: await this.paymentAdminService.listPayoutEvents(payoutId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('payouts/:payoutId/events')
+  async recordPayoutEvent(
+    @Param('payoutId') payoutId: string,
+    @Body()
+    body: {
+      eventType?: 'requested' | 'approved' | 'rejected' | 'status_updated' | 'bank_reference_reconciled';
+      status?: 'requested' | 'processing' | 'paid' | 'cancelled';
+      bankReference?: string | null;
+      note?: string | null;
+      adminUserId?: string | null;
+    },
+  ): Promise<{ data: PayoutEventSummary }> {
+    try {
+      return {
+        data: await this.paymentAdminService.recordPayoutEvent({
+          payoutId,
+          eventType: body.eventType ?? 'status_updated',
+          status: body.status ?? 'processing',
+          bankReference: body.bankReference ?? null,
+          note: body.note ?? null,
+          adminUserId: body.adminUserId ?? null,
+        }),
       };
     } catch (error) {
       throw this.toHttpException(error);

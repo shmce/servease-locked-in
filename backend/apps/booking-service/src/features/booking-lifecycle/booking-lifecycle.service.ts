@@ -5,6 +5,7 @@ import { SupabaseBookingRepository } from './supabase-booking.repository';
 import {
   AddBookingAttachmentInput,
   BookingAttachmentSummary,
+  BookingDisputeSummary,
   BookingServiceUpdateSummary,
   BookingStatus,
   BookingSummary,
@@ -14,6 +15,7 @@ import {
   BookingTrackingTrafficLevel,
   CreateBookingServiceUpdateInput,
   CreateBookingInput,
+  RaiseBookingDisputeInput,
 } from './booking.types';
 
 @Injectable()
@@ -32,6 +34,43 @@ export class BookingLifecycleService {
     }
 
     return this.bookingRepository.addAttachment(input);
+  }
+
+  deleteAttachment(
+    bookingId: string,
+    attachmentId: string,
+    actorId: string,
+  ): Promise<BookingAttachmentSummary> {
+    if (!bookingId || !attachmentId || !actorId) {
+      throw new InvalidBookingRequestError();
+    }
+    return this.bookingRepository.deleteAttachment(bookingId, attachmentId, actorId);
+  }
+
+  raiseDispute(
+    input: RaiseBookingDisputeInput,
+  ): Promise<BookingDisputeSummary> {
+    if (
+      !input.bookingId ||
+      !input.actorId ||
+      !input.category?.trim() ||
+      !input.reason?.trim()
+    ) {
+      throw new InvalidBookingRequestError();
+    }
+    return this.bookingRepository.raiseDispute({
+      ...input,
+      category: input.category.trim(),
+      reason: input.reason.trim(),
+      description: input.description?.trim() ?? null,
+    });
+  }
+
+  listMyDisputes(actorId: string): Promise<BookingDisputeSummary[]> {
+    if (!actorId) {
+      throw new InvalidBookingRequestError();
+    }
+    return this.bookingRepository.listMyDisputes(actorId);
   }
 
   createServiceUpdate(

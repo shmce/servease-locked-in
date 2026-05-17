@@ -239,6 +239,89 @@ describe('SupabaseBookingRepository', () => {
     });
   });
 
+  it('deletes booking attachments and maps the soft-deleted row', async () => {
+    const rpc = jest.fn().mockReturnValue({
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: {
+          id: 'attachment-1',
+          booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          uploaded_by: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+          media_kind: 'booking_reference',
+          file_url: 'https://storage.test/photo.jpg',
+          file_name: 'photo.jpg',
+          mime_type: 'image/jpeg',
+          storage_path: 'booking_reference/user/photo.jpg',
+          file_size: 120,
+          caption: null,
+          created_at: '2026-05-16T00:00:00.000Z',
+        },
+        error: null,
+      }),
+    });
+    const repository = new SupabaseBookingRepository({ rpc });
+
+    const attachment = await repository.deleteAttachment(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'attachment-1',
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+    );
+
+    expect(attachment.id).toBe('attachment-1');
+    expect(rpc).toHaveBeenCalledWith('servease_delete_booking_attachment', {
+      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      p_attachment_id: 'attachment-1',
+      p_actor_id: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+    });
+  });
+
+  it('raises booking disputes through the dispute RPC', async () => {
+    const rpc = jest.fn().mockReturnValue({
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: {
+          id: 'dispute-1',
+          booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          raised_by: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+          category: 'damage',
+          reason: 'Incorrect work',
+          description: null,
+          status: 'open',
+          resolved_at: null,
+          resolved_by: null,
+          created_at: '2026-05-16T00:00:00.000Z',
+        },
+        error: null,
+      }),
+    });
+    const repository = new SupabaseBookingRepository({ rpc });
+
+    await expect(
+      repository.raiseDispute({
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        actorId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        category: 'damage',
+        reason: 'Incorrect work',
+      }),
+    ).resolves.toEqual({
+      id: 'dispute-1',
+      bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      raisedBy: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      category: 'damage',
+      reason: 'Incorrect work',
+      description: null,
+      status: 'open',
+      resolvedAt: null,
+      resolvedBy: null,
+      createdAt: '2026-05-16T00:00:00.000Z',
+    });
+    expect(rpc).toHaveBeenCalledWith('servease_raise_booking_dispute', {
+      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      p_actor_id: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      p_category: 'damage',
+      p_reason: 'Incorrect work',
+      p_description: null,
+    });
+  });
+
   it('creates and lists provider service updates through booking RPCs', async () => {
     const rpc = jest
       .fn()

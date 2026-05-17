@@ -210,6 +210,36 @@ describe('BookingGatewayService', () => {
     expect(timeline[0]?.eventType).toBe('created');
   });
 
+  it('forwards dispute creation with the authenticated actor id', async () => {
+    const client = {
+      raiseDispute: jest.fn().mockResolvedValue({
+        id: 'dispute-1',
+        bookingId: 'booking-1',
+        raisedBy: 'user-1',
+        category: 'damage',
+        reason: 'Incorrect work',
+        description: null,
+        status: 'open',
+        resolvedAt: null,
+        resolvedBy: null,
+        createdAt: '2026-05-16T00:00:00.000Z',
+      }),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    const dispute = await service.raiseDispute('booking-1', 'user-1', {
+      category: 'damage',
+      reason: 'Incorrect work',
+    });
+
+    expect(client.raiseDispute).toHaveBeenCalledWith('booking-1', {
+      actorId: 'user-1',
+      category: 'damage',
+      reason: 'Incorrect work',
+    });
+    expect(dispute.id).toBe('dispute-1');
+  });
+
   it('forwards booking tracking reads with booking visibility ids', async () => {
     const client = {
       getTrackingSnapshot: jest.fn().mockResolvedValue({

@@ -33,3 +33,21 @@ export class ProviderProfileRequiredError extends Error {
     super('provider_profile_required');
   }
 }
+
+export class AttachmentNotFoundError extends Error {
+  constructor() {
+    super('attachment_not_found');
+  }
+}
+
+export class AttachmentForbiddenError extends Error {
+  constructor() {
+    super('attachment_forbidden');
+  }
+}
+
+export class DisputeForbiddenError extends Error {
+  constructor() {
+    super('dispute_forbidden');
+  }
+}

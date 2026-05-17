@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Get,
   Headers,
   HttpException,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import { AuthTokenService } from '../current-user/auth-token.service';
@@ -20,20 +22,13 @@ import {
 import { AdminUsersGatewayService } from './admin-users.service';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { AdminAuditGatewayService } from './admin-audit.service';
-
-type BroadcastAudience = 'admins' | 'all' | 'customers' | 'providers';
-
-interface CreateBroadcastRequest {
-  audience?: BroadcastAudience;
-  title?: string;
-  message?: string;
-}
-
-interface BroadcastResult {
-  audience: BroadcastAudience;
-  deliveredCount: number;
-  failedCount: number;
-}
+import { AdminServiceClient } from './clients/admin-service.client';
+import {
+  AdminBroadcastAudience,
+  AdminBroadcastRepeatRule,
+  AdminBroadcastSummary,
+  CreateAdminBroadcastRequest,
+} from './admin-broadcast.types';
 
 type AuditRequest = {
   headers?: Record<string, string | string[] | undefined>;
@@ -48,62 +43,90 @@ export class AdminBroadcastController {
     private readonly adminUsersGatewayService: AdminUsersGatewayService,
     private readonly notificationServiceClient: NotificationServiceClient,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
+    private readonly adminServiceClient: AdminServiceClient,
   ) {}
+
+  @Get()
+  async list(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('limit') limit?: string,
+  ): Promise<{ data: AdminBroadcastSummary[] }> {
+    try {
+      await this.requireAdmin(authorization);
+      const parsedLimit = limit ? Number(limit) : 100;
+      if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 500) {
+        throw new InvalidAdminRequestError();
+      }
+      return {
+        data: await this.adminServiceClient.listBroadcasts(parsedLimit),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
 
   @Post()
   async create(
     @Headers('authorization') authorization: string | undefined,
     @Req() request: AuditRequest,
-    @Body() body: CreateBroadcastRequest,
-  ): Promise<{ data: BroadcastResult }> {
+    @Body() body: CreateAdminBroadcastRequest,
+  ): Promise<{ data: AdminBroadcastSummary }> {
     try {
       const admin = await this.requireAdmin(authorization);
       const audience = body.audience ?? 'all';
+      const repeatRule = body.repeatRule ?? 'none';
       const title = body.title?.trim() ?? '';
       const message = body.message?.trim() ?? '';
-      if (!this.isValidAudience(audience) || !title || !message) {
+      const audienceCohort = body.audienceCohort?.trim() || null;
+      const scheduledAt = body.scheduledAt?.trim() || null;
+      const isScheduled =
+        scheduledAt !== null && new Date(scheduledAt).getTime() > Date.now();
+      if (
+        !this.isValidAudience(audience) ||
+        !this.isValidRepeatRule(repeatRule) ||
+        !title ||
+        !message ||
+        (scheduledAt && Number.isNaN(new Date(scheduledAt).getTime()))
+      ) {
         throw new InvalidAdminRequestError();
       }
 
-      const role = this.toUserRole(audience);
-      const users = await this.adminUsersGatewayService.listUsers(
-        role,
-        'active',
-        null,
-      );
-      const activeRecipients = users.filter((user) => user.status === 'active');
-      const outcomes = await Promise.allSettled(
-        activeRecipients.map((user) =>
-          this.notificationServiceClient.createNotification({
-            userId: user.id,
-            type: 'admin_broadcast',
+      const { deliveredCount, failedCount } = isScheduled
+        ? { deliveredCount: 0, failedCount: 0 }
+        : await this.deliverBroadcast(admin, {
+            audience,
+            audienceCohort,
             title,
-            body: message,
-            metadata: {
-              audience,
-              adminUserId: admin.user.id,
-            },
-          }),
-        ),
-      );
-      const deliveredCount = outcomes.filter(
-        (outcome) => outcome.status === 'fulfilled',
-      ).length;
-      const failedCount = outcomes.length - deliveredCount;
+            message,
+          });
+      const broadcast = await this.adminServiceClient.createBroadcast({
+        adminUserId: admin.user.id,
+        audience,
+        audienceCohort,
+        title,
+        message,
+        status: isScheduled
+          ? 'scheduled'
+          : failedCount > 0 && deliveredCount === 0
+            ? 'failed'
+            : 'sent',
+        scheduledAt,
+        repeatRule,
+        deliveredCount,
+        failedCount,
+      });
 
       void this.recordAudit(admin, request, {
         audience,
+        audienceCohort,
         title,
+        status: broadcast.status,
         deliveredCount,
         failedCount,
       });
 
       return {
-        data: {
-          audience,
-          deliveredCount,
-          failedCount,
-        },
+        data: broadcast,
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -121,23 +144,73 @@ export class AdminBroadcastController {
     return currentUser;
   }
 
-  private isValidAudience(audience: string): audience is BroadcastAudience {
+  private isValidAudience(audience: string): audience is AdminBroadcastAudience {
     return ['admins', 'all', 'customers', 'providers'].includes(audience);
   }
 
-  private toUserRole(audience: BroadcastAudience): 'admin' | 'customer' | 'provider' | null {
+  private isValidRepeatRule(
+    repeatRule: string,
+  ): repeatRule is AdminBroadcastRepeatRule {
+    return ['none', 'daily', 'weekly', 'monthly'].includes(repeatRule);
+  }
+
+  private toUserRole(
+    audience: AdminBroadcastAudience,
+  ): 'admin' | 'customer' | 'provider' | null {
     if (audience === 'customers') return 'customer';
     if (audience === 'providers') return 'provider';
     if (audience === 'admins') return 'admin';
     return null;
   }
 
+  private async deliverBroadcast(
+    admin: CurrentUserProfile,
+    input: {
+      audience: AdminBroadcastAudience;
+      audienceCohort: string | null;
+      title: string;
+      message: string;
+    },
+  ): Promise<{ deliveredCount: number; failedCount: number }> {
+    const role = this.toUserRole(input.audience);
+    const users = await this.adminUsersGatewayService.listUsers(
+      role,
+      'active',
+      input.audienceCohort,
+    );
+    const activeRecipients = users.filter((user) => user.status === 'active');
+    const outcomes = await Promise.allSettled(
+      activeRecipients.map((user) =>
+        this.notificationServiceClient.createNotification({
+          userId: user.id,
+          type: 'admin_broadcast',
+          title: input.title,
+          body: input.message,
+          metadata: {
+            audience: input.audience,
+            audienceCohort: input.audienceCohort,
+            adminUserId: admin.user.id,
+          },
+        }),
+      ),
+    );
+    const deliveredCount = outcomes.filter(
+      (outcome) => outcome.status === 'fulfilled',
+    ).length;
+    return {
+      deliveredCount,
+      failedCount: outcomes.length - deliveredCount,
+    };
+  }
+
   private recordAudit(
     admin: CurrentUserProfile,
     request: AuditRequest,
     input: {
-      audience: BroadcastAudience;
+      audience: AdminBroadcastAudience;
+      audienceCohort: string | null;
       title: string;
+      status: string;
       deliveredCount: number;
       failedCount: number;
     },
@@ -154,7 +227,9 @@ export class AdminBroadcastController {
       ipAddress: this.getClientIp(request),
       metadata: {
         audience: input.audience,
+        audienceCohort: input.audienceCohort,
         title: input.title,
+        status: input.status,
         deliveredCount: input.deliveredCount,
         failedCount: input.failedCount,
       },

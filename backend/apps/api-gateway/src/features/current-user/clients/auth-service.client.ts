@@ -2,11 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CurrentUserIdentity,
+  TwoFactorProvisioningResponse,
+  TwoFactorStatusResponse,
   UpdateCurrentUserProfileInput,
   UserRole,
   UserStatus,
 } from '../current-user.types';
 import {
+  InvalidTwoFactorRequestError,
   ProfileDependencyUnavailableError,
   UserNotFoundError,
 } from '../current-user.errors';
@@ -44,6 +47,10 @@ export class AuthServiceClient {
       throw new UserNotFoundError();
     }
 
+    if (response.status === 400) {
+      throw new InvalidTwoFactorRequestError();
+    }
+
     if (!response.ok) {
       throw new ProfileDependencyUnavailableError();
     }
@@ -73,6 +80,10 @@ export class AuthServiceClient {
 
     if (response.status === 404) {
       throw new UserNotFoundError();
+    }
+
+    if (response.status === 400) {
+      throw new InvalidTwoFactorRequestError();
     }
 
     if (!response.ok) {
@@ -131,6 +142,69 @@ export class AuthServiceClient {
     if (!response.ok) {
       throw new RegistrationDependencyUnavailableError();
     }
+  }
+
+  async deleteCurrentUserAccount(userId: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl()}/internal/users/${userId}/account`, {
+      method: 'DELETE',
+    });
+
+    if (response.status === 404) {
+      throw new UserNotFoundError();
+    }
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+  }
+
+  async enableTwoFactor(
+    userId: string,
+    label?: string | null,
+  ): Promise<TwoFactorProvisioningResponse> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/two-factor/enable`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ label: label ?? null }),
+      },
+    );
+
+    if (response.status === 404) {
+      throw new UserNotFoundError();
+    }
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: TwoFactorProvisioningResponse;
+    };
+    return payload.data;
+  }
+
+  async verifyTwoFactor(
+    userId: string,
+    code: string,
+  ): Promise<TwoFactorStatusResponse> {
+    return this.writeTwoFactorStatus(
+      `/internal/users/${userId}/two-factor/verify`,
+      { code },
+    );
+  }
+
+  async disableTwoFactor(
+    userId: string,
+    code?: string | null,
+  ): Promise<TwoFactorStatusResponse> {
+    return this.writeTwoFactorStatus(
+      `/internal/users/${userId}/two-factor/disable`,
+      { code: code ?? null },
+    );
   }
 
   async requestPasswordReset(
@@ -236,5 +310,31 @@ export class AuthServiceClient {
     } catch {
       return null;
     }
+  }
+
+  private async writeTwoFactorStatus(
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<TwoFactorStatusResponse> {
+    const response = await fetch(`${this.baseUrl()}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (response.status === 404) {
+      throw new UserNotFoundError();
+    }
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: TwoFactorStatusResponse;
+    };
+    return payload.data;
   }
 }

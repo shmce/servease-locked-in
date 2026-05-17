@@ -2,10 +2,16 @@ import { useState, useEffect } from "react";
 import { User, Bell, Lock, Shield, Eye, EyeOff, ChevronRight, CreditCard, MapPin, Clock, DollarSign, Settings as SettingsIcon, Moon, Sun, HelpCircle, FileText, Users, LogOut, Smartphone, Mail } from "lucide-react";
 import { Link } from "react-router";
 import {
+  clearStoredProviderSession,
+  deleteCurrentUserAccount,
+  disableCurrentUserTwoFactor,
+  enableCurrentUserTwoFactor,
   getStoredProviderAccessToken,
   getUserPreferences,
   updateUserPreferences,
   updateCurrentUserPassword,
+  verifyCurrentUserTwoFactor,
+  type TwoFactorProvisioningResponse,
 } from "../../services/serveaseProviderApi";
 
 const styles = {
@@ -144,12 +150,16 @@ export function ProviderSettingsPage() {
   const [smsNotifications, setSmsNotifications] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [twoFactorAuth, setTwoFactorAuth] = useState(false);
+  const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorProvisioningResponse | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorMsg, setTwoFactorMsg] = useState<string | null>(null);
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
+  const [accountDeleteMsg, setAccountDeleteMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const token = getStoredProviderAccessToken();
@@ -180,6 +190,51 @@ export function ProviderSettingsPage() {
         setNewPassword("");
       })
       .catch(() => setPasswordMsg("Failed to update password. Check your current password."));
+  };
+
+  const handleDeleteAccount = () => {
+    const token = getStoredProviderAccessToken();
+    if (!token) return;
+    setAccountDeleteMsg(null);
+    deleteCurrentUserAccount(token)
+      .then(() => {
+        clearStoredProviderSession();
+        window.location.href = "/provider/login";
+      })
+      .catch(() => setAccountDeleteMsg("Unable to delete account. Try again or contact support."));
+  };
+
+  const handleStartTwoFactor = () => {
+    const token = getStoredProviderAccessToken();
+    if (!token) return;
+    setTwoFactorMsg(null);
+    if (twoFactorAuth) {
+      disableCurrentUserTwoFactor(token, twoFactorCode)
+        .then(() => {
+          setTwoFactorAuth(false);
+          setTwoFactorCode("");
+          setTwoFactorMsg("Two-factor authentication disabled.");
+        })
+        .catch(() => setTwoFactorMsg("Enter a valid authenticator code to disable 2FA."));
+      return;
+    }
+
+    enableCurrentUserTwoFactor(token)
+      .then(setTwoFactorSetup)
+      .catch(() => setTwoFactorMsg("Unable to start two-factor setup."));
+  };
+
+  const handleVerifyTwoFactor = () => {
+    const token = getStoredProviderAccessToken();
+    if (!token || !twoFactorCode.trim()) return;
+    verifyCurrentUserTwoFactor(token, twoFactorCode)
+      .then((result) => {
+        setTwoFactorAuth(result.enabled);
+        setTwoFactorSetup(null);
+        setTwoFactorCode("");
+        setTwoFactorMsg("Two-factor authentication enabled.");
+      })
+      .catch(() => setTwoFactorMsg("Invalid verification code."));
   };
 
   return (
@@ -543,11 +598,13 @@ export function ProviderSettingsPage() {
                       Add an extra layer of security
                     </p>
                   </div>
-                  <div
-                    onClick={() => setTwoFactorAuth(!twoFactorAuth)}
+                  <button
+                    type="button"
+                    onClick={handleStartTwoFactor}
                     style={{
                       ...styles.toggle,
                       backgroundColor: twoFactorAuth ? "#00BF63" : "#E5E7EB",
+                      border: "none",
                     }}
                   >
                     <div
@@ -556,8 +613,54 @@ export function ProviderSettingsPage() {
                         transform: twoFactorAuth ? "translateX(20px)" : "translateX(4px)",
                       }}
                     />
-                  </div>
+                  </button>
                 </div>
+                {twoFactorSetup && (
+                  <div style={{ marginTop: "16px", display: "grid", gap: "10px" }}>
+                    <img
+                      src={twoFactorSetup.qrCodeDataUrl}
+                      alt="Two-factor setup QR code"
+                      style={{ width: "160px", height: "160px", border: "1px solid #E5E7EB", borderRadius: "8px" }}
+                    />
+                    <p style={{ fontSize: "12px", color: "#6B7280", wordBreak: "break-all" }}>
+                      {twoFactorSetup.secret}
+                    </p>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={twoFactorCode}
+                      onChange={(event) => setTwoFactorCode(event.target.value)}
+                      placeholder="Enter 6-digit code"
+                      style={styles.input}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyTwoFactor}
+                      style={{ ...styles.button, ...styles.primaryButton }}
+                    >
+                      Verify Code
+                    </button>
+                  </div>
+                )}
+                {twoFactorAuth && (
+                  <div style={{ marginTop: "16px", display: "grid", gap: "10px" }}>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      value={twoFactorCode}
+                      onChange={(event) => setTwoFactorCode(event.target.value)}
+                      placeholder="Code required to disable 2FA"
+                      style={styles.input}
+                    />
+                  </div>
+                )}
+                {twoFactorMsg && (
+                  <p style={{ marginTop: "10px", fontSize: "13px", color: twoFactorMsg.includes("enabled") || twoFactorMsg.includes("disabled") ? "#059669" : "#EF4444" }}>
+                    {twoFactorMsg}
+                  </p>
+                )}
               </div>
 
               {/* Login Activity Link */}
@@ -912,12 +1015,17 @@ export function ProviderSettingsPage() {
               }}
               onClick={() => {
                 if (confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
-                  alert("Account deletion initiated");
+                  handleDeleteAccount();
                 }
               }}
             >
               Delete Account
             </button>
+            {accountDeleteMsg ? (
+              <p style={{ color: "#B91C1C", fontSize: "14px", marginTop: "12px" }}>
+                {accountDeleteMsg}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

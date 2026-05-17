@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpException,
@@ -16,8 +17,11 @@ import {
   InvalidAuthTokenError,
 } from '../current-user/current-user.errors';
 import {
+  AttachmentForbiddenError,
+  AttachmentNotFoundError,
   BookingNotFoundError,
   BookingDependencyUnavailableError,
+  DisputeForbiddenError,
   InvalidBookingRequestError,
   InvalidBookingTransitionError,
   ProviderProfileRequiredError,
@@ -27,6 +31,7 @@ import { BookingGatewayService } from './booking.service';
 import {
   AddBookingAttachmentRequest,
   BookingAttachmentSummary,
+  BookingDisputeSummary,
   BookingServiceUpdateSummary,
   BookingStatus,
   BookingSummary,
@@ -34,6 +39,7 @@ import {
   BookingTrackingSnapshot,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
+  RaiseBookingDisputeRequest,
 } from './booking.types';
 
 @Controller('v1/bookings')
@@ -178,6 +184,47 @@ export class BookingController {
     }
   }
 
+  @Delete(':bookingId/attachments/:attachmentId')
+  async deleteAttachment(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+    @Param('attachmentId') attachmentId: string,
+  ): Promise<{ data: BookingAttachmentSummary }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.bookingGatewayService.deleteAttachment(
+          bookingId,
+          attachmentId,
+          userId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':bookingId/disputes')
+  async raiseDispute(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+    @Body() body: RaiseBookingDisputeRequest,
+  ): Promise<{ data: BookingDisputeSummary }> {
+    try {
+      this.validateDisputeRequest(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.bookingGatewayService.raiseDispute(
+          bookingId,
+          userId,
+          body,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get(':bookingId/service-updates')
   async listServiceUpdates(
     @Headers('authorization') authorization: string | undefined,
@@ -278,6 +325,12 @@ export class BookingController {
     }
   }
 
+  private validateDisputeRequest(body: RaiseBookingDisputeRequest): void {
+    if (!body.category?.trim() || !body.reason?.trim()) {
+      throw new InvalidBookingRequestError();
+    }
+  }
+
   private async resolveRequiredProviderId(userId: string): Promise<string> {
     const providerProfile =
       await this.catalogServiceClient.findProviderProfileByUserId(userId);
@@ -325,6 +378,30 @@ export class BookingController {
         'provider_unavailable',
         'Provider is unavailable for the requested time.',
         409,
+      );
+    }
+
+    if (error instanceof AttachmentNotFoundError) {
+      return this.error(
+        'attachment_not_found',
+        'Attachment was not found.',
+        404,
+      );
+    }
+
+    if (error instanceof AttachmentForbiddenError) {
+      return this.error(
+        'attachment_forbidden',
+        'You do not have permission to delete this attachment.',
+        403,
+      );
+    }
+
+    if (error instanceof DisputeForbiddenError) {
+      return this.error(
+        'dispute_forbidden',
+        'You do not have permission to raise a dispute on this booking.',
+        403,
       );
     }
 

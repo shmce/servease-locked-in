@@ -54,13 +54,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
   getAdminUsersSummary,
+  listAdminBroadcasts,
   listAdminSupportTickets,
   listAdminUsers,
   sendAdminBroadcast,
   updateAdminSupportTicketStatus,
   updateAdminUserStatus,
   type AdminBroadcastAudience,
-  type AdminBroadcastResult,
+  type AdminBroadcastRepeatRule,
+  type AdminBroadcastSummary,
   type AdminSupportTicketStatus,
   type AdminSupportTicketSummary,
   type AdminUserStatus,
@@ -860,10 +862,19 @@ function SupportDetail({
 export function Broadcasts() {
   const { accessToken } = useAuth();
   const [audience, setAudience] = useState<AdminBroadcastAudience>("customers");
+  const [audienceCohort, setAudienceCohort] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [repeatRule, setRepeatRule] = useState<AdminBroadcastRepeatRule>("none");
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [lastResult, setLastResult] = useState<AdminBroadcastResult | null>(null);
+  const [history, setHistory] = useState<AdminBroadcastSummary[]>([]);
+  const [lastResult, setLastResult] = useState<AdminBroadcastSummary | null>(null);
+
+  useEffect(() => {
+    if (!accessToken) return;
+    listAdminBroadcasts(accessToken, 25).then(setHistory).catch(() => {});
+  }, [accessToken]);
 
   const canSend = !!accessToken && title.trim().length > 0 && message.trim().length > 0;
 
@@ -873,13 +884,22 @@ export function Broadcasts() {
     try {
       const result = await sendAdminBroadcast(accessToken, {
         audience,
+        audienceCohort: audienceCohort.trim() || null,
         title: title.trim(),
         message: message.trim(),
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+        repeatRule,
       });
       setLastResult(result);
+      setHistory((current) => [result, ...current.filter((item) => item.id !== result.id)]);
       setTitle("");
       setMessage("");
-      toast.success(`Broadcast sent to ${result.deliveredCount} recipient${result.deliveredCount === 1 ? "" : "s"}.`);
+      setScheduledAt("");
+      toast.success(
+        result.status === "scheduled"
+          ? "Broadcast scheduled."
+          : `Broadcast sent to ${result.deliveredCount} recipient${result.deliveredCount === 1 ? "" : "s"}.`,
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to send broadcast.");
     } finally {
@@ -921,6 +941,15 @@ export function Broadcasts() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Cohort filter</label>
+                <Input
+                  value={audienceCohort}
+                  onChange={(event) => setAudienceCohort(event.target.value)}
+                  placeholder="Optional name or email filter"
+                  maxLength={120}
+                />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-700">Title</label>
                 <Input
                   value={title}
@@ -928,6 +957,31 @@ export function Broadcasts() {
                   placeholder="Service update"
                   maxLength={120}
                 />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Schedule</label>
+                <Input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(event) => setScheduledAt(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">Repeat</label>
+                <Select
+                  value={repeatRule}
+                  onValueChange={(value) => setRepeatRule(value as AdminBroadcastRepeatRule)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No repeat</SelectItem>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="space-y-2">
@@ -962,7 +1016,7 @@ export function Broadcasts() {
                 <div>
                   <p className="text-xs text-gray-500">Audience</p>
                   <p className="mt-1 font-medium text-gray-900 capitalize">
-                    {lastResult.audience}
+                    {lastResult.audience} - {lastResult.status}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -988,6 +1042,36 @@ export function Broadcasts() {
           </CardContent>
         </Card>
       </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Broadcast history</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {history.length === 0 ? (
+            <p className="text-sm text-gray-500">No broadcasts recorded yet.</p>
+          ) : (
+            history.map((broadcast) => (
+              <div key={broadcast.id} className="rounded-lg border border-gray-200 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-gray-900">{broadcast.title}</p>
+                    <p className="text-xs text-gray-500">
+                      {broadcast.audience} - {broadcast.status} - {broadcast.repeatRule}
+                    </p>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {broadcast.scheduledAt ?? broadcast.sentAt ?? broadcast.createdAt ?? "Not dated"}
+                  </p>
+                </div>
+                <p className="mt-2 text-sm text-gray-600">{broadcast.message}</p>
+                <p className="mt-2 text-xs text-gray-500">
+                  Delivered {broadcast.deliveredCount} - Failed {broadcast.failedCount}
+                </p>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

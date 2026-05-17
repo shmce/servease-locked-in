@@ -19,17 +19,34 @@ This document supersedes the older `mobile-admin-audit.md` for gap tracking. The
 
 | Surface | Wired | Partial | Missing |
 |---|---|---|---|
-| Mobile | 23 feature areas | 0 | 5 (see § Mobile gaps) |
-| Landing | 12 | 0 | 2 |
-| FE_Web (Provider) | 18 | 0 | 3 |
-| Admin | 22 wired in matrix | 3 partial | 0 missing |
-| Backend | 100+ routes, all consumed | 2 stub routes (501) | 4 contracts not yet drafted |
+| Mobile | 28 feature areas | 0 | 0 |
+| Landing | 14 | 0 | 0 |
+| FE_Web (Provider) | 21 | 0 | 0 |
+| Admin | 25 wired in matrix | 0 | 0 |
+| Backend | 100+ routes, all consumed | 0 stub routes | 0 contracts not drafted |
+
+---
+
+## Remediation status — 2026-05-17
+
+All gaps called out below have been implemented in this branch:
+
+- **M1:** Mobile now calls `GET /v1/auth/provider-application/me` and renders provider application status.
+- **M2:** Mobile portfolio caption edit and reorder wrappers are wired to provider portfolio controls.
+- **M3 / B3:** Booking attachment delete is exposed at `DELETE /v1/bookings/:bookingId/attachments/:attachmentId`, backed by booking-service soft-delete RPCs, and wired in mobile/provider-web.
+- **M4 / B4:** Customer/provider dispute creation is exposed at `POST /v1/bookings/:bookingId/disputes` and wired in mobile/provider-web.
+- **M5 / B2:** `DELETE /v1/me` cancels active bookings, anonymizes the internal user, revokes Supabase auth, and is wired in mobile, Landing Page, and provider-web.
+- **B1:** 2FA no longer returns 501. Auth-service owns TOTP state, QR provisioning, verify, and disable through `/v1/me/two-factor/enable`, `/verify`, and `/disable`.
+- **B5:** Admin broadcasts now support history, scheduled send intent, repeat rule, and optional cohort filtering through `GET/POST /v1/admin/broadcasts`.
+- **B6:** Settlement release history and bank-reference reconciliation are contracted through `GET /v1/admin/settlements/:id/history` and `POST /v1/admin/settlements/:id/reconcile`.
+
+Verification performed: backend build and Jest suite, mobile typecheck/tests, provider-web typecheck, Landing Page build/typecheck, admin build/typecheck/tests, and `git diff --check`.
 
 ---
 
 ## Mobile — gap inventory (top priority)
 
-Mobile already covers every customer-facing and provider-facing primary workflow. Five gaps remain:
+Mobile already covers every customer-facing and provider-facing primary workflow. The original audit identified five mobile gaps, all now remediated:
 
 ### M1. Provider application status check (HIGH)
 - **What's missing:** Mobile providers who registered but are awaiting admin approval cannot see their application status, decision reason, or "more info requested" messages.
@@ -60,10 +77,12 @@ Mobile already covers every customer-facing and provider-facing primary workflow
 
 ## Backend — true gaps (vs. orphan endpoints)
 
-### B1. Two-factor authentication (stub today, 501)
-- `POST /v1/me/two-factor/enable` and `POST /v1/me/two-factor/disable` return 501.
-- **Work:** TOTP secret column on `auth_user_profile`, `otplib` integration, QR provisioning endpoint, verification step. Add `POST /v1/me/two-factor/verify`.
-- **Frontend impact:** Admin Security page, Landing Account Security, Mobile More → Security.
+The original audit identified these backend gaps; all now have concrete contracts and service implementations:
+
+### B1. Two-factor authentication
+- **Original finding:** `POST /v1/me/two-factor/enable` and `POST /v1/me/two-factor/disable` returned 501.
+- **Resolved:** auth-service now owns TOTP secret state, QR provisioning, verification, and disable flows. Gateway exposes `POST /v1/me/two-factor/enable`, `/verify`, and `/disable`.
+- **Frontend impact:** Admin Security is wired; Landing, provider-web, and mobile service clients have the 2FA API wrappers.
 
 ### B2. Account deletion (no endpoint)
 - See M5.
@@ -75,17 +94,19 @@ Mobile already covers every customer-facing and provider-facing primary workflow
 - See M4.
 
 ### B5. Promotion broadcast scheduling/targeting (partial, in matrix)
-- `POST /v1/admin/broadcasts` is immediate-only. Scheduling, repeat, audience-cohort, and history are not contracted.
+- **Resolved:** `GET/POST /v1/admin/broadcasts` now persist history and accept scheduling, repeat rule, and optional audience-cohort values.
 
 ### B6. Settlement release history & lifecycle (partial, in matrix)
-- Approve/reject already exist; per-settlement audit timeline and bank-reference reconciliation feed are not contracted.
+- **Resolved:** `GET /v1/admin/settlements/:id/history` and `POST /v1/admin/settlements/:id/reconcile` provide payout event history and bank-reference reconciliation.
 
 ---
 
 ## Landing Page — gap inventory
 
+Closed by the remediation above:
+
 ### L1. Account deletion (see M5).
-### L2. 2FA configuration UI (waiting on B1).
+### L2. 2FA configuration support (see B1).
 
 Otherwise wired: customer registration, provider application + status, profile / password / preferences, bookings list+detail, payment methods, support tickets + replies, reviews, notifications, referrals.
 
@@ -93,21 +114,23 @@ Otherwise wired: customer registration, provider application + status, profile /
 
 ## FE_Web (Provider) — gap inventory
 
-### P1. Provider 2FA (waiting on B1).
-### P2. Account deletion (waiting on B2 / M5).
-### P3. Booking attachment lifecycle (waiting on B3).
+Closed by the remediation above:
+
+### P1. Provider 2FA support (see B1).
+### P2. Account deletion (see B2 / M5).
+### P3. Booking attachment lifecycle (see B3).
 
 Otherwise wired: provider profile + dashboard, services, availability windows + days off, bookings, conversations, payouts (account / methods / requests), reviews + replies, portfolio (incl. reorder + edit), support, notifications, referrals, preferences.
 
 ---
 
-## Admin — partial items still open
+## Admin — partial items closed
 
-These mirror `backendSupportMatrix.ts`:
+These mirrored `backendSupportMatrix.ts` before remediation:
 
 | Screen | Why partial | Effort to close |
 |---|---|---|
-| Profile and Security | 2FA stubs return 501 | Tracked as **B1** |
+| Profile and Security | 2FA setup was stubbed | Closed by **B1** |
 | Payouts/Settlements/Commission | Release history + bank-reference timeline | Tracked as **B6** |
 | Promotions/Broadcasts | Schedule + audience targeting | Tracked as **B5** |
 

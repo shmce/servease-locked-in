@@ -26,10 +26,15 @@ import {
 } from "../lib/bookings";
 import { createSupabaseBrowserClient } from "../lib/supabase-browser";
 import {
+  deleteCurrentUserAccount,
+  disableCurrentUserTwoFactor,
+  enableCurrentUserTwoFactor,
   getCurrentUserProfile,
   updateCurrentUserProfile,
   updateCurrentUserPassword,
+  verifyCurrentUserTwoFactor,
   type CurrentUserProfile,
+  type TwoFactorProvisioningResponse,
 } from "../lib/current-user";
 import {
   createSupportTicketReply,
@@ -179,11 +184,18 @@ export function AccountPage() {
   const [referralError, setReferralError] = useState("");
   const [paymentError, setPaymentError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [twoFactorError, setTwoFactorError] = useState("");
+  const [twoFactorSetup, setTwoFactorSetup] =
+    useState<TwoFactorProvisioningResponse | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(!setupError);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isUpdatingTwoFactor, setIsUpdatingTwoFactor] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [markingNotificationId, setMarkingNotificationId] = useState("");
   const [selectedTicketId, setSelectedTicketId] = useState("");
   const [replyMessage, setReplyMessage] = useState("");
@@ -518,11 +530,114 @@ export function AccountPage() {
     }
   };
 
+  const getAccessTokenOrLogin = async () => {
+    if (!supabase) {
+      throw new Error(setupError || "Supabase login is not configured.");
+    }
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+    if (sessionError || !sessionData.session?.access_token) {
+      router.push("/login");
+      throw new Error("Authentication is required.");
+    }
+    return sessionData.session.access_token;
+  };
+
+  const handleStartTwoFactor = async () => {
+    setIsUpdatingTwoFactor(true);
+    setTwoFactorError("");
+    setSuccess("");
+    try {
+      const accessToken = await getAccessTokenOrLogin();
+      setTwoFactorSetup(await enableCurrentUserTwoFactor(accessToken));
+      setSuccess("Scan the QR code and enter the verification code.");
+    } catch (error) {
+      setTwoFactorError(
+        error instanceof Error ? error.message : "Could not start 2FA setup.",
+      );
+    } finally {
+      setIsUpdatingTwoFactor(false);
+    }
+  };
+
+  const handleVerifyTwoFactor = async () => {
+    if (!twoFactorCode.trim()) {
+      setTwoFactorError("Enter the 6-digit authenticator code.");
+      return;
+    }
+    setIsUpdatingTwoFactor(true);
+    setTwoFactorError("");
+    try {
+      const accessToken = await getAccessTokenOrLogin();
+      const result = await verifyCurrentUserTwoFactor(accessToken, twoFactorCode);
+      setTwoFactorEnabled(result.enabled);
+      setTwoFactorSetup(null);
+      setTwoFactorCode("");
+      setSuccess("Two-factor authentication enabled.");
+    } catch (error) {
+      setTwoFactorError(
+        error instanceof Error ? error.message : "Could not verify 2FA.",
+      );
+    } finally {
+      setIsUpdatingTwoFactor(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    if (!twoFactorCode.trim()) {
+      setTwoFactorError("Enter a current authenticator code.");
+      return;
+    }
+    setIsUpdatingTwoFactor(true);
+    setTwoFactorError("");
+    try {
+      const accessToken = await getAccessTokenOrLogin();
+      await disableCurrentUserTwoFactor(accessToken, twoFactorCode);
+      setTwoFactorEnabled(false);
+      setTwoFactorCode("");
+      setSuccess("Two-factor authentication disabled.");
+    } catch (error) {
+      setTwoFactorError(
+        error instanceof Error ? error.message : "Could not disable 2FA.",
+      );
+    } finally {
+      setIsUpdatingTwoFactor(false);
+    }
+  };
+
   const handleSignOut = async () => {
     if (supabase) {
       await supabase.auth.signOut();
     }
     router.push("/login");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!supabase) {
+      setError(setupError || "Supabase login is not configured.");
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setError("");
+    try {
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      if (sessionError || !accessToken) {
+        router.push("/login");
+        return;
+      }
+      await deleteCurrentUserAccount(accessToken);
+      await supabase.auth.signOut();
+      router.push("/login");
+    } catch (error) {
+      setError(
+        error instanceof Error ? error.message : "Could not delete your account.",
+      );
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   const handleMarkNotificationRead = async (notificationId: string) => {
@@ -770,6 +885,19 @@ export function AccountPage() {
             >
               <LogOut size={16} />
               Sign Out
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Delete your ServEase account? This cannot be undone.")) {
+                  void handleDeleteAccount();
+                }
+              }}
+              disabled={isDeletingAccount}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 font-['Poppins',sans-serif] text-sm text-white disabled:opacity-60"
+            >
+              <X size={16} />
+              {isDeletingAccount ? "Deleting..." : "Delete Account"}
             </button>
           </div>
         </div>
@@ -1182,6 +1310,85 @@ export function AccountPage() {
                   </button>
                 </div>
               </form>
+
+              <div className="mt-6 border-t border-gray-100 pt-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="font-['Poppins',sans-serif] text-base font-semibold text-gray-900">
+                      Two-factor authentication
+                    </h3>
+                    <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                      {twoFactorEnabled
+                        ? "2FA is enabled for this account."
+                        : "Use an authenticator app to protect your account."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void handleStartTwoFactor()}
+                    disabled={isUpdatingTwoFactor || twoFactorEnabled}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 font-['Poppins',sans-serif] text-sm text-gray-700 disabled:opacity-60"
+                  >
+                    <ShieldCheck size={16} />
+                    Start 2FA Setup
+                  </button>
+                </div>
+                {twoFactorError && (
+                  <p className="mt-3 font-['Poppins',sans-serif] text-sm text-red-600">
+                    {twoFactorError}
+                  </p>
+                )}
+                {twoFactorSetup && (
+                  <div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr]">
+                    <img
+                      src={twoFactorSetup.qrCodeDataUrl}
+                      alt="Two-factor setup QR code"
+                      className="h-40 w-40 rounded-xl border border-gray-200"
+                    />
+                    <div className="space-y-3">
+                      <p className="break-all font-mono text-xs text-gray-500">
+                        {twoFactorSetup.secret}
+                      </p>
+                      <input
+                        value={twoFactorCode}
+                        onChange={(event) => setTwoFactorCode(event.target.value)}
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="Enter 6-digit code"
+                        className="w-full rounded-lg border border-gray-200 px-4 py-2 font-['Poppins',sans-serif] text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void handleVerifyTwoFactor()}
+                        disabled={isUpdatingTwoFactor || !twoFactorCode.trim()}
+                        className="rounded-lg bg-[#00BF63] px-4 py-2 font-['Poppins',sans-serif] text-sm text-white disabled:opacity-60"
+                      >
+                        Verify Code
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {twoFactorEnabled && (
+                  <div className="mt-4 flex flex-col gap-3 md:flex-row">
+                    <input
+                      value={twoFactorCode}
+                      onChange={(event) => setTwoFactorCode(event.target.value)}
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="Code required to disable"
+                      className="rounded-lg border border-gray-200 px-4 py-2 font-['Poppins',sans-serif] text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleDisableTwoFactor()}
+                      disabled={isUpdatingTwoFactor || !twoFactorCode.trim()}
+                      className="rounded-lg border border-red-200 px-4 py-2 font-['Poppins',sans-serif] text-sm text-red-600 disabled:opacity-60"
+                    >
+                      Disable 2FA
+                    </button>
+                  </div>
+                )}
+              </div>
             </section>
 
             <section className="bg-white rounded-2xl shadow-md p-6">

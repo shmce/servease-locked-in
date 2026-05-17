@@ -146,6 +146,16 @@ describe('BookingServiceClient', () => {
         null,
         'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
       );
+      await client.deleteAttachment(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        'attachment-1',
+        'provider-user-1',
+      );
+      await client.raiseDispute('0ec2c525-63e0-4a39-9f81-60b8585f45dc', {
+        actorId: 'provider-user-1',
+        category: 'damage',
+        reason: 'Incorrect work',
+      });
 
       expect(fetchMock).toHaveBeenNthCalledWith(
         1,
@@ -194,6 +204,34 @@ describe('BookingServiceClient', () => {
             'content-type': 'application/json',
           },
           body: undefined,
+        },
+      );
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        5,
+        'http://booking-service.test/internal/bookings/0ec2c525-63e0-4a39-9f81-60b8585f45dc/attachments/attachment-1',
+        {
+          method: 'DELETE',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            actorId: 'provider-user-1',
+          }),
+        },
+      );
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        6,
+        'http://booking-service.test/internal/bookings/0ec2c525-63e0-4a39-9f81-60b8585f45dc/disputes',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            actorId: 'provider-user-1',
+            category: 'damage',
+            reason: 'Incorrect work',
+          }),
         },
       );
     } finally {

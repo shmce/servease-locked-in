@@ -463,6 +463,18 @@ export interface UpdateCurrentUserPasswordResponse {
   ok: true;
 }
 
+export interface TwoFactorProvisioningResponse {
+  enabled: false;
+  secret: string;
+  otpauthUrl: string;
+  qrCodeDataUrl: string;
+}
+
+export interface TwoFactorStatusResponse {
+  enabled: boolean;
+  verifiedAt: string | null;
+}
+
 export interface CurrentUserSessionSummary {
   id: string;
   email: string;
@@ -584,6 +596,32 @@ export interface ProviderPortfolioMediaSummary {
   createdAt: string | null;
 }
 
+export interface ProviderPortfolioOrderItem {
+  id: string;
+  sortOrder: number;
+}
+
+export type BookingDisputeStatus = 'open' | 'resolved' | 'closed';
+
+export interface BookingDisputeSummary {
+  id: string;
+  bookingId: string;
+  raisedBy: string;
+  category: string | null;
+  reason: string;
+  description: string | null;
+  status: BookingDisputeStatus;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  createdAt: string | null;
+}
+
+export interface RaiseBookingDisputeRequest {
+  category: string;
+  reason: string;
+  description?: string | null;
+}
+
 export interface CreateBookingRequest {
   providerId: string;
   serviceId?: string | null;
@@ -683,6 +721,34 @@ export function deleteProviderPortfolioMedia(
   );
 }
 
+export function updateProviderPortfolioMedia(
+  mediaId: string,
+  body: MediaAttachmentInput,
+  options: ApiOptions = {},
+): Promise<ProviderPortfolioMediaSummary> {
+  return request<ProviderPortfolioMediaSummary>(
+    `/v1/catalog/provider/portfolio/${encodeURIComponent(mediaId)}`,
+    {
+      ...options,
+      method: 'PUT',
+      body,
+      requiresAuth: true,
+    },
+  );
+}
+
+export function reorderProviderPortfolio(
+  items: ProviderPortfolioOrderItem[],
+  options: ApiOptions = {},
+): Promise<ProviderPortfolioMediaSummary[]> {
+  return request<ProviderPortfolioMediaSummary[]>('/v1/catalog/provider/portfolio/order', {
+    ...options,
+    method: 'PUT',
+    body: { items },
+    requiresAuth: true,
+  });
+}
+
 export function getCurrentUser(
   options: ApiOptions = {},
 ): Promise<CurrentUserProfile> {
@@ -715,6 +781,34 @@ export function requestPasswordReset(
   });
 }
 
+export type ProviderApplicationVerificationStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected';
+
+export interface ProviderApplicationStatus {
+  id: string;
+  applicationReference: string;
+  businessName: string | null;
+  serviceArea: string | null;
+  serviceDescription: string | null;
+  verificationStatus: ProviderApplicationVerificationStatus;
+  latestDecisionReason: string | null;
+  latestDecisionAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export function getMyProviderApplication(
+  options: ApiOptions = {},
+): Promise<ProviderApplicationStatus> {
+  return request<ProviderApplicationStatus>('/v1/auth/provider-application/me', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
 export function updateCurrentUserProfile(
   body: UpdateCurrentUserProfileRequest,
   options: ApiOptions = {},
@@ -739,12 +833,56 @@ export function updateCurrentUserPassword(
   });
 }
 
+export function deleteCurrentUserAccount(
+  options: ApiOptions = {},
+): Promise<{ ok: true }> {
+  return request<{ ok: true }>('/v1/me', {
+    ...options,
+    method: 'DELETE',
+    requiresAuth: true,
+  });
+}
+
 export function listCurrentUserSessions(
   options: ApiOptions = {},
 ): Promise<CurrentUserSessionSummary[]> {
   return request<CurrentUserSessionSummary[]>('/v1/me/sessions', {
     ...options,
     method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function enableCurrentUserTwoFactor(
+  options: ApiOptions = {},
+): Promise<TwoFactorProvisioningResponse> {
+  return request<TwoFactorProvisioningResponse>('/v1/me/two-factor/enable', {
+    ...options,
+    method: 'POST',
+    requiresAuth: true,
+  });
+}
+
+export function verifyCurrentUserTwoFactor(
+  code: string,
+  options: ApiOptions = {},
+): Promise<TwoFactorStatusResponse> {
+  return request<TwoFactorStatusResponse>('/v1/me/two-factor/verify', {
+    ...options,
+    method: 'POST',
+    body: { code },
+    requiresAuth: true,
+  });
+}
+
+export function disableCurrentUserTwoFactor(
+  code?: string | null,
+  options: ApiOptions = {},
+): Promise<TwoFactorStatusResponse> {
+  return request<TwoFactorStatusResponse>('/v1/me/two-factor/disable', {
+    ...options,
+    method: 'POST',
+    body: { code: code ?? null },
     requiresAuth: true,
   });
 }
@@ -768,6 +906,37 @@ export function createBookingAttachment(
 ): Promise<BookingAttachmentSummary> {
   return request<BookingAttachmentSummary>(
     `/v1/bookings/${encodeURIComponent(bookingId)}/attachments`,
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
+}
+
+export function deleteBookingAttachment(
+  bookingId: string,
+  attachmentId: string,
+  options: ApiOptions = {},
+): Promise<BookingAttachmentSummary> {
+  return request<BookingAttachmentSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/attachments/${encodeURIComponent(attachmentId)}`,
+    {
+      ...options,
+      method: 'DELETE',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function raiseBookingDispute(
+  bookingId: string,
+  body: RaiseBookingDisputeRequest,
+  options: ApiOptions = {},
+): Promise<BookingDisputeSummary> {
+  return request<BookingDisputeSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/disputes`,
     {
       ...options,
       method: 'POST',

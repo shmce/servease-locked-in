@@ -8,7 +8,11 @@ import {
   createPayment,
   createSupportTicket,
   deleteCustomerPaymentMethod,
+  deleteBookingAttachment,
+  deleteCurrentUserAccount,
   deleteProviderPortfolioMedia,
+  disableCurrentUserTwoFactor,
+  enableCurrentUserTwoFactor,
   getPublicProviderAvailability,
   getProviderAvailability,
   getBookingTrackingSnapshot,
@@ -27,13 +31,17 @@ import {
   markNotificationRead,
   openConversation,
   registerAccount,
+  raiseBookingDispute,
+  reorderProviderPortfolio,
   replaceProviderAvailabilityWindows,
   requestPasswordReset,
   requestProviderPayout,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
+  updateProviderPortfolioMedia,
   upsertCustomerPaymentMethod,
   updateUserPreferences,
+  verifyCurrentUserTwoFactor,
   uploadMedia,
   validatePromotion,
 } from './serveaseApi';
@@ -477,6 +485,74 @@ describe('serveaseApi', () => {
     });
   });
 
+  it('deletes the current user account through the gateway', async () => {
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/me');
+      assert.equal(init?.method, 'DELETE');
+      assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer access-token');
+      return jsonResponse({ data: { ok: true } });
+    };
+
+    const deleted = await deleteCurrentUserAccount({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.deepEqual(deleted, { ok: true });
+  });
+
+  it('manages current user two-factor authentication through the gateway', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+      if (url.endsWith('/enable')) {
+        return jsonResponse({
+          data: {
+            enabled: false,
+            secret: 'JBSWY3DPEHPK3PXP',
+            otpauthUrl: 'otpauth://totp/ServEase:test',
+            qrCodeDataUrl: 'data:image/png;base64,test',
+          },
+        });
+      }
+      return jsonResponse({
+        data: {
+          enabled: !url.endsWith('/disable'),
+          verifiedAt: '2026-05-17T00:00:00.000Z',
+        },
+      });
+    };
+
+    await enableCurrentUserTwoFactor({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    await verifyCurrentUserTwoFactor('123456', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    await disableCurrentUserTwoFactor('123456', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.deepEqual(calls.map((call) => [call.url, call.method]), [
+      ['http://gateway.test/v1/me/two-factor/enable', 'POST'],
+      ['http://gateway.test/v1/me/two-factor/verify', 'POST'],
+      ['http://gateway.test/v1/me/two-factor/disable', 'POST'],
+    ]);
+    assert.deepEqual(calls[1]?.body, { code: '123456' });
+    assert.deepEqual(calls[2]?.body, { code: '123456' });
+  });
+
   it('opens a conversation and sends a message through the gateway', async () => {
     const calls: Array<{ url: string; body: unknown; authorization: string | null }> =
       [];
@@ -854,6 +930,163 @@ describe('serveaseApi', () => {
         url: 'http://gateway.test/v1/catalog/provider/portfolio/portfolio-1',
         method: 'DELETE',
         body: null,
+      },
+    ]);
+  });
+
+  it('updates and reorders provider portfolio media through the gateway', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      return jsonResponse({
+        data: url.endsWith('/order')
+          ? []
+          : {
+              id: 'portfolio-1',
+              providerId: 'provider-1',
+              uploadedBy: 'provider-user-1',
+              fileUrl: 'https://storage.test/portfolio.jpg',
+              fileName: 'portfolio.jpg',
+              mimeType: 'image/jpeg',
+              storagePath: 'provider_portfolio/provider-user-1/portfolio.jpg',
+              fileSize: 12,
+              caption: 'Updated caption',
+              sortOrder: 0,
+              createdAt: '2026-05-16T00:00:00.000Z',
+            },
+      });
+    };
+
+    await updateProviderPortfolioMedia(
+      'portfolio-1',
+      {
+        fileUrl: 'https://storage.test/portfolio.jpg',
+        fileName: 'portfolio.jpg',
+        mimeType: 'image/jpeg',
+        storagePath: 'provider_portfolio/provider-user-1/portfolio.jpg',
+        fileSize: 12,
+        caption: 'Updated caption',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+    await reorderProviderPortfolio(
+      [
+        { id: 'portfolio-2', sortOrder: 0 },
+        { id: 'portfolio-1', sortOrder: 1 },
+      ],
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/catalog/provider/portfolio/portfolio-1',
+        method: 'PUT',
+        body: {
+          fileUrl: 'https://storage.test/portfolio.jpg',
+          fileName: 'portfolio.jpg',
+          mimeType: 'image/jpeg',
+          storagePath: 'provider_portfolio/provider-user-1/portfolio.jpg',
+          fileSize: 12,
+          caption: 'Updated caption',
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/catalog/provider/portfolio/order',
+        method: 'PUT',
+        body: {
+          items: [
+            { id: 'portfolio-2', sortOrder: 0 },
+            { id: 'portfolio-1', sortOrder: 1 },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it('deletes booking attachments and raises booking disputes through the gateway', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      return jsonResponse({
+        data: url.endsWith('/disputes')
+          ? {
+              id: 'dispute-1',
+              bookingId: 'booking-1',
+              raisedBy: 'user-1',
+              category: 'damage',
+              reason: 'Incorrect work',
+              description: null,
+              status: 'open',
+              resolvedAt: null,
+              resolvedBy: null,
+              createdAt: '2026-05-16T00:00:00.000Z',
+            }
+          : {
+              id: 'attachment-1',
+              bookingId: 'booking-1',
+              uploadedBy: 'user-1',
+              mediaKind: 'booking_reference',
+              fileUrl: 'https://storage.test/photo.jpg',
+              fileName: 'photo.jpg',
+              mimeType: 'image/jpeg',
+              storagePath: 'booking_reference/user/photo.jpg',
+              fileSize: 12,
+              caption: null,
+              createdAt: '2026-05-16T00:00:00.000Z',
+            },
+      });
+    };
+
+    await deleteBookingAttachment('booking-1', 'attachment-1', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    const dispute = await raiseBookingDispute(
+      'booking-1',
+      {
+        category: 'damage',
+        reason: 'Incorrect work',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.equal(dispute.id, 'dispute-1');
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/bookings/booking-1/attachments/attachment-1',
+        method: 'DELETE',
+        body: null,
+      },
+      {
+        url: 'http://gateway.test/v1/bookings/booking-1/disputes',
+        method: 'POST',
+        body: {
+          category: 'damage',
+          reason: 'Incorrect work',
+        },
       },
     ]);
   });

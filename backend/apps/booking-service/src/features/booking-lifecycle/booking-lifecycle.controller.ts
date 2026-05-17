@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   Param,
@@ -9,7 +10,10 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  AttachmentForbiddenError,
+  AttachmentNotFoundError,
   BookingNotFoundError,
+  DisputeForbiddenError,
   InvalidBookingRequestError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
@@ -18,6 +22,7 @@ import { BookingLifecycleService } from './booking-lifecycle.service';
 import {
   AddBookingAttachmentInput,
   BookingAttachmentSummary,
+  BookingDisputeSummary,
   BookingServiceUpdateSummary,
   BookingStatus,
   BookingSummary,
@@ -142,6 +147,51 @@ export class BookingLifecycleController {
     }
   }
 
+  @Delete(':bookingId/attachments/:attachmentId')
+  async deleteAttachment(
+    @Param('bookingId') bookingId: string,
+    @Param('attachmentId') attachmentId: string,
+    @Body() body: { actorId?: string },
+  ): Promise<{ data: BookingAttachmentSummary }> {
+    try {
+      return {
+        data: await this.bookingLifecycleService.deleteAttachment(
+          bookingId,
+          attachmentId,
+          body.actorId ?? '',
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':bookingId/disputes')
+  async raiseDispute(
+    @Param('bookingId') bookingId: string,
+    @Body()
+    body: {
+      actorId?: string;
+      category?: string;
+      reason?: string;
+      description?: string | null;
+    },
+  ): Promise<{ data: BookingDisputeSummary }> {
+    try {
+      return {
+        data: await this.bookingLifecycleService.raiseDispute({
+          bookingId,
+          actorId: body.actorId ?? '',
+          category: body.category ?? '',
+          reason: body.reason ?? '',
+          description: body.description ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get(':bookingId/service-updates')
   async listServiceUpdates(
     @Param('bookingId') bookingId: string,
@@ -221,6 +271,45 @@ export class BookingLifecycleController {
           },
         },
         400,
+      );
+    }
+
+    if (error instanceof AttachmentNotFoundError) {
+      return new HttpException(
+        {
+          error: {
+            code: 'attachment_not_found',
+            message: 'Attachment was not found.',
+            details: {},
+          },
+        },
+        404,
+      );
+    }
+
+    if (error instanceof AttachmentForbiddenError) {
+      return new HttpException(
+        {
+          error: {
+            code: 'attachment_forbidden',
+            message: 'You do not have permission to delete this attachment.',
+            details: {},
+          },
+        },
+        403,
+      );
+    }
+
+    if (error instanceof DisputeForbiddenError) {
+      return new HttpException(
+        {
+          error: {
+            code: 'dispute_forbidden',
+            message: 'You do not have permission to raise a dispute on this booking.',
+            details: {},
+          },
+        },
+        403,
       );
     }
 

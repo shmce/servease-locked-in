@@ -35,6 +35,7 @@ import {
   ActivityIndicator,
   Image,
   Linking,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -138,6 +139,7 @@ import {
   CurrentUserSessionSummary,
   UserPreferenceSummary,
   ProviderAvailabilitySchedule,
+  ProviderApplicationStatus,
   ProviderListing,
   ProviderPortfolioMediaSummary,
   ReviewSummary,
@@ -155,9 +157,14 @@ import {
   createReview,
   createSupportTicket,
   createSupportTicketReply,
+  deleteBookingAttachment,
+  deleteCurrentUserAccount,
+  disableCurrentUserTwoFactor,
+  enableCurrentUserTwoFactor,
   listSupportTicketReplies,
   replyToReview,
   flagReview,
+  getMyProviderApplication,
   getProviderDashboard,
   listProviderOwnedServices,
   replaceProviderServices,
@@ -196,14 +203,18 @@ import {
   registerAccount,
   removeProviderDayOff,
   replaceProviderAvailabilityWindows,
+  raiseBookingDispute,
+  reorderProviderPortfolio,
   requestPasswordReset,
   requestProviderPayout,
+  updateProviderPortfolioMedia,
   upsertProviderPayoutMethod,
   transitionBookingStatus,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
   upsertCustomerPaymentMethod,
   updateUserPreferences,
+  verifyCurrentUserTwoFactor,
   uploadMedia,
   validatePromotion,
 } from './services/serveaseApi';
@@ -226,6 +237,9 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [twoFactorSecret, setTwoFactorSecret] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
   const [signupFullName, setSignupFullName] = useState('');
   const [signupContactNumber, setSignupContactNumber] = useState('');
   const [signupAddress, setSignupAddress] = useState('');
@@ -238,6 +252,8 @@ export default function App() {
   const [profileBusinessName, setProfileBusinessName] = useState('');
   const [session, setSession] = useState<AuthSession | null>(null);
   const [profile, setProfile] = useState<CurrentUserProfile | null>(null);
+  const [providerApplication, setProviderApplication] =
+    useState<ProviderApplicationStatus | null>(null);
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [services, setServices] = useState<CatalogServiceItem[]>([]);
   const [providers, setProviders] = useState<ProviderListing[]>([]);
@@ -342,6 +358,9 @@ export default function App() {
   const [providerCompletionPhotoUrl, setProviderCompletionPhotoUrl] = useState<string | null>(null);
   const [providerPortfolioPhotoUri, setProviderPortfolioPhotoUri] = useState<string | null>(null);
   const [providerPortfolioPhotoUrl, setProviderPortfolioPhotoUrl] = useState<string | null>(null);
+  const [editingPortfolioCaptionId, setEditingPortfolioCaptionId] =
+    useState<string | null>(null);
+  const [portfolioCaptionDraft, setPortfolioCaptionDraft] = useState('');
   const [providerProgressMessage, setProviderProgressMessage] = useState('');
   const [completionNotes, setCompletionNotes] = useState('');
   const [ownReviews, setOwnReviews] = useState<ReviewSummary[]>([]);
@@ -719,6 +738,7 @@ export default function App() {
   function signOut() {
     setSession(null);
     setProfile(null);
+    setProviderApplication(null);
     setBookings([]);
     setConversations([]);
     setMessages([]);
@@ -746,6 +766,24 @@ export default function App() {
     setNewPassword('');
     setRoute({ role: null, screen: 'authGate' });
     setNotice('Signed out.');
+  }
+
+  async function deleteMyAccount() {
+    if (!session) {
+      setNotice('Sign in before deleting your account.');
+      return;
+    }
+
+    setBusyAction('delete-account');
+    try {
+      await deleteCurrentUserAccount(apiOptions);
+      signOut();
+      setNotice('Account deleted.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
   }
 
   async function saveProfile() {
@@ -822,6 +860,63 @@ export default function App() {
     }
   }
 
+  async function startTwoFactorSetup() {
+    if (!session) {
+      setNotice('Sign in before updating security settings.');
+      return;
+    }
+
+    setBusyAction('two-factor-enable');
+    try {
+      const setup = await enableCurrentUserTwoFactor(apiOptions);
+      setTwoFactorSecret(setup.secret);
+      setNotice('Scan the QR code from a web account screen or enter the secret in your authenticator app.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function verifyTwoFactorSetup() {
+    if (!twoFactorCode.trim()) {
+      setNotice('Enter your 6-digit authenticator code.');
+      return;
+    }
+
+    setBusyAction('two-factor-verify');
+    try {
+      const result = await verifyCurrentUserTwoFactor(twoFactorCode, apiOptions);
+      setTwoFactorEnabled(result.enabled);
+      setTwoFactorSecret('');
+      setTwoFactorCode('');
+      setNotice('Two-factor authentication enabled.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function disableTwoFactorSetup() {
+    if (!twoFactorCode.trim()) {
+      setNotice('Enter your current authenticator code.');
+      return;
+    }
+
+    setBusyAction('two-factor-disable');
+    try {
+      await disableCurrentUserTwoFactor(twoFactorCode, apiOptions);
+      setTwoFactorEnabled(false);
+      setTwoFactorCode('');
+      setNotice('Two-factor authentication disabled.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function savePreferences(
     patch: {
       pushNotificationsEnabled?: boolean;
@@ -879,6 +974,7 @@ export default function App() {
         nextProviderDashboard,
         nextOwnedServices,
         nextSessions,
+        nextProviderApplication,
       ] = await Promise.all([
         nextRole === 'provider'
           ? listProviderBookings(options)
@@ -919,6 +1015,9 @@ export default function App() {
           ? listProviderOwnedServices(options).catch(() => [])
           : Promise.resolve([]),
         listCurrentUserSessions(options).catch(() => []),
+        nextRole === 'provider'
+          ? getMyProviderApplication(options).catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       setBookings(nextBookings);
@@ -939,6 +1038,7 @@ export default function App() {
       setProviderDashboard(nextProviderDashboard as ProviderDashboardSummary | null);
       setOwnedServices(nextOwnedServices as ProviderOwnedServiceSummary[]);
       setActiveSessions(nextSessions);
+      setProviderApplication(nextProviderApplication);
       setSelectedPayoutMethodId((current) => {
         if (current && nextPayoutMethods.some((method) => method.id === current)) {
           return current;
@@ -1208,23 +1308,38 @@ export default function App() {
       setNotice('Select a booking first.');
       return;
     }
-    const opened = await submitSupportTicket(
-      providerReportReason || 'Provider booking issue',
-      [
-        `Booking: ${selectedBooking.bookingReference}`,
-        providerReportDetails.trim(),
-      ]
-        .filter(Boolean)
-        .join('\n\n'),
-      reportEvidenceUpload ? [mediaAttachmentFromUpload(reportEvidenceUpload)] : [],
-    );
-    if (opened) {
+    const reason = providerReportReason.trim();
+    const details = providerReportDetails.trim();
+    if (!reason || !details) {
+      setNotice('Enter the issue subject and details.');
+      return;
+    }
+
+    setBusyAction('dispute');
+    try {
+      const dispute = await raiseSelectedBookingDispute(reason, details);
+      await submitSupportTicket(
+        reason,
+        [
+          `Booking: ${selectedBooking.bookingReference}`,
+          details,
+          `Dispute: ${dispute?.id}`,
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+        reportEvidenceUpload ? [mediaAttachmentFromUpload(reportEvidenceUpload)] : [],
+      );
       setProviderReportReason('');
       setProviderReportDetails('');
       setReportEvidencePhotoUri(null);
       setReportEvidencePhotoUrl(null);
       setReportEvidenceUpload(null);
       setRoute({ role: 'provider', screen: 'providerBookingDetail' });
+      setNotice('Dispute submitted.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
     }
   }
 
@@ -1601,6 +1716,92 @@ export default function App() {
     }
   }
 
+  async function saveProviderPortfolioCaption(media: ProviderPortfolioMediaSummary) {
+    const caption = portfolioCaptionDraft.trim();
+    setBusyAction(`portfolio-caption-${media.id}`);
+    try {
+      const updated = await updateProviderPortfolioMedia(
+        media.id,
+        {
+          fileUrl: media.fileUrl,
+          fileName: media.fileName,
+          mimeType: media.mimeType,
+          storagePath: media.storagePath,
+          fileSize: media.fileSize,
+          caption: caption || null,
+        },
+        apiOptions,
+      );
+      setProviderPortfolioMedia((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setSelectedProviderPortfolioMedia((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      setEditingPortfolioCaptionId(null);
+      setPortfolioCaptionDraft('');
+      setNotice('Portfolio caption updated.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function moveProviderPortfolioMedia(mediaId: string, direction: -1 | 1) {
+    const currentIndex = providerPortfolioMedia.findIndex((item) => item.id === mediaId);
+    const targetIndex = currentIndex + direction;
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= providerPortfolioMedia.length) {
+      return;
+    }
+
+    const next = [...providerPortfolioMedia];
+    const [moved] = next.splice(currentIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    const items = next.map((item, index) => ({ id: item.id, sortOrder: index }));
+    setProviderPortfolioMedia(next.map((item, index) => ({ ...item, sortOrder: index })));
+    setBusyAction(`portfolio-order-${mediaId}`);
+    try {
+      const reordered = await reorderProviderPortfolio(items, apiOptions);
+      setProviderPortfolioMedia(reordered);
+      setNotice('Portfolio order updated.');
+    } catch (error) {
+      setProviderPortfolioMedia((current) =>
+        [...current].sort(
+          (left, right) =>
+            left.sortOrder - right.sortOrder ||
+            (left.createdAt ?? '').localeCompare(right.createdAt ?? ''),
+        ),
+      );
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function removeBookingAttachment(attachmentId: string) {
+    if (!selectedBooking) {
+      setNotice('Select a booking first.');
+      return;
+    }
+
+    setBusyAction(`attachment-${attachmentId}`);
+    try {
+      await deleteBookingAttachment(selectedBooking.id, attachmentId, apiOptions);
+      replaceBooking({
+        ...selectedBooking,
+        attachments: (selectedBooking.attachments ?? []).filter(
+          (attachment) => attachment.id !== attachmentId,
+        ),
+      });
+      setNotice('Booking attachment removed.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function reservePayment() {
     const reserved = selectedPayment ? true : await collectPayment();
     if (reserved && selectedBooking) {
@@ -1800,6 +2001,63 @@ export default function App() {
     } catch (error) {
       setNotice(readError(error));
       return false;
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function raiseSelectedBookingDispute(
+    category: string,
+    reason: string,
+    description?: string | null,
+  ) {
+    if (!selectedBooking) {
+      setNotice('Select a booking first.');
+      return null;
+    }
+
+    return raiseBookingDispute(
+      selectedBooking.id,
+      {
+        category,
+        reason,
+        description: description?.trim() || null,
+      },
+      apiOptions,
+    );
+  }
+
+  async function submitCustomerIssue() {
+    const subject = supportSubject.trim();
+    const body = supportMessage.trim();
+
+    if (!subject || !body || !desiredResolution) {
+      setNotice('Choose an issue type, description, and desired resolution.');
+      return;
+    }
+
+    setBusyAction('dispute');
+    try {
+      const dispute = await raiseSelectedBookingDispute(
+        subject,
+        body,
+        `Desired resolution: ${desiredResolution}`,
+      );
+      await submitSupportTicket(
+        subject,
+        [
+          body,
+          `Desired resolution: ${desiredResolution}`,
+          dispute ? `Dispute: ${dispute.id}` : null,
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+      );
+      setDesiredResolution('');
+      setRoute({ role: 'customer', screen: 'customerBookingDetail' });
+      setNotice('Dispute submitted.');
+    } catch (error) {
+      setNotice(readError(error));
     } finally {
       setBusyAction(null);
     }
@@ -3537,14 +3795,9 @@ export default function App() {
               </View>
             </Section>
             <PrimaryButton
-              label="Submit"
-              onPress={() => void submitSupportTicket(
-                supportSubject,
-                [supportMessage, `Desired resolution: ${desiredResolution}`]
-                  .filter(Boolean)
-                  .join('\n\n'),
-              )}
-              disabled={!supportSubject.trim() || !supportMessage.trim() || !desiredResolution || busyAction === 'support'}
+              label="Raise dispute"
+              onPress={() => void submitCustomerIssue()}
+              disabled={!supportSubject.trim() || !supportMessage.trim() || !desiredResolution || busyAction === 'dispute'}
             />
           </View>
         </ScrollView>
@@ -3790,6 +4043,7 @@ export default function App() {
                 onPress={() => void savePassword()}
                 disabled={busyAction === 'password-change'}
               />
+              {renderTwoFactorSettings()}
               <SettingsRow
                 icon={Globe}
                 label="Language"
@@ -3833,9 +4087,74 @@ export default function App() {
                 ))
               )}
             </SettingsSection>
+            <SettingsSection title="Delete account">
+              <PrimaryButton
+                label={busyAction === 'delete-account' ? 'Deleting...' : 'Delete Account'}
+                variant="danger"
+                onPress={() => void deleteMyAccount()}
+                disabled={busyAction === 'delete-account'}
+              />
+            </SettingsSection>
           </View>
         </ScrollView>
       </>
+    );
+  }
+
+  function renderTwoFactorSettings() {
+    return (
+      <Card>
+        <Text style={styles.cardTitle}>Two-Factor Authentication</Text>
+        <Text style={styles.cardMeta}>
+          {twoFactorEnabled
+            ? '2FA is enabled. Enter a current code to disable it.'
+            : 'Protect your account with a code from an authenticator app.'}
+        </Text>
+        {twoFactorSecret ? (
+          <Text style={[styles.cardMeta, styles.monoText]}>
+            Secret: {twoFactorSecret}
+          </Text>
+        ) : null}
+        <Field
+          label="Authenticator Code"
+          value={twoFactorCode}
+          onChangeText={setTwoFactorCode}
+          placeholder="6-digit code"
+          keyboardType="number-pad"
+        />
+        <View style={styles.twoButtons}>
+          <PrimaryButton
+            label={
+              busyAction === 'two-factor-enable'
+                ? 'Starting...'
+                : twoFactorEnabled
+                  ? '2FA Enabled'
+                  : 'Start Setup'
+            }
+            variant="secondary"
+            onPress={() => void startTwoFactorSetup()}
+            disabled={twoFactorEnabled || busyAction === 'two-factor-enable'}
+          />
+          <PrimaryButton
+            label={
+              busyAction === 'two-factor-verify'
+                ? 'Verifying...'
+                : twoFactorEnabled
+                  ? 'Disable'
+                  : 'Verify'
+            }
+            onPress={() =>
+              twoFactorEnabled
+                ? void disableTwoFactorSetup()
+                : void verifyTwoFactorSetup()
+            }
+            disabled={
+              busyAction === 'two-factor-verify' ||
+              busyAction === 'two-factor-disable'
+            }
+          />
+        </View>
+      </Card>
     );
   }
 
@@ -4075,6 +4394,62 @@ export default function App() {
     );
   }
 
+  function renderProviderApplicationBanner(): ReactNode {
+    const applicationStatus =
+      providerApplication?.verificationStatus ??
+      profile?.providerProfile?.verificationStatus ??
+      null;
+
+    if (!applicationStatus || applicationStatus === 'approved') {
+      return null;
+    }
+
+    const title =
+      applicationStatus === 'rejected'
+        ? 'Application needs attention'
+        : 'Application pending review';
+    const body =
+      providerApplication?.latestDecisionReason ??
+      (applicationStatus === 'rejected'
+        ? 'Review the admin decision before resubmitting your provider details.'
+        : 'ServEase admin is reviewing your provider application.');
+
+    return (
+      <Card>
+        <View style={styles.rowBetween}>
+          <View style={styles.flex}>
+            <Text style={styles.cardTitle}>{title}</Text>
+            <Text style={styles.cardBody}>{body}</Text>
+            {providerApplication?.latestDecisionAt ? (
+              <Text style={styles.cardMeta}>
+                Updated {formatDateTime(providerApplication.latestDecisionAt)}
+              </Text>
+            ) : null}
+          </View>
+          <Badge
+            label={applicationStatus}
+            tone={applicationStatus === 'rejected' ? 'danger' : 'warning'}
+          />
+        </View>
+        <PrimaryButton
+          label="Refresh Status"
+          variant="secondary"
+          onPress={async () => {
+            setBusyAction('provider-application');
+            try {
+              setProviderApplication(await getMyProviderApplication(apiOptions));
+              setNotice('Provider application status refreshed.');
+            } catch (error) {
+              setNotice(readError(error));
+            } finally {
+              setBusyAction(null);
+            }
+          }}
+        />
+      </Card>
+    );
+  }
+
   function renderProviderHome() {
     const pendingCount = bookings.filter((booking) => booking.status === 'pending').length;
     const todayCompleted = providerDashboard?.summary.todayCompleted ?? 0;
@@ -4097,6 +4472,7 @@ export default function App() {
           </View>
         </View>
         <View style={styles.content}>
+          {renderProviderApplicationBanner()}
           <Pressable
             style={styles.requestBanner}
             onPress={() => navigate('bookings', 'provider')}
@@ -4296,6 +4672,13 @@ export default function App() {
                   ? 'Provider update'
                   : 'Reference photo'}
               </Text>
+              <Pressable
+                style={styles.deleteOverlay}
+                onPress={() => void removeBookingAttachment(attachment.id)}
+                accessibilityRole="button"
+              >
+                <Trash2 color={palette.white} size={16} strokeWidth={2.6} />
+              </Pressable>
             </View>
           ))}
         </View>
@@ -5332,9 +5715,60 @@ export default function App() {
               {providerPortfolioMedia.map((item) => (
                 <View key={item.id} style={styles.portfolioTile}>
                   <Image source={{ uri: item.fileUrl }} style={styles.portfolioImage} />
-                  <Text style={styles.portfolioText} numberOfLines={1}>
-                    {item.caption ?? item.fileName ?? 'Portfolio media'}
-                  </Text>
+                  {editingPortfolioCaptionId === item.id ? (
+                    <View style={styles.portfolioEditor}>
+                      <Field
+                        label="Caption"
+                        value={portfolioCaptionDraft}
+                        onChangeText={setPortfolioCaptionDraft}
+                        placeholder="Portfolio caption"
+                      />
+                      <View style={styles.twoButtons}>
+                        <PrimaryButton
+                          label="Save"
+                          onPress={() => void saveProviderPortfolioCaption(item)}
+                          disabled={busyAction === `portfolio-caption-${item.id}`}
+                        />
+                        <PrimaryButton
+                          label="Cancel"
+                          variant="secondary"
+                          onPress={() => {
+                            setEditingPortfolioCaptionId(null);
+                            setPortfolioCaptionDraft('');
+                          }}
+                        />
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      <Text style={styles.portfolioText} numberOfLines={1}>
+                        {item.caption ?? item.fileName ?? 'Portfolio media'}
+                      </Text>
+                      <View style={styles.portfolioActions}>
+                        <Text
+                          style={styles.linkText}
+                          onPress={() => void moveProviderPortfolioMedia(item.id, -1)}
+                        >
+                          Up
+                        </Text>
+                        <Text
+                          style={styles.linkText}
+                          onPress={() => void moveProviderPortfolioMedia(item.id, 1)}
+                        >
+                          Down
+                        </Text>
+                        <Text
+                          style={styles.linkText}
+                          onPress={() => {
+                            setEditingPortfolioCaptionId(item.id);
+                            setPortfolioCaptionDraft(item.caption ?? '');
+                          }}
+                        >
+                          Edit
+                        </Text>
+                      </View>
+                    </>
+                  )}
                   <Pressable
                     style={styles.deleteOverlay}
                     onPress={() => void removeProviderPortfolioMedia(item.id)}
@@ -5717,8 +6151,17 @@ export default function App() {
               ) : null}
             </Section>
             {renderProfileCard()}
+            <Section title="Security">
+              {renderTwoFactorSettings()}
+            </Section>
             {renderSupportPanel()}
             <PrimaryButton label="Sign out" variant="secondary" onPress={signOut} />
+            <PrimaryButton
+              label={busyAction === 'delete-account' ? 'Deleting...' : 'Delete Account'}
+              variant="danger"
+              onPress={() => void deleteMyAccount()}
+              disabled={busyAction === 'delete-account'}
+            />
           </View>
         </ScrollView>
       </>
@@ -6763,7 +7206,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.mintSoft,
     borderRadius: radius.md,
     gap: spacing.xs,
-    height: 120,
+    height: 150,
     justifyContent: 'center',
     overflow: 'hidden',
     width: '47%',
@@ -6782,6 +7225,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
     position: 'absolute',
     right: spacing.xs,
+  },
+  portfolioActions: {
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: radius.sm,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    left: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 4,
+    position: 'absolute',
+    right: spacing.xs,
+    top: spacing.xs,
+  },
+  portfolioEditor: {
+    backgroundColor: palette.white,
+    bottom: spacing.xs,
+    gap: spacing.xs,
+    left: spacing.xs,
+    padding: spacing.xs,
+    position: 'absolute',
+    right: spacing.xs,
+    top: spacing.xs,
   },
   segmentRow: {
     flexDirection: 'row',
@@ -6807,6 +7272,9 @@ const styles = StyleSheet.create({
   cardMeta: {
     ...type.caption,
     color: palette.muted,
+  },
+  monoText: {
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
   },
   label: {
     color: palette.body,

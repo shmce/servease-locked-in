@@ -27,3 +27,9 @@ export class ProfileDependencyUnavailableError extends Error {
     super('profile_dependency_unavailable');
   }
 }
+
+export class InvalidTwoFactorRequestError extends Error {
+  constructor() {
+    super('invalid_two_factor_request');
+  }
+}

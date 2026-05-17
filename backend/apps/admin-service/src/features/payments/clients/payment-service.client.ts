@@ -3,8 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import {
   PaymentSummary,
   CommissionRuleSummary,
+  PayoutEventSummary,
   PromotionSummary,
   PayoutSummary,
+  RecordPayoutEventRequest,
   RefundSummary,
   UpsertPromotionRequest,
   UpdateCommissionRuleRequest,
@@ -127,6 +129,24 @@ export class PaymentServiceClient {
       {
         status,
       },
+    );
+  }
+
+  listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {
+    return this.request<PayoutEventSummary[]>(
+      `/internal/admin/payments/payouts/${payoutId}/events`,
+      'GET',
+    );
+  }
+
+  recordPayoutEvent(
+    payoutId: string,
+    input: RecordPayoutEventRequest,
+  ): Promise<PayoutEventSummary> {
+    return this.request<PayoutEventSummary>(
+      `/internal/admin/payments/payouts/${payoutId}/events`,
+      'POST',
+      input,
     );
   }
 

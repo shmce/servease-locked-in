@@ -81,6 +81,12 @@ export interface UpsertPromotionInput {
 
 export type PayoutMethodType = 'bank' | 'gcash' | 'paymaya';
 export type PayoutStatus = 'requested' | 'processing' | 'paid' | 'cancelled';
+export type PayoutEventType =
+  | 'requested'
+  | 'approved'
+  | 'rejected'
+  | 'status_updated'
+  | 'bank_reference_reconciled';
 export type CustomerPaymentMethodType =
   | 'cash_on_service'
   | 'card'
@@ -145,6 +151,26 @@ export interface PayoutSummary {
   requestedAt: string | null;
   paidAt: string | null;
   createdAt: string | null;
+}
+
+export interface PayoutEventSummary {
+  id: string;
+  payoutId: string;
+  eventType: PayoutEventType;
+  status: PayoutStatus;
+  bankReference: string | null;
+  note: string | null;
+  adminUserId: string | null;
+  createdAt: string | null;
+}
+
+export interface RecordPayoutEventInput {
+  payoutId: string;
+  eventType: PayoutEventType;
+  status: PayoutStatus;
+  bankReference?: string | null;
+  note?: string | null;
+  adminUserId?: string | null;
 }
 
 export interface RefundSummary {

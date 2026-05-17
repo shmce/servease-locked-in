@@ -19,7 +19,10 @@ import {
   PayoutAccountSummary,
   PayoutMethodSummary,
   PayoutStatus,
+  PayoutEventSummary,
+  PayoutEventType,
   PayoutSummary,
+  RecordPayoutEventInput,
   UpsertPayoutMethodInput,
   CreatePayoutRequestInput,
   UpsertCustomerPaymentMethodInput,
@@ -37,6 +40,7 @@ interface SupabaseRpcClient {
       | CustomerPaymentMethodRow[]
       | CommissionRuleRow[]
       | PayoutRow[]
+      | PayoutEventRow[]
       | PayoutAccountRow[]
       | RefundRow[]
       | PromotionValidationRow[]
@@ -51,6 +55,7 @@ interface SupabaseRpcClient {
         | CustomerPaymentMethodRow
         | CommissionRuleRow
         | PayoutRow
+        | PayoutEventRow
         | PayoutAccountRow
         | RefundRow
         | PromotionValidationRow
@@ -112,6 +117,17 @@ interface PayoutRow {
   period_end: string | null;
   requested_at: string | null;
   paid_at: string | null;
+  created_at: string | null;
+}
+
+interface PayoutEventRow {
+  id: string;
+  payout_id: string;
+  event_type: PayoutEventType;
+  status: PayoutStatus;
+  bank_reference: string | null;
+  note: string | null;
+  admin_user_id: string | null;
   created_at: string | null;
 }
 
@@ -455,6 +471,51 @@ export class SupabasePaymentRepository {
     }
 
     return this.mapPayout(data as PayoutRow);
+  }
+
+  async listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_admin_list_provider_payout_events',
+      {
+        p_payout_id: payoutId,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list payout events: ${error.message}`);
+    }
+
+    return ((data ?? []) as PayoutEventRow[]).map((row) =>
+      this.mapPayoutEvent(row),
+    );
+  }
+
+  async recordPayoutEvent(
+    input: RecordPayoutEventInput,
+  ): Promise<PayoutEventSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_record_provider_payout_event', {
+        p_payout_id: input.payoutId,
+        p_event_type: input.eventType,
+        p_status: input.status,
+        p_bank_reference: input.bankReference ?? null,
+        p_note: input.note ?? null,
+        p_admin_user_id: input.adminUserId ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('invalid_payment_request')) {
+        throw new PaymentNotFoundError();
+      }
+      throw new Error(`Failed to record payout event: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPayoutEvent(data as PayoutEventRow);
   }
 
   async listRefunds(status: RefundStatus | null): Promise<RefundSummary[]> {
@@ -821,6 +882,19 @@ export class SupabasePaymentRepository {
       periodEnd: row.period_end,
       requestedAt: row.requested_at,
       paidAt: row.paid_at,
+      createdAt: row.created_at,
+    };
+  }
+
+  private mapPayoutEvent(row: PayoutEventRow): PayoutEventSummary {
+    return {
+      id: row.id,
+      payoutId: row.payout_id,
+      eventType: row.event_type,
+      status: row.status,
+      bankReference: row.bank_reference,
+      note: row.note,
+      adminUserId: row.admin_user_id,
       createdAt: row.created_at,
     };
   }

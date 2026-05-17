@@ -45,6 +45,18 @@ export interface UpdateCurrentUserPasswordResponse {
   ok: true;
 }
 
+export interface TwoFactorProvisioningResponse {
+  enabled: false;
+  secret: string;
+  otpauthUrl: string;
+  qrCodeDataUrl: string;
+}
+
+export interface TwoFactorStatusResponse {
+  enabled: boolean;
+  verifiedAt: string | null;
+}
+
 interface ApiResponse<T> {
   data?: T;
   error?: {
@@ -85,11 +97,60 @@ export function updateCurrentUserPassword(
   );
 }
 
+export function deleteCurrentUserAccount(
+  accessToken: string,
+): Promise<{ ok: true }> {
+  return fetchCurrentUserApi<{ ok: true }>('/api/me', {
+    accessToken,
+    method: 'DELETE',
+  });
+}
+
+export function enableCurrentUserTwoFactor(
+  accessToken: string,
+): Promise<TwoFactorProvisioningResponse> {
+  return fetchCurrentUserApi<TwoFactorProvisioningResponse>(
+    '/api/me/two-factor/enable',
+    {
+      accessToken,
+      method: 'POST',
+    },
+  );
+}
+
+export function verifyCurrentUserTwoFactor(
+  accessToken: string,
+  code: string,
+): Promise<TwoFactorStatusResponse> {
+  return fetchCurrentUserApi<TwoFactorStatusResponse>(
+    '/api/me/two-factor/verify',
+    {
+      accessToken,
+      method: 'POST',
+      body: { code },
+    },
+  );
+}
+
+export function disableCurrentUserTwoFactor(
+  accessToken: string,
+  code?: string | null,
+): Promise<TwoFactorStatusResponse> {
+  return fetchCurrentUserApi<TwoFactorStatusResponse>(
+    '/api/me/two-factor/disable',
+    {
+      accessToken,
+      method: 'POST',
+      body: { code: code ?? null },
+    },
+  );
+}
+
 async function fetchCurrentUserApi<T>(
   path: string,
   options: {
     accessToken: string;
-    method?: 'GET' | 'PATCH';
+    method?: 'DELETE' | 'GET' | 'PATCH' | 'POST';
     body?: unknown;
   },
 ): Promise<T> {

@@ -3,7 +3,9 @@ import {
   PaymentSummary,
   CommissionRuleSummary,
   PromotionSummary,
+  PayoutEventSummary,
   PayoutSummary,
+  RecordPayoutEventRequest,
   RefundSummary,
   UpsertPromotionRequest,
   UpdateCommissionRuleRequest,
@@ -75,6 +77,17 @@ export class AdminPaymentGatewayService {
     status: string,
   ): Promise<PayoutSummary> {
     return this.adminServiceClient.updatePayoutStatus(payoutId, status);
+  }
+
+  listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {
+    return this.adminServiceClient.listPayoutEvents(payoutId);
+  }
+
+  recordPayoutEvent(
+    payoutId: string,
+    input: RecordPayoutEventRequest,
+  ): Promise<PayoutEventSummary> {
+    return this.adminServiceClient.recordPayoutEvent(payoutId, input);
   }
 
   listRefunds(status?: string | null): Promise<RefundSummary[]> {

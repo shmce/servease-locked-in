@@ -11,7 +11,10 @@ import {
   PromotionStatus,
   PromotionSummary,
   PayoutStatus,
+  PayoutEventSummary,
+  PayoutEventType,
   PayoutSummary,
+  RecordPayoutEventInput,
   UpsertPromotionInput,
 } from './payment.types';
 import { SupabasePaymentRepository } from './supabase-payment.repository';
@@ -22,6 +25,13 @@ const validPayoutStatuses = new Set([
   'processing',
   'paid',
   'cancelled',
+]);
+const validPayoutEventTypes = new Set<PayoutEventType>([
+  'requested',
+  'approved',
+  'rejected',
+  'status_updated',
+  'bank_reference_reconciled',
 ]);
 const validPromotionStatuses = new Set([
   'active',
@@ -173,6 +183,33 @@ export class PaymentAdminService {
       payoutId,
       status as PayoutStatus,
     );
+  }
+
+  async listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {
+    if (!payoutId) {
+      throw new InvalidPaymentRequestError();
+    }
+
+    return this.paymentRepository.listPayoutEvents(payoutId);
+  }
+
+  async recordPayoutEvent(
+    input: RecordPayoutEventInput,
+  ): Promise<PayoutEventSummary> {
+    if (
+      !input.payoutId ||
+      !validPayoutEventTypes.has(input.eventType) ||
+      !validPayoutStatuses.has(input.status)
+    ) {
+      throw new InvalidPaymentRequestError();
+    }
+
+    return this.paymentRepository.recordPayoutEvent({
+      ...input,
+      bankReference: input.bankReference?.trim() || null,
+      note: input.note?.trim() || null,
+      adminUserId: input.adminUserId?.trim() || null,
+    });
   }
 
   async listRefunds(status?: string | null): Promise<RefundSummary[]> {

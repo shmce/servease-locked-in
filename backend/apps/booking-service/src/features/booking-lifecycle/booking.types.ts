@@ -45,6 +45,29 @@ export interface AddBookingAttachmentInput extends BookingAttachmentInput {
   mediaKind: BookingAttachmentKind;
 }
 
+export type BookingDisputeStatus = 'open' | 'resolved' | 'closed';
+
+export interface BookingDisputeSummary {
+  id: string;
+  bookingId: string;
+  raisedBy: string;
+  category: string | null;
+  reason: string;
+  description: string | null;
+  status: BookingDisputeStatus;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  createdAt: string | null;
+}
+
+export interface RaiseBookingDisputeInput {
+  bookingId: string;
+  actorId: string;
+  category: string;
+  reason: string;
+  description?: string | null;
+}
+
 export interface BookingAttachmentSummary {
   id: string;
   bookingId: string;

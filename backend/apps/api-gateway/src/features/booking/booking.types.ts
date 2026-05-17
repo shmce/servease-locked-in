@@ -87,6 +87,27 @@ export interface BookingTimelineEventSummary {
   createdAt: string | null;
 }
 
+export type BookingDisputeStatus = 'open' | 'resolved' | 'closed';
+
+export interface BookingDisputeSummary {
+  id: string;
+  bookingId: string;
+  raisedBy: string;
+  category: string | null;
+  reason: string;
+  description: string | null;
+  status: BookingDisputeStatus;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  createdAt: string | null;
+}
+
+export interface RaiseBookingDisputeRequest {
+  category: string;
+  reason: string;
+  description?: string | null;
+}
+
 export type BookingTrackingPhase =
   | 'awaiting_confirmation'
   | 'scheduled'

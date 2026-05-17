@@ -69,6 +69,10 @@ describe('AdminSettlementController', () => {
         providerId: 'provider-1',
         status: 'processing',
       }),
+      recordPayoutEvent: jest.fn().mockResolvedValue({
+        id: 'event-1',
+        payoutId: 'payout-1',
+      }),
     } as unknown as AdminPaymentGatewayService;
     const adminAuditGatewayService = {
       createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
@@ -89,6 +93,14 @@ describe('AdminSettlementController', () => {
     expect(adminPaymentGatewayService.updatePayoutStatus).toHaveBeenCalledWith(
       'payout-1',
       'processing',
+    );
+    expect(adminPaymentGatewayService.recordPayoutEvent).toHaveBeenCalledWith(
+      'payout-1',
+      expect.objectContaining({
+        eventType: 'approved',
+        status: 'processing',
+        adminUserId: 'admin-user-1',
+      }),
     );
     expect(adminAuditGatewayService.createAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -127,6 +139,10 @@ describe('AdminSettlementController', () => {
         providerId: 'provider-1',
         status: 'cancelled',
       }),
+      recordPayoutEvent: jest.fn().mockResolvedValue({
+        id: 'event-1',
+        payoutId: 'payout-1',
+      }),
     } as unknown as AdminPaymentGatewayService;
     const adminAuditGatewayService = {
       createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
@@ -147,6 +163,14 @@ describe('AdminSettlementController', () => {
     expect(adminPaymentGatewayService.updatePayoutStatus).toHaveBeenCalledWith(
       'payout-1',
       'cancelled',
+    );
+    expect(adminPaymentGatewayService.recordPayoutEvent).toHaveBeenCalledWith(
+      'payout-1',
+      expect.objectContaining({
+        eventType: 'rejected',
+        status: 'cancelled',
+        adminUserId: 'admin-user-1',
+      }),
     );
     expect(adminAuditGatewayService.createAuditLog).toHaveBeenCalledWith(
       expect.objectContaining({

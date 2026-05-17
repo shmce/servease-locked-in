@@ -19,7 +19,9 @@ import {
 } from "lucide-react";
 import {
   createProviderBookingAttachment,
+  createProviderBookingDispute,
   createProviderBookingServiceUpdate,
+  deleteProviderBookingAttachment,
   getProviderBooking,
   getStoredProviderAccessToken,
   listProviderBookingServiceUpdates,
@@ -270,6 +272,8 @@ const styles = {
     justifyContent: "center",
     border: "2px dashed #D1D5DB",
     cursor: "pointer",
+    overflow: "hidden",
+    position: "relative" as const,
     transition: "all 0.3s ease",
   },
   pricingRow: {
@@ -427,6 +431,8 @@ export function BookingDetailsPage() {
   const [isPostingProgress, setIsPostingProgress] = useState(false);
   const [progressMessage, setProgressMessage] = useState("");
   const [progressPhoto, setProgressPhoto] = useState<File | null>(null);
+  const [disputeReason, setDisputeReason] = useState("");
+  const [disputeDetails, setDisputeDetails] = useState("");
 
   useEffect(() => {
     const loadBooking = async () => {
@@ -475,10 +481,15 @@ export function BookingDetailsPage() {
       estimatedDuration: "-",
       actualDuration: "-",
     },
-    photos: [
-      { id: 1, url: "" },
-      { id: 2, url: "" },
-    ],
+    photos: (apiBooking.attachments ?? []).map((attachment) => ({
+      id: attachment.id,
+      url: attachment.fileUrl,
+      label:
+        attachment.caption ||
+        (attachment.mediaKind === "provider_progress"
+          ? "Provider update"
+          : "Reference photo"),
+    })),
     pricing: {
       serviceFee: apiBooking.totalAmount,
       platformFee: 0,
@@ -506,8 +517,8 @@ export function BookingDetailsPage() {
       actualDuration: "-",
     },
     photos: [
-      { id: 1, url: "" },
-      { id: 2, url: "" },
+      { id: "sample-1", url: "", label: "Reference photo" },
+      { id: "sample-2", url: "", label: "Reference photo" },
     ],
     pricing: {
       serviceFee: 1200,
@@ -585,6 +596,61 @@ export function BookingDetailsPage() {
       );
     } finally {
       setIsPostingProgress(false);
+    }
+  };
+
+  const removeBookingAttachment = async (attachmentId: string) => {
+    const token = getStoredProviderAccessToken();
+
+    if (!token || !apiBooking) {
+      return;
+    }
+
+    setIsUpdating(true);
+    setDetailError(null);
+
+    try {
+      await deleteProviderBookingAttachment(token, apiBooking.id, attachmentId);
+      setApiBooking({
+        ...apiBooking,
+        attachments: (apiBooking.attachments ?? []).filter(
+          (attachment) => attachment.id !== attachmentId,
+        ),
+      });
+    } catch (error) {
+      setDetailError(
+        error instanceof Error ? error.message : "Unable to remove booking photo.",
+      );
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const submitDispute = async () => {
+    const token = getStoredProviderAccessToken();
+    const reason = disputeReason.trim();
+    const details = disputeDetails.trim();
+
+    if (!token || !apiBooking || !reason || !details) {
+      return;
+    }
+
+    setIsUpdating(true);
+    setDetailError(null);
+
+    try {
+      await createProviderBookingDispute(token, apiBooking.id, {
+        category: reason,
+        reason: details,
+      });
+      setDisputeReason("");
+      setDisputeDetails("");
+    } catch (error) {
+      setDetailError(
+        error instanceof Error ? error.message : "Unable to raise booking dispute.",
+      );
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -857,7 +923,45 @@ export function BookingDetailsPage() {
                   <div style={styles.photoGrid}>
                     {booking.photos.map((photo) => (
                       <div key={photo.id} style={styles.photoItem}>
-                        <ImageIcon size={24} color="#9CA3AF" />
+                        {photo.url ? (
+                          <img
+                            src={photo.url}
+                            alt={photo.label}
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              borderRadius: "8px",
+                            }}
+                          />
+                        ) : (
+                          <ImageIcon size={24} color="#9CA3AF" />
+                        )}
+                        {apiBooking ? (
+                          <button
+                            type="button"
+                            disabled={isUpdating}
+                            onClick={() => void removeBookingAttachment(String(photo.id))}
+                            style={{
+                              position: "absolute",
+                              right: "6px",
+                              top: "6px",
+                              width: "28px",
+                              height: "28px",
+                              borderRadius: "999px",
+                              border: "none",
+                              backgroundColor: "rgba(220,38,38,0.9)",
+                              color: "white",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              cursor: isUpdating ? "not-allowed" : "pointer",
+                            }}
+                            aria-label="Remove booking photo"
+                          >
+                            <X size={14} />
+                          </button>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -1034,6 +1138,52 @@ export function BookingDetailsPage() {
                   </div>
                 </>
               )}
+
+              <div style={{ marginTop: "24px", borderTop: "1px solid #F3F4F6", paddingTop: "18px" }}>
+                <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#111827", marginBottom: "12px" }}>
+                  Raise Dispute
+                </h3>
+                <div style={{ display: "grid", gap: "12px" }}>
+                  <input
+                    type="text"
+                    style={styles.input}
+                    placeholder="Reason"
+                    value={disputeReason}
+                    onChange={(event) => setDisputeReason(event.target.value)}
+                  />
+                  <textarea
+                    value={disputeDetails}
+                    onChange={(event) => setDisputeDetails(event.target.value)}
+                    placeholder="Describe what happened..."
+                    rows={4}
+                    style={{
+                      ...styles.input,
+                      minHeight: "100px",
+                      resize: "vertical",
+                      fontFamily: "inherit",
+                    }}
+                  />
+                  <button
+                    disabled={isUpdating || !disputeReason.trim() || !disputeDetails.trim()}
+                    style={{
+                      ...styles.button,
+                      ...styles.dangerButton,
+                      opacity:
+                        isUpdating || !disputeReason.trim() || !disputeDetails.trim()
+                          ? 0.7
+                          : 1,
+                      cursor:
+                        isUpdating || !disputeReason.trim() || !disputeDetails.trim()
+                          ? "not-allowed"
+                          : "pointer",
+                    }}
+                    onClick={() => void submitDispute()}
+                  >
+                    <AlertCircle size={16} />
+                    {isUpdating ? "Submitting..." : "Raise Dispute"}
+                  </button>
+                </div>
+              </div>
 
               <div style={{ marginTop: "24px", borderTop: "1px solid #F3F4F6", paddingTop: "18px" }}>
                 <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#111827", marginBottom: "12px" }}>
