@@ -1,6 +1,7 @@
 name: Migration drift
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - 'backend/database/**'
@@ -13,6 +14,7 @@ on:
       - 'backend/database/**'
       - 'backend/scripts/check-migration-drift.mjs'
       - 'backend/scripts/smoke-messaging.mjs'
+      - '.github/workflows/migration-drift.yml'
 
 jobs:
   drift:
