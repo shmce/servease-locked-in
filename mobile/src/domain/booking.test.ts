@@ -3,7 +3,9 @@ import { describe, it } from 'node:test';
 import {
   activeBookingCount,
   bookingStatusChip,
+  buildCalendarExportUrl,
   buildBookingTransitionRequest,
+  buildMapsDirectionsUrl,
   buildProviderBookingSlots,
   nextBookingStatuses,
   providerPayoutTotal,
@@ -103,6 +105,37 @@ describe('booking domain helpers', () => {
       '2026-05-20T02:00:00.000Z',
     );
     assert.equal(toManilaBookingIso('not-a-date'), null);
+  });
+
+  it('builds a calendar export URL for confirmed bookings', () => {
+    const url = buildCalendarExportUrl({
+      bookingReference: 'SE-123',
+      serviceTitle: 'Deep Clean',
+      serviceAddress: '123 Test St',
+      scheduledAt: '2026-05-20T02:00:00.000Z',
+      durationMinutes: 90,
+    });
+
+    assert.ok(url?.startsWith('https://calendar.google.com/calendar/render?'));
+    assert.ok(url?.includes('text=ServEase%3A+Deep+Clean'));
+    assert.ok(url?.includes('dates=20260520T020000Z%2F20260520T033000Z'));
+    assert.ok(url?.includes('location=123+Test+St'));
+    assert.equal(
+      buildCalendarExportUrl({
+        bookingReference: 'SE-123',
+        serviceTitle: 'Deep Clean',
+        scheduledAt: 'not-a-date',
+      }),
+      null,
+    );
+  });
+
+  it('builds a maps directions URL from a booking destination', () => {
+    assert.equal(
+      buildMapsDirectionsUrl('  123 Test St, Manila  '),
+      'https://www.google.com/maps/dir/?api=1&destination=123+Test+St%2C+Manila&travelmode=driving',
+    );
+    assert.equal(buildMapsDirectionsUrl('  '), null);
   });
 
   it('builds bookable slots from active provider windows and days off', () => {

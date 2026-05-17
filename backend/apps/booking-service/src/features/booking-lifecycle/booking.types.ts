@@ -157,8 +157,13 @@ export interface BookingSummary {
   providerId: string;
   serviceId: string | null;
   serviceTitle: string | null;
+  serviceDescription: string | null;
   serviceAddress: string | null;
   scheduledAt: string;
+  hoursRequired: number | null;
+  serviceAmount: number | null;
+  pricingMode: PricingMode | null;
+  customerNotes: string | null;
   status: BookingStatus;
   totalAmount: number;
   attachments: BookingAttachmentSummary[];

@@ -38,6 +38,14 @@ export interface BookingTransitionRequest {
   explanation?: string | null;
 }
 
+export interface CalendarExportInput {
+  bookingReference: string;
+  serviceTitle?: string | null;
+  serviceAddress?: string | null;
+  scheduledAt: string;
+  durationMinutes?: number;
+}
+
 export function bookingStatusChip(status: BookingStatus): StatusChipModel {
   if (status === 'completed') {
     return { label: 'completed', tone: 'success' };
@@ -123,6 +131,50 @@ export function statusActionLabel(status: BookingStatus): string {
 
 export function statusLabel(status: BookingStatus): string {
   return status.replace('_', ' ');
+}
+
+export function buildCalendarExportUrl(input: CalendarExportInput): string | null {
+  const startsAt = new Date(input.scheduledAt);
+  if (Number.isNaN(startsAt.getTime())) {
+    return null;
+  }
+
+  const durationMinutes =
+    input.durationMinutes && input.durationMinutes > 0
+      ? input.durationMinutes
+      : 120;
+  const endsAt = new Date(startsAt.getTime() + durationMinutes * 60 * 1000);
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `ServEase: ${input.serviceTitle?.trim() || 'Service booking'}`,
+    dates: `${formatCalendarInstant(startsAt)}/${formatCalendarInstant(endsAt)}`,
+    details: `Booking ${input.bookingReference}`,
+  });
+
+  if (input.serviceAddress?.trim()) {
+    params.set('location', input.serviceAddress.trim());
+  }
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+export function buildMapsDirectionsUrl(destination?: string | null): string | null {
+  const trimmedDestination = destination?.trim();
+  if (!trimmedDestination) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    api: '1',
+    destination: trimmedDestination,
+    travelmode: 'driving',
+  });
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function formatCalendarInstant(value: Date): string {
+  return value.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
 }
 
 export function roleLabel(value: string): string {

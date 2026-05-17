@@ -74,6 +74,8 @@ import {
 import {
   activeBookingCount,
   bookingStatusChip,
+  buildCalendarExportUrl,
+  buildMapsDirectionsUrl,
   buildBookingTransitionRequest,
   buildProviderBookingSlots,
   completedBookingCount,
@@ -1473,6 +1475,49 @@ export default function App() {
     }
 
     await Linking.openURL(`tel:${selectedBooking.customerContactNumber}`);
+  }
+
+  async function addSelectedBookingToCalendar() {
+    if (!selectedBooking) {
+      setNotice('Select a booking first.');
+      return;
+    }
+
+    const calendarUrl = buildCalendarExportUrl({
+      bookingReference: selectedBooking.bookingReference,
+      serviceTitle: selectedBooking.serviceTitle,
+      serviceAddress: selectedBooking.serviceAddress,
+      scheduledAt: selectedBooking.scheduledAt,
+    });
+
+    if (!calendarUrl) {
+      setNotice('This booking does not have a valid schedule yet.');
+      return;
+    }
+
+    const canOpen = await Linking.canOpenURL(calendarUrl);
+    if (!canOpen) {
+      setNotice('No calendar app or browser is available for this booking.');
+      return;
+    }
+
+    await Linking.openURL(calendarUrl);
+  }
+
+  async function openSelectedBookingInMaps() {
+    const mapsUrl = buildMapsDirectionsUrl(selectedBooking?.serviceAddress);
+    if (!mapsUrl) {
+      setNotice('This booking does not include a service address yet.');
+      return;
+    }
+
+    const canOpen = await Linking.canOpenURL(mapsUrl);
+    if (!canOpen) {
+      setNotice('No maps app or browser is available for this address.');
+      return;
+    }
+
+    await Linking.openURL(mapsUrl);
   }
 
   async function sendMessage() {
@@ -3433,7 +3478,7 @@ export default function App() {
               <PrimaryButton
                 label="Add to calendar"
                 variant="secondary"
-                onPress={() => setNotice('Calendar export needs native calendar permissions before enabling.')}
+                onPress={() => void addSelectedBookingToCalendar()}
               />
             </View>
             <PrimaryButton
@@ -4866,6 +4911,11 @@ export default function App() {
           <Text style={styles.cardBody}>
             {selectedBooking.serviceAddress ?? 'Address unavailable'}
           </Text>
+          <PrimaryButton
+            label="Open Maps"
+            variant="secondary"
+            onPress={() => void openSelectedBookingInMaps()}
+          />
           <PrimaryButton
             label="I've Arrived"
             onPress={() => navigate('providerStartService', 'provider')}

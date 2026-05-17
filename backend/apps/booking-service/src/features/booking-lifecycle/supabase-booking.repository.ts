@@ -48,8 +48,13 @@ interface BookingRow {
   provider_id: string;
   service_id: string | null;
   service_title: string | null;
+  service_description?: string | null;
   service_address: string | null;
   scheduled_at: string;
+  hours_required?: number | null;
+  service_amount?: string | number | null;
+  pricing_mode?: string | null;
+  customer_notes?: string | null;
   status: BookingStatus;
   total_amount: string | number | null;
   attachments?: unknown;
@@ -456,6 +461,10 @@ export class SupabaseBookingRepository {
   }
 
   private mapBooking(row: BookingRow): BookingSummary {
+    const pricingMode =
+      row.pricing_mode === 'flat' || row.pricing_mode === 'hourly'
+        ? row.pricing_mode
+        : null;
     return {
       id: row.id,
       bookingReference: row.booking_reference,
@@ -463,8 +472,19 @@ export class SupabaseBookingRepository {
       providerId: row.provider_id,
       serviceId: row.service_id,
       serviceTitle: row.service_title,
+      serviceDescription: row.service_description ?? null,
       serviceAddress: row.service_address,
       scheduledAt: row.scheduled_at,
+      hoursRequired:
+        row.hours_required === null || row.hours_required === undefined
+          ? null
+          : Number(row.hours_required),
+      serviceAmount:
+        row.service_amount === null || row.service_amount === undefined
+          ? null
+          : Number(row.service_amount),
+      pricingMode,
+      customerNotes: row.customer_notes ?? null,
       status: row.status,
       totalAmount: Number(row.total_amount ?? 0),
       attachments: this.mapAttachments(row.attachments),

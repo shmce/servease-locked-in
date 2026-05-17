@@ -80,6 +80,8 @@ export type BookingStatus =
   | 'cancelled'
   | 'rejected'
 
+export type BookingPricingMode = 'flat' | 'hourly'
+
 export interface BookingSummary {
   id: string
   bookingReference: string
@@ -89,8 +91,13 @@ export interface BookingSummary {
   providerId: string
   serviceId: string | null
   serviceTitle: string | null
+  serviceDescription?: string | null
   serviceAddress: string | null
   scheduledAt: string
+  hoursRequired?: number | null
+  serviceAmount?: number | null
+  pricingMode?: BookingPricingMode | null
+  customerNotes?: string | null
   status: BookingStatus
   totalAmount: number
   attachments?: BookingAttachmentSummary[]

@@ -29,7 +29,16 @@ This document supersedes the older `mobile-admin-audit.md` for gap tracking. The
 
 ## Remediation status — 2026-05-17
 
-All gaps called out below have been implemented in this branch:
+All gaps called out below have been implemented in this branch.
+
+**Update (2026-05-17, late):** Booking detail fields (`serviceDescription`,
+`customerNotes`, `hoursRequired`, `pricingMode`, `serviceAmount`) now
+flow from the database through both `servease_*_visible_booking` RPCs,
+booking-service, api-gateway, and into the mobile, FE_Web(Provider), and
+Landing Page `BookingSummary` types. The two provider-web booking detail
+pages no longer carry the `// Mock data` fallback. See
+[booking-details-fields-2026-05-17.md](./booking-details-fields-2026-05-17.md).
+
 
 - **M1:** Mobile now calls `GET /v1/auth/provider-application/me` and renders provider application status.
 - **M2:** Mobile portfolio caption edit and reorder wrappers are wired to provider portfolio controls.

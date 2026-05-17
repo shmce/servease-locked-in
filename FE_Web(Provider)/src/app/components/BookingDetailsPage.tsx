@@ -460,8 +460,30 @@ export function BookingDetailsPage() {
     void loadBooking();
   }, [id]);
 
-  // Mock data - in real app, fetch based on id
-  const booking = apiBooking ? {
+  if (!apiBooking) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.maxWidthContainer}>
+          <div style={styles.infoBox}>
+            {detailError ?? "Loading booking details…"}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const estimatedHours = apiBooking.hoursRequired ?? null;
+  const estimatedDuration =
+    estimatedHours === null
+      ? "Not specified"
+      : `${estimatedHours} hour${estimatedHours === 1 ? "" : "s"}`;
+  const actualDuration =
+    apiBooking.status === "completed" && estimatedHours !== null
+      ? `${estimatedHours} hour${estimatedHours === 1 ? "" : "s"}`
+      : "-";
+  const platformFee = Math.round(apiBooking.totalAmount * 0.1);
+  const yourEarnings = apiBooking.totalAmount - platformFee;
+  const booking = {
     id: apiBooking.id,
     refNumber: apiBooking.bookingReference,
     status: toUiStatus(apiBooking.status),
@@ -476,10 +498,12 @@ export function BookingDetailsPage() {
       date: formatDate(apiBooking.scheduledAt),
       time: formatTime(apiBooking.scheduledAt),
       location: apiBooking.serviceAddress || "Address unavailable",
-      description: "Booking details from the ServEase gateway.",
-      instructions: "-",
-      estimatedDuration: "-",
-      actualDuration: "-",
+      description:
+        apiBooking.serviceDescription ?? "No additional description provided.",
+      instructions:
+        apiBooking.customerNotes ?? "No special instructions provided.",
+      estimatedDuration,
+      actualDuration,
     },
     photos: (apiBooking.attachments ?? []).map((attachment) => ({
       id: attachment.id,
@@ -492,38 +516,8 @@ export function BookingDetailsPage() {
     })),
     pricing: {
       serviceFee: apiBooking.totalAmount,
-      platformFee: 0,
-      yourEarnings: apiBooking.totalAmount,
-    },
-  } : {
-    id: id || "1",
-    refNumber: "BK-2024-001234",
-    status: "upcoming",
-    customer: {
-      name: "Maria Santos",
-      phone: "+63 917 123 4567",
-      rating: 4.8,
-      totalReviews: 24,
-    },
-    service: {
-      type: "Plumbing Repair",
-      date: "March 25, 2024",
-      time: "2:00 PM - 4:00 PM",
-      location: "123 Quezon Ave, Quezon City, Metro Manila",
-      description:
-        "Kitchen sink is leaking and water pressure is very low. Need urgent repair.",
-      instructions: "Please bring extra tools. Building has no elevator.",
-      estimatedDuration: "2 hours",
-      actualDuration: "-",
-    },
-    photos: [
-      { id: "sample-1", url: "", label: "Reference photo" },
-      { id: "sample-2", url: "", label: "Reference photo" },
-    ],
-    pricing: {
-      serviceFee: 1200,
-      platformFee: 150,
-      yourEarnings: 1050,
+      platformFee,
+      yourEarnings,
     },
   };
 
