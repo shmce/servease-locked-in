@@ -27,10 +27,12 @@ import {
 import { notifyBackendRequired } from "../utils/backendRequired";
 import {
   exportAdminAuditLogsCsv,
+  getUserPreferences,
   listAdminAuditLogs,
   listAdminIntegrations,
   testAdminIntegration,
   updateAdminIntegrationCredentials,
+  updateUserPreferences,
   type AdminAuditActionType,
   type AdminAuditLogSummary,
   type AdminIntegrationSummary,
@@ -61,12 +63,75 @@ export function AdminRoles() {
 
 // Notification Settings
 export function NotificationSettings() {
+  const { accessToken } = useAuth();
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [smsNotifications, setSmsNotifications] = useState(false);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [bookingAlerts, setBookingAlerts] = useState(true);
   const [paymentAlerts, setPaymentAlerts] = useState(true);
   const [disputeAlerts, setDisputeAlerts] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+
+    const loadPreferences = async () => {
+      setIsLoading(true);
+      try {
+        const preferences = await getUserPreferences(accessToken);
+        const metadata = preferences.notificationPreferences;
+        setPushNotifications(preferences.pushNotificationsEnabled);
+        setEmailNotifications(metadata.emailNotifications !== false);
+        setSmsNotifications(metadata.smsNotifications === true);
+        setBookingAlerts(metadata.bookingAlerts !== false);
+        setPaymentAlerts(metadata.paymentAlerts !== false);
+        setDisputeAlerts(metadata.disputeAlerts !== false);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Unable to load notification settings.",
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadPreferences();
+  }, [accessToken]);
+
+  const handleSave = async () => {
+    if (!accessToken) {
+      notifyBackendRequired("Saving notification settings", "PUT /v1/me/preferences");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await updateUserPreferences(accessToken, {
+        pushNotificationsEnabled: pushNotifications,
+        notificationPreferences: {
+          emailNotifications,
+          smsNotifications,
+          bookingAlerts,
+          paymentAlerts,
+          disputeAlerts,
+        },
+      });
+      toast.success("Notification settings saved.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to save notification settings.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -76,6 +141,9 @@ export function NotificationSettings() {
         <p className="text-gray-500 mt-1">
           Configure how you receive notifications and alerts
         </p>
+        {isLoading && (
+          <p className="text-sm text-gray-500 mt-2">Loading saved preferences...</p>
+        )}
       </div>
 
       {/* Notification Channels */}
@@ -177,8 +245,12 @@ export function NotificationSettings() {
 
       {/* Save Button */}
       <div className="flex justify-end">
-        <Button className="bg-[#00BF63] hover:bg-[#00A055]">
-          Save Settings
+        <Button
+          className="bg-[#00BF63] hover:bg-[#00A055]"
+          disabled={isSaving}
+          onClick={() => void handleSave()}
+        >
+          {isSaving ? "Saving..." : "Save Settings"}
         </Button>
       </div>
     </div>

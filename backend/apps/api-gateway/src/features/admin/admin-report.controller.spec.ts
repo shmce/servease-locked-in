@@ -4,11 +4,13 @@ import { AdminBookingGatewayService } from './admin-booking.service';
 import { AdminPaymentGatewayService } from './admin-payment.service';
 import { AdminUsersGatewayService } from './admin-users.service';
 import { AdminReportController } from './admin-report.controller';
+import { AdminServiceClient } from './clients/admin-service.client';
 
 function makeController(overrides?: {
   bookings?: AdminBookingGatewayService;
   payments?: AdminPaymentGatewayService;
   users?: AdminUsersGatewayService;
+  admin?: AdminServiceClient;
 }): AdminReportController {
   const adminBookingGatewayService =
     overrides?.bookings ??
@@ -29,6 +31,24 @@ function makeController(overrides?: {
     ({
       listUsers: jest.fn().mockResolvedValue([]),
     } as unknown as AdminUsersGatewayService);
+  const adminServiceClient =
+    overrides?.admin ??
+    ({
+      listAdminReportSchedules: jest.fn().mockResolvedValue([]),
+      createAdminReportSchedule: jest.fn().mockResolvedValue({
+        id: 'schedule-1',
+        adminUserId: 'admin-1',
+        type: 'financial',
+        format: 'pdf',
+        status: 'scheduled',
+        name: 'Weekly finance report',
+        frequency: 'weekly',
+        recipients: ['finance@example.com'],
+        nextRunAt: '2026-05-25T00:00:00.000Z',
+        createdAt: '2026-05-18T00:00:00.000Z',
+        downloadPath: '/v1/admin/reports/financial.pdf',
+      }),
+    } as unknown as AdminServiceClient);
 
   return new AdminReportController(
     {
@@ -42,10 +62,206 @@ function makeController(overrides?: {
     adminBookingGatewayService,
     adminPaymentGatewayService,
     adminUsersGatewayService,
+    adminServiceClient,
   );
 }
 
 describe('AdminReportController', () => {
+  it('exports revenue as a PDF payload for admins', async () => {
+    const adminPaymentGatewayService = {
+      listPayments: jest.fn().mockResolvedValue([
+        {
+          id: 'pay-1',
+          bookingId: 'book-1',
+          customerId: 'customer-1',
+          providerId: 'provider-1',
+          amount: 1500,
+          platformFee: 150,
+          providerPayout: 1350,
+          status: 'paid',
+          paymentMethod: 'gcash',
+          paidAt: '2026-05-18T08:30:00.000Z',
+          createdAt: '2026-05-18T08:00:00.000Z',
+        },
+      ]),
+      listPayouts: jest.fn(),
+      listRefunds: jest.fn(),
+    } as unknown as AdminPaymentGatewayService;
+    const controller = makeController({ payments: adminPaymentGatewayService });
+
+    const pdf = await controller.reportPdf('revenue', 'Bearer token');
+
+    expect(adminPaymentGatewayService.listPayments).toHaveBeenCalled();
+    expect(pdf).toContain('%PDF-1.4');
+    expect(pdf).toContain('ServEase Revenue Report');
+    expect(pdf).toContain('pay-1');
+  });
+
+  it('generates report metadata with a gateway download path', async () => {
+    const adminUsersGatewayService = {
+      listUsers: jest.fn().mockResolvedValue([
+        {
+          id: 'user-1',
+          email: 'casey@example.com',
+          fullName: 'Casey Customer',
+          contactNumber: '+639170000000',
+          role: 'customer',
+          status: 'active',
+          createdAt: '2026-05-01T00:00:00.000Z',
+        },
+      ]),
+    } as unknown as AdminUsersGatewayService;
+    const controller = makeController({ users: adminUsersGatewayService });
+
+    const report = await controller.generate('users', 'Bearer token', {
+      format: 'csv',
+      dateRange: 'last-30-days',
+    });
+
+    expect(adminUsersGatewayService.listUsers).toHaveBeenCalledWith(
+      null,
+      null,
+      null,
+    );
+    expect(report.data).toMatchObject({
+      type: 'users',
+      format: 'csv',
+      status: 'ready',
+      fileName: expect.stringMatching(/^servease-users-/),
+      downloadPath: '/v1/admin/reports/users.csv',
+      rowCount: 1,
+    });
+  });
+
+  it('schedules report delivery metadata for admins', async () => {
+    const adminServiceClient = {
+      createAdminReportSchedule: jest.fn().mockResolvedValue({
+        id: 'schedule-1',
+        adminUserId: 'admin-1',
+        type: 'financial',
+        format: 'pdf',
+        status: 'scheduled',
+        name: 'Weekly finance report',
+        frequency: 'weekly',
+        recipients: ['finance@example.com'],
+        nextRunAt: '2026-05-25T00:00:00.000Z',
+        createdAt: '2026-05-18T00:00:00.000Z',
+        downloadPath: '/v1/admin/reports/financial.pdf',
+      }),
+    } as unknown as AdminServiceClient;
+    const controller = makeController({ admin: adminServiceClient });
+
+    const schedule = await controller.schedule('financial', 'Bearer token', {
+      name: 'Weekly finance report',
+      frequency: 'weekly',
+      recipients: ['finance@example.com'],
+      format: 'pdf',
+    });
+
+    expect(schedule.data).toMatchObject({
+      type: 'financial',
+      format: 'pdf',
+      status: 'scheduled',
+      name: 'Weekly finance report',
+      frequency: 'weekly',
+      recipients: ['finance@example.com'],
+      nextRunAt: expect.any(String),
+      downloadPath: '/v1/admin/reports/financial.pdf',
+    });
+    expect(adminServiceClient.createAdminReportSchedule).toHaveBeenCalledWith({
+      adminUserId: 'admin-1',
+      type: 'financial',
+      format: 'pdf',
+      name: 'Weekly finance report',
+      frequency: 'weekly',
+      recipients: ['finance@example.com'],
+    });
+  });
+
+  it('lists persisted report schedules for admins', async () => {
+    const adminServiceClient = {
+      listAdminReportSchedules: jest.fn().mockResolvedValue([
+        {
+          id: 'schedule-1',
+          adminUserId: 'admin-1',
+          type: 'users',
+          format: 'csv',
+          status: 'scheduled',
+          name: 'Weekly users',
+          frequency: 'weekly',
+          recipients: ['ops@example.com'],
+          nextRunAt: '2026-05-25T00:00:00.000Z',
+          createdAt: '2026-05-18T00:00:00.000Z',
+          downloadPath: '/v1/admin/reports/users.csv',
+        },
+      ]),
+    } as unknown as AdminServiceClient;
+    const controller = makeController({ admin: adminServiceClient });
+
+    const schedules = await controller.listSchedules('users', 'Bearer token');
+
+    expect(adminServiceClient.listAdminReportSchedules).toHaveBeenCalledWith(
+      'users',
+      100,
+    );
+    expect(schedules.data).toHaveLength(1);
+    expect(schedules.data[0]).toMatchObject({
+      id: 'schedule-1',
+      type: 'users',
+      name: 'Weekly users',
+    });
+  });
+
+  it('rejects unsupported report types', async () => {
+    const controller = makeController();
+
+    await expect(
+      controller.generate('inventory', 'Bearer token', { format: 'csv' }),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_report_type',
+        },
+      },
+      status: 400,
+    });
+  });
+
+  it('rejects unsupported report formats', async () => {
+    const controller = makeController();
+
+    await expect(
+      controller.generate('revenue', 'Bearer token', { format: 'xlsx' }),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_report_format',
+        },
+      },
+      status: 400,
+    });
+  });
+
+  it('rejects schedules without recipients', async () => {
+    const controller = makeController();
+
+    await expect(
+      controller.schedule('financial', 'Bearer token', {
+        name: 'Weekly finance report',
+        frequency: 'weekly',
+        recipients: [],
+        format: 'pdf',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_report_schedule',
+        },
+      },
+      status: 400,
+    });
+  });
+
   it('exports booking analytics as CSV for admins', async () => {
     const adminBookingGatewayService = {
       listBookings: jest.fn().mockResolvedValue([

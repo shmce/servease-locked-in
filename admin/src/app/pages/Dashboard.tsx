@@ -47,21 +47,20 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { useData } from "../../contexts/DataContext";
 import { useNavigate } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import { useAdminGatewayData } from "../../hooks/useAdminGatewayData";
+import {
+  buildCustomerGrowthData,
+  buildProviderOverviewData,
+  buildRevenueCommissionData,
+} from "../utils/dashboardLiveCharts";
 import { buildDashboardLiveMetrics } from "../utils/dashboardLiveMetrics";
 
 export function Dashboard() {
   const navigate = useNavigate();
   const { admin } = useAuth();
   const adminGateway = useAdminGatewayData();
-  const {
-    serviceProviders,
-    customers,
-    getCategoryById,
-  } = useData();
 
   // ── Live clock ──────────────────────────────────────────────────
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -96,7 +95,7 @@ export function Dashboard() {
     pendingPayouts,
     openDisputes,
   } = liveMetrics;
-  const liveCustomerCount = adminGateway.summary.usersByRole?.customer ?? customers.length;
+  const liveCustomerCount = adminGateway.summary.usersByRole?.customer ?? 0;
 
   const totalRevenue =
     adminGateway.summary.paymentCount > 0
@@ -110,65 +109,25 @@ export function Dashboard() {
     (provider) => provider.verificationStatus === "pending",
   ).length;
   const openSupportTickets = adminGateway.summary.openSupportTicketCount;
-  const providerCategoryName = (categoryId: string) =>
-    getCategoryById(categoryId)?.name ?? "";
+  const customerGrowthData = useMemo(
+    () =>
+      buildCustomerGrowthData(
+        adminGateway.adminUsers,
+        liveCustomerCount,
+        currentTime,
+      ),
+    [adminGateway.adminUsers, currentTime, liveCustomerCount],
+  );
 
-  // ── Chart 1: Customers Overview — preserved exactly ─────────────
-  const customerGrowthData = [
-    { month: "Sep 2025", customers: 380 },
-    { month: "Oct 2025", customers: 420 },
-    { month: "Nov 2025", customers: 410 },
-    { month: "Dec 2025", customers: 450 },
-    { month: "Jan 2026", customers: 435 },
-    { month: "Feb 2026", customers: 468 },
-    { month: "Mar 2026", customers: liveCustomerCount },
-  ];
-
-  // ── Chart 2: Service Providers Overview — preserved exactly ──────
-  const providerOverviewData = [
-    {
-      category: "Marketplace",
-      Active: serviceProviders.filter(
-        (p) => providerCategoryName(p.categoryId).includes("Marketplace") && p.status === "Active"
-      ).length,
-      Pending: Math.floor(pendingApprovals * 0.2),
-    },
-    {
-      category: "Grocery",
-      Active: serviceProviders.filter(
-        (p) => providerCategoryName(p.categoryId).includes("Grocery") && p.status === "Active"
-      ).length,
-      Pending: Math.floor(pendingApprovals * 0.15),
-    },
-    {
-      category: "Restaurant",
-      Active: serviceProviders.filter(
-        (p) => providerCategoryName(p.categoryId).includes("Restaurant") && p.status === "Active"
-      ).length,
-      Pending: Math.floor(pendingApprovals * 0.25),
-    },
-    {
-      category: "Pharmacy",
-      Active: serviceProviders.filter(
-        (p) => providerCategoryName(p.categoryId).includes("Pharmacy") && p.status === "Active"
-      ).length,
-      Pending: Math.floor(pendingApprovals * 0.15),
-    },
-    {
-      category: "Healthcare",
-      Active: serviceProviders.filter(
-        (p) => providerCategoryName(p.categoryId).includes("Healthcare") && p.status === "Active"
-      ).length,
-      Pending: Math.floor(pendingApprovals * 0.15),
-    },
-    {
-      category: "Franchise",
-      Active: serviceProviders.filter(
-        (p) => providerCategoryName(p.categoryId).includes("Franchise") && p.status === "Active"
-      ).length,
-      Pending: Math.floor(pendingApprovals * 0.1),
-    },
-  ];
+  const providerOverviewData = useMemo(
+    () =>
+      buildProviderOverviewData({
+        providerListings: adminGateway.providerListings,
+        services: adminGateway.services,
+        categories: adminGateway.categories,
+      }),
+    [adminGateway.categories, adminGateway.providerListings, adminGateway.services],
+  );
 
   // ── Chart 3: Bookings Overview — preserved exactly ───────────────
   const bookingsOverviewData = [
@@ -180,16 +139,10 @@ export function Dashboard() {
     },
   ];
 
-  // ── Chart 4: Revenue & Commission — preserved exactly ────────────
-  const revenueCommissionData = [
-    { date: "Feb 26", revenue: 145.2, commission: 18.5 },
-    { date: "Feb 27", revenue: 162.8, commission: 21.0 },
-    { date: "Feb 28", revenue: 158.4, commission: 19.8 },
-    { date: "Mar 1",  revenue: 178.6, commission: 23.4 },
-    { date: "Mar 2",  revenue: 185.3, commission: 24.5 },
-    { date: "Mar 3",  revenue: 192.7, commission: 26.1 },
-    { date: "Mar 4",  revenue: totalRevenue / 1000, commission: commissionEarnings / 1000 },
-  ];
+  const revenueCommissionData = useMemo(
+    () => buildRevenueCommissionData(adminGateway.payments, currentTime),
+    [adminGateway.payments, currentTime],
+  );
 
   // ── Chart 5: Issues & Operations — preserved exactly ─────────────
   const issuesOperationsData = [
@@ -241,19 +194,8 @@ export function Dashboard() {
         }));
     }
 
-    return [...serviceProviders]
-      .sort((a, b) => b.totalRevenue - a.totalRevenue)
-      .slice(0, 5)
-      .map((provider, index) => ({
-        rank: index + 1,
-        name: provider.businessName,
-        revenue: provider.totalRevenue,
-        rating: provider.rating,
-        bookings: provider.totalBookings,
-        metricLabel: "bookings",
-        valueLabel: "revenue",
-      }));
-  }, [adminGateway.providerListings, serviceProviders]);
+    return [];
+  }, [adminGateway.providerListings]);
 
   // ── Alerts ───────────────────────────────────────────────────────
   const ops = adminGateway.summary.operationsAlerts;
@@ -775,6 +717,11 @@ export function Dashboard() {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-3">
+              {topProviders.length === 0 && (
+                <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">
+                  Live provider rankings will appear once provider listings are returned by the gateway.
+                </div>
+              )}
               {topProviders.map((provider) => (
                 <div
                   key={provider.rank}

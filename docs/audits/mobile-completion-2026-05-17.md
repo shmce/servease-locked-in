@@ -42,8 +42,12 @@
 - 2FA enable / verify / disable (TOTP) ✓
 - Sessions list (`GET /v1/me/sessions`) ✓
 - Delete account ✓
-- User preferences: push toggle, dark mode, language, **plus
-  per-category notification toggles** (this pass) ✓
+- User preferences: push toggle with device registration/deactivation, dark
+  mode, language, **plus per-category notification toggles** (this pass) ✓
+- Expo push tap routing: booking, conversation, support, payment/payout,
+  review, and notification-center fallback destinations ✓
+- Expo foreground handler and received-push list refresh while the app is
+  open ✓
 - Provider application status banner (`GET /v1/auth/provider-application/me`) ✓
 
 ### Customer flows
@@ -61,7 +65,8 @@
 - Payment methods: card / GCash / PayMaya + default selection ✓
 - Promo validation in reserve payment + reflected in booking review ✓
 - Notifications screen with bell entry from home hero + More menu with
-  unread-count pill ✓
+  unread-count pill; notification cards use the same metadata routing as
+  Expo push taps ✓
 - Service history (completed bookings) ✓
 - Referral code ✓
 - Support tickets: create, view, reply ✓
@@ -98,6 +103,8 @@
   manager, profile card, security (2FA), support panel, sign out,
   delete account ✓
 - Notifications + unread-dot bell ✓
+- Native Expo notification taps route into the provider's booking,
+  messages, help, payout, insights, or notification screens ✓
 
 ### Out of scope (explicitly deferred)
 
@@ -114,8 +121,8 @@
 ## Verification
 
 - `npx tsc --noEmit` — clean.
-- `npm test` — **41/41 tests pass** (one new test for
-  `summarizeMonthlyEarnings`).
+- `npm test` — **50/50 tests pass** (including push registration and
+  notification-routing coverage).
 
 ## Files changed in this pass
 

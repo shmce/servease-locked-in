@@ -163,6 +163,19 @@ const defaultAvailability: { [key: string]: DaySchedule } = {
   },
 };
 
+const emptyProfile: ProviderProfile = {
+  businessName: "",
+  bio: "",
+  serviceAreas: "",
+  yearsExperience: "",
+  languages: [],
+  facebook: "",
+  instagram: "",
+  website: "",
+  coverPhotoUrl: "",
+  profilePhotoUrl: "",
+};
+
 function toAvailabilityWindows(
   availability: { [key: string]: DaySchedule },
 ): AvailabilityWindowInput[] {
@@ -254,69 +267,10 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
   const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [providerData, setProviderData] = useState<ProviderData>({
-    blockedDates: ["2026-03-25", "2026-03-26"],
-    portfolioItems: [
-      {
-        id: "1",
-        title: "Modern Office Renovation",
-        description: "Complete office deep cleaning and sanitization",
-        category: "Commercial Cleaning",
-        imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=800",
-        featured: true,
-      },
-      {
-        id: "2",
-        title: "Residential Deep Cleaning",
-        description: "3-bedroom house complete cleaning service",
-        category: "Residential Cleaning",
-        imageUrl: "https://images.unsplash.com/photo-1484154218962-a197022b5858?w=800",
-        featured: false,
-      },
-    ],
-    services: [
-      {
-        id: "1",
-        name: "House Cleaning",
-        category: "Residential",
-        description: "Standard house cleaning service including all rooms",
-        baseRate: 500,
-        priceUnit: "per hour",
-        estimatedDuration: "3-4 hours",
-        isActive: true,
-      },
-      {
-        id: "2",
-        name: "Deep Cleaning",
-        category: "Residential",
-        description: "Thorough deep cleaning with sanitization",
-        baseRate: 800,
-        priceUnit: "per hour",
-        estimatedDuration: "4-6 hours",
-        isActive: true,
-      },
-      {
-        id: "3",
-        name: "Office Cleaning",
-        category: "Commercial",
-        description: "Professional office cleaning service",
-        baseRate: 1200,
-        priceUnit: "per hour",
-        estimatedDuration: "2-3 hours",
-        isActive: true,
-      },
-    ],
-    profile: {
-      businessName: "Juan's Professional Cleaning",
-      bio: "With over 8 years of professional cleaning experience, I take pride in delivering exceptional service to every client.",
-      serviceAreas: "Metro Manila, Philippines",
-      yearsExperience: "8",
-      languages: ["English", "Filipino"],
-      facebook: "",
-      instagram: "",
-      website: "",
-      coverPhotoUrl: "https://images.unsplash.com/photo-1640963269654-3fe248c5fba6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMGdyYWRpZW50JTIwYmFja2dyb3VuZHxlbnwxfHx8fDE3NzM5MzU3NDl8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-      profilePhotoUrl: "https://images.unsplash.com/photo-1770392988936-dc3d8581e0c9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBhc2lhbiUyMG1hbGUlMjBwb3J0cmFpdHxlbnwxfHx8fDE3NzM4OTQ1Nzl8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
-    },
+    blockedDates: [],
+    portfolioItems: [],
+    services: [],
+    profile: emptyProfile,
     availability: defaultAvailability,
   });
 

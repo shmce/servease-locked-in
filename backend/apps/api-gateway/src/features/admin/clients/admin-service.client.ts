@@ -55,6 +55,10 @@ import {
   UpdateAdminIntegrationCredentialsInput,
   RecordAdminIntegrationTestInput,
 } from '../admin-integration.types';
+import {
+  CreateAdminReportScheduleInput,
+  ScheduledAdminReportResponse,
+} from '../admin-report.types';
 
 @Injectable()
 export class AdminServiceClient {
@@ -659,6 +663,34 @@ export class AdminServiceClient {
         success: input.success,
         errorMessage: input.errorMessage,
       },
+    );
+  }
+
+  listAdminReportSchedules(
+    type?: string | null,
+    limit?: number | null,
+  ): Promise<ScheduledAdminReportResponse[]> {
+    const searchParams = new URLSearchParams();
+    if (type) {
+      searchParams.set('type', type);
+    }
+    if (limit) {
+      searchParams.set('limit', String(limit));
+    }
+    const query = searchParams.toString();
+    return this.request<ScheduledAdminReportResponse[]>(
+      `/internal/admin/reports/schedules${query ? `?${query}` : ''}`,
+      'GET',
+    );
+  }
+
+  createAdminReportSchedule(
+    input: CreateAdminReportScheduleInput,
+  ): Promise<ScheduledAdminReportResponse> {
+    return this.request<ScheduledAdminReportResponse>(
+      '/internal/admin/reports/schedules',
+      'POST',
+      input,
     );
   }
 

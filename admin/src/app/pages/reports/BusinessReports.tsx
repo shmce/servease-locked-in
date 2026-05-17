@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -41,75 +41,44 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyBackendRequired } from "../../utils/backendRequired";
-import { exportAdminBookingsCsv } from "../../../services/serveaseAdminApi";
+import {
+  type ScheduledAdminReport,
+  exportAdminBookingsCsv,
+  exportAdminReportPdf,
+  generateAdminReport,
+  listAdminReportSchedules,
+  scheduleAdminReport,
+} from "../../../services/serveaseAdminApi";
 import { useAuth } from "../../contexts/AuthContext";
 
-// Mock data for recent reports
-const recentReports = [
-  {
-    id: 1,
-    name: "March Business Overview",
-    generatedDate: "2026-04-01T08:00:00",
-    format: "PDF",
-    size: "2.4 MB",
-  },
-  {
-    id: 2,
-    name: "Q1 2026 Business Summary",
-    generatedDate: "2026-03-31T18:30:00",
-    format: "Excel",
-    size: "1.8 MB",
-  },
-  {
-    id: 3,
-    name: "Weekly Business Report - Week 13",
-    generatedDate: "2026-03-30T09:00:00",
-    format: "PDF",
-    size: "1.2 MB",
-  },
-  {
-    id: 4,
-    name: "Service Provider Growth Analysis",
-    generatedDate: "2026-03-28T14:00:00",
-    format: "PDF",
-    size: "3.1 MB",
-  },
-  {
-    id: 5,
-    name: "February Business Overview",
-    generatedDate: "2026-03-01T08:00:00",
-    format: "Excel",
-    size: "2.6 MB",
-  },
-];
+interface ScheduledReportRow {
+  id: string;
+  name: string;
+  frequency: string;
+  recipients: string;
+  runAt: string;
+  format: string;
+  lastDeliveredAt: string | null;
+  deliveryCount: number;
+  status: "Active" | "Scheduled" | "Paused";
+}
 
-// Mock data for scheduled reports
-const scheduledReportsData = [
-  {
-    id: 1,
-    name: "Daily Business Summary",
-    frequency: "Daily",
-    recipients: "admin@servease.ph, manager@servease.ph",
-    lastSent: "2026-04-01T08:00:00",
-    status: "Active",
-  },
-  {
-    id: 2,
-    name: "Weekly Business Overview",
-    frequency: "Weekly",
-    recipients: "admin@servease.ph",
-    lastSent: "2026-03-30T09:00:00",
-    status: "Active",
-  },
-  {
-    id: 3,
-    name: "Monthly Business Report",
-    frequency: "Monthly",
-    recipients: "admin@servease.ph, finance@servease.ph, ops@servease.ph",
-    lastSent: "2026-03-01T08:00:00",
-    status: "Active",
-  },
-];
+function reportScheduleFromGateway(
+  schedule: ScheduledAdminReport,
+): ScheduledReportRow {
+  return {
+    id: schedule.id,
+    name: schedule.name,
+    frequency:
+      schedule.frequency.charAt(0).toUpperCase() + schedule.frequency.slice(1),
+    recipients: schedule.recipients.join(", "),
+    runAt: schedule.nextRunAt,
+    format: schedule.format.toUpperCase(),
+    lastDeliveredAt: schedule.lastDeliveredAt,
+    deliveryCount: schedule.deliveryCount,
+    status: "Scheduled",
+  };
+}
 
 export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }) {
   const { accessToken } = useAuth();
@@ -117,7 +86,8 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [, setIsEditScheduleOpen] = useState(false);
-  const [, setSelectedSchedule] = useState<any>(null);
+  const [, setSelectedSchedule] = useState<ScheduledReportRow | null>(null);
+  const [scheduledReports, setScheduledReports] = useState<ScheduledReportRow[]>([]);
 
   // Generate report form
   const [generateForm, setGenerateForm] = useState({
@@ -134,6 +104,30 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
     recipients: "",
     format: "PDF",
   });
+
+  useEffect(() => {
+    if (!accessToken) {
+      setScheduledReports([]);
+      return;
+    }
+
+    let isMounted = true;
+    listAdminReportSchedules(accessToken, "bookings")
+      .then((schedules) => {
+        if (isMounted) {
+          setScheduledReports(schedules.map(reportScheduleFromGateway));
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          toast.error("Unable to load scheduled business reports.");
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken]);
 
   const downloadCsv = async (filename: string) => {
     if (!accessToken) {
@@ -165,36 +159,94 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
     }
   };
 
-  const handleGenerateReport = () => {
+  const handleGenerateReport = async () => {
     if (!generateForm.template) {
       toast.error("Please select a report template");
       return;
     }
-    void downloadCsv(
-      `${generateForm.template.toLowerCase().replace(/\s+/g, "-")}-${new Date()
-        .toISOString()
-        .slice(0, 10)}.csv`,
-    );
+    if (!accessToken) {
+      toast.error("Sign in to generate business reports.");
+      return;
+    }
+
+    const format = generateForm.format === "PDF" ? "pdf" : "csv";
+    setIsExporting(true);
+    try {
+      const report = await generateAdminReport(accessToken, "bookings", {
+        format,
+        dateRange: generateForm.dateRange || null,
+      });
+      if (format === "pdf") {
+        const pdf = await exportAdminReportPdf(accessToken, "bookings");
+        const url = URL.createObjectURL(pdf);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = report.fileName.replace("bookings", "business");
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } else {
+        await downloadCsv(report.fileName.replace("bookings", "business"));
+      }
+      toast.success("Business report generated.");
+      setIsGenerateModalOpen(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to generate business report.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
   };
 
-  const handleScheduleReport = () => {
+  const handleScheduleReport = async () => {
     if (!scheduleForm.name || !scheduleForm.template || !scheduleForm.frequency || !scheduleForm.recipients) {
       toast.error("Please fill in all required fields");
       return;
     }
+    if (!accessToken) {
+      toast.error("Sign in to schedule business reports.");
+      return;
+    }
 
-    notifyBackendRequired(
-      "Scheduling business reports",
-      "POST /v1/admin/reports/business/schedules",
-    );
+    try {
+      const schedule = await scheduleAdminReport(accessToken, "bookings", {
+        name: scheduleForm.name,
+        frequency: scheduleForm.frequency as "daily" | "weekly" | "monthly",
+        recipients: scheduleForm.recipients.split(",").map((item) => item.trim()).filter(Boolean),
+        format: scheduleForm.format === "PDF" ? "pdf" : "csv",
+      });
+      setScheduledReports((current) => [
+        reportScheduleFromGateway(schedule),
+        ...current,
+      ]);
+      toast.success(`Business report scheduled for ${new Date(schedule.nextRunAt).toLocaleDateString()}.`);
+      setIsScheduleModalOpen(false);
+      setScheduleForm({
+        name: "",
+        template: "",
+        frequency: "",
+        recipients: "",
+        format: "PDF",
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to schedule business report.",
+      );
+    }
   };
 
-  const handleEditSchedule = (schedule: any) => {
+  const handleEditSchedule = (schedule: ScheduledReportRow) => {
     setSelectedSchedule(schedule);
     setIsEditScheduleOpen(true);
   };
 
-  const handleToggleSchedule = (scheduleId: number, currentStatus: string) => {
+  const handleToggleSchedule = (scheduleId: string, currentStatus: string) => {
     notifyBackendRequired(
       "Changing report schedules",
       "PATCH /v1/admin/reports/business/schedules/:id/status",
@@ -208,6 +260,14 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
         .slice(0, 10)}.csv`,
     );
   };
+
+  const recentReports = scheduledReports
+    .filter((report) => report.lastDeliveredAt)
+    .sort(
+      (a, b) =>
+        new Date(b.lastDeliveredAt ?? 0).getTime() -
+        new Date(a.lastDeliveredAt ?? 0).getTime(),
+    );
 
   return (
     <div className="space-y-6">
@@ -321,74 +381,82 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
                   <TableHead>Report Name</TableHead>
                   <TableHead>Frequency</TableHead>
                   <TableHead>Recipients</TableHead>
-                  <TableHead>Last Sent</TableHead>
+                  <TableHead>Next / Last Run</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {scheduledReportsData.map((schedule) => (
-                  <TableRow key={schedule.id}>
-                    <TableCell className="font-medium text-gray-900">
-                      {schedule.name}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {schedule.frequency}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm text-gray-600">
-                        <Mail className="w-3 h-3" />
-                        {schedule.recipients.split(",").length} recipient(s)
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">
-                      {new Date(schedule.lastSent).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          schedule.status === "Active"
-                            ? "bg-green-100 text-green-700 border-green-200"
-                            : "bg-gray-100 text-gray-700 border-gray-200"
-                        }
-                      >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        {schedule.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEditSchedule(schedule)}
-                        >
-                          <Edit2 className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleToggleSchedule(schedule.id, schedule.status)}
-                          className={
-                            schedule.status === "Active"
-                              ? "text-red-600 hover:text-red-700"
-                              : "text-green-600 hover:text-green-700"
-                          }
-                        >
-                          <Power className="w-3 h-3" />
-                        </Button>
-                      </div>
+                {scheduledReports.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-8 text-center text-sm text-gray-500">
+                      No scheduled business reports found
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  scheduledReports.map((schedule) => (
+                    <TableRow key={schedule.id}>
+                      <TableCell className="font-medium text-gray-900">
+                        {schedule.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {schedule.frequency}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <Mail className="w-3 h-3" />
+                          {schedule.recipients.split(",").length} recipient(s)
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {new Date(schedule.runAt).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            schedule.status === "Active"
+                              ? "bg-green-100 text-green-700 border-green-200"
+                              : "bg-gray-100 text-gray-700 border-gray-200"
+                          }
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          {schedule.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditSchedule(schedule)}
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleToggleSchedule(schedule.id, schedule.status)}
+                            className={
+                              schedule.status === "Active"
+                                ? "text-red-600 hover:text-red-700"
+                                : "text-green-600 hover:text-green-700"
+                            }
+                          >
+                            <Power className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -413,44 +481,53 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentReports.map((report) => (
-                  <TableRow key={report.id}>
-                    <TableCell className="font-medium text-gray-900">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-gray-400" />
-                        {report.name}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">
-                      {new Date(report.generatedDate).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-gray-50">
-                        {report.format}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">
-                      {report.size}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        onClick={() => handleDownloadReport(report.name)}
-                        disabled={isExporting}
-                        className="bg-[#00BF63] hover:bg-[#00A055]"
-                      >
-                        <Download className="w-3 h-3 mr-2" />
-                        {isExporting ? "Downloading..." : "Download"}
-                      </Button>
+                {recentReports.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-sm text-gray-500">
+                      No delivered business reports found
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  recentReports.map((report) => (
+                    <TableRow key={report.id}>
+                      <TableCell className="font-medium text-gray-900">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-gray-400" />
+                          {report.name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {new Date(report.lastDeliveredAt ?? "").toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-gray-50">
+                          {report.format}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {report.deliveryCount} delivery
+                        {report.deliveryCount === 1 ? "" : "ies"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          onClick={() => handleDownloadReport(report.name)}
+                          disabled={isExporting}
+                          className="bg-[#00BF63] hover:bg-[#00A055]"
+                        >
+                          <Download className="w-3 h-3 mr-2" />
+                          {isExporting ? "Downloading..." : "Download Latest"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -538,7 +615,7 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
               Cancel
             </Button>
             <Button
-              onClick={handleGenerateReport}
+              onClick={() => void handleGenerateReport()}
               disabled={isExporting}
               className="bg-[#00BF63] hover:bg-[#00A055]"
             >
@@ -652,7 +729,7 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
               Cancel
             </Button>
             <Button
-              onClick={handleScheduleReport}
+              onClick={() => void handleScheduleReport()}
               className="bg-[#00BF63] hover:bg-[#00A055]"
             >
               <Calendar className="w-4 h-4 mr-2" />

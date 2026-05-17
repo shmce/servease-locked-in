@@ -32,7 +32,8 @@
         {
           "photosPermission": "ServEase uses your photo library so providers can attach service progress photos."
         }
-      ]
+      ],
+      "expo-notifications"
     ]
   }
 }

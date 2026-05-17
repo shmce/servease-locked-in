@@ -58,6 +58,56 @@ describe('NotificationServiceClient', () => {
       jest.restoreAllMocks();
     }
   });
+
+  it('registers push devices through the notification service', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          id: 'device-1',
+          userId: 'user-1',
+          token: 'ExponentPushToken[abc]',
+          platform: 'ios',
+          deviceId: 'ios-device-1',
+          isActive: true,
+          lastRegisteredAt: '2026-05-18T00:00:00.000Z',
+          createdAt: '2026-05-18T00:00:00.000Z',
+        },
+      }),
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const client = new NotificationServiceClient(configService());
+      const device = await client.registerPushDevice({
+        userId: 'user-1',
+        token: 'ExponentPushToken[abc]',
+        platform: 'ios',
+        deviceId: 'ios-device-1',
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://notification-service.test/internal/notifications/devices',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: 'user-1',
+            token: 'ExponentPushToken[abc]',
+            platform: 'ios',
+            deviceId: 'ios-device-1',
+          }),
+        },
+      );
+      expect(device.isActive).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+      jest.restoreAllMocks();
+    }
+  });
 });
 
 function configService(): ConfigService {

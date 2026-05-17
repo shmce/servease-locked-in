@@ -30,7 +30,7 @@ import {
   User,
   Wallet,
 } from 'lucide-react-native';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -114,6 +114,7 @@ import {
   readError,
   timelineForStatus,
 } from './src/navigation/routeHelpers';
+import { resolveNotificationRoute } from './src/navigation/notificationRouting';
 import { AuthScreens } from './src/screens/AuthScreens';
 import { CustomerMoreScreen } from './src/screens/CustomerMoreScreen';
 import { ProviderBookingsScreen } from './src/screens/ProviderBookingsScreen';
@@ -227,6 +228,7 @@ import {
   validatePromotion,
 } from './services/serveaseApi';
 import { AuthSession, signInWithPassword } from './services/supabaseAuth';
+import { syncExpoPushRegistration } from './services/pushRegistration';
 
 export default function App() {
   const [route, setRoute] = useState<RouteState>({ role: null, screen: 'authGate' });
@@ -357,6 +359,8 @@ export default function App() {
     toolsReady: false,
     instructionsReviewed: false,
   });
+  const lastPushRegistrationKey = useRef<string | null>(null);
+  const handledPushNotificationIds = useRef<Set<string>>(new Set());
   const [providerPhotoCaption, setProviderPhotoCaption] = useState('');
   const [providerBeforePhotoUri, setProviderBeforePhotoUri] = useState<string | null>(null);
   const [providerBeforePhotoUrl, setProviderBeforePhotoUrl] = useState<string | null>(null);
@@ -489,6 +493,107 @@ export default function App() {
     };
     const interval = setInterval(() => void tick(), 30000);
     return () => clearInterval(interval);
+  }, [session?.accessToken, appRole, apiOptions]);
+
+  useEffect(() => {
+    if (!session?.accessToken || !userPreferences) {
+      return;
+    }
+
+    const registrationKey = `${session.accessToken}:${userPreferences.pushNotificationsEnabled}`;
+    if (lastPushRegistrationKey.current === registrationKey) {
+      return;
+    }
+    lastPushRegistrationKey.current = registrationKey;
+
+    void syncExpoPushRegistration(
+      userPreferences.pushNotificationsEnabled,
+      apiOptions,
+      Platform.OS,
+    ).catch(() => {
+      lastPushRegistrationKey.current = null;
+    });
+  }, [session?.accessToken, userPreferences, apiOptions]);
+
+  useEffect(() => {
+    if (!session?.accessToken || !appRole) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    const subscriptions: Array<{ remove: () => void }> = [];
+
+    const handleResponse = (response: unknown) => {
+      const data =
+        (response as {
+          notification?: {
+            request?: {
+              content?: {
+                data?: Record<string, unknown>;
+              };
+            };
+          };
+        })?.notification?.request?.content?.data ?? {};
+      const notificationId =
+        typeof data.notificationId === 'string' ? data.notificationId : null;
+
+      if (
+        notificationId &&
+        handledPushNotificationIds.current.has(notificationId)
+      ) {
+        return;
+      }
+      if (notificationId) {
+        handledPushNotificationIds.current.add(notificationId);
+        void markRead(notificationId);
+      }
+
+      routeFromNotificationPayload(data);
+    };
+
+    void import('expo-notifications')
+      .then(async (notifications) => {
+        if (!isMounted) {
+          return;
+        }
+        notifications.setNotificationHandler?.({
+          handleNotification: async () => ({
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: false,
+            shouldSetBadge: true,
+          }),
+        });
+
+        subscriptions.push(
+          notifications.addNotificationResponseReceivedListener(handleResponse),
+        );
+        if (notifications.addNotificationReceivedListener) {
+          subscriptions.push(
+            notifications.addNotificationReceivedListener(() => {
+              void listNotifications(apiOptions)
+                .then(setNotifications)
+                .catch(() => undefined);
+            }),
+          );
+        }
+
+        const initialResponse =
+          notifications.getLastNotificationResponse?.() ??
+          (await notifications.getLastNotificationResponseAsync?.());
+        if (initialResponse && isMounted) {
+          handleResponse(initialResponse);
+          notifications.clearLastNotificationResponse?.();
+        }
+      })
+      .catch(() => {
+        // Notification listeners are best-effort on unsupported runtimes.
+      });
+
+    return () => {
+      isMounted = false;
+      subscriptions.forEach((subscription) => subscription.remove());
+    };
   }, [session?.accessToken, appRole, apiOptions]);
 
   useEffect(() => {
@@ -2257,32 +2362,57 @@ export default function App() {
     if (!notification.isRead) {
       void markRead(notification.id);
     }
-    if (notification.type.startsWith('support_')) {
-      const ticketId = (notification.metadata as { ticketId?: string } | null)
-        ?.ticketId;
-      if (ticketId) {
-        setExpandedSupportTicketId(ticketId);
-        setSupportReplyDraft('');
-        if (!supportReplies[ticketId]) {
-          void loadSupportTicketReplies(ticketId);
-        }
+    routeFromNotificationPayload({
+      type: notification.type,
+      metadata: metadataRecord(notification.metadata),
+    });
+  }
+
+  function routeFromNotificationPayload(input: {
+    type?: string | null;
+    metadata?: Record<string, unknown> | null;
+    data?: Record<string, unknown> | null;
+  }) {
+    const intent = resolveNotificationRoute({
+      role: appRole,
+      type: input.type,
+      metadata: input.metadata,
+      data: input.data,
+    });
+
+    if (intent.ticketId) {
+      setExpandedSupportTicketId(intent.ticketId);
+      setSupportReplyDraft('');
+      if (!supportReplies[intent.ticketId]) {
+        void loadSupportTicketReplies(intent.ticketId);
       }
-      navigate('customerHelp', 'customer');
-      return;
     }
-    if (notification.type.includes('booking')) {
-      const bookingId = (notification.metadata as { bookingId?: string } | null)
-        ?.bookingId;
-      const matched = bookingId
-        ? bookings.find((booking) => booking.id === bookingId)
-        : null;
-      if (matched) {
-        openBooking(
-          matched,
-          appRole === 'provider' ? 'providerBookingDetail' : 'customerBookingDetail',
-        );
+
+    if (intent.conversationId) {
+      setSelectedConversationId(intent.conversationId);
+      void listConversationMessages(intent.conversationId, apiOptions)
+        .then(setMessages)
+        .catch((error) => setNotice(readError(error)));
+    }
+
+    if (intent.bookingId) {
+      setSelectedBookingId(intent.bookingId);
+      void refreshBookingServiceUpdates(intent.bookingId);
+      void refreshBookingTimelineEvents(intent.bookingId);
+      void refreshBookingTracking(intent.bookingId);
+      if (!bookings.some((booking) => booking.id === intent.bookingId)) {
+        void refreshWorkspace();
       }
     }
+
+    navigate(intent.screen, intent.role);
+  }
+
+  function metadataRecord(value: unknown): Record<string, unknown> | null {
+    if (!value || Array.isArray(value) || typeof value !== 'object') {
+      return null;
+    }
+    return value as Record<string, unknown>;
   }
 
   async function saveAvailabilityWindow() {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
@@ -40,80 +40,51 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { notifyBackendRequired } from "../../utils/backendRequired";
-import { exportAdminUsersCsv } from "../../../services/serveaseAdminApi";
+import {
+  type ScheduledAdminReport,
+  exportAdminReportPdf,
+  exportAdminUsersCsv,
+  generateAdminReport,
+  listAdminReportSchedules,
+  scheduleAdminReport,
+} from "../../../services/serveaseAdminApi";
 import { useAuth } from "../../contexts/AuthContext";
 
-const recentReports = [
-  {
-    id: 1,
-    name: "March 2026 Customer Growth Report",
-    generatedDate: "2026-04-01T08:00:00",
-    format: "PDF",
-    size: "1.8 MB",
-  },
-  {
-    id: 2,
-    name: "Service Provider Activity Report",
-    generatedDate: "2026-03-31T18:30:00",
-    format: "Excel",
-    size: "2.2 MB",
-  },
-  {
-    id: 3,
-    name: "Weekly User Engagement - Week 13",
-    generatedDate: "2026-03-30T09:00:00",
-    format: "PDF",
-    size: "1.4 MB",
-  },
-  {
-    id: 4,
-    name: "Customer Retention Analysis",
-    generatedDate: "2026-03-28T14:00:00",
-    format: "Excel",
-    size: "2.6 MB",
-  },
-  {
-    id: 5,
-    name: "February User Statistics",
-    generatedDate: "2026-03-01T08:00:00",
-    format: "PDF",
-    size: "1.9 MB",
-  },
-];
+interface ScheduledReportRow {
+  id: string;
+  name: string;
+  frequency: string;
+  recipients: string;
+  runAt: string;
+  format: string;
+  lastDeliveredAt: string | null;
+  deliveryCount: number;
+  status: "Active" | "Scheduled" | "Paused";
+}
 
-const scheduledReportsData = [
-  {
-    id: 1,
-    name: "Daily User Activity Summary",
-    frequency: "Daily",
-    recipients: "ops@servease.ph, admin@servease.ph",
-    lastSent: "2026-04-01T08:00:00",
-    status: "Active",
-  },
-  {
-    id: 2,
-    name: "Weekly User Growth Report",
-    frequency: "Weekly",
-    recipients: "admin@servease.ph",
-    lastSent: "2026-03-30T09:00:00",
-    status: "Active",
-  },
-  {
-    id: 3,
-    name: "Monthly User Analytics",
-    frequency: "Monthly",
-    recipients: "admin@servease.ph, ops@servease.ph",
-    lastSent: "2026-03-01T08:00:00",
-    status: "Active",
-  },
-];
+function reportScheduleFromGateway(
+  schedule: ScheduledAdminReport,
+): ScheduledReportRow {
+  return {
+    id: schedule.id,
+    name: schedule.name,
+    frequency:
+      schedule.frequency.charAt(0).toUpperCase() + schedule.frequency.slice(1),
+    recipients: schedule.recipients.join(", "),
+    runAt: schedule.nextRunAt,
+    format: schedule.format.toUpperCase(),
+    lastDeliveredAt: schedule.lastDeliveredAt,
+    deliveryCount: schedule.deliveryCount,
+    status: "Scheduled",
+  };
+}
 
 export function UserReports() {
   const { accessToken } = useAuth();
   const [isExporting, setIsExporting] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [scheduledReports, setScheduledReports] = useState<ScheduledReportRow[]>([]);
 
   const [generateForm, setGenerateForm] = useState({
     template: "",
@@ -128,6 +99,30 @@ export function UserReports() {
     recipients: "",
     format: "PDF",
   });
+
+  useEffect(() => {
+    if (!accessToken) {
+      setScheduledReports([]);
+      return;
+    }
+
+    let isMounted = true;
+    listAdminReportSchedules(accessToken, "users")
+      .then((schedules) => {
+        if (isMounted) {
+          setScheduledReports(schedules.map(reportScheduleFromGateway));
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          toast.error("Unable to load scheduled user reports.");
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accessToken]);
 
   const downloadCsv = async (filename: string) => {
     if (!accessToken) {
@@ -157,25 +152,82 @@ export function UserReports() {
     }
   };
 
-  const handleGenerateReport = () => {
+  const handleGenerateReport = async () => {
     if (!generateForm.template) {
       toast.error("Please select a report template");
       return;
     }
-    void downloadCsv(
-      `${generateForm.template.toLowerCase().replace(/\s+/g, "-")}-${new Date()
-        .toISOString()
-        .slice(0, 10)}.csv`,
-    );
+    if (!accessToken) {
+      toast.error("Sign in to generate user reports.");
+      return;
+    }
+
+    const format = generateForm.format === "PDF" ? "pdf" : "csv";
+    setIsExporting(true);
+    try {
+      const report = await generateAdminReport(accessToken, "users", {
+        format,
+        dateRange: generateForm.dateRange || null,
+      });
+      if (format === "pdf") {
+        const pdf = await exportAdminReportPdf(accessToken, "users");
+        const url = URL.createObjectURL(pdf);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = report.fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } else {
+        await downloadCsv(report.fileName);
+      }
+      toast.success("User report generated.");
+      setIsGenerateModalOpen(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to generate user report.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
   };
 
-  const handleScheduleReport = () => {
+  const handleScheduleReport = async () => {
     if (!scheduleForm.name || !scheduleForm.template || !scheduleForm.frequency || !scheduleForm.recipients) {
       toast.error("Please fill in all required fields");
       return;
     }
+    if (!accessToken) {
+      toast.error("Sign in to schedule user reports.");
+      return;
+    }
 
-    notifyBackendRequired("Scheduling user reports", "POST /v1/admin/reports/users/schedules");
+    try {
+      const schedule = await scheduleAdminReport(accessToken, "users", {
+        name: scheduleForm.name,
+        frequency: scheduleForm.frequency as "daily" | "weekly" | "monthly",
+        recipients: scheduleForm.recipients.split(",").map((item) => item.trim()).filter(Boolean),
+        format: scheduleForm.format === "PDF" ? "pdf" : "csv",
+      });
+      setScheduledReports((current) => [
+        reportScheduleFromGateway(schedule),
+        ...current,
+      ]);
+      toast.success(`User report scheduled for ${new Date(schedule.nextRunAt).toLocaleDateString()}.`);
+      setIsScheduleModalOpen(false);
+      setScheduleForm({
+        name: "",
+        template: "",
+        frequency: "",
+        recipients: "",
+        format: "PDF",
+      });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to schedule user report.",
+      );
+    }
   };
 
   const handleDownloadReport = (reportName: string) => {
@@ -185,6 +237,14 @@ export function UserReports() {
         .slice(0, 10)}.csv`,
     );
   };
+
+  const recentReports = scheduledReports
+    .filter((report) => report.lastDeliveredAt)
+    .sort(
+      (a, b) =>
+        new Date(b.lastDeliveredAt ?? 0).getTime() -
+        new Date(a.lastDeliveredAt ?? 0).getTime(),
+    );
 
   return (
     <div className="space-y-6">
@@ -296,55 +356,63 @@ export function UserReports() {
                   <TableHead>Report Name</TableHead>
                   <TableHead>Frequency</TableHead>
                   <TableHead>Recipients</TableHead>
-                  <TableHead>Last Sent</TableHead>
+                  <TableHead>Next / Last Run</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {scheduledReportsData.map((schedule) => (
-                  <TableRow key={schedule.id}>
-                    <TableCell className="font-medium text-gray-900">
-                      {schedule.name}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                        <Clock className="w-3 h-3 mr-1" />
-                        {schedule.frequency}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm text-gray-600">
-                        <Mail className="w-3 h-3" />
-                        {schedule.recipients.split(",").length} recipient(s)
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">
-                      {new Date(schedule.lastSent).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge className="bg-green-100 text-green-700 border-green-200">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        {schedule.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="outline">
-                          <Edit2 className="w-3 h-3" />
-                        </Button>
-                        <Button size="sm" variant="outline" className="text-red-600">
-                          <Power className="w-3 h-3" />
-                        </Button>
-                      </div>
+                {scheduledReports.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-8 text-center text-sm text-gray-500">
+                      No scheduled user reports found
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  scheduledReports.map((schedule) => (
+                    <TableRow key={schedule.id}>
+                      <TableCell className="font-medium text-gray-900">
+                        {schedule.name}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          <Clock className="w-3 h-3 mr-1" />
+                          {schedule.frequency}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1 text-sm text-gray-600">
+                          <Mail className="w-3 h-3" />
+                          {schedule.recipients.split(",").length} recipient(s)
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {new Date(schedule.runAt).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge className="bg-green-100 text-green-700 border-green-200">
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          {schedule.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="outline">
+                            <Edit2 className="w-3 h-3" />
+                          </Button>
+                          <Button size="sm" variant="outline" className="text-red-600">
+                            <Power className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -369,44 +437,53 @@ export function UserReports() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentReports.map((report) => (
-                  <TableRow key={report.id}>
-                    <TableCell className="font-medium text-gray-900">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-4 h-4 text-gray-400" />
-                        {report.name}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">
-                      {new Date(report.generatedDate).toLocaleString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-gray-50">
-                        {report.format}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-600">
-                      {report.size}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        onClick={() => handleDownloadReport(report.name)}
-                        disabled={isExporting}
-                        className="bg-[#00BF63] hover:bg-[#00A055]"
-                      >
-                        <Download className="w-3 h-3 mr-2" />
-                        {isExporting ? "Downloading..." : "Download"}
-                      </Button>
+                {recentReports.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-sm text-gray-500">
+                      No delivered user reports found
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  recentReports.map((report) => (
+                    <TableRow key={report.id}>
+                      <TableCell className="font-medium text-gray-900">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-gray-400" />
+                          {report.name}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {new Date(report.lastDeliveredAt ?? "").toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="bg-gray-50">
+                          {report.format}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-gray-600">
+                        {report.deliveryCount} delivery
+                        {report.deliveryCount === 1 ? "" : "ies"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          onClick={() => handleDownloadReport(report.name)}
+                          disabled={isExporting}
+                          className="bg-[#00BF63] hover:bg-[#00A055]"
+                        >
+                          <Download className="w-3 h-3 mr-2" />
+                          {isExporting ? "Downloading..." : "Download Latest"}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -494,7 +571,7 @@ export function UserReports() {
               Cancel
             </Button>
             <Button
-              onClick={handleGenerateReport}
+              onClick={() => void handleGenerateReport()}
               disabled={isExporting}
               className="bg-[#00BF63] hover:bg-[#00A055]"
             >
@@ -606,7 +683,7 @@ export function UserReports() {
               Cancel
             </Button>
             <Button
-              onClick={handleScheduleReport}
+              onClick={() => void handleScheduleReport()}
               className="bg-[#00BF63] hover:bg-[#00A055]"
             >
               <Calendar className="w-4 h-4 mr-2" />

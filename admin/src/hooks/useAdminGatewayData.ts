@@ -8,6 +8,7 @@ import {
   listAdminPayments,
   listAdminPayouts,
   listAdminSupportTickets,
+  listAdminUsers,
   listCatalogCategories,
   listCatalogServices,
   listProviderListings,
@@ -17,6 +18,7 @@ import {
   type AdminPaymentSummary,
   type AdminPayoutSummary,
   type AdminSupportTicketSummary,
+  type AdminUserSummary,
   type AdminUsersSummaryStats,
   type CatalogCategory,
   type CatalogServiceItem,
@@ -28,6 +30,7 @@ interface AdminGatewayData {
   payouts: AdminPayoutSummary[];
   disputes: AdminDisputeSummary[];
   supportTickets: AdminSupportTicketSummary[];
+  adminUsers: AdminUserSummary[];
   categories: CatalogCategory[];
   services: CatalogServiceItem[];
   providerListings: ProviderServiceListing[];
@@ -43,6 +46,7 @@ const emptyData: AdminGatewayData = {
   payouts: [],
   disputes: [],
   supportTickets: [],
+  adminUsers: [],
   categories: [],
   services: [],
   providerListings: [],
@@ -74,6 +78,7 @@ export function useAdminGatewayData() {
         supportTickets: accessToken
           ? listAdminSupportTickets(accessToken)
           : Promise.resolve([]),
+        adminUsers: accessToken ? listAdminUsers(accessToken) : Promise.resolve([]),
         bookingsSummary: accessToken
           ? getAdminBookingsSummary(accessToken)
           : Promise.resolve(null),

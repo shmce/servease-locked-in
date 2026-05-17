@@ -46,6 +46,7 @@
     "test:cov": "jest --coverage"
   },
   "dependencies": {
+    "@implementsprint/sdk": "^1.1.2",
     "@nestjs/common": "^11.1.21",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.21",

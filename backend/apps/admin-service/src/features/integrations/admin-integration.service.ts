@@ -8,12 +8,14 @@ import {
   RecordAdminIntegrationTestInput,
   UpdateAdminIntegrationCredentialsInput,
 } from './admin-integration.types';
+import { ApicenterIntegrationProbe } from './apicenter-integration-probe';
 import { SupabaseAdminIntegrationRepository } from './supabase-admin-integration.repository';
 
 @Injectable()
 export class AdminIntegrationService {
   constructor(
     private readonly integrationRepository: SupabaseAdminIntegrationRepository,
+    private readonly apicenterIntegrationProbe: ApicenterIntegrationProbe,
   ) {}
 
   listIntegrations(): Promise<AdminIntegrationSummary[]> {
@@ -69,12 +71,16 @@ export class AdminIntegrationService {
       throw new AdminIntegrationNotFoundError(input.provider);
     }
 
-    const success = input.success && existing.isEnabled;
+    const probe = await this.apicenterIntegrationProbe.testProvider(
+      input.provider.trim(),
+    );
+    const probeSuccess = probe?.success ?? input.success;
+    const success = probeSuccess && existing.isEnabled;
     const errorMessage = !existing.isEnabled
       ? 'Integration is disabled. Enable it before running the test.'
-      : input.success
+      : probeSuccess
         ? null
-        : input.errorMessage ?? 'Test failed.';
+        : probe?.errorMessage ?? input.errorMessage ?? 'Test failed.';
 
     return this.integrationRepository.recordTestResult({
       provider: input.provider.trim(),

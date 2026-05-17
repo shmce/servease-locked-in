@@ -30,6 +30,7 @@ import {
   listProviderPayouts,
   markNotificationRead,
   openConversation,
+  registerPushDevice,
   registerAccount,
   raiseBookingDispute,
   reorderProviderPortfolio,
@@ -41,6 +42,7 @@ import {
   updateProviderPortfolioMedia,
   upsertCustomerPaymentMethod,
   updateUserPreferences,
+  unregisterPushDevice,
   verifyCurrentUserTwoFactor,
   uploadMedia,
   validatePromotion,
@@ -1141,6 +1143,71 @@ describe('serveaseApi', () => {
     assert.equal(notifications[0]?.isRead, false);
     assert.equal(read.isRead, true);
     assert.deepEqual(methods, ['GET', 'PATCH']);
+  });
+
+  it('registers and unregisters mobile push devices through the gateway', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      if (init?.method === 'DELETE') {
+        return jsonResponse({ data: { ok: true } });
+      }
+
+      return jsonResponse({
+        data: {
+          id: 'device-1',
+          userId: 'user-1',
+          token: 'ExponentPushToken[abc]',
+          platform: 'ios',
+          deviceId: 'ios-device-1',
+          isActive: true,
+          lastRegisteredAt: '2026-05-18T00:00:00.000Z',
+          createdAt: '2026-05-18T00:00:00.000Z',
+        },
+      });
+    };
+
+    const device = await registerPushDevice(
+      {
+        token: 'ExponentPushToken[abc]',
+        platform: 'ios',
+        deviceId: 'ios-device-1',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+    const result = await unregisterPushDevice('ExponentPushToken[abc]', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/notifications/devices',
+        method: 'POST',
+        body: {
+          token: 'ExponentPushToken[abc]',
+          platform: 'ios',
+          deviceId: 'ios-device-1',
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/notifications/devices/ExponentPushToken%5Babc%5D',
+        method: 'DELETE',
+        body: null,
+      },
+    ]);
+    assert.equal(device.isActive, true);
+    assert.equal(result.ok, true);
   });
 
   it('loads referral summaries through the gateway', async () => {

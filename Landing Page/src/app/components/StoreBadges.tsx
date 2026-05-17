@@ -1,8 +1,51 @@
+import type { ReactNode } from "react";
 import svgPaths from "../../imports/svg-9mcfl6w3md";
+
+function StoreBadgeShell({
+  href,
+  label,
+  className,
+  children,
+}: {
+  href?: string;
+  label: string;
+  className: string;
+  children: ReactNode;
+}) {
+  if (href) {
+    return (
+      <a
+        aria-label={label}
+        className={className}
+        href={href}
+        rel="noreferrer"
+        target="_blank"
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <div
+      aria-disabled="true"
+      aria-label={`${label} coming soon`}
+      className={`${className} opacity-60 cursor-not-allowed`}
+      role="img"
+      title="Coming soon"
+    >
+      {children}
+    </div>
+  );
+}
 
 export function GooglePlayBadge() {
   return (
-    <div className="relative bg-black border border-[#a6a6a6] h-[52px] rounded-[5px] w-[170px] cursor-pointer hover:opacity-90 transition-opacity overflow-hidden flex-shrink-0">
+    <StoreBadgeShell
+      href={process.env.NEXT_PUBLIC_GOOGLE_PLAY_URL}
+      label="Get ServEase on Google Play"
+      className="relative bg-black border border-[#a6a6a6] h-[52px] rounded-[5px] w-[170px] cursor-pointer hover:opacity-90 transition-opacity overflow-hidden flex-shrink-0"
+    >
       <div className="absolute inset-0 flex items-center">
         {/* Google Play logo */}
         <div className="w-8 h-8 ml-3">
@@ -32,13 +75,17 @@ export function GooglePlayBadge() {
           <span className="text-white text-sm font-['Inter',sans-serif] leading-tight">Google Play</span>
         </div>
       </div>
-    </div>
+    </StoreBadgeShell>
   );
 }
 
 export function AppStoreBadge() {
   return (
-    <div className="relative bg-[#0c0d10] border border-[#a6a6a6] h-[52px] rounded-[7px] w-[150px] cursor-pointer hover:opacity-90 transition-opacity overflow-hidden flex-shrink-0">
+    <StoreBadgeShell
+      href={process.env.NEXT_PUBLIC_APP_STORE_URL}
+      label="Download ServEase on the App Store"
+      className="relative bg-[#0c0d10] border border-[#a6a6a6] h-[52px] rounded-[7px] w-[150px] cursor-pointer hover:opacity-90 transition-opacity overflow-hidden flex-shrink-0"
+    >
       <div className="absolute inset-0 flex items-center">
         {/* Apple logo */}
         <div className="w-6 h-7 ml-3">
@@ -52,6 +99,6 @@ export function AppStoreBadge() {
           <span className="text-white text-sm font-['Inter',sans-serif] leading-tight">App Store</span>
         </div>
       </div>
-    </div>
+    </StoreBadgeShell>
   );
 }

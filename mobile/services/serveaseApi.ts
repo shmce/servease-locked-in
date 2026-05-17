@@ -347,6 +347,25 @@ export interface NotificationSummary {
   createdAt: string | null;
 }
 
+export type PushDevicePlatform = 'android' | 'ios' | 'web';
+
+export interface RegisterPushDeviceRequest {
+  token: string;
+  platform: PushDevicePlatform;
+  deviceId?: string | null;
+}
+
+export interface PushDeviceSummary {
+  id: string;
+  userId: string;
+  token: string;
+  platform: PushDevicePlatform;
+  deviceId: string | null;
+  isActive: boolean;
+  lastRegisteredAt: string | null;
+  createdAt: string | null;
+}
+
 export interface ReferralSummary {
   referralCode: string;
   referralLinkPath: string;
@@ -1423,6 +1442,32 @@ export function markNotificationRead(
     {
       ...options,
       method: 'PATCH',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function registerPushDevice(
+  body: RegisterPushDeviceRequest,
+  options: ApiOptions = {},
+): Promise<PushDeviceSummary> {
+  return request<PushDeviceSummary>('/v1/notifications/devices', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function unregisterPushDevice(
+  token: string,
+  options: ApiOptions = {},
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(
+    `/v1/notifications/devices/${encodeURIComponent(token)}`,
+    {
+      ...options,
+      method: 'DELETE',
       requiresAuth: true,
     },
   );

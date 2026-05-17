@@ -46,38 +46,10 @@ import { Badge } from "../../components/ui/badge";
 import { useAdminGatewayData } from "../../../hooks/useAdminGatewayData";
 import { notifyBackendRequired } from "../../utils/backendRequired";
 import { useAuth } from "../../contexts/AuthContext";
-import { exportAdminRevenueCsv } from "../../../services/serveaseAdminApi";
-
-// Revenue Data
-const revenueOverTimeData = [
-  { date: "Feb 1", revenue: 285000 },
-  { date: "Feb 5", revenue: 312000 },
-  { date: "Feb 10", revenue: 298000 },
-  { date: "Feb 15", revenue: 345000 },
-  { date: "Feb 20", revenue: 378000 },
-  { date: "Feb 25", revenue: 392000 },
-  { date: "Feb 28", revenue: 402000 },
-];
-
-const revenueByCategoryData = [
-  { category: "Home Maintenance", revenue: 458000 },
-  { category: "Beauty & Wellness", revenue: 387000 },
-  { category: "Cleaning Services", revenue: 356000 },
-  { category: "Events", revenue: 298000 },
-  { category: "Pet Services", revenue: 267000 },
-  { category: "Auto & Tech", revenue: 234000 },
-  { category: "Education", revenue: 212000 },
-];
-
-const revenueBreakdownData = [
-  { date: "2026-02-28", category: "Home Maintenance", completedBookings: 45, gross: 87500, discounts: 3200, refunds: 1500, net: 82800, commission: 13650 },
-  { date: "2026-02-28", category: "Beauty & Wellness", completedBookings: 38, gross: 68400, discounts: 2800, refunds: 800, net: 64800, commission: 10692 },
-  { date: "2026-02-27", category: "Cleaning Services", completedBookings: 32, gross: 54300, discounts: 1900, refunds: 600, net: 51800, commission: 8547 },
-  { date: "2026-02-27", category: "Events", completedBookings: 28, gross: 98000, discounts: 5200, refunds: 2100, net: 90700, commission: 14965 },
-  { date: "2026-02-26", category: "Pet Services", completedBookings: 25, gross: 42500, discounts: 1200, refunds: 400, net: 40900, commission: 6748 },
-  { date: "2026-02-26", category: "Auto & Tech", completedBookings: 22, gross: 38600, discounts: 1600, refunds: 500, net: 36500, commission: 6023 },
-  { date: "2026-02-25", category: "Education", completedBookings: 19, gross: 52800, discounts: 2100, refunds: 700, net: 50000, commission: 8250 },
-];
+import {
+  exportAdminReportPdf,
+  exportAdminRevenueCsv,
+} from "../../../services/serveaseAdminApi";
 
 // KPI Card Component
 function KPICard({ label, value, change, icon: Icon, changeType }: any) {
@@ -108,6 +80,11 @@ function formatPeso(value: number) {
   return `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
 }
 
+function formatPaymentDate(value: string | null) {
+  if (!value) return "No date";
+  return new Date(value).toLocaleDateString("en-CA");
+}
+
 export function Revenue() {
   const adminGateway = useAdminGatewayData();
   const { accessToken } = useAuth();
@@ -119,20 +96,45 @@ export function Revenue() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const liveRevenueRows = useMemo(() => {
     return adminGateway.payments.map((payment) => ({
-      date: payment.paidAt ?? payment.createdAt ?? "",
+      date: formatPaymentDate(payment.paidAt ?? payment.createdAt),
       paymentId: payment.id,
       bookingId: payment.bookingId,
       gross: payment.amount,
+      discounts: 0,
+      refunds:
+        payment.status === "refunded" || payment.status === "cancelled"
+          ? payment.amount
+          : 0,
       net: payment.status === "refunded" || payment.status === "cancelled" ? 0 : payment.amount,
       commission: payment.platformFee,
       providerPayout: payment.providerPayout,
       status: payment.status,
       method: payment.paymentMethod ?? "N/A",
+      category: payment.paymentMethod ?? "Unspecified method",
+      completedBookings: payment.status === "paid" ? 1 : 0,
     }));
   }, [adminGateway.payments]);
+
+  const filteredRevenueRows = useMemo(() => {
+    const query = searchTerm.toLowerCase();
+
+    return liveRevenueRows.filter((row) => {
+      const matchesSearch =
+        !query ||
+        Object.values(row).some((value) => String(value).toLowerCase().includes(query));
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "completed" && row.status === "paid") ||
+        (statusFilter === "cancelled" &&
+          (row.status === "cancelled" || row.status === "refunded"));
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [liveRevenueRows, searchTerm, statusFilter]);
 
   const liveRevenueStats = useMemo(() => {
     const paidRows = liveRevenueRows.filter((row) => row.status === "paid");
@@ -152,6 +154,29 @@ export function Revenue() {
           : 0,
     };
   }, [liveRevenueRows]);
+
+  const revenueOverTimeData = useMemo(() => {
+    const byDate = filteredRevenueRows.reduce<Record<string, number>>((totals, row) => {
+      totals[row.date] = (totals[row.date] ?? 0) + row.net;
+      return totals;
+    }, {});
+
+    return Object.entries(byDate)
+      .map(([date, revenue]) => ({ date, revenue }))
+      .slice(-10);
+  }, [filteredRevenueRows]);
+
+  const revenueByCategoryData = useMemo(() => {
+    const byCategory = filteredRevenueRows.reduce<Record<string, number>>((totals, row) => {
+      totals[row.category] = (totals[row.category] ?? 0) + row.net;
+      return totals;
+    }, {});
+
+    return Object.entries(byCategory).map(([category, revenue]) => ({
+      category,
+      revenue,
+    }));
+  }, [filteredRevenueRows]);
 
   const handleExportCSV = async () => {
     if (!accessToken) {
@@ -181,8 +206,31 @@ export function Revenue() {
     }
   };
 
-  const handleExportPDF = () => {
-    notifyBackendRequired("Generating revenue PDFs", "GET /v1/admin/reports/revenue.pdf");
+  const handleExportPDF = async () => {
+    if (!accessToken) {
+      notifyBackendRequired("Exporting revenue PDF", "GET /v1/admin/reports/revenue.pdf");
+      return;
+    }
+
+    setIsExportingPdf(true);
+    try {
+      const pdf = await exportAdminReportPdf(accessToken, "revenue");
+      const url = URL.createObjectURL(pdf);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `revenue-report-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      notifyBackendRequired(
+        error instanceof Error ? error.message : "Exporting revenue PDF failed",
+        "GET /v1/admin/reports/revenue.pdf",
+      );
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const openDrawer = (item: any) => {
@@ -210,9 +258,13 @@ export function Revenue() {
             <Download className="w-4 h-4 mr-2" />
             {isExportingCsv ? "Exporting..." : "Export CSV"}
           </Button>
-          <Button onClick={handleExportPDF} className="bg-[#00BF63] hover:bg-[#00A356] text-[14px] font-medium">
+          <Button
+            onClick={() => void handleExportPDF()}
+            className="bg-[#00BF63] hover:bg-[#00A356] text-[14px] font-medium"
+            disabled={isExportingPdf}
+          >
             <FileText className="w-4 h-4 mr-2" />
-            Export PDF
+            {isExportingPdf ? "Exporting..." : "Export PDF"}
           </Button>
         </div>
       </div>
@@ -291,12 +343,12 @@ export function Revenue() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard label="Gross Revenue" value={formatPeso(liveRevenueStats.gross || 2410000)} change="+12.5%" changeType="up" icon={DollarSign} />
-        <KPICard label="Net Revenue" value={formatPeso(liveRevenueStats.net || 2020000)} change="+10.8%" changeType="up" icon={TrendingUp} />
-        <KPICard label="Total Commission" value={formatPeso(liveRevenueStats.commission || 396000)} change="+11.2%" changeType="up" icon={DollarSign} />
-        <KPICard label="Refund Amount" value={formatPeso(liveRevenueStats.refunds || 55100)} change="-8.2%" changeType="down" icon={TrendingUp} />
-        <KPICard label="Paid Payments" value={(liveRevenueStats.completed || 2326).toLocaleString()} change="+14.2%" changeType="up" icon={CheckCircle} />
-        <KPICard label="Average Order Value" value={formatPeso(liveRevenueStats.averageOrderValue || 1037)} change="+5.3%" changeType="up" icon={Package} />
+        <KPICard label="Gross Revenue" value={formatPeso(liveRevenueStats.gross)} icon={DollarSign} />
+        <KPICard label="Net Revenue" value={formatPeso(liveRevenueStats.net)} icon={TrendingUp} />
+        <KPICard label="Total Commission" value={formatPeso(liveRevenueStats.commission)} icon={DollarSign} />
+        <KPICard label="Refund Amount" value={formatPeso(liveRevenueStats.refunds)} icon={TrendingUp} />
+        <KPICard label="Paid Payments" value={liveRevenueStats.completed.toLocaleString()} icon={CheckCircle} />
+        <KPICard label="Average Order Value" value={formatPeso(liveRevenueStats.averageOrderValue)} icon={Package} />
       </div>
 
       <Card>
@@ -376,15 +428,21 @@ export function Revenue() {
             <CardTitle className="text-[16px] font-semibold">Revenue Over Time</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueOverTimeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: 12 }} />
-                <YAxis stroke="#6b7280" tickFormatter={(value) => `₱${(value / 1000).toFixed(0)}K`} style={{ fontSize: 12 }} />
-                <Tooltip formatter={(value: number) => `₱${value.toLocaleString()}`} />
-                <Line type="monotone" dataKey="revenue" stroke="#00BF63" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+            {revenueOverTimeData.length === 0 ? (
+              <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
+                No payment revenue records found
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={revenueOverTimeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: 12 }} />
+                  <YAxis stroke="#6b7280" tickFormatter={(value) => `₱${(value / 1000).toFixed(0)}K`} style={{ fontSize: 12 }} />
+                  <Tooltip formatter={(value: number) => `₱${value.toLocaleString()}`} />
+                  <Line type="monotone" dataKey="revenue" stroke="#00BF63" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -393,15 +451,21 @@ export function Revenue() {
             <CardTitle className="text-[16px] font-semibold">Revenue by Category</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={revenueByCategoryData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="category" stroke="#6b7280" angle={-45} textAnchor="end" height={100} style={{ fontSize: 11 }} />
-                <YAxis stroke="#6b7280" tickFormatter={(value) => `₱${(value / 1000).toFixed(0)}K`} style={{ fontSize: 12 }} />
-                <Tooltip formatter={(value: number) => `₱${value.toLocaleString()}`} />
-                <Bar dataKey="revenue" fill="#00BF63" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {revenueByCategoryData.length === 0 ? (
+              <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
+                No payment-method revenue records found
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={revenueByCategoryData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="category" stroke="#6b7280" angle={-45} textAnchor="end" height={100} style={{ fontSize: 11 }} />
+                  <YAxis stroke="#6b7280" tickFormatter={(value) => `₱${(value / 1000).toFixed(0)}K`} style={{ fontSize: 12 }} />
+                  <Tooltip formatter={(value: number) => `₱${value.toLocaleString()}`} />
+                  <Bar dataKey="revenue" fill="#00BF63" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -440,63 +504,87 @@ export function Revenue() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {revenueBreakdownData.map((row, index) => (
-                  <TableRow key={index} className="hover:bg-gray-50">
-                    <TableCell className="text-[14px]">{row.date}</TableCell>
-                    <TableCell className="text-[14px]">{row.category}</TableCell>
-                    <TableCell className="text-[14px] text-right">{row.completedBookings}</TableCell>
-                    <TableCell className="text-[14px] text-right">₱{row.gross.toLocaleString()}</TableCell>
-                    <TableCell className="text-[14px] text-right text-orange-600">-₱{row.discounts.toLocaleString()}</TableCell>
-                    <TableCell className="text-[14px] text-right text-red-600">-₱{row.refunds.toLocaleString()}</TableCell>
-                    <TableCell className="text-[14px] text-right font-semibold">₱{row.net.toLocaleString()}</TableCell>
-                    <TableCell className="text-[14px] text-right text-[#00BF63] font-semibold">₱{row.commission.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openDrawer(row)}>
-                        <Eye className="w-4 h-4" />
-                      </Button>
+                {adminGateway.isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-8 text-center text-sm text-gray-500">
+                      Loading payment revenue...
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : filteredRevenueRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-8 text-center text-sm text-gray-500">
+                      No payment revenue records found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRevenueRows.map((row) => (
+                    <TableRow key={row.paymentId} className="hover:bg-gray-50">
+                      <TableCell className="text-[14px]">{row.date}</TableCell>
+                      <TableCell className="text-[14px]">{row.category}</TableCell>
+                      <TableCell className="text-[14px] text-right">{row.completedBookings}</TableCell>
+                      <TableCell className="text-[14px] text-right">₱{row.gross.toLocaleString()}</TableCell>
+                      <TableCell className="text-[14px] text-right text-orange-600">-₱{row.discounts.toLocaleString()}</TableCell>
+                      <TableCell className="text-[14px] text-right text-red-600">-₱{row.refunds.toLocaleString()}</TableCell>
+                      <TableCell className="text-[14px] text-right font-semibold">₱{row.net.toLocaleString()}</TableCell>
+                      <TableCell className="text-[14px] text-right text-[#00BF63] font-semibold">₱{row.commission.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => openDrawer(row)}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
 
           {/* Mobile Cards */}
           <div className="sm:hidden space-y-3">
-            {revenueBreakdownData.map((row, index) => (
-              <Card key={index} className="p-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-[14px] font-semibold">{row.category}</p>
-                      <p className="text-[12px] text-gray-500">{row.date}</p>
+            {adminGateway.isLoading ? (
+              <div className="rounded-lg border p-4 text-center text-sm text-gray-500">
+                Loading payment revenue...
+              </div>
+            ) : filteredRevenueRows.length === 0 ? (
+              <div className="rounded-lg border p-4 text-center text-sm text-gray-500">
+                No payment revenue records found
+              </div>
+            ) : (
+              filteredRevenueRows.map((row) => (
+                <Card key={row.paymentId} className="p-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[14px] font-semibold">{row.category}</p>
+                        <p className="text-[12px] text-gray-500">{row.date}</p>
+                      </div>
+                      <Badge className="bg-[#00BF63] text-white">{row.completedBookings} bookings</Badge>
                     </div>
-                    <Badge className="bg-[#00BF63] text-white">{row.completedBookings} bookings</Badge>
+                    <div className="grid grid-cols-2 gap-2 text-[13px]">
+                      <div>
+                        <span className="text-gray-500">Gross:</span>
+                        <span className="ml-1 font-medium">₱{row.gross.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Net:</span>
+                        <span className="ml-1 font-medium">₱{row.net.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Refunds:</span>
+                        <span className="ml-1 text-red-600">-₱{row.refunds.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Commission:</span>
+                        <span className="ml-1 text-[#00BF63] font-medium">₱{row.commission.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full text-[14px] font-medium" onClick={() => openDrawer(row)}>
+                      View Details
+                    </Button>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[13px]">
-                    <div>
-                      <span className="text-gray-500">Gross:</span>
-                      <span className="ml-1 font-medium">₱{row.gross.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Net:</span>
-                      <span className="ml-1 font-medium">₱{row.net.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Discounts:</span>
-                      <span className="ml-1 text-orange-600">-₱{row.discounts.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Commission:</span>
-                      <span className="ml-1 text-[#00BF63] font-medium">₱{row.commission.toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full text-[14px] font-medium" onClick={() => openDrawer(row)}>
-                    View Details
-                  </Button>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

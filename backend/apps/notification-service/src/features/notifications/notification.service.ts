@@ -1,14 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InvalidNotificationRequestError } from './notification.errors';
 import {
   CreateNotificationInput,
   NotificationSummary,
+  PushDevicePlatform,
+  PushDeviceSummary,
+  RegisterPushDeviceInput,
 } from './notification.types';
+import {
+  PushDeliveryClient,
+  PushReceiptCheck,
+} from './push-delivery.client';
 import { SupabaseNotificationRepository } from './supabase-notification.repository';
 
 @Injectable()
 export class NotificationService {
-  constructor(private readonly notificationRepository: SupabaseNotificationRepository) {}
+  private readonly logger = new Logger(NotificationService.name);
+
+  constructor(
+    private readonly notificationRepository: SupabaseNotificationRepository,
+    private readonly pushDeliveryClient: PushDeliveryClient,
+  ) {}
 
   async createNotification(
     input: CreateNotificationInput,
@@ -18,13 +30,17 @@ export class NotificationService {
       throw new InvalidNotificationRequestError();
     }
 
-    return this.notificationRepository.createNotification({
+    const notification = await this.notificationRepository.createNotification({
       userId: input.userId,
       type,
       title: input.title?.trim() || null,
       body: input.body?.trim() || null,
       metadata: input.metadata ?? null,
     });
+
+    await this.deliverPushNotification(notification);
+
+    return notification;
   }
 
   async listNotifications(userId: string): Promise<NotificationSummary[]> {
@@ -44,5 +60,117 @@ export class NotificationService {
     }
 
     return this.notificationRepository.markRead(notificationId, userId);
+  }
+
+  async registerPushDevice(
+    input: RegisterPushDeviceInput,
+  ): Promise<PushDeviceSummary> {
+    const token = input.token?.trim();
+    const platform = input.platform?.trim() as PushDevicePlatform;
+    if (
+      !input.userId ||
+      !token ||
+      !['android', 'ios', 'web'].includes(platform)
+    ) {
+      throw new InvalidNotificationRequestError();
+    }
+
+    return this.notificationRepository.registerPushDevice({
+      userId: input.userId,
+      token,
+      platform,
+      deviceId: input.deviceId?.trim() || null,
+    });
+  }
+
+  async unregisterPushDevice(
+    userId: string,
+    token: string,
+  ): Promise<{ ok: boolean }> {
+    if (!userId || !token?.trim()) {
+      throw new InvalidNotificationRequestError();
+    }
+
+    return this.notificationRepository.unregisterPushDevice(
+      userId,
+      token.trim(),
+    );
+  }
+
+  private async deliverPushNotification(
+    notification: NotificationSummary,
+  ): Promise<void> {
+    try {
+      const devices = await this.notificationRepository.listActivePushDevices(
+        notification.userId,
+      );
+      const result = await this.pushDeliveryClient.sendNotification(
+        devices,
+        notification,
+      );
+      if (result.invalidTokens.length > 0) {
+        await this.notificationRepository.deactivatePushDevices(
+          result.invalidTokens,
+        );
+      }
+      this.schedulePushReceiptCheck(notification.id, result.receiptChecks ?? []);
+    } catch (error) {
+      this.logger.warn(
+        `Push delivery failed for notification ${notification.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private schedulePushReceiptCheck(
+    notificationId: string,
+    receiptChecks: PushReceiptCheck[],
+  ): void {
+    if (receiptChecks.length === 0) {
+      return;
+    }
+
+    const delayMs = this.receiptDelayMs();
+    if (delayMs === 0) {
+      void this.checkPushReceipts(notificationId, receiptChecks);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void this.checkPushReceipts(notificationId, receiptChecks);
+    }, delayMs);
+    timer.unref?.();
+  }
+
+  private async checkPushReceipts(
+    notificationId: string,
+    receiptChecks: PushReceiptCheck[],
+  ): Promise<void> {
+    try {
+      const result = await this.pushDeliveryClient.checkReceipts(receiptChecks);
+      if (result.invalidTokens.length > 0) {
+        await this.notificationRepository.deactivatePushDevices(
+          result.invalidTokens,
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Push receipt check failed for notification ${notificationId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
+  private receiptDelayMs(): number {
+    const value = Number(
+      process.env.EXPO_PUSH_RECEIPT_DELAY_MS ?? 15 * 60 * 1000,
+    );
+    if (!Number.isFinite(value)) {
+      return 15 * 60 * 1000;
+    }
+
+    return Math.min(Math.max(Math.floor(value), 0), 60 * 60 * 1000);
   }
 }

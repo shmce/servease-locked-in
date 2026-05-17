@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import {
@@ -11,7 +11,6 @@ import {
 import {
   DollarSign,
   TrendingUp,
-  TrendingDown,
   Download,
   Calendar,
   Percent,
@@ -32,70 +31,77 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  exportAdminRevenueCsv,
   getAdminBookingsSummary,
+  listAdminManagedProviders,
   listAdminPayments,
   listAdminRefunds,
-  AdminBookingsSummaryStats,
-  AdminPaymentSummary,
-  AdminRefundSummary,
+  type AdminBookingsSummaryStats,
+  type AdminPaymentSummary,
+  type AdminProviderSummary,
+  type AdminRefundSummary,
 } from "../../services/serveaseAdminApi";
 
-// Monthly Revenue Data
-const monthlyRevenueData = [
-  { month: "Aug 2025", revenue: 1250000, commission: 125000, bookings: 456 },
-  { month: "Sep 2025", revenue: 1450000, commission: 145000, bookings: 523 },
-  { month: "Oct 2025", revenue: 1680000, commission: 168000, bookings: 612 },
-  { month: "Nov 2025", revenue: 1820000, commission: 182000, bookings: 678 },
-  { month: "Dec 2025", revenue: 2100000, commission: 210000, bookings: 789 },
-  { month: "Jan 2026", revenue: 1950000, commission: 195000, bookings: 721 },
-  { month: "Feb 2026", revenue: 2250000, commission: 225000, bookings: 834 },
-  { month: "Mar 2026", revenue: 2450000, commission: 245000, bookings: 912 },
-];
-
-// Commission by Service Category
-const commissionByCategoryData = [
-  { category: "Home Maintenance & Repair", commission: 425000, percentage: 24.3, bookings: 234 },
-  { category: "Beauty Wellness & Personal Care", commission: 385000, percentage: 22.0, bookings: 312 },
-  { category: "Events & Entertainment", commission: 295000, percentage: 16.9, bookings: 89 },
-  { category: "Pet Services", commission: 215000, percentage: 12.3, bookings: 189 },
-  { category: "Health & Fitness", commission: 185000, percentage: 10.6, bookings: 145 },
-  { category: "Automotive & Tech Support", commission: 125000, percentage: 7.1, bookings: 98 },
-  { category: "Education & Professional Services", commission: 95000, percentage: 5.4, bookings: 67 },
-  { category: "Domestic & Cleaning Services", commission: 25000, percentage: 1.4, bookings: 45 },
-];
-
-// Top Earning Service Providers
-const topProvidersData = [
-  { name: "HomeFixPro Manila", revenue: 516560, commission: 51656, bookings: 145, category: "Home Maintenance" },
-  { name: "Glow Beauty Spa", revenue: 378250, commission: 37825, bookings: 98, category: "Beauty & Wellness" },
-  { name: "Party Perfect Planners", revenue: 350000, commission: 35000, bookings: 45, category: "Events" },
-  { name: "TechFix Auto Solutions", revenue: 342280, commission: 34228, bookings: 87, category: "Automotive" },
-  { name: "SkillUp Training Center", revenue: 326760, commission: 32676, bookings: 56, category: "Education" },
-  { name: "Crystal Clear Housekeeping", revenue: 410400, commission: 41040, bookings: 134, category: "Cleaning" },
-  { name: "FitLife Wellness Center", revenue: 259260, commission: 25926, bookings: 78, category: "Health & Fitness" },
-  { name: "Pawsome Pet Care", revenue: 255840, commission: 25584, bookings: 112, category: "Pet Services" },
-];
-
 const CHART_COLORS = [
-  "#3B82F6", // Blue
-  "#10B981", // Green
-  "#F59E0B", // Amber
-  "#EF4444", // Red
-  "#8B5CF6", // Purple
-  "#EC4899", // Pink
-  "#06B6D4", // Cyan
-  "#84CC16", // Lime
+  "#3B82F6",
+  "#10B981",
+  "#F59E0B",
+  "#EF4444",
+  "#8B5CF6",
+  "#EC4899",
+  "#06B6D4",
+  "#84CC16",
 ];
+
+function monthKey(value: string | null) {
+  if (!value) return "No date";
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function startDateForRange(range: string) {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  if (range === "last-30-days") {
+    start.setDate(start.getDate() - 30);
+    return start;
+  }
+  if (range === "last-3-months") {
+    start.setMonth(start.getMonth() - 3);
+    return start;
+  }
+  if (range === "last-6-months") {
+    start.setMonth(start.getMonth() - 6);
+    return start;
+  }
+  if (range === "last-year") {
+    start.setFullYear(start.getFullYear() - 1);
+    return start;
+  }
+  return null;
+}
+
+function EmptyChart({ message }: { message: string }) {
+  return (
+    <div className="flex h-[350px] items-center justify-center text-sm text-gray-500">
+      {message}
+    </div>
+  );
+}
 
 export function RevenueReports() {
   const { accessToken } = useAuth();
   const [dateRange, setDateRange] = useState("last-6-months");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [bookingsSummary, setBookingsSummary] = useState<AdminBookingsSummaryStats | null>(null);
   const [payments, setPayments] = useState<AdminPaymentSummary[]>([]);
   const [refunds, setRefunds] = useState<AdminRefundSummary[]>([]);
+  const [providers, setProviders] = useState<AdminProviderSummary[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (!accessToken) return;
@@ -103,97 +109,176 @@ export function RevenueReports() {
       getAdminBookingsSummary(accessToken).catch(() => null),
       listAdminPayments(accessToken).catch(() => [] as AdminPaymentSummary[]),
       listAdminRefunds(accessToken).catch(() => [] as AdminRefundSummary[]),
-    ]).then(([summary, pays, refs]) => {
+      listAdminManagedProviders(accessToken).catch(() => [] as AdminProviderSummary[]),
+    ]).then(([summary, pays, refs, providerRows]) => {
       setBookingsSummary(summary);
       setPayments(pays);
       setRefunds(refs);
+      setProviders(providerRows);
     });
   }, [accessToken]);
 
-  const totalRevenueAllTime = bookingsSummary?.totalRevenue
-    ?? payments.reduce((s, p) => s + p.amount, 0);
-  const revenueThisMonth = bookingsSummary?.totalRevenue ?? 0;
-  const commissionEarned = payments.reduce((s, p) => s + p.platformFee, 0);
+  const filteredPayments = useMemo(() => {
+    const startDate = startDateForRange(dateRange);
+    if (!startDate) return payments;
+    return payments.filter((payment) => {
+      const occurredAt = payment.paidAt ?? payment.createdAt;
+      return occurredAt && new Date(occurredAt).getTime() >= startDate.getTime();
+    });
+  }, [dateRange, payments]);
+
+  const paidPayments = useMemo(
+    () => filteredPayments.filter((payment) => payment.status === "paid"),
+    [filteredPayments],
+  );
+
+  const totalRevenueAllTime = paidPayments.reduce((s, p) => s + p.amount, 0);
+  const commissionEarned = paidPayments.reduce((s, p) => s + p.platformFee, 0);
   const totalRefunds = refunds
-    .filter((r) => r.status === "approved")
+    .filter((r) => r.status === "approved" || r.status === "processed")
     .reduce((s, r) => s + r.amount, 0);
   const failedPaymentRate =
-    payments.length > 0
-      ? ((payments.filter((p) => p.status === "cancelled").length / payments.length) * 100).toFixed(1)
+    filteredPayments.length > 0
+      ? (
+          (filteredPayments.filter(
+            (p) => p.status === "cancelled" || p.status === "refunded",
+          ).length /
+            filteredPayments.length) *
+          100
+        ).toFixed(1)
       : "0.0";
 
-  const revenueGrowth = 0;
-  const commissionGrowth = 0;
+  const monthlyRevenueData = useMemo(() => {
+    const buckets = new Map<
+      string,
+      { month: string; revenue: number; commission: number; bookings: number }
+    >();
 
-  const handleExportCSV = () => {
-    // Create CSV content
-    let csvContent = "Revenue Report - ServEase Admin Dashboard\n\n";
-
-    // Summary Stats
-    csvContent += "Summary Statistics\n";
-    csvContent += "Metric,Value\n";
-    csvContent += `Total Revenue (All Time),₱${totalRevenueAllTime.toLocaleString()}\n`;
-    csvContent += `Revenue This Month,₱${revenueThisMonth.toLocaleString()}\n`;
-    csvContent += `Commission Earned,₱${commissionEarned.toLocaleString()}\n`;
-    csvContent += `Total Refunds,₱${totalRefunds.toLocaleString()}\n`;
-    csvContent += `Failed Payment Rate,${failedPaymentRate}%\n\n`;
-
-    // Monthly Revenue
-    csvContent += "Monthly Revenue Trend\n";
-    csvContent += "Month,Revenue,Commission,Bookings\n";
-    monthlyRevenueData.forEach((row) => {
-      csvContent += `${row.month},₱${row.revenue.toLocaleString()},₱${row.commission.toLocaleString()},${
-        row.bookings
-      }\n`;
-    });
-    csvContent += "\n";
-
-    // Commission by Category
-    csvContent += "Commission by Service Category\n";
-    csvContent += "Category,Commission,Percentage,Bookings\n";
-    commissionByCategoryData.forEach((row) => {
-      csvContent += `${row.category},₱${row.commission.toLocaleString()},${row.percentage}%,${
-        row.bookings
-      }\n`;
-    });
-    csvContent += "\n";
-
-    // Top Providers
-    csvContent += "Top Earning Service Providers\n";
-    csvContent += "Provider Name,Revenue,Commission,Bookings,Category\n";
-    topProvidersData.forEach((row) => {
-      csvContent += `${row.name},₱${row.revenue.toLocaleString()},₱${row.commission.toLocaleString()},${
-        row.bookings
-      },${row.category}\n`;
+    paidPayments.forEach((payment) => {
+      const month = monthKey(payment.paidAt ?? payment.createdAt);
+      const bucket = buckets.get(month) ?? {
+        month,
+        revenue: 0,
+        commission: 0,
+        bookings: 0,
+      };
+      bucket.revenue += payment.amount;
+      bucket.commission += payment.platformFee;
+      bucket.bookings += 1;
+      buckets.set(month, bucket);
     });
 
-    // Download CSV
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `ServEase_Revenue_Report_${new Date().toISOString().split("T")[0]}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    return Array.from(buckets.values());
+  }, [paidPayments]);
+
+  const commissionByMethodData = useMemo(() => {
+    const totalCommission = paidPayments.reduce(
+      (sum, payment) => sum + payment.platformFee,
+      0,
+    );
+    const buckets = new Map<
+      string,
+      { method: string; commission: number; percentage: number; bookings: number }
+    >();
+
+    paidPayments.forEach((payment) => {
+      const method = payment.paymentMethod ?? "Unspecified";
+      const bucket = buckets.get(method) ?? {
+        method,
+        commission: 0,
+        percentage: 0,
+        bookings: 0,
+      };
+      bucket.commission += payment.platformFee;
+      bucket.bookings += 1;
+      buckets.set(method, bucket);
+    });
+
+    return Array.from(buckets.values())
+      .map((bucket) => ({
+        ...bucket,
+        percentage:
+          totalCommission > 0
+            ? Number(((bucket.commission / totalCommission) * 100).toFixed(1))
+            : 0,
+      }))
+      .sort((a, b) => b.commission - a.commission);
+  }, [paidPayments]);
+
+  const topProvidersData = useMemo(() => {
+    const providerLookup = new Map(providers.map((provider) => [provider.id, provider]));
+    const buckets = new Map<
+      string,
+      { id: string; name: string; revenue: number; commission: number; bookings: number; category: string }
+    >();
+
+    paidPayments.forEach((payment) => {
+      if (!payment.providerId) return;
+      const provider = providerLookup.get(payment.providerId);
+      const bucket = buckets.get(payment.providerId) ?? {
+        id: payment.providerId,
+        name:
+          provider?.businessName ??
+          provider?.userFullName ??
+          provider?.userEmail ??
+          payment.providerId,
+        revenue: 0,
+        commission: 0,
+        bookings: 0,
+        category: provider?.serviceDescription ?? provider?.serviceArea ?? "Unspecified",
+      };
+      bucket.revenue += payment.amount;
+      bucket.commission += payment.platformFee;
+      bucket.bookings += 1;
+      buckets.set(payment.providerId, bucket);
+    });
+
+    return Array.from(buckets.values())
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 8);
+  }, [paidPayments, providers]);
+
+  const handleExportCSV = async () => {
+    if (!accessToken) {
+      toast.error("Sign in to export revenue reports.");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const csv = await exportAdminRevenueCsv(accessToken);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ServEase_Revenue_Report_${new Date().toISOString().split("T")[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Revenue report exported.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to export revenue report.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const stats = [
     {
-      title: "Total Revenue (All Time)",
+      title: "Paid Revenue",
       value: `₱${(totalRevenueAllTime / 1000000).toFixed(2)}M`,
-      change: `+${revenueGrowth}% from last period`,
-      trend: "up",
+      change: `${paidPayments.length.toLocaleString()} paid payments`,
       icon: DollarSign,
       color: "text-green-600",
       bgColor: "bg-green-50",
     },
     {
-      title: "Revenue This Month",
-      value: `₱${(revenueThisMonth / 1000000).toFixed(2)}M`,
-      change: `+${commissionGrowth}% from last month`,
-      trend: "up",
+      title: "Booking Revenue",
+      value: `₱${((bookingsSummary?.totalRevenue ?? 0) / 1000000).toFixed(2)}M`,
+      change: `${(bookingsSummary?.totalCount ?? 0).toLocaleString()} total bookings`,
       icon: TrendingUp,
       color: "text-blue-600",
       bgColor: "bg-blue-50",
@@ -201,22 +286,33 @@ export function RevenueReports() {
     {
       title: "Commission Earned",
       value: `₱${(commissionEarned / 1000).toFixed(0)}K`,
-      change: "10% platform commission",
-      trend: "neutral",
+      change: "Gateway payment platform fees",
       icon: Percent,
       color: "text-purple-600",
       bgColor: "bg-purple-50",
     },
     {
-      title: "Total Refunds",
+      title: "Refunds / Failures",
       value: `₱${(totalRefunds / 1000).toFixed(0)}K`,
-      change: "0.6% of total revenue",
-      trend: "neutral",
+      change: `${failedPaymentRate}% exception payment rate`,
       icon: XCircle,
       color: "text-red-600",
       bgColor: "bg-red-50",
     },
   ];
+
+  const averageMonthlyRevenue =
+    monthlyRevenueData.length > 0
+      ? monthlyRevenueData.reduce((sum, m) => sum + m.revenue, 0) /
+        monthlyRevenueData.length
+      : 0;
+  const topProvider = topProvidersData[0] ?? null;
+  const mostBookingsProvider =
+    topProvidersData.length > 0
+      ? topProvidersData.reduce((prev, current) =>
+          current.bookings > prev.bookings ? current : prev,
+        )
+      : null;
 
   return (
     <div className="space-y-6">
@@ -224,7 +320,7 @@ export function RevenueReports() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Revenue Reports</h1>
           <p className="text-gray-500 mt-1">
-            Comprehensive financial analytics and performance insights
+            Gateway-backed financial analytics and payment performance insights
           </p>
         </div>
         <div className="flex gap-3">
@@ -241,14 +337,17 @@ export function RevenueReports() {
               <SelectItem value="all-time">All Time</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={handleExportCSV} className="bg-green-600 hover:bg-green-700">
+          <Button
+            onClick={() => void handleExportCSV()}
+            disabled={isExporting}
+            className="bg-green-600 hover:bg-green-700"
+          >
             <Download className="w-4 h-4 mr-2" />
-            Export to CSV
+            {isExporting ? "Exporting..." : "Export to CSV"}
           </Button>
         </div>
       </div>
 
-      {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {stats.map((stat) => (
           <Card key={stat.title}>
@@ -260,13 +359,7 @@ export function RevenueReports() {
                 <div className="flex-1">
                   <p className="text-sm text-gray-500">{stat.title}</p>
                   <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                  <div className="flex items-center gap-1 mt-1">
-                    {stat.trend === "up" && <TrendingUp className="w-3 h-3 text-green-600" />}
-                    {stat.trend === "down" && <TrendingDown className="w-3 h-3 text-red-600" />}
-                    <p className={`text-xs ${stat.trend === "up" ? "text-green-600" : stat.trend === "down" ? "text-red-600" : "text-gray-400"}`}>
-                      {stat.change}
-                    </p>
-                  </div>
+                  <p className="text-xs text-gray-400 mt-1">{stat.change}</p>
                 </div>
               </div>
             </CardContent>
@@ -274,200 +367,208 @@ export function RevenueReports() {
         ))}
       </div>
 
-      {/* Monthly Revenue Trend Chart */}
       <Card>
         <CardHeader>
           <CardTitle>Monthly Revenue Trend</CardTitle>
           <p className="text-sm text-gray-500 mt-1">
-            Total revenue and commission earnings over time
+            Paid payment revenue and platform fees over time
           </p>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={monthlyRevenueData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip
-                  formatter={(value: number) => `₱${value.toLocaleString()}`}
-                  contentStyle={{
-                    backgroundColor: "white",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#3B82F6"
-                  strokeWidth={3}
-                  name="Total Revenue"
-                  dot={{ fill: "#3B82F6", r: 4 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="commission"
-                  stroke="#10B981"
-                  strokeWidth={3}
-                  name="Commission Earned"
-                  dot={{ fill: "#10B981", r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200">
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Average Monthly Revenue</p>
-              <p className="text-2xl font-bold text-blue-600 mt-1">
-                ₱
-                {(
-                  monthlyRevenueData.reduce((sum, m) => sum + m.revenue, 0) /
-                  monthlyRevenueData.length /
-                  1000000
-                ).toFixed(2)}
-                M
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Total Bookings</p>
-              <p className="text-2xl font-bold text-green-600 mt-1">
-                {monthlyRevenueData.reduce((sum, m) => sum + m.bookings, 0).toLocaleString()}
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-sm text-gray-600">Growth Rate</p>
-              <p className="text-2xl font-bold text-purple-600 mt-1 flex items-center justify-center gap-1">
-                <TrendingUp className="w-5 h-5" />
-                +{revenueGrowth}%
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Commission Breakdown and Top Providers */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Commission by Service Category */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Commission by Service Category</CardTitle>
-            <p className="text-sm text-gray-500 mt-1">
-              Revenue distribution across service categories
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[350px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={commissionByCategoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ category, percentage }) => `${category.split(" ")[0]} ${percentage}%`}
-                    outerRadius={120}
-                    fill="#8884d8"
-                    dataKey="commission"
-                  >
-                    {commissionByCategoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => `₱${value.toLocaleString()}`}
-                    contentStyle={{
-                      backgroundColor: "white",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {commissionByCategoryData.slice(0, 4).map((category, index) => (
-                <div key={category.category} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: CHART_COLORS[index] }}
+          {monthlyRevenueData.length === 0 ? (
+            <EmptyChart message="No paid payment revenue found" />
+          ) : (
+            <>
+              <div className="h-[400px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={monthlyRevenueData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis />
+                    <Tooltip
+                      formatter={(value: number) => `₱${value.toLocaleString()}`}
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                      }}
                     />
-                    <span className="text-sm text-gray-700">{category.category}</span>
-                  </div>
-                  <span className="text-sm font-semibold text-gray-900">
-                    ₱{(category.commission / 1000).toFixed(0)}K
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#3B82F6"
+                      strokeWidth={3}
+                      name="Paid Revenue"
+                      dot={{ fill: "#3B82F6", r: 4 }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="commission"
+                      stroke="#10B981"
+                      strokeWidth={3}
+                      name="Platform Fees"
+                      dot={{ fill: "#10B981", r: 4 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
 
-        {/* Top Earning Service Providers */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Earning Service Providers</CardTitle>
-            <p className="text-sm text-gray-500 mt-1">Highest revenue generating providers</p>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[350px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topProvidersData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" width={150} />
-                  <Tooltip
-                    formatter={(value: number) => `₱${value.toLocaleString()}`}
-                    contentStyle={{
-                      backgroundColor: "white",
-                      border: "1px solid #e5e7eb",
-                      borderRadius: "8px",
-                    }}
-                  />
-                  <Legend />
-                  <Bar dataKey="revenue" fill="#3B82F6" name="Revenue" radius={[0, 8, 8, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600">Highest Revenue</p>
-                  <p className="font-semibold text-gray-900 mt-1">{topProvidersData[0].name}</p>
-                  <p className="text-sm text-blue-600">
-                    ₱{topProvidersData[0].revenue.toLocaleString()}
+              <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200">
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Average Monthly Revenue</p>
+                  <p className="text-2xl font-bold text-blue-600 mt-1">
+                    ₱{(averageMonthlyRevenue / 1000000).toFixed(2)}M
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Most Bookings</p>
-                  <p className="font-semibold text-gray-900 mt-1">
-                    {topProvidersData.reduce((prev, current) => 
-                      current.bookings > prev.bookings ? current : prev
-                    ).name}
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Paid Bookings</p>
+                  <p className="text-2xl font-bold text-green-600 mt-1">
+                    {monthlyRevenueData
+                      .reduce((sum, m) => sum + m.bookings, 0)
+                      .toLocaleString()}
                   </p>
-                  <p className="text-sm text-green-600">
-                    {topProvidersData.reduce((prev, current) => 
-                      current.bookings > prev.bookings ? current : prev
-                    ).bookings} bookings
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Platform Fees</p>
+                  <p className="text-2xl font-bold text-purple-600 mt-1">
+                    ₱{(commissionEarned / 1000).toFixed(0)}K
                   </p>
                 </div>
               </div>
-            </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Commission by Payment Method</CardTitle>
+            <p className="text-sm text-gray-500 mt-1">
+              Platform-fee distribution across gateway payment methods
+            </p>
+          </CardHeader>
+          <CardContent>
+            {commissionByMethodData.length === 0 ? (
+              <EmptyChart message="No payment-method commission found" />
+            ) : (
+              <>
+                <div className="h-[350px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={commissionByMethodData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ method, percentage }) => `${method} ${percentage}%`}
+                        outerRadius={120}
+                        fill="#8884d8"
+                        dataKey="commission"
+                      >
+                        {commissionByMethodData.map((entry, index) => (
+                          <Cell key={entry.method} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => `₱${value.toLocaleString()}`}
+                        contentStyle={{
+                          backgroundColor: "white",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "8px",
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="mt-4 space-y-2">
+                  {commissionByMethodData.slice(0, 4).map((method, index) => (
+                    <div key={method.method} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: CHART_COLORS[index] }}
+                        />
+                        <span className="text-sm text-gray-700">{method.method}</span>
+                      </div>
+                      <span className="text-sm font-semibold text-gray-900">
+                        ₱{(method.commission / 1000).toFixed(0)}K
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Earning Service Providers</CardTitle>
+            <p className="text-sm text-gray-500 mt-1">
+              Highest paid-payment revenue by provider
+            </p>
+          </CardHeader>
+          <CardContent>
+            {topProvidersData.length === 0 ? (
+              <EmptyChart message="No provider revenue found" />
+            ) : (
+              <>
+                <div className="h-[350px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topProvidersData} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis dataKey="name" type="category" width={150} />
+                      <Tooltip
+                        formatter={(value: number) => `₱${value.toLocaleString()}`}
+                        contentStyle={{
+                          backgroundColor: "white",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: "8px",
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="revenue" fill="#3B82F6" name="Revenue" radius={[0, 8, 8, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Highest Revenue</p>
+                      <p className="font-semibold text-gray-900 mt-1">
+                        {topProvider?.name ?? "N/A"}
+                      </p>
+                      <p className="text-sm text-blue-600">
+                        ₱{(topProvider?.revenue ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-600">Most Paid Bookings</p>
+                      <p className="font-semibold text-gray-900 mt-1">
+                        {mostBookingsProvider?.name ?? "N/A"}
+                      </p>
+                      <p className="text-sm text-green-600">
+                        {(mostBookingsProvider?.bookings ?? 0).toLocaleString()} bookings
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Detailed Category Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Commission Breakdown by Service Category</CardTitle>
+          <CardTitle>Commission Breakdown by Payment Method</CardTitle>
           <p className="text-sm text-gray-500 mt-1">
-            Detailed revenue and booking statistics per category
+            Detailed platform fee and paid-booking statistics per method
           </p>
         </CardHeader>
         <CardContent>
@@ -476,7 +577,7 @@ export function RevenueReports() {
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">
-                    Service Category
+                    Payment Method
                   </th>
                   <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
                     Commission
@@ -485,7 +586,7 @@ export function RevenueReports() {
                     Percentage
                   </th>
                   <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
-                    Bookings
+                    Paid Bookings
                   </th>
                   <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">
                     Avg per Booking
@@ -493,44 +594,53 @@ export function RevenueReports() {
                 </tr>
               </thead>
               <tbody>
-                {commissionByCategoryData.map((category, index) => (
-                  <tr key={category.category} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: CHART_COLORS[index] }}
-                        />
-                        <span className="font-medium text-gray-900">{category.category}</span>
-                      </div>
-                    </td>
-                    <td className="text-right py-3 px-4 font-bold text-blue-600">
-                      ₱{category.commission.toLocaleString()}
-                    </td>
-                    <td className="text-right py-3 px-4 text-gray-700">{category.percentage}%</td>
-                    <td className="text-right py-3 px-4 text-gray-700">{category.bookings}</td>
-                    <td className="text-right py-3 px-4 font-semibold text-green-600">
-                      ₱{Math.round(category.commission / category.bookings).toLocaleString()}
+                {commissionByMethodData.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-sm text-gray-500">
+                      No payment-method commission found
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  commissionByMethodData.map((method, index) => (
+                    <tr key={method.method} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: CHART_COLORS[index % CHART_COLORS.length] }}
+                          />
+                          <span className="font-medium text-gray-900">{method.method}</span>
+                        </div>
+                      </td>
+                      <td className="text-right py-3 px-4 font-bold text-blue-600">
+                        ₱{method.commission.toLocaleString()}
+                      </td>
+                      <td className="text-right py-3 px-4 text-gray-700">{method.percentage}%</td>
+                      <td className="text-right py-3 px-4 text-gray-700">{method.bookings}</td>
+                      <td className="text-right py-3 px-4 font-semibold text-green-600">
+                        ₱{Math.round(method.commission / Math.max(method.bookings, 1)).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
-              <tfoot>
-                <tr className="bg-gray-50 font-bold">
-                  <td className="py-3 px-4 text-gray-900">Total</td>
-                  <td className="text-right py-3 px-4 text-blue-600">
-                    ₱
-                    {commissionByCategoryData
-                      .reduce((sum, c) => sum + c.commission, 0)
-                      .toLocaleString()}
-                  </td>
-                  <td className="text-right py-3 px-4 text-gray-900">100%</td>
-                  <td className="text-right py-3 px-4 text-gray-900">
-                    {commissionByCategoryData.reduce((sum, c) => sum + c.bookings, 0)}
-                  </td>
-                  <td className="text-right py-3 px-4"></td>
-                </tr>
-              </tfoot>
+              {commissionByMethodData.length > 0 && (
+                <tfoot>
+                  <tr className="bg-gray-50 font-bold">
+                    <td className="py-3 px-4 text-gray-900">Total</td>
+                    <td className="text-right py-3 px-4 text-blue-600">
+                      ₱{commissionByMethodData
+                        .reduce((sum, c) => sum + c.commission, 0)
+                        .toLocaleString()}
+                    </td>
+                    <td className="text-right py-3 px-4 text-gray-900">100%</td>
+                    <td className="text-right py-3 px-4 text-gray-900">
+                      {commissionByMethodData.reduce((sum, c) => sum + c.bookings, 0)}
+                    </td>
+                    <td className="text-right py-3 px-4"></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </CardContent>

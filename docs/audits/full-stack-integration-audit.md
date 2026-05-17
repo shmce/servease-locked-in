@@ -1,6 +1,6 @@
 # ServEase 5-Folder Integration Audit
 
-_Updated: 2026-05-17 (afternoon) — adds the admin-503 sweep + mobile sessions wiring._
+_Updated: 2026-05-18 — adds admin report wiring, mobile push registration/delivery/routing, and live provider/customer report insight data._
 
 Folders audited: `admin`, `backend`, `FE_Web(Provider)`, `Landing Page`, `mobile`.
 
@@ -20,17 +20,18 @@ The remediation list at the end summarises what needs to land for the five folde
 
 | Path | Where | Effect |
 | --- | --- | --- |
-| `POST /v1/me/two-factor/enable` | `current-user.controller.ts:120` | 2FA enable is a stub; admin Profile/Security UI accepts the failure. |
-| `POST /v1/me/two-factor/disable` | `current-user.controller.ts:138` | 2FA disable stub — same. |
 | ~~`GET /v1/me/sessions`~~ | `current-user.controller.ts` | **Wired this session.** Returns one session built from `auth.users.last_sign_in_at` via `servease_list_user_sessions` RPC. Admin Security + mobile Settings now show real data. |
 | ~~`PATCH /v1/admin/integrations/:provider/credentials`~~ | `admin-integration.controller.ts` | **Wired this session.** Persists to `admin.integrations` via `servease_admin_update_integration_credentials`. |
 | ~~`POST /v1/admin/integrations/:provider/test`~~ | `admin-integration.controller.ts` | **Wired this session.** Records the test outcome to `admin.integrations` via `servease_admin_record_integration_test`. |
-| `GET /v1/admin/reports/revenue.pdf` | `admin-report.controller.ts:32` | PDF revenue export is a stub. |
 | ~~`GET /v1/admin/reports/revenue.csv`~~ | `admin-report.controller.ts` | **Wired this session.** Streams payment rows. |
 | ~~`GET /v1/admin/reports/users.csv`~~ | `admin-report.controller.ts` | **Wired this session.** Streams user rows. |
 | ~~`GET /v1/admin/reports/financial.csv`~~ | `admin-report.controller.ts` | **Wired this session.** Streams payments + payouts + refunds. |
-| `POST /v1/admin/reports/:type` | `admin-report.controller.ts:72` | Generate-report stub. |
-| `POST /v1/admin/reports/:type/schedules` | `admin-report.controller.ts:83` | Scheduled-report stub. |
+| ~~`GET /v1/admin/reports/:type.pdf`~~ | `admin-report.controller.ts` | **Wired this session.** Streams a simple PDF payload for bookings, revenue, users, and financial reports. |
+| ~~`POST /v1/admin/reports/:type`~~ | `admin-report.controller.ts` | **Wired this session.** Generates ready download metadata with row counts and validates type/format. |
+| ~~`POST /v1/admin/reports/:type/schedules`~~ | `admin-report.controller.ts` | **Wired this session.** Persists schedule details and returns next-run metadata for daily/weekly/monthly reports. |
+| ~~`GET /v1/admin/reports/:type/schedules`~~ | `admin-report.controller.ts` | **Wired this session.** Lists persisted scheduled-report rows from `admin.report_schedules`. |
+
+Current source check: no `@HttpCode(501)` routes remain under `backend/apps/api-gateway/src`.
 
 ### Bugs found and fixed in the 2026-05-17 503 sweep
 
@@ -50,7 +51,6 @@ These were 503/500 errors hitting the admin UI before this session. All resolved
 
 | Path | Notes |
 | --- | --- |
-| `GET /v1/admin/audit-logs/export` | Backend exposes export, admin frontend has no Export button on Audit Trail. |
 | `POST /v1/admin/broadcasts` | Already wired from `Broadcasts.tsx`, but neither customer mobile nor Landing surfaces the broadcast it produces — there is no read path for "platform announcements". |
 
 ### Backend things that work but have no contract for richer needs
@@ -64,13 +64,13 @@ These were 503/500 errors hitting the admin UI before this session. All resolved
 
 ## 2. `admin`
 
-### Mock data still in use
+### Mock data still present
 
 | File | Mock used | Live equivalent that exists |
 | --- | --- | --- |
-| `app/pages/Dashboard.tsx` | Core booking status counts, pending payouts, disputes, users, payments, support, catalog, and provider-listing metrics now use gateway data. Remaining fallback/mock inputs are customer/provider chart details from `useData()`. | Replace the remaining chart fallbacks once live per-category provider and customer growth trend endpoints exist. |
-| `contexts/DataContext.tsx` | Entire mock store (customers, bookings, payoutRequests, refunds, audit logs) | Customers and Dashboard core metrics now have gateway-backed replacements; remove this store after the remaining pages are migrated. |
-| `services/dataStore.ts` | Mock data file (~600 lines) | Should be deleted after Dashboard migration. |
+| `app/pages/Dashboard.tsx` | Dashboard KPIs, customer growth, provider category overview, booking status, revenue/commission, issues, top providers, and activity feed now use gateway data. | No `useData` dependency remains in routed admin pages. |
+| `contexts/DataContext.tsx` | Entire mock store (customers, bookings, payoutRequests, refunds, audit logs) | `RootLayout` no longer mounts `DataProvider`; this is now an unused cleanup candidate rather than a runtime source. |
+| `services/dataStore.ts` | Mock data file (~600 lines) | Only referenced by the now-unmounted `DataContext`; cleanup candidate. |
 | `imports/pasted_text/dashboard-overview.tsx` | Imported design dump, not used at runtime | Safe to remove. |
 
 ### Sidebar pages that are visual stubs
@@ -94,12 +94,12 @@ These are old vertical templates from the Figma source. They are orphan files �
 | --- | --- |
 | `ServiceProviderDetails.tsx` | Documents tab now resolves provider application documents through the gateway and uses signed preview/download URLs. It still falls back to `DOCUMENT_TYPES`/`DEFAULT_PROVIDER` when no application match exists for legacy mock IDs. |
 | `ServiceAreas.tsx` | "Interactive Map Coming Soon" panel — no geo backend exists. |
-| `Analytics.tsx`, `ReportsInsights.tsx`, `RevenueReports.tsx`, `reports/*.tsx` | CSV exports for bookings, revenue, users, and financial reports are gateway-backed. Chart datasets still rely on page-local mock series, and PDF/scheduled report actions remain backend stubs. |
+| `Analytics.tsx`, `ReportsInsights.tsx`, `RevenueReports.tsx`, `reports/*.tsx` | CSV/PDF exports for bookings, revenue, users, and financial reports are gateway-backed. `Analytics.tsx` now derives KPI cards and charts from gateway users, bookings, payments, providers, categories, and services. `RevenueReports.tsx` now derives monthly revenue, payment-method commission breakdowns, and top-provider earnings from gateway payments/refunds/providers, and exports through the gateway revenue CSV endpoint. Business, financial, and user schedule tables now load persisted schedule rows from the gateway, prepend newly created schedules, and show delivered schedule activity in Recent Reports instead of static generated-file history. `ReportsInsights` revenue, booking, provider, and customer tabs plus `reports/BookingAnalytics.tsx` and `reports/Revenue.tsx` now render gateway-derived data with empty states instead of demo fallbacks. |
 | `Profile.tsx` | Admin identity now hydrates from `GET /v1/me` for name, email, and phone; 2FA/login-history UI remains partially static. |
-| `Security.tsx` | Active Sessions now reads `/v1/me/sessions`; password change is wired; 2FA is the remaining 501 stub. |
+| `Security.tsx` | Active Sessions reads `/v1/me/sessions`; password change and TOTP 2FA setup/verify/disable are wired. |
 | `AddNewAdmin.tsx` | Now submits to the gateway-backed admin user creation flow. Invitation email and RBAC templates are still not implemented. |
 | `PlatformSettingsPages.tsx` ➜ `Integrations` | Reads/toggles/tests/updates credentials through `/v1/admin/integrations` (wired this session). |
-| `PlatformSettingsPages.tsx` ➜ `NotificationSettings` | Saves to preference metadata only, never used by any service. |
+| `PlatformSettingsPages.tsx` ➜ `NotificationSettings` | Loads/saves the signed-in admin's notification preferences through `/v1/me/preferences`. Push preference now feeds the same preference contract mobile uses before registering push tokens. |
 
 ### Endpoints called by admin that need missing backend pieces
 
@@ -116,26 +116,26 @@ Service module `serveaseProviderApi.ts` exposes a near-complete API surface, but
 | Component | Mock backing | Live API exists |
 | --- | --- | --- |
 | `PortfolioManagementPage.tsx` | Now loads the current provider portfolio from `/v1/provider/profile` and uses gateway add/delete/reorder/replace endpoints. Existing media replacement uploads through `/v1/uploads` with `provider_portfolio`, then saves the new media metadata through catalog. | Optional richer multi-image/before-after metadata would need an expanded portfolio contract. |
-| `MessagesPage.tsx` | Loads gateway conversations/messages, enriches threads from provider bookings, polls for updates, sends text and uploaded image attachments when a provider token exists, and honors `conversationId` deep links. | Consider Landing customer messaging if website customers need chat outside mobile. |
+| `MessagesPage.tsx` | Loads gateway conversations/messages, enriches threads from provider bookings, polls for updates, sends text and uploaded image attachments when a provider token exists, and honors `conversationId` deep links. | Landing customers can now use booking-scoped chat from booking detail; a standalone customer inbox remains optional. |
 | `EditProfilePage.tsx` | Saves business name, bio/description, service area, and years of experience through `PATCH /v1/me`; the gateway, catalog service, and Supabase RPC now share the same update contract for those fields. Social links, photos, licenses, and certifications remain local-only fields. | Add explicit provider social/profile-media/license contracts before persisting those optional fields. |
-| `ProviderProfilePage.tsx` | Renders the provider profile context, which is hydrated from `/v1/provider/profile` on app load and updated by Edit Profile for the backend-backed fields. Cover/profile photos and languages still use local fallback/context values. | Add profile media and language contracts if those should be cross-device. |
+| `ProviderProfilePage.tsx` | Renders the provider profile context, which starts empty and hydrates portfolio, services, business name, bio/description, service area, and experience from `/v1/provider/profile` on app load. Edit Profile updates the backend-backed fields. | Add profile media, languages, and social-link contracts if those should be cross-device. |
 | `ProviderHelpCenterPage.tsx` | Now lists provider support tickets, creates new tickets, and reads/posts ticket replies through `/v1/support/tickets`. Static FAQ remains as help content. | Attachments and status changes stay with support/admin contracts. |
 | `BlockTimePage.tsx` | Uses `ProviderDataContext.addBlockedDates`, which writes each selected date through `/v1/provider/availability/days-off`. Recurring controls are visual-only. | Add a recurring unavailability backend contract before enabling recurring blocks. |
 | `CalendarPage.tsx` | Loads provider bookings through `listProviderBookings`, groups them by Manila calendar day, and uses live totals for month/week/day views. | Personal events remain UI-only because no personal-calendar backend exists. |
-| `SetAvailabilityPage.tsx` | Uses `ProviderDataContext.saveAvailability` which **does** call the backend, but reads `defaultAvailability` mock on first render until the API replies. |
+| `SetAvailabilityPage.tsx` | Uses `ProviderDataContext.saveAvailability`, which calls the backend and refreshes from `/v1/provider/availability`. The local `defaultAvailability` is only the editable weekly skeleton before the live schedule response arrives. |
 | `LoginPage.tsx` | Calls Supabase directly + `getCurrentUser` (live) | `ProviderAuthContext` rejects non-provider roles, missing provider profiles, and inactive accounts before storing the provider session. |
 
-### Mock data still seeded in `ProviderDataContext.tsx`
+### Provider context fallback state
 
 ```text
-blockedDates       hard-coded "2026-03-25", "2026-03-26"
-portfolioItems     hard-coded fallback until `/v1/provider/profile` loads; `PortfolioManagementPage` refreshes from backend directly
-services           hard-coded 3 items
-profile            hard-coded business name, bio, cover/profile photo URLs (unsplash)
-availability       defaultAvailability constant
+blockedDates       starts empty; populated from `/v1/provider/availability` days off
+portfolioItems     starts empty; populated from `/v1/provider/profile` portfolio and direct portfolio management refreshes
+services           starts empty; populated from `/v1/provider/profile` services and owned-service management refreshes
+profile            starts empty; populated from `/v1/provider/profile` and saved through `PATCH /v1/me`
+availability       uses a local weekly skeleton until `/v1/provider/availability` replies
 ```
 
-Only `availability` and partial `profile` data ever get overwritten by API responses. The rest is shown to the user as if real.
+The remaining provider context fallback is structural availability defaults, not fake provider business data.
 
 ### Provider features missing entirely
 
@@ -173,7 +173,7 @@ Only `availability` and partial `profile` data ever get overwritten by API respo
 | **Payment methods + reserve payment** | Account page manages payment methods through `/api/payments/methods`; booking detail reserves payment through `/api/payments`. | Wired. |
 | **Reviews** | Completed booking detail now submits through `/api/reviews` to `POST /v1/reviews`. | Wired. |
 | **Notifications** | Account page lists notifications through `/api/notifications` and marks items read through `/api/notifications/:id/read`. | Wired for Landing account. |
-| **Conversations / messaging** | Not present | `/v1/conversations` exists. |
+| **Conversations / messaging** | Booking detail now opens the booking conversation, lists messages, sends customer replies, and refreshes the thread through `/api/conversations`. | Wired for booking-scoped customer/provider chat; a standalone customer inbox remains optional. |
 | **Booking tracking / live progress** | `BookingDetailPage` shows service updates and a tracking panel from `/api/bookings/:id/tracking`. | Wired. |
 | **Referrals** | Account page loads referral code, share path, counts, and rewards through `/api/referrals`. | Wired. |
 | **Provider portfolio / availability viewer** | Public provider page shows portfolio media and provider availability from `/v1/catalog/providers/:id/portfolio` + `/v1/provider/availability/:id`. | Wired. |
@@ -182,8 +182,9 @@ Only `availability` and partial `profile` data ever get overwritten by API respo
 
 ### Mock or placeholder UI
 
-- `FAQPage.tsx`, `ContactPage.tsx`, `PrivacyPolicy.tsx`, `TermsConditions.tsx`, `AboutPage.tsx` — static copy only (acceptable for legal pages, but Contact has no form submission).
-- `StoreBadges.tsx` — links to app stores (`https://apps.apple.com/…` / Play Store placeholders) that don't point to real listings.
+- `FAQPage.tsx`, `PrivacyPolicy.tsx`, `TermsConditions.tsx`, `AboutPage.tsx` — static copy only, acceptable for legal/help pages.
+- `ContactPage.tsx` — signed-in users can submit the form as a gateway-backed support ticket. Remaining polish is replacing the static address/map copy with real business contact/location data.
+- `StoreBadges.tsx` — environment-driven through `NEXT_PUBLIC_GOOGLE_PLAY_URL` and `NEXT_PUBLIC_APP_STORE_URL`; badges render disabled when real listing URLs are not configured.
 - `ProviderRegSuccess.tsx` still has static submitted copy, but its status link now lands on `ApplicationApproved.tsx`, which reads `/api/provider-application/status` and displays the signed-in provider's live pending/approved/rejected application state.
 
 ---
@@ -194,9 +195,9 @@ This folder is the most complete. Most remaining gaps are integration with the o
 
 ### Internal gaps
 
-- **No native push notifications** — only foreground polling (`setInterval` on notifications/messages/tracking). The `support_reply`, `support_ticket_resolved`, `booking_cancelled_by_admin` payloads are written to the DB but never delivered via APN/FCM.
+- **Native push notification registration, Expo delivery, foreground display, and tap routing are wired** — mobile requests an Expo push token when the signed-in user has push notifications enabled, registers it through `POST /v1/notifications/devices`, and unregisters the current Expo token through `DELETE /v1/notifications/devices/:token` when the preference is disabled. The notification service fans out newly created notification rows to active Expo tokens, retries transient Expo send failures, schedules Expo receipt checks, and deactivates tokens from immediate tickets or delayed receipts reporting `DeviceNotRegistered`. Mobile now installs an Expo foreground handler, refreshes the notification list when pushes arrive while open, and handles Expo taps plus in-app notification cards through shared metadata routing for booking, conversation, support, payment/payout, review, and fallback notification-center destinations. Remaining push polish is direct APN/FCM support if the app later moves off Expo tokens.
 - **Active session display** — Settings now reads `/v1/me/sessions` and renders the device's signed-in account, including `last_sign_in_at`. Multi-device session listing remains a backend limitation (no `auth_sessions` table).
-- **`renderCustomerHelp` cannot post a reply directly from the help-screen panel** — replies UI was added to the inline support card and Landing account, but the dedicated `customerHelp` screen still uses the original create-ticket form layout.
+- **Customer help replies are wired** — the dedicated `customerHelp` screen renders the shared support panel, which lists recent tickets, loads replies, and posts follow-up replies through `/v1/support/tickets/:id/replies`.
 - **Provider portfolio uploader** uploads a single image then attaches via metadata. No multi-image flow or reordering exists on the device.
 - **In-progress timer** only ticks while screen `providerServiceInProgress` is mounted; if the user leaves and returns the timer restarts from the booking's recorded start time (which is correct, but visually jumps).
 - **Booking attachments uploaded via `pickAndUploadImage`** rely on the Supabase storage bucket; there's no progress indicator and no retry on transient failure.
@@ -209,7 +210,7 @@ This folder is the most complete. Most remaining gaps are integration with the o
 | Review | yes (wired this session) | yes (list+reply) | yes (read on provider page + author from completed booking detail) |
 | Support ticket + reply | yes | n/a | yes |
 | Portfolio media | yes (moderation, wired this session) | yes for load/add/delete/reorder/replace | yes (read-only on provider page) |
-| Conversation messages | by design, no | yes (gateway text messages, image attachments, booking/customer labels, and polling) | NO |
+| Conversation messages | by design, no | yes (gateway text messages, image attachments, booking/customer labels, and polling) | yes for booking-scoped threads from booking detail |
 | Notification | by design, no | yes (bell polling + mark-read + exact metadata routing for tickets/conversations/bookings/reviews/payments) | yes (account list + mark read) |
 | Provider availability | yes (read-only, wired this session) | yes (own page only) | yes (public provider page) |
 | Provider payout method | n/a | yes | n/a |
@@ -227,11 +228,11 @@ These are the **bridges** that have to be built for "one product" feel.
 2. **Customer payments on Landing Page.** Landing now manages payment methods and can reserve payment from booking detail; richer promotion previews remain a possible enhancement.
 3. **Reviews authoring on Landing Page.** Completed web bookings can now post reviews through the gateway; duplicate-review messaging still depends on the review service response.
 4. **Live notification feed on FE_Web(Provider).** Landing account and provider web now call `/v1/notifications`; provider web routes deep-link metadata to the relevant page, with exact selection for help tickets, conversations, bookings, reviews, and payments.
-5. **Conversations on FE_Web(Provider).** Provider web now lists conversations, enriches them from provider bookings, loads messages, sends text and image attachments, polls for updates, and honors `conversationId` notification links.
+5. **Conversations on FE_Web(Provider) + Landing booking detail.** Provider web lists conversations, enriches them from provider bookings, loads messages, sends text and image attachments, polls for updates, and honors `conversationId` notification links. Landing booking detail opens the same booking conversation, lists messages, sends customer replies, and refreshes the thread.
 6. **Portfolio editing on FE_Web(Provider).** Provider web now manages live portfolio media for load/add/delete/reorder/replace through the gateway and catalog service.
-7. **Real-time push (APN/FCM) on mobile.** Today the loop closes via polling; remote delivery is missing.
+7. **Real-time push on mobile.** Expo token registration, preference-driven token deactivation, outbound delivery retry, delayed receipt polling, invalid-token cleanup, foreground display/list refresh, and tap/deep-link routing are wired; direct APN/FCM support remains follow-up work if non-Expo native tokens are introduced.
 8. **Application approval status on Landing.** Landing now exposes a signed-in provider status view through `/api/provider-application/status`, backed by `GET /v1/auth/provider-application/me`.
-9. **Reports / 2FA / sessions / integrations.** Report CSV exports are wired, but PDF/scheduled reports and several account/security contracts still have 501 or partial backend support.
+9. **Reports / 2FA / sessions / integrations.** Report CSV/PDF exports, generate metadata, persisted scheduled-report lists, APICenter email delivery for due report schedules, sessions, integrations, and 2FA are wired.
 
 ---
 
@@ -275,16 +276,16 @@ These are the **bridges** that have to be built for "one product" feel.
 
 ### P2 — Backend contracts to unblock current admin UI
 
-9. **Integrations management** — `admin.integrations` table + RPCs are now wired (this session). Live integrations page reads, toggles, tests, and updates webhook/api-key previews. Real outbound `Stripe`/`Twilio`/`Resend` connectivity (actual test pings) is still placeholder logic in `servease_admin_record_integration_test`.
-10. **Reports** — CSV exports are wired for bookings, revenue, users, and financial reports. Remaining work: render PDF and ship the worker that picks up `POST /v1/admin/reports/:type/schedules`.
+9. **Integrations management** — `admin.integrations` table + RPCs are now wired (this session). Live integrations page reads, toggles, tests, and updates webhook/api-key previews. When `APICENTER_URL`, `APICENTER_TRIBE_ID`, and `APICENTER_TRIBE_SECRET` are configured, admin-service uses `@implementsprint/sdk` `TribeClient` shared-service discovery for supported providers (`gcash`/`paymaya`/`stripe` → `payment`, `twilio` → `sms`, `sendgrid` → `email`, `google_maps` → `geo`) before recording the integration test result. `backend/.npmrc` points the `@implementsprint` scope at GitHub Packages using `${GITHUB_TOKEN}` so the package can be installed without committing credentials. Note: SDK v1.1.2 declares Node `>=24 <25`, so local Node 25 emits an npm engine warning during install.
+10. **Reports** — CSV/PDF exports are wired for bookings, revenue, users, and financial reports. `POST /v1/admin/reports/:type` returns validated metadata, `POST /v1/admin/reports/:type/schedules` persists schedules in `admin.report_schedules`, and `GET /v1/admin/reports/:type/schedules` feeds the admin schedule tables. Admin-service now tracks `last_delivered_at`, `last_delivery_error`, and `delivery_count`, lists due schedules, and can email scheduled report download links through the APICenter `@implementsprint/sdk` `emailSend` helper when `ADMIN_REPORT_DELIVERY_WORKER_ENABLED=true`.
 11. **2FA / Admin sessions** — `GET /v1/me/sessions` now returns Supabase Auth-derived session metadata (this session); 2FA TOTP and a dedicated multi-device `auth_sessions` table remain backlog.
 12. **Settlement engine** — real settlement run, not just "promote payout to processing".
 
 ### P3 — Polish + UX glue
 
-14. **Push notifications on mobile** — APN / FCM topics keyed by user id, payload mirrors `/v1/notifications` rows.
+14. **Push notification delivery hardening** — mobile device registration/deactivation, `notification_and_support.push_devices`, service-role lookup/deactivation RPCs, Expo delivery fan-out, transient send retry, delayed receipt lookup, stale-token deactivation, foreground presentation/list refresh, and Expo tap routing are wired. Remaining work: direct APN/FCM support only if non-Expo native tokens are introduced.
 15. **Provider application status endpoint** — `GET /v1/auth/provider-application/me` now backs the Landing status page; remaining polish is unauthenticated lookup by application reference if email-link status checks are required.
-16. **Admin Dashboard migration off `useData`** — core Dashboard KPIs now use gateway summaries for bookings, payouts, disputes, users, payments, support, catalog, and provider listings; remaining work is chart-specific historical/customer/provider category endpoints.
+16. **Admin Dashboard migration off `useData`** — Dashboard and Analytics now build KPIs and charts from gateway users, bookings, payments, providers, categories, services, and operational summaries. Booking/revenue report analytics also use gateway payment rows without demo fallback, the combined `ReportsInsights` revenue, booking, provider, and customer tabs derive from gateway users, providers, reviews, and payments, and business/financial/user Recent Reports now derive from delivered scheduled-report rows. Remaining admin mock data is in secondary report series and orphan legacy files.
 17. **Admin orphan pages cleanup** — delete the eight non-routed vertical templates.
 18. **Native realtime** — Supabase Realtime channels on bookings/conversations would replace polling in mobile + web.
 
@@ -294,15 +295,15 @@ These are the **bridges** that have to be built for "one product" feel.
 
 To make the cleanup explicit:
 
-- `admin/src/contexts/DataContext.tsx` (1 file, ~250 lines)
-- `admin/src/services/dataStore.ts` (1 file, large)
-- `admin/src/app/pages/Dashboard.tsx` (core KPIs are gateway-backed; customer/provider chart fallbacks still read `useData`)
+- `admin/src/contexts/DataContext.tsx` (unused cleanup candidate; routed pages no longer import `useData`)
+- `admin/src/services/dataStore.ts` (unused cleanup candidate except through `DataContext`)
+- `admin/src/app/pages/reports/*.tsx` (exports, scheduled-report lists, delivered Recent Reports, the main Analytics page, combined report insight tabs, legacy RevenueReports, and dedicated booking/revenue payment analytics are gateway-backed)
 - `admin/src/imports/pasted_text/dashboard-overview.tsx` (unused)
 - `admin/src/app/pages/{MarketplaceSellers,RestaurantSellers,GrocerySellers,PharmacySellers,HospitalDoctors,TaxiVendors,Franchises,Logistics}.tsx` (8 orphan vertical pages)
-- `FE_Web(Provider)/src/app/context/ProviderDataContext.tsx` lines 256–321 (mock portfolio, services, profile, blockedDates)
+- `FE_Web(Provider)/src/app/context/ProviderDataContext.tsx` (availability skeleton remains local; profile, services, portfolio, and blocked dates hydrate from gateway APIs)
 - `FE_Web(Provider)/src/app/components/MessagesPage.tsx` (conversations/messages/text sends/image attachments and booking/customer labels are gateway-backed)
-- `FE_Web(Provider)/src/app/components/PortfolioManagementPage.tsx` (load/add/delete/reorder/replace are gateway-backed; local fallback context remains in `ProviderDataContext`)
-- `Landing Page/src/app/components/StoreBadges.tsx` (placeholder app-store links)
+- `FE_Web(Provider)/src/app/components/PortfolioManagementPage.tsx` (load/add/delete/reorder/replace are gateway-backed; provider context starts empty until live data arrives)
+- `Landing Page/src/app/components/StoreBadges.tsx` (disabled until real app-store env URLs are configured)
 
 ---
 
@@ -313,4 +314,4 @@ To make the cleanup explicit:
 - Bookings, payments, payouts, refunds, support tickets, promotions, categories, services, providers, users, audit logs, reviews, portfolio moderation, provider applications: end-to-end across mobile ⇄ backend ⇄ admin.
 - New mutations from this session — admin review hide/restore, portfolio delete, customer suspend/restore, support ticket reply notifications, booking cancel notifications — all write to the same notifications table the mobile bell reads from.
 
-The integration is roughly **85% there** after the 2026-05-17 sweeps: backend, admin, and mobile are fully coupled, FE_Web(Provider) is fully wired, and Landing Page now covers customer notification preferences, payments, reviews, referrals, notifications, support replies, and provider application status. Remaining gaps are 2FA, PDF reports, scheduled reports, real outbound integration test connectors, and native push.
+The integration is roughly **98% there** after the 2026-05-18 report, push-delivery/routing, APICenter integration probing, persisted scheduled-report listing, APICenter email delivery for scheduled reports, and admin Dashboard/Analytics/report live-data passes: backend, admin, and mobile are fully coupled for primary workflows, FE_Web(Provider) is fully wired, and Landing Page covers customer notification preferences, payments, reviews, referrals, notifications, support replies, and provider application status. Remaining gaps are direct APN/FCM support if Expo is replaced and cleanup of orphan/mock-era admin/provider files that are no longer primary runtime paths.

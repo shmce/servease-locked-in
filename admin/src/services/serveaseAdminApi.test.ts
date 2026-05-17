@@ -1072,6 +1072,140 @@ describe("serveaseAdminApi", () => {
     expect(csv).toContain("SRV-001");
   });
 
+  it("exports report PDFs through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      blob: async () => new Blob(["%PDF-1.4"], { type: "application/pdf" }),
+    });
+
+    const { exportAdminReportPdf } = await import("./serveaseAdminApi");
+    const pdf = await exportAdminReportPdf("admin-token", "revenue");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/reports/revenue.pdf",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          accept: "application/pdf",
+          authorization: "Bearer admin-token",
+        }),
+      }),
+    );
+    expect(pdf.type).toBe("application/pdf");
+  });
+
+  it("generates and schedules admin reports through the gateway", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            id: "report-users-1",
+            type: "users",
+            format: "csv",
+            status: "ready",
+            generatedAt: "2026-05-18T00:00:00.000Z",
+            fileName: "servease-users-2026-05-18.csv",
+            downloadPath: "/v1/admin/reports/users.csv",
+            rowCount: 2,
+            dateRange: "last-30-days",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            id: "report-users-schedule-1",
+            type: "users",
+            format: "pdf",
+            status: "scheduled",
+            name: "Weekly users",
+            frequency: "weekly",
+            recipients: ["ops@example.com"],
+            nextRunAt: "2026-05-25T00:00:00.000Z",
+            createdAt: "2026-05-18T00:00:00.000Z",
+            downloadPath: "/v1/admin/reports/users.pdf",
+            lastDeliveredAt: null,
+            lastDeliveryError: null,
+            deliveryCount: 0,
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [
+            {
+              id: "report-users-schedule-1",
+              type: "users",
+              format: "pdf",
+              status: "scheduled",
+              name: "Weekly users",
+              frequency: "weekly",
+              recipients: ["ops@example.com"],
+              nextRunAt: "2026-05-25T00:00:00.000Z",
+              createdAt: "2026-05-18T00:00:00.000Z",
+              downloadPath: "/v1/admin/reports/users.pdf",
+              lastDeliveredAt: null,
+              lastDeliveryError: null,
+              deliveryCount: 0,
+            },
+          ],
+        }),
+      });
+
+    const {
+      generateAdminReport,
+      listAdminReportSchedules,
+      scheduleAdminReport,
+    } = await import(
+      "./serveaseAdminApi"
+    );
+    const generated = await generateAdminReport("admin-token", "users", {
+      format: "csv",
+      dateRange: "last-30-days",
+    });
+    const scheduled = await scheduleAdminReport("admin-token", "users", {
+      name: "Weekly users",
+      frequency: "weekly",
+      recipients: ["ops@example.com"],
+      format: "pdf",
+    });
+    const schedules = await listAdminReportSchedules("admin-token", "users");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://gateway.test/v1/admin/reports/users",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ format: "csv", dateRange: "last-30-days" }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://gateway.test/v1/admin/reports/users/schedules",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "Weekly users",
+          frequency: "weekly",
+          recipients: ["ops@example.com"],
+          format: "pdf",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://gateway.test/v1/admin/reports/users/schedules",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(generated.rowCount).toBe(2);
+    expect(scheduled.nextRunAt).toBe("2026-05-25T00:00:00.000Z");
+    expect(schedules[0].name).toBe("Weekly users");
+  });
+
   it("creates admin users through the gateway", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

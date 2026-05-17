@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend services, the API Gateway, the Expo mobile app, Supabase changes, and documentation-only changes.
+This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend services, the API Gateway, the Expo mobile app, the admin dashboard, the provider dashboard, the landing page, Supabase changes, and documentation-only changes.
 
 ## Standard Feature Lifecycle
 
@@ -31,6 +31,7 @@ This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend se
 5. **Implement in vertical slices**
    - Backend: route/controller, DTO, service logic, persistence, tests.
    - Mobile: route/screen, API client, state handling, components, tests.
+   - Web: route/page, API client or proxy handler, state handling, components, tests.
    - Keep each slice independently verifiable.
 
 6. **Verify locally**
@@ -52,6 +53,7 @@ This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend se
 - Start the gateway on port `5001`.
 - Start services on ports `8501` through `8511`.
 - Use only HTTP between services.
+- Keep private npm package tokens out of source. Use `GITHUB_TOKEN="$(gh auth token)"` for `@implementsprint/sdk` installs.
 
 ## Mobile Workflow
 
@@ -62,6 +64,15 @@ This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend se
 - Put constants in `mobile/constants`.
 - Put assets in `mobile/assets`.
 - Match `DESIGN.md` tokens and interaction rules.
+
+## Web Workflow
+
+- Keep the admin dashboard in `admin/`.
+- Keep the provider dashboard in `FE_Web(Provider)/`.
+- Keep the public site and browser account flows in `Landing Page/`.
+- Browser apps should use gateway routes or their own Next.js API proxy routes.
+- Use `NEXT_PUBLIC_*` only for values safe to expose to browsers.
+- Keep Supabase service-role keys in backend environment files only.
 
 ## Supabase Workflow
 
@@ -77,6 +88,7 @@ This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend se
 - Documentation changes should keep `AGENTS.md`, `DESIGN.md`, and `docs/` aligned.
 - Add new docs only when they clarify workflow, contracts, architecture, or implementation acceptance criteria.
 - Avoid stale planning docs by linking each spec to an implementation status.
+- Treat dated audits and historical specs as records. Add follow-up docs instead of rewriting old evidence unless correcting a clear factual error.
 
 ## Definition Of Done
 

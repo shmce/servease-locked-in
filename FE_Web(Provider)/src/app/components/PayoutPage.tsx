@@ -177,7 +177,21 @@ export function PayoutPage() {
         payoutAccount.totalPaidOut
       : transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
   const nextPayoutAmount = currentBalance;
-  const thisMonthEarnings = totalEarnings;
+  const currentMonth = new Date();
+  const currentMonthLabel = currentMonth.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const thisMonthEarnings = transactions
+    .filter((transaction) => {
+      const transactionDate = new Date(transaction.date);
+      return (
+        transaction.status === "completed" &&
+        transactionDate.getMonth() === currentMonth.getMonth() &&
+        transactionDate.getFullYear() === currentMonth.getFullYear()
+      );
+    })
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
   const nextPayoutDate = payoutAccount?.nextPayoutDate
     ? new Date(payoutAccount.nextPayoutDate).toLocaleDateString("en-US", {
         month: "long",
@@ -385,7 +399,7 @@ export function PayoutPage() {
     </div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <div>
-        <p style={{ fontSize: "12px", color: "#B45309", marginBottom: "2px" }}>March 2026</p>
+        <p style={{ fontSize: "12px", color: "#B45309", marginBottom: "2px" }}>{currentMonthLabel}</p>
         <p style={{ fontSize: "20px", fontWeight: "bold", color: "#D97706" }}>
           ₱{thisMonthEarnings.toLocaleString("en-US", { minimumFractionDigits: 2 })} earned
         </p>

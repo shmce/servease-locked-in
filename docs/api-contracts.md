@@ -7,6 +7,7 @@ API contracts define how the mobile app, gateway, and backend services communica
 ## Public API Rules
 
 - Mobile calls the API Gateway only.
+- Browser apps call the API Gateway directly or through their own Next.js API proxy routes.
 - Public routes should be versioned under `/v1`.
 - Public responses use stable field names in camelCase.
 - Public errors use a consistent envelope.
@@ -18,6 +19,16 @@ API contracts define how the mobile app, gateway, and backend services communica
 - Internal endpoints may differ from public routes, but their contracts must be documented.
 - Services should validate inbound gateway context and resource authorization.
 - Service DTOs remain local to the owning service.
+- Services must not import DTOs from another service to create a shared contract dependency.
+
+## Client Boundary Rules
+
+- `mobile/services` owns mobile API client code.
+- `admin/src/services` owns admin dashboard API client code.
+- `Landing Page/src/app/api/*` may proxy browser requests to the gateway when it needs server-side environment variables.
+- Client apps may use Supabase publishable keys for browser/mobile auth.
+- Client apps must not use Supabase service-role keys or call internal service ports.
+- The provider web app should use gateway-backed provider endpoints as live data replaces local state.
 
 ## Request Shape
 
@@ -98,8 +109,20 @@ Idempotency is required for:
 - Refunds.
 - Provider payout actions.
 - Message send actions if retries can duplicate content.
+- Push notification device registration and delivery actions when retries can duplicate side effects.
+- Report schedule delivery and other admin background actions with external effects.
 
 Contracts must define the idempotency header, storage owner, and conflict behavior.
+
+## Authentication Context
+
+Public clients send user authentication to the gateway. The gateway forwards trusted user context to internal services. Internal services still validate authorization for owned resources and do not trust client-provided role fields.
+
+Admin routes require an admin-role context. Provider routes require provider ownership checks. Customer routes must verify the requested customer resource is visible to the caller.
+
+## External Integrations
+
+External shared-service integrations, including APICenter probing through `@implementsprint/sdk`, must stay behind backend service boundaries. Document the gateway route, the owning internal service, required environment variables, timeout behavior, and failure envelope before wiring a new integration into a client surface.
 
 ## Contract Template
 

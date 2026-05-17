@@ -6,25 +6,29 @@ Testing should match the risk of the change. Shared contracts, booking state, pa
 
 ## Backend Checks
 
-From `backend/` when backend exists:
+From `backend/`:
 
 ```sh
 npm run lint
 npm run test
 npm run test:cov
 npm run build
+npm run check:migrations
+npm run smoke:all
+npm run verify
 ```
 
-Use focused Jest commands for narrow changes, but run broader checks before handoff when shared services, contracts, guards, or persistence change.
+Use focused Jest commands for narrow changes, but run broader checks before handoff when shared services, contracts, guards, migrations, or persistence change. `npm run verify` includes lint, tests, build, production dependency audit, migration drift checks, and backend smoke coverage.
 
 ## Mobile Checks
 
-From `mobile/` when mobile exists:
+From `mobile/`:
 
 ```sh
 npm run typecheck
 npm run lint
 npm test
+npm run smoke:demo-api
 ```
 
 For UI work, verify the affected screens on the relevant target:
@@ -36,6 +40,43 @@ npm run web
 ```
 
 Use screenshots or screen recordings for material UI changes.
+
+## Admin Checks
+
+From `admin/`:
+
+```sh
+npm run env:check
+npm run typecheck
+npm test
+npm run smoke:routes
+npm run smoke:integration
+npm run build
+```
+
+Use focused Vitest runs for narrow service or page changes. Run the smoke commands when gateway-backed admin behavior changes.
+
+## Provider Web Checks
+
+From `FE_Web(Provider)/`:
+
+```sh
+npm run typecheck
+npm run smoke:demo-api
+npm run build
+```
+
+Run `npm run dev` and inspect affected pages for visual or interaction changes.
+
+## Landing Page Checks
+
+From `Landing Page/`:
+
+```sh
+npm run build
+```
+
+Run `npm run dev` and inspect affected public/account pages when routes, forms, or proxy handlers change.
 
 ## Supabase Checks
 
@@ -83,7 +124,8 @@ For documentation-only changes:
 - Confirm links point to existing files.
 - Confirm docs do not contradict `AGENTS.md`.
 - Confirm commands match the package structure.
-- Confirm status notes mention missing app scaffolds when applicable.
+- Confirm package names, environment variables, and ports match the checked-in config files.
+- Confirm historical specs and audits remain clearly separate from current source-of-truth docs.
 
 ## Handoff Format
 

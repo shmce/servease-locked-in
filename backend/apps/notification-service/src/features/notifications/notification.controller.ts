@@ -1,10 +1,24 @@
-import { Body, Controller, Get, HttpException, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpException,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   InvalidNotificationRequestError,
   NotificationNotFoundError,
 } from './notification.errors';
 import { NotificationService } from './notification.service';
-import { NotificationMetadata, NotificationSummary } from './notification.types';
+import {
+  NotificationMetadata,
+  NotificationSummary,
+  PushDeviceSummary,
+} from './notification.types';
 
 @Controller('internal/notifications')
 export class NotificationController {
@@ -49,6 +63,42 @@ export class NotificationController {
     try {
       return {
         data: await this.notificationService.markRead(notificationId, body.userId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('devices')
+  async registerPushDevice(
+    @Body()
+    body: {
+      userId: string;
+      token: string;
+      platform: string;
+      deviceId?: string | null;
+    },
+  ): Promise<{ data: PushDeviceSummary }> {
+    try {
+      return {
+        data: await this.notificationService.registerPushDevice(body),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete('devices/:token')
+  async unregisterPushDevice(
+    @Param('token') token: string,
+    @Body() body: { userId: string },
+  ): Promise<{ data: { ok: boolean } }> {
+    try {
+      return {
+        data: await this.notificationService.unregisterPushDevice(
+          body.userId,
+          decodeURIComponent(token),
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);

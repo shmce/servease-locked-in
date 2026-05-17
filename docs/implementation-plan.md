@@ -2,213 +2,57 @@
 
 ## Purpose
 
-This plan turns the approved ServEase documentation into an implementation sequence. It does not scaffold code by itself; it defines the order, acceptance gates, and verification required before each build phase is considered complete.
+This plan records the current build state and the next acceptance gates. Older phase language has been collapsed into status because the repository now contains active backend, mobile, admin, provider web, and landing page code.
 
-## Phase 0: Repository Foundation
+## Current State
 
-### Goals
+| Area | Status | Notes |
+| --- | --- | --- |
+| Repository documentation | Active | `AGENTS.md`, `DESIGN.md`, and `docs/` are the canonical baseline. |
+| Backend workspace | Active | API Gateway plus services for auth, user, catalog, booking, availability, messaging, payment, review, notification, support, and admin. |
+| Database migrations | Active | Service-owned migrations live in `backend/database`. |
+| Mobile app | Active | Expo app with API/auth clients, push registration, and demo smoke support. |
+| Admin dashboard | Active | Next.js dashboard wired to `/v1/admin/...` gateway routes. |
+| Provider web dashboard | Active | Next.js provider surface with gateway wiring in progress. |
+| Landing page | Active | Next.js public/account surface with API proxy routes to the gateway. |
+| GitHub Packages | Active | Backend installs `@implementsprint/sdk` from GitHub Packages. |
 
-- Initialize source control if the project owner wants git tracking in this directory.
-- Preserve the approved documentation as the project baseline.
-- Add package workspaces only when backend or mobile scaffolding begins.
+## Active Acceptance Gates
 
-### Tasks
+Every new vertical slice should pass these gates before handoff:
 
-- Confirm whether `/Users/mac/ServEase` should become the git repository root.
-- Keep `AGENTS.md`, `DESIGN.md`, and `docs/` at the root.
-- Add a root `README.md` that links to the docs index once implementation starts.
-- Add environment documentation for local service URLs and Supabase keys.
+1. Feature spec is present or updated in `docs/specs/` or near the feature.
+2. Owning service and schema are explicit.
+3. Public gateway contract and internal service contract are documented.
+4. Client API usage is typed and calls only approved public/proxy routes.
+5. Database migrations avoid cross-service foreign keys and name the owning service.
+6. Tests cover changed business logic, API clients, guards, and state transitions.
+7. Verification output is recorded in the handoff.
 
-### Acceptance Criteria
+## Backend Gate
 
-- The repository root is explicit.
-- Documentation links resolve.
-- The implementation baseline can be reviewed before code scaffolding.
-
-### Verification
-
-```sh
-find docs -type f | sort
-rg -n "T[B]D|TO[D]O|coming[ ]soon" AGENTS.md DESIGN.md docs
-git rev-parse --is-inside-work-tree
-```
-
-## Phase 1: Backend Workspace Scaffold
-
-### Goals
-
-- Create the NestJS monorepo under `backend/`.
-- Establish the API Gateway and service app layout.
-- Configure shared tooling without adding shared DTO coupling.
-
-### Tasks
-
-- Scaffold `backend/` as a NestJS workspace.
-- Add `backend/apps/api-gateway`.
-- Add initial service shells for auth, user, catalog, booking, and availability.
-- Reserve ports `5001` and `8501` through `8511`.
-- Add `ConfigModule.forRoot({ isGlobal: true })` and `import 'dotenv/config'`.
-- Add health endpoints for gateway and services.
-- Add `backend/database` for future migrations.
-
-### Acceptance Criteria
-
-- Gateway starts on port `5001`.
-- Service shells start on their assigned ports.
-- Services communicate only through configured HTTP URLs.
-- No database access exists in the gateway except future Supabase Storage uploads.
-
-### Verification
+Use this gate for gateway, service, migration, shared backend, or integration changes:
 
 ```sh
 cd backend
-npm run build
 npm run lint
 npm run test
+npm run build
+npm run check:migrations
 ```
 
-## Phase 2: Supabase Baseline
-
-### Goals
-
-- Establish schema ownership before business data exists.
-- Confirm Supabase MCP access and project configuration.
-- Prepare migration conventions.
-
-### Tasks
-
-- List current Supabase tables.
-- Define schema names for initial services.
-- Create only the schemas needed by the first implemented vertical slice.
-- Document required environment variables.
-- Run Supabase security and performance advisors after DDL.
-
-### Acceptance Criteria
-
-- Each created schema has one owning service.
-- No cross-service foreign keys exist.
-- Advisor findings are recorded in the handoff.
-
-### Verification
-
-Use Supabase MCP:
-
-- `list_tables`
-- `apply_migration`, only for approved DDL
-- `get_advisors` for security
-- `get_advisors` for performance
-
-## Phase 3: Auth And Profile Slice
-
-### Goals
-
-- Establish user identity, role context, and basic profiles.
-- Give mobile flows a real authenticated user shape.
-
-### Tasks
-
-- Define auth/profile feature spec in `docs/specs/`.
-- Implement gateway routes for current user and profile reads.
-- Implement auth/user service routes.
-- Add service-local DTOs.
-- Add profile persistence in the owning schema.
-- Add contract tests for gateway-to-service calls.
-
-### Acceptance Criteria
-
-- Customer and provider roles are represented consistently.
-- Mobile can fetch current user context through the gateway.
-- Unauthorized and forbidden responses use the standard error envelope.
-
-### Verification
+For full backend readiness:
 
 ```sh
 cd backend
-npm run test
-npm run build
+npm run verify
 ```
 
-## Phase 4: Catalog And Search Slice
+`npm run verify` also runs dependency audit and smoke coverage.
 
-### Goals
+## Mobile Gate
 
-- Support marketplace browsing before booking.
-- Define service categories and provider offerings.
-
-### Tasks
-
-- Write catalog feature spec.
-- Implement category and offering read APIs.
-- Add provider listing persistence.
-- Add gateway routes under `/v1`.
-- Add pagination and filtering contracts.
-
-### Acceptance Criteria
-
-- Customer can request categories and provider offerings through the gateway.
-- Response shapes match `docs/api-contracts.md`.
-- Catalog owns its schema and does not query booking or user tables directly.
-
-### Verification
-
-```sh
-cd backend
-npm run test
-npm run build
-```
-
-## Phase 5: Booking Lifecycle Slice
-
-### Goals
-
-- Implement the first core marketplace workflow: booking request creation and status transitions.
-
-### Tasks
-
-- Write booking feature spec.
-- Define booking states and allowed transitions.
-- Add idempotent booking creation.
-- Add provider accept, decline, cancel, start, and complete actions as needed for the first release.
-- Add workflow tests for state transitions.
-
-### Acceptance Criteria
-
-- Booking state is server-owned.
-- Invalid transitions return `409` or `422` with standard error envelopes.
-- Idempotent retries do not create duplicate bookings.
-
-### Verification
-
-```sh
-cd backend
-npm run test
-npm run test:cov
-npm run build
-```
-
-## Phase 6: Mobile Workspace Scaffold
-
-### Goals
-
-- Create the Expo app under `mobile/`.
-- Implement role-aware navigation and API client structure.
-- Apply `DESIGN.md` tokens.
-
-### Tasks
-
-- Scaffold Expo under `mobile/`.
-- Create `mobile/app`, `mobile/src/components`, `mobile/services`, `mobile/constants`, and `mobile/assets`.
-- Add design tokens from `DESIGN.md`.
-- Add API clients for auth/profile, catalog, and booking.
-- Add customer and provider navigation shells.
-
-### Acceptance Criteria
-
-- Mobile calls the gateway only.
-- Customer and provider flows have distinct navigation.
-- Design tokens are centralized and reusable.
-
-### Verification
+Use this gate for Expo app changes:
 
 ```sh
 cd mobile
@@ -217,81 +61,45 @@ npm run lint
 npm test
 ```
 
-## Phase 7: Customer Booking Experience
+Run `npm run smoke:demo-api` when gateway-backed demo flows change.
 
-### Goals
+## Admin Gate
 
-- Build the mobile customer path from browsing to booking confirmation.
-
-### Tasks
-
-- Implement marketplace home, category/search results, offering detail, booking form, and booking confirmation.
-- Preserve booking form state across validation and network failures.
-- Add loading, empty, success, and error states.
-- Add tests for API clients and key user flows.
-
-### Acceptance Criteria
-
-- Customer can browse service offerings and submit a booking request.
-- Booking failures are retryable without losing form data.
-- UI follows `DESIGN.md` component and accessibility rules.
-
-### Verification
+Use this gate for admin dashboard changes:
 
 ```sh
-cd mobile
+cd admin
+npm run env:check
 npm run typecheck
-npm run lint
 npm test
-npm run web
+npm run build
 ```
 
-## Phase 8: Provider Job Experience
+Run `npm run smoke:routes` and `npm run smoke:integration` when admin gateway wiring changes.
 
-### Goals
+## Provider Web Gate
 
-- Build the provider path for handling booking requests and active jobs.
-
-### Tasks
-
-- Implement provider booking list, request detail, accept/decline, start, and complete flows.
-- Add status history display.
-- Add provider availability entry points.
-- Add tests for state-dependent actions.
-
-### Acceptance Criteria
-
-- Provider actions map to documented booking transitions.
-- Unavailable actions are disabled or hidden based on server state.
-- Status changes remain consistent after refresh.
-
-### Verification
+Use this gate for provider dashboard changes:
 
 ```sh
-cd mobile
+cd 'FE_Web(Provider)'
 npm run typecheck
-npm run lint
-npm test
+npm run build
 ```
 
-## Phase 9: Marketplace Extensions
+Run `npm run smoke:demo-api` when provider dashboard API wiring changes.
 
-### Candidate Slices
+## Landing Page Gate
 
-- Messaging.
-- Payments and payouts.
-- Reviews.
-- Notifications.
-- Support and disputes.
-- Admin operations.
+Use this gate for public site or browser account-flow changes:
 
-Each extension requires its own feature spec before implementation.
+```sh
+cd 'Landing Page'
+npm run build
+```
 
-## Global Rules
+Inspect affected routes locally with `npm run dev` for material UI or form changes.
 
-- Keep implementation vertical and testable.
-- Do not add brokers, event buses, or cross-service database reads.
-- Do not add shared DTO packages.
-- Keep gateway database access limited to Supabase Storage upload workflows.
-- Run Supabase advisors after DDL.
-- Keep docs updated when architecture, contracts, or workflow change.
+## Retired Phase Notes
+
+The original scaffold phases are complete enough that future work should not restart from them. Use the current-state gates above and keep implementation moving through feature-specific vertical slices.

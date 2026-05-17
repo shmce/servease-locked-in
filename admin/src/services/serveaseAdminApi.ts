@@ -1468,6 +1468,50 @@ export type AdminReportCsvKind =
   | 'users'
   | 'financial'
 
+export type AdminReportKind = AdminReportCsvKind
+export type AdminReportFormat = 'csv' | 'pdf'
+export type AdminReportFrequency = 'daily' | 'weekly' | 'monthly'
+
+export interface GeneratedAdminReport {
+  id: string
+  type: AdminReportKind
+  format: AdminReportFormat
+  status: 'ready'
+  generatedAt: string
+  fileName: string
+  downloadPath: string
+  rowCount: number
+  dateRange: string | null
+}
+
+export interface ScheduledAdminReport {
+  id: string
+  type: AdminReportKind
+  format: AdminReportFormat
+  status: 'scheduled'
+  name: string
+  frequency: AdminReportFrequency
+  recipients: string[]
+  nextRunAt: string
+  createdAt: string
+  downloadPath: string
+  lastDeliveredAt: string | null
+  lastDeliveryError: string | null
+  deliveryCount: number
+}
+
+export interface GenerateAdminReportRequest {
+  format?: AdminReportFormat
+  dateRange?: string | null
+}
+
+export interface ScheduleAdminReportRequest {
+  name: string
+  frequency: AdminReportFrequency
+  recipients: string[]
+  format?: AdminReportFormat
+}
+
 export async function exportAdminReportCsv(
   token: string,
   kind: AdminReportCsvKind,
@@ -1487,6 +1531,66 @@ export async function exportAdminReportCsv(
   }
 
   return response.text()
+}
+
+export async function exportAdminReportPdf(
+  token: string,
+  kind: AdminReportKind,
+): Promise<Blob> {
+  const response = await fetch(
+    `${getAdminApiBaseUrl()}/v1/admin/reports/${kind}.pdf`,
+    {
+      headers: {
+        accept: 'application/pdf',
+        authorization: `Bearer ${token.trim()}`,
+      },
+    },
+  )
+
+  if (!response.ok) {
+    throw new Error(`Gateway request failed with ${response.status}`)
+  }
+
+  return response.blob()
+}
+
+export function generateAdminReport(
+  token: string,
+  kind: AdminReportKind,
+  body: GenerateAdminReportRequest,
+): Promise<GeneratedAdminReport> {
+  return request<GeneratedAdminReport>(`/v1/admin/reports/${kind}`, {
+    method: 'POST',
+    token,
+    body,
+  })
+}
+
+export function scheduleAdminReport(
+  token: string,
+  kind: AdminReportKind,
+  body: ScheduleAdminReportRequest,
+): Promise<ScheduledAdminReport> {
+  return request<ScheduledAdminReport>(
+    `/v1/admin/reports/${kind}/schedules`,
+    {
+      method: 'POST',
+      token,
+      body,
+    },
+  )
+}
+
+export function listAdminReportSchedules(
+  token: string,
+  kind: AdminReportKind,
+): Promise<ScheduledAdminReport[]> {
+  return request<ScheduledAdminReport[]>(
+    `/v1/admin/reports/${kind}/schedules`,
+    {
+      token,
+    },
+  )
 }
 
 export function getAdminUsersSummary(token: string): Promise<AdminUsersSummaryStats> {

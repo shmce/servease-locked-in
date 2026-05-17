@@ -62,14 +62,8 @@ Postgres.
 
 ## Remaining stubs
 
-The only `@HttpCode(501)` routes still in the backend are in
-`backend/apps/api-gateway/src/features/admin/admin-report.controller.ts`:
-
-| Route | Reason it is still a stub |
-|---|---|
-| `GET /v1/admin/reports/revenue.pdf` | PDF rendering worker not implemented; CSV exports cover the same data. |
-| `POST /v1/admin/reports/:type` | Generic "kick off generation" endpoint; no async worker queue yet. |
-| `POST /v1/admin/reports/:type/schedules` | Scheduled-report cron + delivery target storage not implemented. |
-
-All four CSV exports (`bookings`, `revenue`, `users`, `financial`) and
-the full set of admin listings/mutations are wired end-to-end.
+As of the 2026-05-18 report pass, no `@HttpCode(501)` routes remain under
+`backend/apps/api-gateway/src`. Admin report CSV/PDF exports, generation
+metadata, and schedule metadata are wired for `bookings`, `revenue`, `users`,
+and `financial` reports. The remaining report enhancement is an automated
+worker that emails scheduled report files.

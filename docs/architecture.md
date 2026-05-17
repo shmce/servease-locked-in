@@ -2,13 +2,16 @@
 
 ## System Shape
 
-ServEase uses a mobile-first marketplace architecture:
+ServEase is a marketplace platform with five active application surfaces:
 
+- `backend/`: NestJS monorepo with an API Gateway and independent HTTP services.
 - `mobile/`: Expo React Native customer and provider app.
-- `backend/`: NestJS monorepo with an API Gateway and independent services.
-- Supabase: per-service persistence, Auth if adopted, and Storage for uploads.
+- `admin/`: Next.js admin dashboard for internal operations.
+- `FE_Web(Provider)/`: Next.js provider dashboard.
+- `Landing Page/`: Next.js public site, account flows, and browser API proxy routes.
+- Supabase: service-owned persistence, public auth keys for clients, backend-only service-role access, and Storage for uploads.
 
-The project uses true microservices with pure HTTP communication. Do not add Kafka, RabbitMQ, event buses, or direct cross-service database access.
+The backend uses true microservices with pure HTTP communication. Do not add Kafka, RabbitMQ, event buses, or direct cross-service database access.
 
 ## Runtime Topology
 
@@ -27,7 +30,7 @@ The project uses true microservices with pure HTTP communication. Do not add Kaf
 | Support Service | 8510 | Disputes, issue reports, support cases |
 | Admin Service | 8511 | Internal operations and moderation |
 
-The exact service set can be narrowed during implementation, but ports `8501` through `8511` are reserved for backend services.
+Ports `8501` through `8511` are reserved for backend services and are reflected in `backend/.env.example`.
 
 ## Service Boundary Rules
 
@@ -50,6 +53,8 @@ The API Gateway:
 - Handles upload flows that require Supabase Storage.
 - Does not own business data.
 
+Current gateway feature areas include current-user, registration, catalog, booking, availability, messaging, notifications, payments, reviews, support, uploads, referrals, preferences, provider data, and admin operations.
+
 ## Mobile Responsibilities
 
 The mobile app:
@@ -59,6 +64,16 @@ The mobile app:
 - Uses typed API clients under `mobile/services`.
 - Handles offline and network-failure states for user-entered forms.
 - Reflects server-side booking state rather than inventing local status.
+
+## Web Responsibilities
+
+The web apps use the gateway as their backend boundary:
+
+- `admin/` calls `/v1/admin/...` gateway routes with an admin Supabase bearer token.
+- `FE_Web(Provider)/` is the provider dashboard surface and should use gateway-backed provider APIs as live wiring is completed.
+- `Landing Page/` serves public marketing/account flows and has Next.js API proxy routes under `src/app/api/*` that forward to the gateway through `SERVEASE_API_BASE_URL`.
+
+Browser apps may use Supabase publishable keys for authentication. They must never include Supabase service-role keys.
 
 ## Cross-Cutting Concerns
 
@@ -76,17 +91,17 @@ All service URLs must come from environment variables. Do not hardcode service h
 Browser-accessed mobile builds must configure `API_GATEWAY_CORS_ORIGINS` as a comma-separated list of allowed origins. Local development defaults include Expo web localhost ports; production defaults to no browser origins unless explicitly configured.
 Gateway rate limits default to 120 requests per minute per client address and can be tuned with `API_GATEWAY_RATE_LIMIT_MAX` and `API_GATEWAY_RATE_LIMIT_WINDOW_MS`.
 
+Backend APICenter integration probing uses `@implementsprint/sdk` with optional `APICENTER_URL`, `APICENTER_TRIBE_ID`, and `APICENTER_TRIBE_SECRET` environment variables.
+
 ### Migrations
 
 Migrations live in `backend/database`. Each migration must identify the owning service and schema.
 
-## Initial Implementation Order
+## Current Implementation Focus
 
-1. Backend workspace and gateway shell.
-2. Auth/user profile slice.
-3. Catalog search slice.
-4. Booking request lifecycle.
-5. Provider availability.
-6. Mobile customer booking flow.
-7. Mobile provider job flow.
-8. Messaging, payments, reviews, notifications, and support.
+The repository now contains service shells and feature slices for the gateway, auth/user, catalog, booking, availability, messaging, payments, reviews, notifications, support, and admin. New work should continue in vertical slices:
+
+1. Update or create a feature spec.
+2. Confirm the owning service and schema.
+3. Implement gateway contract, internal service contract, persistence, client wiring, and focused tests together.
+4. Verify with the app-specific commands in [Testing](testing.md).

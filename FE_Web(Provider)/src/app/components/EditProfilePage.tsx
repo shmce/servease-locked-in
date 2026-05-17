@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Camera, Plus, X, Save, ChevronRight } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { useNavigate } from "react-router";
@@ -145,6 +145,19 @@ export function EditProfilePage() {
   const [profileError, setProfileError] = useState<string | null>(null);
 
   const maxBioLength = 500;
+
+  useEffect(() => {
+    setBusinessName(profile.businessName);
+    setBio(profile.bio);
+    setServiceAreas(profile.serviceAreas);
+    setYearsExperience(profile.yearsExperience);
+    setLanguages(profile.languages);
+    setFacebook(profile.facebook);
+    setInstagram(profile.instagram);
+    setWebsite(profile.website);
+    setCoverPhotoUrl(profile.coverPhotoUrl);
+    setProfilePhotoUrl(profile.profilePhotoUrl);
+  }, [profile]);
 
   const availableLanguages = [
     "English",

@@ -22,6 +22,10 @@ import { PaymentServiceClient } from './features/payments/clients/payment-servic
 import { AdminProviderApplicationController } from './features/provider-applications/admin-provider-application.controller';
 import { AdminProviderApplicationService } from './features/provider-applications/admin-provider-application.service';
 import { CatalogServiceClient } from './features/provider-applications/clients/catalog-service.client';
+import { AdminReportController } from './features/reports/admin-report.controller';
+import { AdminReportDeliveryService } from './features/reports/admin-report-delivery.service';
+import { AdminReportService } from './features/reports/admin-report.service';
+import { SupabaseAdminReportRepository } from './features/reports/supabase-admin-report.repository';
 import { AdminSupportController } from './features/support/admin-support.controller';
 import { AdminSupportService } from './features/support/admin-support.service';
 import { SupportServiceClient } from './features/support/clients/support-service.client';
@@ -31,6 +35,7 @@ import { AuthServiceClient } from './features/users/clients/auth-service.client'
 import { UserServiceClient } from './features/users/clients/user-service.client';
 import { AdminIntegrationController } from './features/integrations/admin-integration.controller';
 import { AdminIntegrationService } from './features/integrations/admin-integration.service';
+import { ApicenterIntegrationProbe } from './features/integrations/apicenter-integration-probe';
 import { SupabaseAdminIntegrationRepository } from './features/integrations/supabase-admin-integration.repository';
 import { HealthController } from './features/health/health.controller';
 
@@ -49,6 +54,7 @@ import { HealthController } from './features/health/health.controller';
     AdminBroadcastController,
     AdminProviderApplicationController,
     AdminIntegrationController,
+    AdminReportController,
   ],
   providers: [
     AdminCatalogGatewayService,
@@ -71,7 +77,11 @@ import { HealthController } from './features/health/health.controller';
     AdminProviderApplicationService,
     CatalogServiceClient,
     AdminIntegrationService,
+    ApicenterIntegrationProbe,
     SupabaseAdminIntegrationRepository,
+    AdminReportService,
+    AdminReportDeliveryService,
+    SupabaseAdminReportRepository,
   ],
 })
 export class AppModule {}

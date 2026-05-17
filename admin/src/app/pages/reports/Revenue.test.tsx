@@ -7,6 +7,7 @@ import { Revenue } from "./Revenue";
 
 const mocks = vi.hoisted(() => ({
   exportAdminRevenueCsv: vi.fn(),
+  exportAdminReportPdf: vi.fn(),
 }));
 
 vi.mock("../../../hooks/useAdminGatewayData", () => ({
@@ -33,6 +34,7 @@ vi.mock("../../contexts/AuthContext", () => ({
 
 vi.mock("../../../services/serveaseAdminApi", () => ({
   exportAdminRevenueCsv: mocks.exportAdminRevenueCsv,
+  exportAdminReportPdf: mocks.exportAdminReportPdf,
 }));
 
 vi.mock("recharts", () => {
@@ -54,6 +56,10 @@ describe("Revenue reports page", () => {
   beforeEach(() => {
     mocks.exportAdminRevenueCsv.mockReset();
     mocks.exportAdminRevenueCsv.mockResolvedValue("paymentId,amount\npayment-1,1500");
+    mocks.exportAdminReportPdf.mockReset();
+    mocks.exportAdminReportPdf.mockResolvedValue(
+      new Blob(["%PDF-1.4"], { type: "application/pdf" }),
+    );
     vi.stubGlobal(
       "URL",
       Object.assign(URL, {
@@ -77,5 +83,14 @@ describe("Revenue reports page", () => {
     await user.click(screen.getByRole("button", { name: /export csv/i }));
 
     expect(mocks.exportAdminRevenueCsv).toHaveBeenCalledWith("admin-token");
+  });
+
+  it("exports revenue PDF through the admin gateway", async () => {
+    const user = userEvent.setup();
+    render(<Revenue />);
+
+    await user.click(screen.getByRole("button", { name: /export pdf/i }));
+
+    expect(mocks.exportAdminReportPdf).toHaveBeenCalledWith("admin-token", "revenue");
   });
 });

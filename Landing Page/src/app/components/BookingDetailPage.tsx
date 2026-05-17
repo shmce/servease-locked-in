@@ -10,6 +10,7 @@ import {
   ClipboardList,
   CreditCard,
   MapPin,
+  MessageSquare,
   Navigation,
   Phone,
   RefreshCw,
@@ -30,6 +31,13 @@ import {
   getCurrentUserProfile,
   type CurrentUserProfile,
 } from "../lib/current-user";
+import {
+  listConversationMessages,
+  openBookingConversation,
+  sendConversationMessage,
+  type ConversationMessage,
+  type ConversationSummary,
+} from "../lib/conversations";
 import { createReview, type ReviewSummary } from "../lib/reviews";
 import {
   createPayment,
@@ -90,6 +98,12 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
   const [issueError, setIssueError] = useState("");
   const [isReportingIssue, setIsReportingIssue] = useState(false);
   const [reportedIssueId, setReportedIssueId] = useState("");
+  const [conversation, setConversation] = useState<ConversationSummary | null>(null);
+  const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
+  const [messageDraft, setMessageDraft] = useState("");
+  const [messageError, setMessageError] = useState("");
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   const loadBooking = async () => {
     if (!supabase) {
@@ -103,6 +117,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
     setTrackingError("");
     setPaymentError("");
     setIssueError("");
+    setMessageError("");
     setSuccess("");
 
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -120,6 +135,7 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
       updatesResponse,
       trackingResponse,
       paymentMethodsResponse,
+      conversationResponse,
     ] = await Promise.all([
         getCustomerBooking(bookingId, accessToken)
           .then((data) => ({ data }))
@@ -135,6 +151,12 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
           .catch((error: unknown) => ({ error })),
         listCustomerPaymentMethods(accessToken)
           .then((data) => ({ data }))
+          .catch((error: unknown) => ({ error })),
+        openBookingConversation(accessToken, bookingId)
+          .then(async (data) => ({
+            data,
+            messages: await listConversationMessages(accessToken, data.id),
+          }))
           .catch((error: unknown) => ({ error })),
       ]);
 
@@ -185,6 +207,19 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
         paymentMethodsResponse.error instanceof Error
           ? paymentMethodsResponse.error.message
           : "Could not load payment methods.",
+      );
+    }
+
+    if ("data" in conversationResponse) {
+      setConversation(conversationResponse.data);
+      setConversationMessages(conversationResponse.messages);
+    } else {
+      setConversation(null);
+      setConversationMessages([]);
+      setMessageError(
+        conversationResponse.error instanceof Error
+          ? conversationResponse.error.message
+          : "Could not load booking messages.",
       );
     }
 
@@ -356,6 +391,73 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
       );
     } finally {
       setIsReportingIssue(false);
+    }
+  };
+
+  const refreshConversationMessages = async () => {
+    if (!supabase || !conversation) {
+      return;
+    }
+
+    setIsLoadingMessages(true);
+    setMessageError("");
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.access_token) {
+      setMessageError("Please sign in to view messages.");
+      setIsLoadingMessages(false);
+      return;
+    }
+
+    try {
+      setConversationMessages(
+        await listConversationMessages(
+          sessionData.session.access_token,
+          conversation.id,
+        ),
+      );
+    } catch (error) {
+      setMessageError(
+        error instanceof Error ? error.message : "Could not refresh messages.",
+      );
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!supabase || !conversation || !messageDraft.trim()) {
+      return;
+    }
+
+    setIsSendingMessage(true);
+    setMessageError("");
+    setSuccess("");
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.access_token) {
+      setMessageError("Please sign in to send messages.");
+      setIsSendingMessage(false);
+      return;
+    }
+
+    try {
+      const message = await sendConversationMessage(
+        sessionData.session.access_token,
+        conversation.id,
+        messageDraft.trim(),
+      );
+      setConversationMessages((current) => [...current, message]);
+      setMessageDraft("");
+      setSuccess("Message sent.");
+    } catch (error) {
+      setMessageError(
+        error instanceof Error ? error.message : "Could not send this message.",
+      );
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
@@ -763,6 +865,106 @@ export function BookingDetailPage({ bookingId }: { bookingId: string }) {
                   </button>
                 </div>
               )}
+            </section>
+
+            <section className="rounded-2xl bg-white p-6 shadow-sm">
+              <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#00BF63]/10">
+                    <MessageSquare className="text-[#00BF63]" size={24} />
+                  </div>
+                  <div>
+                    <h2 className="font-['Poppins',sans-serif] text-xl text-gray-900">
+                      Messages
+                    </h2>
+                    <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                      Continue the booking conversation with your provider.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={refreshConversationMessages}
+                  disabled={!conversation || isLoadingMessages}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 font-['Poppins',sans-serif] text-sm text-gray-700 disabled:opacity-60"
+                >
+                  <RefreshCw size={16} />
+                  {isLoadingMessages ? "Refreshing..." : "Refresh"}
+                </button>
+              </div>
+
+              {messageError && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="font-['Poppins',sans-serif] text-sm text-amber-800">
+                    {messageError}
+                  </p>
+                </div>
+              )}
+
+              <div className="mb-4 max-h-80 space-y-3 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50 p-4">
+                {conversationMessages.length === 0 ? (
+                  <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
+                    No messages yet. Send a note to start the conversation.
+                  </p>
+                ) : (
+                  conversationMessages.map((message) => {
+                    const mine = message.senderId === profile?.user.id;
+                    return (
+                      <article
+                        key={message.id}
+                        className={`rounded-xl border p-4 ${
+                          mine
+                            ? "ml-auto max-w-[85%] border-[#00BF63]/20 bg-[#00BF63]/10"
+                            : "mr-auto max-w-[85%] border-gray-200 bg-white"
+                        }`}
+                      >
+                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-['Poppins',sans-serif] text-xs font-medium capitalize text-gray-500">
+                            {mine ? "You" : message.senderRole}
+                          </p>
+                          <p className="font-['Poppins',sans-serif] text-xs text-gray-400">
+                            {formatDateTime(message.createdAt)}
+                          </p>
+                        </div>
+                        <p className="whitespace-pre-wrap font-['Poppins',sans-serif] text-sm text-gray-800">
+                          {message.content}
+                        </p>
+                        {message.attachment && (
+                          <a
+                            href={message.attachment.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-block font-['Poppins',sans-serif] text-xs text-[#00BF63] underline underline-offset-4"
+                          >
+                            {message.attachment.fileName ?? "View attachment"}
+                          </a>
+                        )}
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-[1fr_auto]">
+                <textarea
+                  value={messageDraft}
+                  onChange={(event) => setMessageDraft(event.target.value)}
+                  rows={3}
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 font-['Poppins',sans-serif] text-sm text-gray-900 outline-none focus:border-[#00BF63]"
+                  placeholder="Write a message to your provider"
+                />
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={sendMessage}
+                    disabled={!conversation || !messageDraft.trim() || isSendingMessage}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#00BF63] px-5 py-3 font-['Poppins',sans-serif] text-sm text-white disabled:opacity-60 md:w-auto"
+                  >
+                    <MessageSquare size={16} />
+                    {isSendingMessage ? "Sending..." : "Send"}
+                  </button>
+                </div>
+              </div>
             </section>
 
             <section className="rounded-2xl bg-white p-6 shadow-sm">

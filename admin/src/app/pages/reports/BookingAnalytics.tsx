@@ -45,36 +45,13 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Badge } from "../../components/ui/badge";
-import { notifyBackendRequired } from "../../utils/backendRequired";
 import { useAdminGatewayData } from "../../../hooks/useAdminGatewayData";
 import { useAuth } from "../../contexts/AuthContext";
-import { exportAdminBookingsCsv } from "../../../services/serveaseAdminApi";
+import {
+  exportAdminBookingsCsv,
+  exportAdminReportPdf,
+} from "../../../services/serveaseAdminApi";
 import { toast } from "sonner";
-
-const bookingsOverTimeData = [
-  { date: "Feb 1", bookings: 67 },
-  { date: "Feb 5", bookings: 72 },
-  { date: "Feb 10", bookings: 69 },
-  { date: "Feb 15", bookings: 78 },
-  { date: "Feb 20", bookings: 83 },
-  { date: "Feb 25", bookings: 87 },
-  { date: "Feb 28", bookings: 92 },
-];
-
-const bookingStatusData = [
-  { name: "Completed", value: 2205, color: "#00BF63" },
-  { name: "Pending", value: 86, color: "#F59E0B" },
-  { name: "In Progress", value: 35, color: "#3B82F6" },
-  { name: "Cancelled", value: 45, color: "#EF4444" },
-];
-
-const bookingsListData = [
-  { id: "BKG-2847", scheduledDate: "2026-03-05", scheduledTime: "10:00 AM", customer: "Maria Santos", provider: "HomeFixPro Manila", category: "Home Maintenance", service: "Plumbing Repair", status: "Confirmed", amount: 2850 },
-  { id: "BKG-2846", scheduledDate: "2026-03-05", scheduledTime: "2:00 PM", customer: "Juan dela Cruz", provider: "Sparkle Clean Services", category: "Cleaning", service: "House Cleaning", status: "Confirmed", amount: 1950 },
-  { id: "BKG-2845", scheduledDate: "2026-03-04", scheduledTime: "11:00 AM", customer: "Ana Reyes", provider: "Glow Beauty Spa", category: "Beauty & Wellness", service: "Massage Therapy", status: "Completed", amount: 3200 },
-  { id: "BKG-2844", scheduledDate: "2026-03-10", scheduledTime: "6:00 PM", customer: "Carlos Mendoza", provider: "Celebrate Events Co.", category: "Events", service: "Event Photography", status: "Pending", amount: 15800 },
-  { id: "BKG-2843", scheduledDate: "2026-03-03", scheduledTime: "9:00 AM", customer: "Rosa Garcia", provider: "Pawsome Pet Care", category: "Pet Services", service: "Dog Grooming", status: "Completed", amount: 1250 },
-];
 
 function KPICard({ label, value, change, icon: Icon, changeType }: any) {
   return (
@@ -111,6 +88,7 @@ export function BookingAnalytics() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const liveBookingRows = useMemo(() => {
     return adminGateway.payments.map((payment) => ({
@@ -138,11 +116,10 @@ export function BookingAnalytics() {
     }));
   }, [adminGateway.payments]);
 
-  const visibleBookingRows = liveBookingRows.length > 0 ? liveBookingRows : bookingsListData;
   const filteredBookingRows = useMemo(() => {
     const query = searchTerm.toLowerCase();
 
-    return visibleBookingRows.filter((booking) => {
+    return liveBookingRows.filter((booking) => {
       const matchesSearch =
         !query ||
         Object.values(booking).some((value) => String(value).toLowerCase().includes(query));
@@ -151,10 +128,10 @@ export function BookingAnalytics() {
 
       return matchesSearch && matchesStatus;
     });
-  }, [searchTerm, statusFilter, visibleBookingRows]);
+  }, [liveBookingRows, searchTerm, statusFilter]);
 
   const liveStatusData = useMemo(() => {
-    const counts = visibleBookingRows.reduce<Record<string, number>>((totals, booking) => {
+    const counts = liveBookingRows.reduce<Record<string, number>>((totals, booking) => {
       totals[booking.status] = (totals[booking.status] ?? 0) + 1;
       return totals;
     }, {});
@@ -164,10 +141,10 @@ export function BookingAnalytics() {
       { name: "Pending", value: counts.Pending ?? 0, color: "#F59E0B" },
       { name: "Cancelled", value: counts.Cancelled ?? 0, color: "#EF4444" },
     ].filter((item) => item.value > 0);
-  }, [visibleBookingRows]);
+  }, [liveBookingRows]);
 
   const liveTimelineData = useMemo(() => {
-    const byDate = visibleBookingRows.reduce<Record<string, number>>((totals, booking) => {
+    const byDate = liveBookingRows.reduce<Record<string, number>>((totals, booking) => {
       totals[booking.scheduledDate] = (totals[booking.scheduledDate] ?? 0) + 1;
       return totals;
     }, {});
@@ -175,14 +152,14 @@ export function BookingAnalytics() {
     return Object.entries(byDate)
       .map(([date, bookings]) => ({ date, bookings }))
       .slice(-10);
-  }, [visibleBookingRows]);
+  }, [liveBookingRows]);
 
-  const totalBookings = visibleBookingRows.length;
-  const completedBookings = visibleBookingRows.filter((row) => row.status === "Completed").length;
-  const cancelledBookings = visibleBookingRows.filter((row) => row.status === "Cancelled").length;
+  const totalBookings = liveBookingRows.length;
+  const completedBookings = liveBookingRows.filter((row) => row.status === "Completed").length;
+  const cancelledBookings = liveBookingRows.filter((row) => row.status === "Cancelled").length;
   const averageBookingValue =
     totalBookings > 0
-      ? visibleBookingRows.reduce((sum, row) => sum + row.amount, 0) / totalBookings
+      ? liveBookingRows.reduce((sum, row) => sum + row.amount, 0) / totalBookings
       : 0;
   const completionRate =
     totalBookings > 0 ? `${((completedBookings / totalBookings) * 100).toFixed(1)}%` : "0%";
@@ -208,8 +185,24 @@ export function BookingAnalytics() {
     }
   };
 
-  const handleExportPDF = () => {
-    notifyBackendRequired("Generating booking analytics PDFs", "GET /v1/admin/reports/bookings.pdf");
+  const handleExportPDF = async () => {
+    if (!accessToken) return;
+    setIsExportingPdf(true);
+    try {
+      const pdf = await exportAdminReportPdf(accessToken, "bookings");
+      const url = URL.createObjectURL(pdf);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `booking-analytics-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to export bookings PDF.");
+    } finally {
+      setIsExportingPdf(false);
+    }
   };
 
   const openDrawer = (item: any) => {
@@ -237,9 +230,13 @@ export function BookingAnalytics() {
             <Download className="w-4 h-4 mr-2" />
             {isExportingCsv ? "Exporting..." : "Export CSV"}
           </Button>
-          <Button onClick={handleExportPDF} className="bg-[#00BF63] hover:bg-[#00A356] text-[14px] font-medium">
+          <Button
+            onClick={() => void handleExportPDF()}
+            className="bg-[#00BF63] hover:bg-[#00A356] text-[14px] font-medium"
+            disabled={isExportingPdf}
+          >
             <FileText className="w-4 h-4 mr-2" />
-            Export PDF
+            {isExportingPdf ? "Exporting..." : "Export PDF"}
           </Button>
         </div>
       </div>
@@ -323,7 +320,7 @@ export function BookingAnalytics() {
         <KPICard label="Cancelled / Refunded" value={cancelledBookings.toLocaleString()} icon={Package} />
         <KPICard label="Completion Rate" value={completionRate} icon={TrendingUp} />
         <KPICard label="Avg Booking Value" value={`₱${averageBookingValue.toLocaleString("en-PH", { maximumFractionDigits: 0 })}`} icon={DollarSign} />
-        <KPICard label="Data Source" value={liveBookingRows.length > 0 ? "Gateway" : "Demo"} icon={Clock} />
+        <KPICard label="Data Source" value={adminGateway.isLoading ? "Loading" : "Gateway"} icon={Clock} />
       </div>
 
       {/* Charts */}
@@ -333,15 +330,21 @@ export function BookingAnalytics() {
             <CardTitle className="text-[16px] font-semibold">Bookings Over Time</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={liveTimelineData.length > 0 ? liveTimelineData : bookingsOverTimeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: 12 }} />
-                <YAxis stroke="#6b7280" style={{ fontSize: 12 }} />
-                <Tooltip />
-                <Line type="monotone" dataKey="bookings" stroke="#00BF63" strokeWidth={2} />
-              </LineChart>
-            </ResponsiveContainer>
+            {liveTimelineData.length === 0 ? (
+              <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
+                No payment-linked bookings found
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={liveTimelineData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis dataKey="date" stroke="#6b7280" style={{ fontSize: 12 }} />
+                  <YAxis stroke="#6b7280" style={{ fontSize: 12 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="bookings" stroke="#00BF63" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -350,25 +353,31 @@ export function BookingAnalytics() {
             <CardTitle className="text-[16px] font-semibold">Booking Status Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={liveStatusData.length > 0 ? liveStatusData : bookingStatusData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {(liveStatusData.length > 0 ? liveStatusData : bookingStatusData).map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {liveStatusData.length === 0 ? (
+              <div className="flex h-[300px] items-center justify-center text-sm text-gray-500">
+                No booking status data found
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={liveStatusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value }) => `${name}: ${value}`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {liveStatusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -407,18 +416,71 @@ export function BookingAnalytics() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredBookingRows.map((booking) => (
-                  <TableRow key={booking.id} className="hover:bg-gray-50">
-                    <TableCell className="text-[14px] font-medium">{booking.id}</TableCell>
-                    <TableCell className="text-[14px]">
-                      <div>{booking.scheduledDate}</div>
-                      <div className="text-gray-500 text-[12px]">{booking.scheduledTime}</div>
+                {adminGateway.isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-8 text-center text-sm text-gray-500">
+                      Loading payment-linked bookings...
                     </TableCell>
-                    <TableCell className="text-[14px]">{booking.customer}</TableCell>
-                    <TableCell className="text-[14px]">{booking.provider}</TableCell>
-                    <TableCell className="text-[14px]">{booking.category}</TableCell>
-                    <TableCell className="text-[14px]">{booking.service}</TableCell>
-                    <TableCell>
+                  </TableRow>
+                ) : filteredBookingRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={9} className="py-8 text-center text-sm text-gray-500">
+                      No payment-linked bookings found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredBookingRows.map((booking) => (
+                    <TableRow key={booking.id} className="hover:bg-gray-50">
+                      <TableCell className="text-[14px] font-medium">{booking.id}</TableCell>
+                      <TableCell className="text-[14px]">
+                        <div>{booking.scheduledDate}</div>
+                        <div className="text-gray-500 text-[12px]">{booking.scheduledTime}</div>
+                      </TableCell>
+                      <TableCell className="text-[14px]">{booking.customer}</TableCell>
+                      <TableCell className="text-[14px]">{booking.provider}</TableCell>
+                      <TableCell className="text-[14px]">{booking.category}</TableCell>
+                      <TableCell className="text-[14px]">{booking.service}</TableCell>
+                      <TableCell>
+                        <Badge className={
+                          booking.status === "Completed" ? "bg-green-100 text-green-700" :
+                          booking.status === "Confirmed" ? "bg-blue-100 text-blue-700" :
+                          "bg-yellow-100 text-yellow-700"
+                        }>
+                          {booking.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-[14px] text-right font-semibold">₱{booking.amount.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => openDrawer(booking)}>
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Mobile Cards */}
+          <div className="sm:hidden space-y-3">
+            {adminGateway.isLoading ? (
+              <div className="rounded-lg border p-4 text-center text-sm text-gray-500">
+                Loading payment-linked bookings...
+              </div>
+            ) : filteredBookingRows.length === 0 ? (
+              <div className="rounded-lg border p-4 text-center text-sm text-gray-500">
+                No payment-linked bookings found
+              </div>
+            ) : (
+              filteredBookingRows.map((booking) => (
+                <Card key={booking.id} className="p-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[14px] font-semibold">{booking.id}</p>
+                        <p className="text-[12px] text-gray-500">{booking.scheduledDate} at {booking.scheduledTime}</p>
+                      </div>
                       <Badge className={
                         booking.status === "Completed" ? "bg-green-100 text-green-700" :
                         booking.status === "Confirmed" ? "bg-blue-100 text-blue-700" :
@@ -426,49 +488,20 @@ export function BookingAnalytics() {
                       }>
                         {booking.status}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-[14px] text-right font-semibold">₱{booking.amount.toLocaleString()}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openDrawer(booking)}>
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="sm:hidden space-y-3">
-            {filteredBookingRows.map((booking) => (
-              <Card key={booking.id} className="p-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-[14px] font-semibold">{booking.id}</p>
-                      <p className="text-[12px] text-gray-500">{booking.scheduledDate} at {booking.scheduledTime}</p>
                     </div>
-                    <Badge className={
-                      booking.status === "Completed" ? "bg-green-100 text-green-700" :
-                      booking.status === "Confirmed" ? "bg-blue-100 text-blue-700" :
-                      "bg-yellow-100 text-yellow-700"
-                    }>
-                      {booking.status}
-                    </Badge>
+                    <div className="space-y-1 text-[13px]">
+                      <div><span className="text-gray-500">Customer:</span> <span className="ml-1">{booking.customer}</span></div>
+                      <div><span className="text-gray-500">Provider:</span> <span className="ml-1">{booking.provider}</span></div>
+                      <div><span className="text-gray-500">Service:</span> <span className="ml-1">{booking.service}</span></div>
+                      <div><span className="text-gray-500">Amount:</span> <span className="ml-1 font-semibold">₱{booking.amount.toLocaleString()}</span></div>
+                    </div>
+                    <Button variant="outline" size="sm" className="w-full text-[14px] font-medium" onClick={() => openDrawer(booking)}>
+                      View Details
+                    </Button>
                   </div>
-                  <div className="space-y-1 text-[13px]">
-                    <div><span className="text-gray-500">Customer:</span> <span className="ml-1">{booking.customer}</span></div>
-                    <div><span className="text-gray-500">Provider:</span> <span className="ml-1">{booking.provider}</span></div>
-                    <div><span className="text-gray-500">Service:</span> <span className="ml-1">{booking.service}</span></div>
-                    <div><span className="text-gray-500">Amount:</span> <span className="ml-1 font-semibold">₱{booking.amount.toLocaleString()}</span></div>
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full text-[14px] font-medium" onClick={() => openDrawer(booking)}>
-                    View Details
-                  </Button>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>

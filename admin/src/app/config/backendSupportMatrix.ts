@@ -280,7 +280,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
     area: "Reports",
     screen: "Reports and Analytics",
     status: "wired",
-    currentSupport: "Bookings, revenue, users, and financial CSV exports all stream gateway-backed data. PDF rendering and scheduled reports remain stubs.",
+    currentSupport: "Bookings, revenue, users, and financial CSV/PDF exports stream gateway-backed data. Booking, revenue, provider, and customer report insights render gateway-derived users, providers, reviews, and payment rows without demo fallback. Report generation returns ready download metadata, scheduled reports persist/list schedule metadata, and admin-service can email due report download links through APICenter.",
     existingEndpoints: [
       "GET /v1/admin/payments",
       "GET /v1/admin/reports/revenue.pdf",
@@ -290,9 +290,10 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "GET /v1/admin/reports/bookings.csv",
       "POST /v1/admin/reports/:type",
       "POST /v1/admin/reports/:type/schedules",
+      "GET /v1/admin/reports/:type/schedules",
     ],
     backendNeeded: [],
-    notes: "All four CSV exports (bookings, revenue, users, financial) are now backed by admin services. PDF rendering and scheduled reports still need backend workers.",
+    notes: "Report endpoints validate type, format, frequency, and recipients. Schedule metadata and delivery state are stored in admin.report_schedules; the optional worker is enabled with ADMIN_REPORT_DELIVERY_WORKER_ENABLED=true and uses @implementsprint/sdk emailSend.",
   },
   {
     area: "Platform",

@@ -4,6 +4,8 @@ import { NotificationDependencyUnavailableError } from '../notification.errors';
 import {
   CreateNotificationRequest,
   NotificationSummary,
+  PushDeviceSummary,
+  RegisterPushDeviceRequest,
 } from '../notification.types';
 
 @Injectable()
@@ -40,9 +42,30 @@ export class NotificationServiceClient {
     );
   }
 
+  registerPushDevice(
+    input: RegisterPushDeviceRequest & { userId: string },
+  ): Promise<PushDeviceSummary> {
+    return this.request<PushDeviceSummary>(
+      '/internal/notifications/devices',
+      'POST',
+      input,
+    );
+  }
+
+  unregisterPushDevice(
+    userId: string,
+    token: string,
+  ): Promise<{ ok: boolean }> {
+    return this.request<{ ok: boolean }>(
+      `/internal/notifications/devices/${encodeURIComponent(token)}`,
+      'DELETE',
+      { userId },
+    );
+  }
+
   private async request<T>(
     path: string,
-    method: 'GET' | 'PATCH' | 'POST',
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(

@@ -1,4 +1,14 @@
-import { Controller, Get, Headers, HttpException, Param, Patch } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  HttpException,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import {
   AuthRequiredError,
@@ -6,7 +16,11 @@ import {
 } from '../current-user/current-user.errors';
 import { NotificationDependencyUnavailableError } from './notification.errors';
 import { NotificationGatewayService } from './notification.service';
-import { NotificationSummary } from './notification.types';
+import {
+  NotificationSummary,
+  PushDeviceSummary,
+  RegisterPushDeviceRequest,
+} from './notification.types';
 
 @Controller('v1/notifications')
 export class NotificationController {
@@ -40,6 +54,42 @@ export class NotificationController {
         data: await this.notificationGatewayService.markRead(
           notificationId,
           userId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('devices')
+  async registerPushDevice(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: RegisterPushDeviceRequest,
+  ): Promise<{ data: PushDeviceSummary }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.notificationGatewayService.registerPushDevice(
+          userId,
+          body,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete('devices/:token')
+  async unregisterPushDevice(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('token') token: string,
+  ): Promise<{ data: { ok: boolean } }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.notificationGatewayService.unregisterPushDevice(
+          userId,
+          decodeURIComponent(token),
         ),
       };
     } catch (error) {
