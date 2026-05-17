@@ -1,9 +1,16 @@
+-- v2: drops list+create functions first because PostgreSQL refuses to change
+-- the OUT-parameter shape of an existing function via CREATE OR REPLACE.
+
 alter table messages.messages
   add column if not exists attachment_url text,
   add column if not exists attachment_file_name text,
   add column if not exists attachment_mime_type text,
   add column if not exists attachment_storage_path text,
   add column if not exists attachment_size integer;
+
+drop function if exists public.servease_list_conversation_messages(uuid, uuid, uuid);
+drop function if exists public.servease_create_conversation_message(uuid, uuid, text, text, uuid, uuid);
+drop function if exists public.servease_create_conversation_message(uuid, uuid, text, text, uuid, uuid, jsonb);
 
 create or replace function public.servease_list_conversation_messages(
   p_conversation_id uuid,

@@ -49,7 +49,10 @@ export type DetailScreen =
   | 'providerReportIssue'
   | 'providerServiceReceipt'
   | 'providerPayoutManagement'
-  | 'providerRequestPayout';
+  | 'providerRequestPayout'
+  | 'providerNotifications'
+  | 'providerInsights'
+  | 'providerHelp';
 
 export type AppScreen = AuthScreen | DetailScreen | CustomerTab | ProviderTab;
 

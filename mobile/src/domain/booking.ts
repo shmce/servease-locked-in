@@ -1,4 +1,5 @@
 import {
+  BookingPricingMode,
   BookingStatus,
   PaymentSummary,
   ProviderAvailabilitySchedule,
@@ -181,6 +182,37 @@ export function roleLabel(value: string): string {
   return `${value.slice(0, 1).toUpperCase()}${value.slice(1)}`;
 }
 
+export function formatBookingDuration(hours: number | null | undefined): string {
+  if (hours === null || hours === undefined || !Number.isFinite(hours) || hours <= 0) {
+    return 'Not specified';
+  }
+
+  const whole = Math.floor(hours);
+  const minutes = Math.round((hours - whole) * 60);
+
+  if (minutes === 0) {
+    return `${whole} hour${whole === 1 ? '' : 's'}`;
+  }
+
+  if (whole === 0) {
+    return `${minutes} min`;
+  }
+
+  return `${whole} hr ${minutes} min`;
+}
+
+export function pricingModeLabel(mode: BookingPricingMode | null | undefined): string {
+  if (mode === 'hourly') {
+    return 'Hourly rate';
+  }
+
+  if (mode === 'flat') {
+    return 'Flat rate';
+  }
+
+  return 'Standard rate';
+}
+
 export function formatMoney(value: number | null): string {
   if (value === null || !Number.isFinite(value)) {
     return 'Price pending';
@@ -307,4 +339,63 @@ export function providerPayoutTotal(payments: PaymentSummary[]): number {
   return payments
     .filter((payment) => payment.status === 'paid' || payment.status === 'pending')
     .reduce((total, payment) => total + payment.providerPayout, 0);
+}
+
+export interface MonthlyEarningSummary {
+  monthKey: string;
+  monthLabel: string;
+  totalPayout: number;
+  totalPlatformFee: number;
+  paidCount: number;
+  pendingCount: number;
+}
+
+export function summarizeMonthlyEarnings(
+  payments: PaymentSummary[],
+): MonthlyEarningSummary[] {
+  const buckets = new Map<string, MonthlyEarningSummary>();
+
+  for (const payment of payments) {
+    const referenceDate = payment.paidAt ?? payment.createdAt;
+    if (!referenceDate) {
+      continue;
+    }
+    const date = new Date(referenceDate);
+    if (Number.isNaN(date.getTime())) {
+      continue;
+    }
+
+    const monthKey = `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}`;
+    const monthLabel = date.toLocaleDateString('en-PH', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: MANILA_TIME_ZONE,
+    });
+
+    const existing = buckets.get(monthKey) ?? {
+      monthKey,
+      monthLabel,
+      totalPayout: 0,
+      totalPlatformFee: 0,
+      paidCount: 0,
+      pendingCount: 0,
+    };
+
+    if (payment.status === 'paid' || payment.status === 'pending') {
+      existing.totalPayout += payment.providerPayout;
+      existing.totalPlatformFee += payment.platformFee;
+    }
+
+    if (payment.status === 'paid') {
+      existing.paidCount += 1;
+    } else if (payment.status === 'pending') {
+      existing.pendingCount += 1;
+    }
+
+    buckets.set(monthKey, existing);
+  }
+
+  return Array.from(buckets.values()).sort((a, b) =>
+    a.monthKey < b.monthKey ? 1 : a.monthKey > b.monthKey ? -1 : 0,
+  );
 }

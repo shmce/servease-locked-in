@@ -7,7 +7,9 @@ import {
   buildBookingTransitionRequest,
   buildMapsDirectionsUrl,
   buildProviderBookingSlots,
+  formatBookingDuration,
   nextBookingStatuses,
+  pricingModeLabel,
   providerPayoutTotal,
   toManilaBookingIso,
 } from './booking';
@@ -128,6 +130,90 @@ describe('booking domain helpers', () => {
       }),
       null,
     );
+  });
+
+  it('summarizes monthly earnings from payments', async () => {
+    const { summarizeMonthlyEarnings } = await import('./booking');
+    const summaries = summarizeMonthlyEarnings([
+      {
+        id: 'p-1',
+        bookingId: 'b-1',
+        customerId: 'c-1',
+        providerId: 'pr-1',
+        amount: 1000,
+        platformFee: 100,
+        providerPayout: 900,
+        status: 'paid',
+        paymentMethod: null,
+        paidAt: '2026-05-10T00:00:00.000Z',
+        createdAt: null,
+      },
+      {
+        id: 'p-2',
+        bookingId: 'b-2',
+        customerId: 'c-1',
+        providerId: 'pr-1',
+        amount: 800,
+        platformFee: 80,
+        providerPayout: 720,
+        status: 'pending',
+        paymentMethod: null,
+        paidAt: null,
+        createdAt: '2026-05-12T00:00:00.000Z',
+      },
+      {
+        id: 'p-3',
+        bookingId: 'b-3',
+        customerId: 'c-1',
+        providerId: 'pr-1',
+        amount: 500,
+        platformFee: 50,
+        providerPayout: 450,
+        status: 'paid',
+        paymentMethod: null,
+        paidAt: '2026-04-20T00:00:00.000Z',
+        createdAt: null,
+      },
+      {
+        id: 'p-4',
+        bookingId: 'b-4',
+        customerId: 'c-1',
+        providerId: 'pr-1',
+        amount: 200,
+        platformFee: 20,
+        providerPayout: 180,
+        status: 'refunded',
+        paymentMethod: null,
+        paidAt: '2026-04-01T00:00:00.000Z',
+        createdAt: null,
+      },
+    ]);
+
+    assert.equal(summaries.length, 2);
+    assert.equal(summaries[0].monthKey, '2026-05');
+    assert.equal(summaries[0].totalPayout, 1620);
+    assert.equal(summaries[0].paidCount, 1);
+    assert.equal(summaries[0].pendingCount, 1);
+    assert.equal(summaries[1].monthKey, '2026-04');
+    assert.equal(summaries[1].totalPayout, 450);
+    assert.equal(summaries[1].paidCount, 1);
+    assert.equal(summaries[1].pendingCount, 0);
+  });
+
+  it('formats booking duration in human-readable form', () => {
+    assert.equal(formatBookingDuration(null), 'Not specified');
+    assert.equal(formatBookingDuration(0), 'Not specified');
+    assert.equal(formatBookingDuration(1), '1 hour');
+    assert.equal(formatBookingDuration(2), '2 hours');
+    assert.equal(formatBookingDuration(1.5), '1 hr 30 min');
+    assert.equal(formatBookingDuration(0.5), '30 min');
+  });
+
+  it('labels pricing modes for display', () => {
+    assert.equal(pricingModeLabel('flat'), 'Flat rate');
+    assert.equal(pricingModeLabel('hourly'), 'Hourly rate');
+    assert.equal(pricingModeLabel(null), 'Standard rate');
+    assert.equal(pricingModeLabel(undefined), 'Standard rate');
   });
 
   it('builds a maps directions URL from a booking destination', () => {

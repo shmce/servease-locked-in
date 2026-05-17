@@ -360,6 +360,7 @@ export interface UserPreferenceSummary {
   pushNotificationsEnabled: boolean;
   darkModeEnabled: boolean;
   language: 'en' | 'fil';
+  notificationPreferences: Record<string, unknown>;
   updatedAt: string | null;
 }
 
@@ -367,6 +368,7 @@ export interface UpdateUserPreferencesRequest {
   pushNotificationsEnabled?: boolean | null;
   darkModeEnabled?: boolean | null;
   language?: 'en' | 'fil' | null;
+  notificationPreferences?: Record<string, unknown> | null;
 }
 
 export type DayOfWeek =

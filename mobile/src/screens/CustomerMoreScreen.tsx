@@ -1,5 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
+  Bell,
   ChevronRight,
   FileText,
   Gift,
@@ -18,10 +19,12 @@ type CustomerMoreScreenProps = {
   profile: CurrentUserProfile | null;
   navigate: (screen: AppScreen, nextRole?: 'customer') => void;
   signOut: () => void | Promise<void>;
+  unreadNotificationCount?: number;
 };
 
 const menuItems = [
   { label: 'My Profile', icon: User, screen: 'customerProfile' as AppScreen },
+  { label: 'Notifications', icon: Bell, screen: 'customerNotifications' as AppScreen },
   { label: 'Service History', icon: History, screen: 'customerServiceHistory' as AppScreen },
   { label: 'Refer a Friend', icon: Gift, screen: 'customerReferral' as AppScreen },
   { label: 'Payment Methods', icon: WalletCards, screen: 'customerPaymentMethods' as AppScreen },
@@ -34,6 +37,7 @@ export function CustomerMoreScreen({
   profile,
   navigate,
   signOut,
+  unreadNotificationCount = 0,
 }: CustomerMoreScreenProps) {
   const displayName = profile?.user.fullName ?? 'Customer';
   const displayEmail = profile?.user.email ?? 'customer@example.com';
@@ -54,6 +58,8 @@ export function CustomerMoreScreen({
         <View style={styles.moreMenuList}>
           {menuItems.map((item) => {
             const Icon = item.icon;
+            const showBadge =
+              item.screen === 'customerNotifications' && unreadNotificationCount > 0;
             return (
               <Pressable
                 key={item.label}
@@ -62,6 +68,13 @@ export function CustomerMoreScreen({
               >
                 <Icon color={palette.ink} size={22} strokeWidth={2.2} />
                 <Text style={styles.moreMenuLabel}>{item.label}</Text>
+                {showBadge ? (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>
+                      {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                    </Text>
+                  </View>
+                ) : null}
                 <ChevronRight color={palette.faint} size={20} />
               </Pressable>
             );
@@ -138,6 +151,20 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '800',
+  },
+  notificationBadge: {
+    alignItems: 'center',
+    backgroundColor: palette.red,
+    borderRadius: radius.pill,
+    height: 22,
+    justifyContent: 'center',
+    minWidth: 22,
+    paddingHorizontal: 6,
+  },
+  notificationBadgeText: {
+    color: palette.white,
+    fontSize: 11,
+    fontWeight: '900',
   },
   logoutButton: {
     alignItems: 'center',

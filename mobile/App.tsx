@@ -79,13 +79,16 @@ import {
   buildBookingTransitionRequest,
   buildProviderBookingSlots,
   completedBookingCount,
+  formatBookingDuration,
   formatDateTime,
   formatMoney,
   nextActionLabel,
   nextBookingStatuses,
+  pricingModeLabel,
   providerPayoutTotal,
   roleLabel,
   statusLabel,
+  summarizeMonthlyEarnings,
   toManilaBookingIso,
 } from './src/domain/booking';
 import {
@@ -93,6 +96,8 @@ import {
   customerCancelReasons,
   customerHelpCategories,
   customerHelpFaqs,
+  providerHelpCategories,
+  providerHelpFaqs,
   customerIssueTypes,
   customerResolutionOptions,
   dayLabels,
@@ -124,6 +129,7 @@ import {
   CatalogCategory,
   CatalogServiceItem,
   ConversationMessage,
+  ConversationMessageAttachment,
   ConversationSummary,
   CurrentUserProfile,
   CreateBookingRequest,
@@ -373,6 +379,10 @@ export default function App() {
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editServiceTitle, setEditServiceTitle] = useState('');
   const [editServicePrice, setEditServicePrice] = useState('');
+  const [newServiceTitle, setNewServiceTitle] = useState('');
+  const [newServicePrice, setNewServicePrice] = useState('');
+  const [newServicePricingMode, setNewServicePricingMode] = useState<'flat' | 'hourly'>('flat');
+  const [showAddServiceForm, setShowAddServiceForm] = useState(false);
   const [providerCancelReason, setProviderCancelReason] = useState('');
   const [providerReportReason, setProviderReportReason] = useState('');
   const [providerReportDetails, setProviderReportDetails] = useState('');
@@ -924,6 +934,7 @@ export default function App() {
       pushNotificationsEnabled?: boolean;
       darkModeEnabled?: boolean;
       language?: 'en' | 'fil';
+      notificationPreferences?: Record<string, unknown>;
     },
   ) {
     if (!session) {
@@ -943,6 +954,30 @@ export default function App() {
     } finally {
       setBusyAction(null);
     }
+  }
+
+  function getNotificationCategoryEnabled(category: string): boolean {
+    const prefs = userPreferences?.notificationPreferences;
+    if (!prefs || typeof prefs !== 'object') {
+      return true;
+    }
+    const value = (prefs as Record<string, unknown>)[category];
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    return true;
+  }
+
+  async function toggleNotificationCategory(category: string) {
+    const current =
+      (userPreferences?.notificationPreferences as
+        | Record<string, unknown>
+        | undefined) ?? {};
+    const next = {
+      ...current,
+      [category]: !getNotificationCategoryEnabled(category),
+    };
+    await savePreferences({ notificationPreferences: next });
   }
 
   async function refreshWorkspace(
@@ -1520,10 +1555,10 @@ export default function App() {
     await Linking.openURL(mapsUrl);
   }
 
-  async function sendMessage() {
+  async function sendMessage(attachment?: ConversationMessageAttachment | null) {
     const trimmed = messageDraft.trim();
-    if (!trimmed) {
-      setNotice('Write a message before sending.');
+    if (!trimmed && !attachment) {
+      setNotice('Write a message or attach an image before sending.');
       return;
     }
 
@@ -1540,7 +1575,8 @@ export default function App() {
     try {
       const message = await createConversationMessage(
         conversation.id,
-        trimmed,
+        trimmed || (attachment ? 'Sent an attachment' : ''),
+        attachment ?? null,
         apiOptions,
       );
       setMessages((current) => [...current, message]);
@@ -1551,6 +1587,18 @@ export default function App() {
     } finally {
       setBusyAction(null);
     }
+  }
+
+  async function attachAndSendMessageImage() {
+    await pickAndUploadImage('message_attachment', async (_uri, uploaded) => {
+      await sendMessage({
+        fileUrl: uploaded.publicUrl,
+        fileName: uploaded.path.split('/').pop() ?? null,
+        mimeType: uploaded.contentType,
+        storagePath: uploaded.path,
+        fileSize: uploaded.size,
+      });
+    });
   }
 
   async function applyPromotionCode() {
@@ -2015,6 +2063,88 @@ export default function App() {
     }
   }
 
+  async function addOwnedService() {
+    const title = newServiceTitle.trim();
+    const priceValue = Number(newServicePrice);
+    if (!title) {
+      setNotice('Service title is required.');
+      return;
+    }
+    if (!Number.isFinite(priceValue) || priceValue <= 0) {
+      setNotice('Enter a valid price.');
+      return;
+    }
+    setBusyAction('service-add');
+    try {
+      const existing: ProviderOwnedServiceInput[] = ownedServices.map((s) => ({
+        id: s.id,
+        serviceId: s.serviceId ?? null,
+        title: s.title,
+        description: s.description ?? null,
+        price: s.price,
+        pricingMode: s.pricingMode,
+        isActive: s.isActive,
+      }));
+      const newService: ProviderOwnedServiceInput = {
+        title,
+        price: priceValue,
+        pricingMode: newServicePricingMode,
+        isActive: true,
+      };
+      const saved = await replaceProviderServices([...existing, newService], apiOptions);
+      setOwnedServices(saved);
+      setNewServiceTitle('');
+      setNewServicePrice('');
+      setNewServicePricingMode('flat');
+      setShowAddServiceForm(false);
+      setNotice('Service added.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function toggleOwnedServiceActive(serviceId: string) {
+    setBusyAction(`service-toggle-${serviceId}`);
+    try {
+      const updated: ProviderOwnedServiceInput[] = ownedServices.map((s) =>
+        s.id === serviceId ? { ...s, isActive: !s.isActive } : s,
+      );
+      const saved = await replaceProviderServices(updated, apiOptions);
+      setOwnedServices(saved);
+      setNotice('Service updated.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function removeOwnedService(serviceId: string) {
+    setBusyAction(`service-remove-${serviceId}`);
+    try {
+      const remaining: ProviderOwnedServiceInput[] = ownedServices
+        .filter((s) => s.id !== serviceId)
+        .map((s) => ({
+          id: s.id,
+          serviceId: s.serviceId ?? null,
+          title: s.title,
+          description: s.description ?? null,
+          price: s.price,
+          pricingMode: s.pricingMode,
+          isActive: s.isActive,
+        }));
+      const saved = await replaceProviderServices(remaining, apiOptions);
+      setOwnedServices(saved);
+      setNotice('Service removed.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function submitSupportTicket(
     subject = supportSubject,
     body = supportMessage,
@@ -2400,6 +2530,9 @@ export default function App() {
         {route.screen === 'providerPortfolio' ? renderProviderPortfolio() : null}
         {route.screen === 'providerPayoutManagement' ? renderProviderPayoutManagement() : null}
         {route.screen === 'providerRequestPayout' ? renderProviderRequestPayout() : null}
+        {route.screen === 'providerNotifications' ? renderProviderNotifications() : null}
+        {route.screen === 'providerInsights' ? renderProviderInsights() : null}
+        {route.screen === 'providerHelp' ? renderProviderHelp() : null}
         {activeTab === 'home' && route.screen === 'home' ? renderProviderHome() : null}
         {activeTab === 'bookings' && route.screen === 'bookings' ? renderProviderBookings() : null}
         {activeTab === 'calendar' && route.screen === 'calendar' ? renderProviderCalendar() : null}
@@ -2459,7 +2592,13 @@ export default function App() {
             </View>
             <Pressable
               style={styles.notificationButton}
-              onPress={() => navigate('more', 'customer')}
+              onPress={() => navigate('customerNotifications', 'customer')}
+              accessibilityRole="button"
+              accessibilityLabel={
+                unreadCount > 0
+                  ? `Notifications, ${unreadCount} unread`
+                  : 'Notifications'
+              }
             >
               <Bell color={palette.white} size={20} strokeWidth={2.2} />
               {unreadCount > 0 ? <View style={styles.heroUnreadDot} /> : null}
@@ -2660,29 +2799,42 @@ export default function App() {
                   <Text style={styles.cardMeta}>
                     {selectedProvider.averageRating.toFixed(1)} rating · {selectedProvider.reviewCount} reviews
                   </Text>
-                  <Text style={styles.linkText}>View Profile &gt;</Text>
+                  <Text
+                    style={styles.linkText}
+                    onPress={() => navigate('customerProviderProfile', 'customer')}
+                  >
+                    View Profile &gt;
+                  </Text>
                 </View>
               </View>
             </Card>
 
             <Section title="Service details">
-              <InfoRow label="Type" value={selectedService?.name ?? selectedProvider.title} />
+              <InfoRow label="Service" value={selectedService?.name ?? selectedProvider.title} />
               <InfoRow label="Date and time" value={formatDateTime(scheduledAtIso)} />
-              <InfoRow label="Duration" value={`${duration} hour${duration === 1 ? '' : 's'}`} />
+              <InfoRow label="Estimated duration" value={formatBookingDuration(duration)} />
+              <InfoRow label="Pricing" value={pricingModeLabel(selectedProvider.pricingMode)} />
               <InfoRow label="Address" value={address || 'Address required'} />
               <InfoRow label="Reference photo" value={bookingReferencePhotoUrl ? 'Attached' : 'None'} />
             </Section>
 
-            <Section title="Selected options">
-              <InfoRow label="Number of service providers" value="1 service provider" />
-              <InfoRow label="Hours" value={`${duration}`} />
-              <InfoRow label="Add-ons" value={notes.trim() || 'None'} />
+            <Section title="Special instructions">
+              <InfoRow label="Your notes" value={notes.trim() || 'None provided'} />
             </Section>
 
             <Section title="Price breakdown">
-              <InfoRow label="Sub Total" value={formatMoney(subtotal)} />
+              <InfoRow label="Sub-total" value={formatMoney(subtotal)} />
               <InfoRow label="Processing fee" value={formatMoney(processingFee)} />
-              <InfoRow label="Promo code" value="No promo applied" />
+              <InfoRow
+                label="Promo code"
+                value={
+                  promotionValidation?.valid
+                    ? `${promotionValidation.code} applied`
+                    : promoCode.trim()
+                      ? 'Enter on payment step'
+                      : 'No promo applied'
+                }
+              />
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Booking Cost</Text>
                 <Text style={styles.totalValue}>{formatMoney(bookingCost)}</Text>
@@ -3574,11 +3726,49 @@ export default function App() {
             </Card>
             {renderBookingTimelineEvents()}
             <Card>
+              <Text style={styles.cardTitle}>Service details</Text>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Description</Text>
+                <Text style={styles.infoValue}>
+                  {selectedBooking.serviceDescription?.trim() || 'No additional description provided.'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Special instructions</Text>
+                <Text style={styles.infoValue}>
+                  {selectedBooking.customerNotes?.trim() || 'None'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Estimated duration</Text>
+                <Text style={styles.infoValue}>
+                  {formatBookingDuration(selectedBooking.hoursRequired)}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Pricing</Text>
+                <Text style={styles.infoValue}>
+                  {pricingModeLabel(selectedBooking.pricingMode)}
+                </Text>
+              </View>
+            </Card>
+            <Card>
               <Text style={styles.cardTitle}>Service provider</Text>
               <Text style={styles.cardBody}>
-                {selectedProvider?.providerBusinessName ?? 'GreenFix Home Services'}
+                {selectedProvider?.providerBusinessName ?? 'Provider details loading'}
               </Text>
-              <Text style={styles.linkText}>View Profile &gt;</Text>
+              <Text
+                style={styles.linkText}
+                onPress={() => {
+                  if (selectedProvider) {
+                    navigate('customerProviderProfile', 'customer');
+                  } else {
+                    setNotice('Provider profile still loading.');
+                  }
+                }}
+              >
+                View Profile &gt;
+              </Text>
             </Card>
             {['confirmed', 'in_progress'].includes(selectedBooking.status) ? (
               <PrimaryButton
@@ -3685,6 +3875,11 @@ export default function App() {
   }
 
   function renderManageBooking() {
+    const status = selectedBooking?.status;
+    const isCancellable = status === 'pending' || status === 'confirmed';
+    const isActive = status === 'confirmed' || status === 'in_progress';
+    const isCompleted = status === 'completed';
+
     return (
       <>
         <TopBar title="Manage Booking" onBack={() => navigate('customerBookingDetail', 'customer')} />
@@ -3694,11 +3889,34 @@ export default function App() {
             <View style={styles.optionList}>
               <Pressable
                 style={styles.optionRow}
-                onPress={() => navigate('customerBookingCancel', 'customer')}
+                onPress={() => void openSelectedConversation()}
               >
-                <Text style={styles.optionLabel}>Cancel Booking</Text>
+                <Text style={styles.optionLabel}>Message Service Provider</Text>
                 <ChevronRight color={palette.faint} size={20} />
               </Pressable>
+              {isActive ? (
+                <Pressable
+                  style={styles.optionRow}
+                  onPress={() => {
+                    if (selectedBooking) {
+                      void refreshBookingTracking(selectedBooking.id);
+                    }
+                    navigate('customerTrackServiceProvider', 'customer');
+                  }}
+                >
+                  <Text style={styles.optionLabel}>Track Service Provider</Text>
+                  <ChevronRight color={palette.faint} size={20} />
+                </Pressable>
+              ) : null}
+              {isCompleted ? (
+                <Pressable
+                  style={styles.optionRow}
+                  onPress={() => navigate('customerReservePayment', 'customer')}
+                >
+                  <Text style={styles.optionLabel}>View Payment Details</Text>
+                  <ChevronRight color={palette.faint} size={20} />
+                </Pressable>
+              ) : null}
               <Pressable
                 style={styles.optionRow}
                 onPress={() => navigate('customerBookingReport', 'customer')}
@@ -3706,6 +3924,15 @@ export default function App() {
                 <Text style={styles.optionLabel}>Report an issue</Text>
                 <ChevronRight color={palette.faint} size={20} />
               </Pressable>
+              {isCancellable ? (
+                <Pressable
+                  style={styles.optionRow}
+                  onPress={() => navigate('customerBookingCancel', 'customer')}
+                >
+                  <Text style={[styles.optionLabel, { color: palette.red }]}>Cancel Booking</Text>
+                  <ChevronRight color={palette.faint} size={20} />
+                </Pressable>
+              ) : null}
             </View>
           </View>
         </ScrollView>
@@ -3885,7 +4112,7 @@ export default function App() {
             </Section>
             <Section title="Thread">
               <Card>
-                {messages.slice(-8).map((message) => (
+                {messages.slice(-20).map((message) => (
                   <View
                     key={message.id}
                     style={[
@@ -3893,18 +4120,41 @@ export default function App() {
                       message.senderRole === appRole && styles.messageBubbleMine,
                     ]}
                   >
-                    <Text style={styles.cardMeta}>{message.senderRole}</Text>
-                    <Text style={styles.cardBody}>{message.content}</Text>
+                    <Text style={styles.cardMeta}>
+                      {message.senderRole}
+                      {message.createdAt ? ` · ${formatDateTime(message.createdAt)}` : ''}
+                    </Text>
+                    {message.attachment ? (
+                      <Image
+                        source={{ uri: message.attachment.fileUrl }}
+                        style={styles.uploadPreview}
+                      />
+                    ) : null}
+                    {message.content ? (
+                      <Text style={styles.cardBody}>{message.content}</Text>
+                    ) : null}
                   </View>
                 ))}
                 {!messages.length ? <Text style={styles.cardMeta}>No messages loaded.</Text> : null}
               </Card>
               <Field label="Message" value={messageDraft} onChangeText={setMessageDraft} multiline />
-              <PrimaryButton
-                label="Send"
-                onPress={() => void sendMessage()}
-                disabled={!session || busyAction === 'send-message'}
-              />
+              <View style={styles.twoButtons}>
+                <PrimaryButton
+                  label={
+                    busyAction === 'upload-message_attachment'
+                      ? 'Uploading...'
+                      : 'Attach image'
+                  }
+                  variant="secondary"
+                  onPress={() => void attachAndSendMessageImage()}
+                  disabled={!session || busyAction === 'upload-message_attachment'}
+                />
+                <PrimaryButton
+                  label="Send"
+                  onPress={() => void sendMessage()}
+                  disabled={!session || busyAction === 'send-message'}
+                />
+              </View>
             </Section>
           </View>
         </ScrollView>
@@ -3916,7 +4166,12 @@ export default function App() {
     return (
       <>
         <TopBar title="More" />
-        <CustomerMoreScreen profile={profile} navigate={navigate} signOut={signOut} />
+        <CustomerMoreScreen
+          profile={profile}
+          navigate={navigate}
+          signOut={signOut}
+          unreadNotificationCount={unreadCount}
+        />
       </>
     );
   }
@@ -4061,6 +4316,30 @@ export default function App() {
                     pushNotificationsEnabled: !pushNotificationsEnabled,
                   })
                 }
+              />
+              <SettingsRow
+                icon={Calendar}
+                label="Booking updates"
+                toggleValue={getNotificationCategoryEnabled('booking_updates')}
+                onToggle={() => void toggleNotificationCategory('booking_updates')}
+              />
+              <SettingsRow
+                icon={CreditCard}
+                label="Payment alerts"
+                toggleValue={getNotificationCategoryEnabled('payment_alerts')}
+                onToggle={() => void toggleNotificationCategory('payment_alerts')}
+              />
+              <SettingsRow
+                icon={MessageCircle}
+                label="Messages"
+                toggleValue={getNotificationCategoryEnabled('messages')}
+                onToggle={() => void toggleNotificationCategory('messages')}
+              />
+              <SettingsRow
+                icon={Gift}
+                label="Promotions and offers"
+                toggleValue={getNotificationCategoryEnabled('promotions')}
+                onToggle={() => void toggleNotificationCategory('promotions')}
               />
             </SettingsSection>
             <SettingsSection title="Account">
@@ -4307,12 +4586,228 @@ export default function App() {
     );
   }
 
+  function renderProviderNotifications() {
+    return renderNotificationsScreen('provider');
+  }
+
+  function renderProviderHelp() {
+    const filteredFaq = providerHelpFaqs.filter((item) => {
+      const matchesCategory = helpCategory === 'all' || item.category === helpCategory;
+      const query = helpQuery.trim().toLowerCase();
+      const matchesSearch =
+        !query ||
+        item.question.toLowerCase().includes(query) ||
+        item.answer.toLowerCase().includes(query);
+      return matchesCategory && matchesSearch;
+    });
+
+    return (
+      <>
+        <View style={styles.helpHeader}>
+          <TopBar title="Help Center" green onBack={() => navigate('more', 'provider')} />
+          <View style={styles.helpSearch}>
+            <Search color={palette.faint} size={20} />
+            <Field
+              label=""
+              value={helpQuery}
+              onChangeText={setHelpQuery}
+              placeholder="Search provider help..."
+            />
+          </View>
+        </View>
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalRail}
+            >
+              {providerHelpCategories.map((category) => (
+                <Pill
+                  key={category}
+                  label={category === 'all' ? 'All' : category}
+                  selected={helpCategory === category}
+                  onPress={() => setHelpCategory(category)}
+                />
+              ))}
+            </ScrollView>
+            <Section title="Frequently Asked Questions">
+              {filteredFaq.map((item) => (
+                <Pressable
+                  key={item.id}
+                  style={[
+                    styles.faqCard,
+                    expandedFaqId === item.id && styles.faqCardOpen,
+                  ]}
+                  onPress={() => setExpandedFaqId(expandedFaqId === item.id ? null : item.id)}
+                >
+                  <View style={styles.rowBetween}>
+                    <View style={styles.faqIcon}>
+                      {item.category === 'Payouts' ? (
+                        <Wallet color={palette.mint} size={16} />
+                      ) : item.category === 'Bookings' ? (
+                        <Calendar color={palette.blue} size={16} />
+                      ) : item.category === 'Profile and Services' ? (
+                        <User color={palette.amber} size={16} />
+                      ) : (
+                        <ShieldCheck color={palette.violet} size={16} />
+                      )}
+                    </View>
+                    <View style={styles.flex}>
+                      <Text style={styles.cardTitle}>{item.question}</Text>
+                      <Text style={styles.faqCategory}>{item.category}</Text>
+                    </View>
+                  </View>
+                  {expandedFaqId === item.id ? (
+                    <Text style={styles.cardBody}>{item.answer}</Text>
+                  ) : null}
+                </Pressable>
+              ))}
+              {!filteredFaq.length ? (
+                <EmptyState title="No results found" body="Try another search term." />
+              ) : null}
+            </Section>
+            {renderSupportPanel()}
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
+  function renderProviderInsights() {
+    const summary = providerDashboard?.summary;
+    const performance = providerDashboard?.performance;
+    const acceptanceRate = performance?.acceptanceRate ?? null;
+    const completionRate = performance?.completionRate ?? null;
+    const responseTime = performance?.responseTimeMinutes ?? null;
+    const totalBookings = bookings.length;
+    const completedCount = bookings.filter((b) => b.status === 'completed').length;
+    const cancelledCount = bookings.filter(
+      (b) => b.status === 'cancelled' || b.status === 'rejected',
+    ).length;
+    const repeatCustomers = new Set(
+      bookings
+        .filter((b) => b.status === 'completed')
+        .map((b) => b.customerId),
+    ).size;
+
+    return (
+      <>
+        <TopBar
+          title="Performance Insights"
+          subtitle="How your business is performing"
+          onBack={() => navigate('more', 'provider')}
+          right={
+            <PrimaryButton
+              label="Refresh"
+              variant="secondary"
+              onPress={() => void refreshWorkspace()}
+            />
+          }
+        />
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
+            <MetricCard
+              label="Total Earnings"
+              value={formatMoney(summary?.totalEarnings ?? 0)}
+              featured
+            />
+            <View style={styles.metricGrid}>
+              <MetricCard
+                label="Overall Rating"
+                value={(summary?.overallRating ?? 0).toFixed(1)}
+              />
+              <MetricCard
+                label="Total Reviews"
+                value={summary?.reviewCount ?? 0}
+              />
+              <MetricCard
+                label="Today's Earnings"
+                value={formatMoney(summary?.todayEarnings ?? 0)}
+              />
+            </View>
+
+            <Section title="Service performance">
+              <Card>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Acceptance rate</Text>
+                  <Text style={styles.infoValue}>
+                    {acceptanceRate === null ? 'Not enough data' : `${acceptanceRate}%`}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Completion rate</Text>
+                  <Text style={styles.infoValue}>
+                    {completionRate === null ? 'Not enough data' : `${completionRate}%`}
+                  </Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Average response time</Text>
+                  <Text style={styles.infoValue}>
+                    {responseTime === null
+                      ? 'Not enough data'
+                      : responseTime < 60
+                        ? `${responseTime} min`
+                        : `${(responseTime / 60).toFixed(1)} hr`}
+                  </Text>
+                </View>
+              </Card>
+            </Section>
+
+            <Section title="Booking activity">
+              <View style={styles.metricGrid}>
+                <MetricCard label="Total Bookings" value={totalBookings} />
+                <MetricCard label="Completed" value={completedCount} />
+                <MetricCard label="Cancelled" value={cancelledCount} />
+              </View>
+              <Card>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Repeat customers</Text>
+                  <Text style={styles.infoValue}>{repeatCustomers}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>New booking requests</Text>
+                  <Text style={styles.infoValue}>{summary?.newRequests ?? 0}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Today's bookings</Text>
+                  <Text style={styles.infoValue}>{summary?.todayBookings ?? 0}</Text>
+                </View>
+              </Card>
+            </Section>
+
+            <Section title="Tips to grow">
+              <Card>
+                <Text style={styles.cardBody}>
+                  {acceptanceRate !== null && acceptanceRate < 80
+                    ? 'Accept more requests within an hour to lift your acceptance rate.'
+                    : 'Great job keeping your acceptance rate high — keep it up!'}
+                </Text>
+              </Card>
+              <Card>
+                <Text style={styles.cardBody}>
+                  {(summary?.overallRating ?? 0) < 4
+                    ? 'Reply to recent reviews and ask satisfied customers for ratings.'
+                    : 'Customers love your work — share your profile to attract more bookings.'}
+                </Text>
+              </Card>
+            </Section>
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
   function renderCustomerNotifications() {
+    return renderNotificationsScreen('customer');
+  }
+
+  function renderNotificationsScreen(role: AppRole) {
     return (
       <>
         <TopBar
           title="Notifications"
-          onBack={() => navigate('more', 'customer')}
+          onBack={() => navigate(role === 'provider' ? 'home' : 'more', role)}
           right={unreadCount > 0 ? <Badge label={`${unreadCount} new`} tone="success" /> : null}
         />
         <ScrollView contentContainerStyle={styles.withBottomNav}>
@@ -4503,10 +4998,27 @@ export default function App() {
     return (
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.providerHero}>
-          <Text style={styles.heroMuted}>Welcome back,</Text>
-          <Text style={styles.heroName}>
-            {profile?.providerProfile?.businessName ?? 'Service Provider'}
-          </Text>
+          <View style={styles.heroRow}>
+            <View style={styles.flex}>
+              <Text style={styles.heroMuted}>Welcome back,</Text>
+              <Text style={styles.heroName}>
+                {profile?.providerProfile?.businessName ?? 'Service Provider'}
+              </Text>
+            </View>
+            <Pressable
+              style={styles.notificationButton}
+              onPress={() => navigate('providerNotifications', 'provider')}
+              accessibilityRole="button"
+              accessibilityLabel={
+                unreadCount > 0
+                  ? `Notifications, ${unreadCount} unread`
+                  : 'Notifications'
+              }
+            >
+              <Bell color={palette.white} size={20} strokeWidth={2.2} />
+              {unreadCount > 0 ? <View style={styles.heroUnreadDot} /> : null}
+            </Pressable>
+          </View>
         </View>
         <View style={styles.overlapContent}>
           <MetricCard label="Total Earnings" value={formatMoney(payoutTotal)} featured />
@@ -4572,7 +5084,11 @@ export default function App() {
           <Section title="Quick Actions">
             <View style={styles.twoButtons}>
               <QuickAction label="Set Availability" onPress={() => navigate('calendar', 'provider')} />
-              <QuickAction label="View Earnings" onPress={() => navigate('more', 'provider')} />
+              <QuickAction label="Payouts" onPress={() => navigate('providerPayoutManagement', 'provider')} />
+            </View>
+            <View style={styles.twoButtons}>
+              <QuickAction label="Insights" onPress={() => navigate('providerInsights', 'provider')} />
+              <QuickAction label="Portfolio" onPress={() => navigate('providerPortfolio', 'provider')} />
             </View>
           </Section>
         </View>
@@ -4667,6 +5183,30 @@ export default function App() {
                 <Text style={styles.infoLabel}>Service</Text>
                 <Text style={styles.infoValue}>
                   {selectedBooking.serviceTitle ?? 'Service booking'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Description</Text>
+                <Text style={styles.infoValue}>
+                  {selectedBooking.serviceDescription?.trim() || 'No additional description provided.'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Special instructions</Text>
+                <Text style={styles.infoValue}>
+                  {selectedBooking.customerNotes?.trim() || 'None'}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Estimated duration</Text>
+                <Text style={styles.infoValue}>
+                  {formatBookingDuration(selectedBooking.hoursRequired)}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Pricing</Text>
+                <Text style={styles.infoValue}>
+                  {pricingModeLabel(selectedBooking.pricingMode)}
                 </Text>
               </View>
               <View style={styles.totalRow}>
@@ -5971,6 +6511,38 @@ export default function App() {
               </Card>
             </Section>
 
+            <Section title="Monthly Earnings">
+              {(() => {
+                const monthly = summarizeMonthlyEarnings(payments);
+                if (!monthly.length) {
+                  return (
+                    <EmptyState
+                      title="No earnings yet"
+                      body="Completed bookings will show up here as monthly earnings."
+                    />
+                  );
+                }
+                return monthly.slice(0, 6).map((month) => (
+                  <Card key={month.monthKey}>
+                    <View style={styles.rowBetween}>
+                      <View style={styles.flex}>
+                        <Text style={styles.cardTitle}>{month.monthLabel}</Text>
+                        <Text style={styles.cardMeta}>
+                          {month.paidCount} paid · {month.pendingCount} pending
+                        </Text>
+                        <Text style={styles.noticeText}>
+                          Platform fee {formatMoney(month.totalPlatformFee)}
+                        </Text>
+                      </View>
+                      <Text style={styles.totalValue}>
+                        {formatMoney(month.totalPayout)}
+                      </Text>
+                    </View>
+                  </Card>
+                ));
+              })()}
+            </Section>
+
             <Section title="Payout Requests">
               {providerPayouts.map((payout) => (
                 <Card key={payout.id}>
@@ -6133,6 +6705,26 @@ export default function App() {
                 onPress={() => navigate('providerRequestPayout', 'provider')}
               />
             </View>
+            <View style={styles.twoButtons}>
+              <QuickAction
+                label="Insights"
+                onPress={() => navigate('providerInsights', 'provider')}
+              />
+              <QuickAction
+                label="Notifications"
+                onPress={() => navigate('providerNotifications', 'provider')}
+              />
+            </View>
+            <View style={styles.twoButtons}>
+              <QuickAction
+                label="Help Center"
+                onPress={() => navigate('providerHelp', 'provider')}
+              />
+              <QuickAction
+                label="Set Availability"
+                onPress={() => navigate('calendar', 'provider')}
+              />
+            </View>
             <Section title="Payments">
               {payments.map((payment) => (
                 <Card key={payment.id}>
@@ -6174,31 +6766,103 @@ export default function App() {
                       </View>
                     </>
                   ) : (
-                    <View style={styles.rowBetween}>
-                      <View style={styles.flex}>
-                        <Text style={styles.cardTitle}>{svc.title}</Text>
-                        <Text style={styles.cardMeta}>{svc.price != null ? formatMoney(svc.price) : 'No price'} · {svc.pricingMode ?? 'flat'}</Text>
-                      </View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <>
+                      <View style={styles.rowBetween}>
+                        <View style={styles.flex}>
+                          <Text style={styles.cardTitle}>{svc.title}</Text>
+                          <Text style={styles.cardMeta}>{svc.price != null ? formatMoney(svc.price) : 'No price'} · {svc.pricingMode ?? 'flat'}</Text>
+                        </View>
                         <Badge label={svc.isActive ? 'active' : 'inactive'} tone={svc.isActive ? 'success' : 'neutral'} />
-                        <Text
-                          style={[styles.linkText, { marginLeft: 8 }]}
+                      </View>
+                      <View style={[styles.twoButtons, { marginTop: 12 }]}>
+                        <PrimaryButton
+                          label="Edit"
+                          variant="secondary"
                           onPress={() => {
                             setEditingServiceId(svc.id);
                             setEditServiceTitle(svc.title);
                             setEditServicePrice(svc.price != null ? String(svc.price) : '');
                           }}
-                        >
-                          Edit
-                        </Text>
+                        />
+                        <PrimaryButton
+                          label={
+                            busyAction === `service-toggle-${svc.id}`
+                              ? 'Updating...'
+                              : svc.isActive
+                                ? 'Pause'
+                                : 'Activate'
+                          }
+                          variant="secondary"
+                          onPress={() => void toggleOwnedServiceActive(svc.id)}
+                          disabled={busyAction === `service-toggle-${svc.id}`}
+                        />
                       </View>
-                    </View>
+                      <PrimaryButton
+                        label={
+                          busyAction === `service-remove-${svc.id}` ? 'Removing...' : 'Remove'
+                        }
+                        variant="danger"
+                        onPress={() => void removeOwnedService(svc.id)}
+                        disabled={busyAction === `service-remove-${svc.id}`}
+                      />
+                    </>
                   )}
                 </Card>
               ))}
               {!ownedServices.length ? (
                 <EmptyState title="No services yet" body="Add services to appear in marketplace listings." />
               ) : null}
+              {showAddServiceForm ? (
+                <Card>
+                  <Text style={styles.cardTitle}>Add new service</Text>
+                  <Field
+                    label="Service title"
+                    value={newServiceTitle}
+                    onChangeText={setNewServiceTitle}
+                    placeholder="e.g. Deep house cleaning"
+                  />
+                  <Field
+                    label="Price (PHP)"
+                    value={newServicePrice}
+                    onChangeText={setNewServicePrice}
+                    keyboardType="decimal-pad"
+                    placeholder="1500"
+                  />
+                  <View style={styles.wrap}>
+                    <Pill
+                      label="Flat rate"
+                      selected={newServicePricingMode === 'flat'}
+                      onPress={() => setNewServicePricingMode('flat')}
+                    />
+                    <Pill
+                      label="Hourly rate"
+                      selected={newServicePricingMode === 'hourly'}
+                      onPress={() => setNewServicePricingMode('hourly')}
+                    />
+                  </View>
+                  <View style={styles.twoButtons}>
+                    <PrimaryButton
+                      label={busyAction === 'service-add' ? 'Saving...' : 'Save Service'}
+                      onPress={() => void addOwnedService()}
+                      disabled={busyAction === 'service-add'}
+                    />
+                    <PrimaryButton
+                      label="Cancel"
+                      variant="secondary"
+                      onPress={() => {
+                        setShowAddServiceForm(false);
+                        setNewServiceTitle('');
+                        setNewServicePrice('');
+                      }}
+                    />
+                  </View>
+                </Card>
+              ) : (
+                <PrimaryButton
+                  label="Add new service"
+                  onPress={() => setShowAddServiceForm(true)}
+                />
+              )}
             </Section>
             {renderProfileCard()}
             <Section title="Security">

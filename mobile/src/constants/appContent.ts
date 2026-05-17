@@ -134,3 +134,70 @@ export const providerCancelReasons = [
   'Schedule conflict',
   'Unsafe or incomplete service details',
 ];
+
+export const providerHelpFaqs = [
+  {
+    id: 101,
+    category: 'Bookings',
+    question: 'How do I accept or decline a booking request?',
+    answer:
+      'Open Bookings, tap the pending booking, then choose Confirm Booking or Decline Request from the Booking Details screen.',
+  },
+  {
+    id: 102,
+    category: 'Bookings',
+    question: 'What happens if I cancel a confirmed booking?',
+    answer:
+      'Customers are notified and refunded automatically. Frequent cancellations lower your acceptance rate visible on Insights.',
+  },
+  {
+    id: 103,
+    category: 'Payouts',
+    question: 'When do payouts arrive?',
+    answer:
+      'Once you request a payout the platform queues it for the next payout cycle. Status shows on the Payouts screen.',
+  },
+  {
+    id: 104,
+    category: 'Payouts',
+    question: 'Why is my available balance lower than my total earnings?',
+    answer:
+      'Earnings move to available after the customer marks the booking completed and the holding period passes.',
+  },
+  {
+    id: 105,
+    category: 'Profile and Services',
+    question: 'How do I update my service pricing?',
+    answer:
+      'Open More → My Services, tap Edit on a service to change title or price, or Pause to temporarily hide it from customers.',
+  },
+  {
+    id: 106,
+    category: 'Profile and Services',
+    question: 'How do I add work samples?',
+    answer:
+      'Open More → Portfolio. Tap Upload portfolio media to add photos, then tap Edit on each item to add a caption.',
+  },
+  {
+    id: 107,
+    category: 'Account',
+    question: 'How do I set my weekly availability?',
+    answer:
+      'Open Calendar from the bottom tab bar. Pick a day, set start and end times, and save. Add days off for specific dates.',
+  },
+  {
+    id: 108,
+    category: 'Account',
+    question: 'How do I enable two-factor authentication?',
+    answer:
+      'More → Security → Start Setup. Scan the QR or enter the secret in an authenticator app, then verify the 6-digit code.',
+  },
+];
+
+export const providerHelpCategories = [
+  'all',
+  'Bookings',
+  'Payouts',
+  'Profile and Services',
+  'Account',
+];
