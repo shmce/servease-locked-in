@@ -33,6 +33,7 @@ import {
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Image,
   Linking,
   Platform,
@@ -161,6 +162,7 @@ import {
   createBooking,
   createBookingAttachment,
   createBookingServiceUpdate,
+  createCheckoutSession,
   createConversationMessage,
   createPayment,
   createReview,
@@ -170,11 +172,16 @@ import {
   deleteCurrentUserAccount,
   disableCurrentUserTwoFactor,
   enableCurrentUserTwoFactor,
+  exchangeGoogleCode,
   listSupportTicketReplies,
   replyToReview,
   flagReview,
   getMyProviderApplication,
   getProviderDashboard,
+  getCheckoutStatus,
+  getGoogleAuthorizationUrl,
+  geocodeAddress,
+  generateOtp,
   listProviderOwnedServices,
   replaceProviderServices,
   ProviderDashboardSummary,
@@ -223,9 +230,12 @@ import {
   updateCurrentUserProfile,
   upsertCustomerPaymentMethod,
   updateUserPreferences,
+  verifyOtp,
   verifyCurrentUserTwoFactor,
   uploadMedia,
   validatePromotion,
+  type GeoAddressResult,
+  type SharedPaymentMethod,
 } from './services/serveaseApi';
 import { AuthSession, signInWithPassword } from './services/supabaseAuth';
 import { syncExpoPushRegistration } from './services/pushRegistration';
@@ -271,6 +281,10 @@ export default function App() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [payments, setPayments] = useState<PaymentSummary[]>([]);
+  const [pendingCheckout, setPendingCheckout] = useState<{
+    checkoutId: string;
+    bookingId: string;
+  } | null>(null);
   const [customerPaymentMethods, setCustomerPaymentMethods] = useState<
     CustomerPaymentMethodSummary[]
   >([]);
@@ -319,6 +333,7 @@ export default function App() {
   const [bookingReferencePhotoUri, setBookingReferencePhotoUri] = useState<string | null>(null);
   const [bookingReferencePhotoUrl, setBookingReferencePhotoUrl] = useState<string | null>(null);
   const [bookingReferenceUpload, setBookingReferenceUpload] = useState<UploadSummary | null>(null);
+  const [addressGeoResult, setAddressGeoResult] = useState<GeoAddressResult | null>(null);
   const [promoCode, setPromoCode] = useState('');
   const [promotionValidation, setPromotionValidation] =
     useState<PromotionValidationSummary | null>(null);
@@ -361,6 +376,7 @@ export default function App() {
   });
   const lastPushRegistrationKey = useRef<string | null>(null);
   const handledPushNotificationIds = useRef<Set<string>>(new Set());
+  const reconcilingCheckoutRef = useRef(false);
   const [providerPhotoCaption, setProviderPhotoCaption] = useState('');
   const [providerBeforePhotoUri, setProviderBeforePhotoUri] = useState<string | null>(null);
   const [providerBeforePhotoUrl, setProviderBeforePhotoUrl] = useState<string | null>(null);
@@ -514,6 +530,71 @@ export default function App() {
       lastPushRegistrationKey.current = null;
     });
   }, [session?.accessToken, userPreferences, apiOptions]);
+
+  useEffect(() => {
+    const maybeExchangeGoogleCallback = (url?: string | null) => {
+      if (!url?.startsWith('servease://auth/google/callback')) {
+        return;
+      }
+
+      try {
+        const callbackUrl = new URL(url);
+        const error = callbackUrl.searchParams.get('error');
+        const code = callbackUrl.searchParams.get('code');
+        const state = callbackUrl.searchParams.get('state');
+        if (error) {
+          setNotice(`Google authorization failed: ${error}.`);
+          return;
+        }
+        if (!code) {
+          setNotice('Google authorization did not include a code.');
+          return;
+        }
+        void completeGoogleSignIn(code, state);
+      } catch {
+        setNotice('Google authorization callback could not be read.');
+      }
+    };
+
+    void Linking.getInitialURL().then(maybeExchangeGoogleCallback);
+    const linkingSubscription = Linking.addEventListener('url', ({ url }) =>
+      maybeExchangeGoogleCallback(url),
+    );
+
+    return () => {
+      linkingSubscription.remove();
+    };
+  }, [apiBaseUrl]);
+
+  useEffect(() => {
+    if (!session?.accessToken || !pendingCheckout) {
+      return undefined;
+    }
+
+    const maybeReconcile = (url?: string) => {
+      if (
+        !url ||
+        url.includes('servease://payment/success') ||
+        url.includes('servease://payment/cancel')
+      ) {
+        void reconcilePendingCheckout();
+      }
+    };
+
+    const linkingSubscription = Linking.addEventListener('url', ({ url }) =>
+      maybeReconcile(url),
+    );
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        maybeReconcile();
+      }
+    });
+
+    return () => {
+      linkingSubscription.remove();
+      appStateSubscription.remove();
+    };
+  }, [session?.accessToken, pendingCheckout, apiOptions]);
 
   useEffect(() => {
     if (!session?.accessToken || !appRole) {
@@ -852,6 +933,104 @@ export default function App() {
     }
   }
 
+  async function completeGoogleSignIn(code: string, state: string | null) {
+    setBusyAction('google-auth');
+    try {
+      await exchangeGoogleCode(
+        {
+          code,
+          redirectUri: 'servease://auth/google/callback',
+        },
+        { baseUrl: apiBaseUrl },
+      );
+      if (state === 'provider' || state === 'customer') {
+        navigate(state === 'provider' ? 'providerLogin' : 'customerLogin', state);
+      }
+      setNotice(
+        'Google account verified through APICenter. Continue with your ServEase password to finish signing in.',
+      );
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function startGoogleSignIn(intendedRole: AppRole) {
+    setBusyAction('google-auth');
+    try {
+      const authorization = await getGoogleAuthorizationUrl(
+        {
+          redirectUri: 'servease://auth/google/callback',
+          state: intendedRole,
+          scopes: ['openid', 'email', 'profile'],
+          accessType: 'offline',
+          prompt: 'consent',
+          loginHint: email.trim() || undefined,
+          includeGrantedScopes: true,
+        },
+        { baseUrl: apiBaseUrl },
+      );
+      await Linking.openURL(authorization.authorizationUrl);
+      setNotice('Google authorization opened. Return to ServEase after signing in.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function requestPhoneOtp(target: string): Promise<string | null> {
+    const normalized = target.trim();
+    if (!normalized) {
+      setNotice('Enter your phone number first.');
+      return null;
+    }
+
+    setBusyAction('otp-generate');
+    try {
+      const otp = await generateOtp(
+        {
+          target: normalized,
+          channel: 'sms',
+          length: 6,
+          expiresInSeconds: 300,
+        },
+        { baseUrl: apiBaseUrl },
+      );
+      setNotice(`OTP sent to ${otp.target}.`);
+      return otp.otpId;
+    } catch (error) {
+      setNotice(readError(error));
+      return null;
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function verifyPhoneOtp(otpId: string, code: string): Promise<boolean> {
+    if (!code.trim()) {
+      setNotice('Enter the OTP code first.');
+      return false;
+    }
+
+    setBusyAction('otp-verify');
+    try {
+      const result = await verifyOtp(otpId, code.trim(), { baseUrl: apiBaseUrl });
+      setNotice(
+        result.valid
+          ? 'Phone OTP verified. Continue with password login.'
+          : 'Phone OTP was not accepted.',
+      );
+      return result.valid;
+    } catch (error) {
+      setNotice(readError(error));
+      return false;
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   function signOut() {
     setSession(null);
     setProfile(null);
@@ -877,6 +1056,8 @@ export default function App() {
     setSelectedBookingId(null);
     setSelectedConversationId(null);
     setSelectedCustomerPaymentMethodId(null);
+    setPendingCheckout(null);
+    setAddressGeoResult(null);
     setPromoCode('');
     setPromotionValidation(null);
     setCurrentPassword('');
@@ -1741,6 +1922,76 @@ export default function App() {
     }
   }
 
+  async function verifyServiceAddress(): Promise<void> {
+    const trimmed = address.trim();
+    if (!trimmed) {
+      setNotice('Enter a service address first.');
+      return;
+    }
+
+    setBusyAction('geo-address');
+    try {
+      const result = await geocodeAddress(trimmed, {
+        ...apiOptions,
+        language: 'en',
+        region: 'PH',
+      });
+      setAddress(result.formattedAddress);
+      setAddressGeoResult(result);
+      setNotice(
+        `Address verified near ${result.latitude.toFixed(4)}, ${result.longitude.toFixed(4)}.`,
+      );
+    } catch (error) {
+      setAddressGeoResult(null);
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function reconcilePendingCheckout(
+    checkout = pendingCheckout,
+  ): Promise<void> {
+    if (!checkout || !session?.accessToken || reconcilingCheckoutRef.current) {
+      return;
+    }
+
+    reconcilingCheckoutRef.current = true;
+    setBusyAction((current) => current ?? 'payment-status');
+    try {
+      const status = await getCheckoutStatus(checkout.checkoutId, apiOptions);
+      const nextPayments = await listPayments(apiOptions).catch(() => payments);
+      setPayments(nextPayments);
+
+      const finalStatuses = [
+        'paid',
+        'failed',
+        'cancelled',
+        'expired',
+        'refunded',
+        'partially_refunded',
+      ];
+      if (finalStatuses.includes(status.status)) {
+        setPendingCheckout((current) =>
+          current?.checkoutId === checkout.checkoutId ? null : current,
+        );
+      }
+
+      if (status.localPaymentStatus === 'paid' || status.status === 'paid') {
+        setNotice('Checkout paid. Payment record updated.');
+      } else if (status.status === 'created' || status.status === 'pending') {
+        setNotice('Checkout is still pending.');
+      } else {
+        setNotice(`Checkout ${status.status}.`);
+      }
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      reconcilingCheckoutRef.current = false;
+      setBusyAction((current) => (current === 'payment-status' ? null : current));
+    }
+  }
+
   async function collectPayment() {
     if (!selectedBooking) {
       setNotice('Select a booking first.');
@@ -1768,19 +2019,40 @@ export default function App() {
         promoCodeForPayment = promotion.code;
       }
 
-      const payment = await createPayment(
-        {
+      const methodType =
+        selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
+      if (methodType !== 'cash_on_service') {
+        const checkout = await createCheckoutSession(
+          {
+            bookingId: selectedBooking.id,
+            successUrl: 'servease://payment/success',
+            cancelUrl: 'servease://payment/cancel',
+            promoCode: promoCodeForPayment,
+            paymentMethods: [toSharedPaymentMethod(methodType)],
+          },
+          apiOptions,
+        );
+        setPendingCheckout({
+          checkoutId: checkout.checkoutId,
           bookingId: selectedBooking.id,
-          paymentMethod: selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service',
-          promoCode: promoCodeForPayment,
-        },
-        apiOptions,
-      );
-      setPayments((current) => [
-        payment,
-        ...current.filter((item) => item.id !== payment.id),
-      ]);
-      setNotice(`Payment ${payment.status} for ${formatMoney(payment.amount)}.`);
+        });
+        await Linking.openURL(checkout.redirectUrl);
+        setNotice('Secure checkout opened. Return after completing payment.');
+      } else {
+        const payment = await createPayment(
+          {
+            bookingId: selectedBooking.id,
+            paymentMethod: methodType,
+            promoCode: promoCodeForPayment,
+          },
+          apiOptions,
+        );
+        setPayments((current) => [
+          payment,
+          ...current.filter((item) => item.id !== payment.id),
+        ]);
+        setNotice(`Payment ${payment.status} for ${formatMoney(payment.amount)}.`);
+      }
       return true;
     } catch (error) {
       setNotice(readError(error));
@@ -2088,6 +2360,18 @@ export default function App() {
     const suffix = method.last4 ? ` ending ${method.last4}` : '';
     const label = method.brand ?? method.methodType.toUpperCase();
     return `${label}${suffix}${method.isDefault ? ' · Default' : ''}`;
+  }
+
+  function toSharedPaymentMethod(
+    methodType: CustomerPaymentMethodType,
+  ): SharedPaymentMethod {
+    if (methodType === 'paymaya') {
+      return 'maya';
+    }
+    if (methodType === 'gcash') {
+      return 'gcash';
+    }
+    return 'card';
   }
 
   async function submitReview() {
@@ -2573,6 +2857,9 @@ export default function App() {
         signIn={signIn}
         signUp={signUp}
         requestPasswordReset={sendPasswordReset}
+        startGoogleSignIn={startGoogleSignIn}
+        requestPhoneOtp={requestPhoneOtp}
+        verifyPhoneOtp={verifyPhoneOtp}
       />
     );
   }
@@ -3481,14 +3768,42 @@ export default function App() {
               </Text>
             </Section>
 
-            <Section title="Where do you need it?">
+            <Section
+              title="Where do you need it?"
+              action={
+                <Pressable
+                  style={[
+                    styles.smallAction,
+                    (!address.trim() || busyAction === 'geo-address') && styles.faded,
+                  ]}
+                  onPress={() => void verifyServiceAddress()}
+                  disabled={!address.trim() || busyAction === 'geo-address'}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.smallActionText}>
+                    {busyAction === 'geo-address' ? 'Checking...' : 'Verify address'}
+                  </Text>
+                </Pressable>
+              }
+            >
               <Field
                 label="Service Address"
                 value={address}
-                onChangeText={setAddress}
+                onChangeText={(value) => {
+                  setAddress(value);
+                  setAddressGeoResult(null);
+                }}
                 placeholder="House, street, barangay, city"
                 multiline
               />
+              {addressGeoResult ? (
+                <View style={styles.geoResult}>
+                  <MapPin color={palette.mint} size={16} strokeWidth={2.4} />
+                  <Text style={styles.cardMeta}>
+                    {addressGeoResult.latitude.toFixed(5)}, {addressGeoResult.longitude.toFixed(5)}
+                  </Text>
+                </View>
+              ) : null}
               <Field
                 label="Duration (hours)"
                 value={hoursRequired}
@@ -3579,7 +3894,7 @@ export default function App() {
           <View style={styles.content}>
             <View style={styles.noticeBox}>
               <Text style={styles.cardBody}>
-                Pay nothing for this service today. Your payment method is reserved and charged after completion.
+                Cash-on-service reserves the booking in ServEase. Cards and wallets open secure APICenter checkout.
               </Text>
             </View>
             <Section title="Saved payment methods">
@@ -3630,7 +3945,7 @@ export default function App() {
               <View style={styles.rowBetween}>
                 <View>
                   <Text style={styles.cardTitle}>Wallet options</Text>
-                  <Text style={styles.cardMeta}>GCash and PayMaya display methods</Text>
+                  <Text style={styles.cardMeta}>GCash and PayMaya use secure checkout</Text>
                 </View>
                 <View style={styles.inlineActions}>
                   <Pressable
@@ -8290,6 +8605,15 @@ const styles = StyleSheet.create({
     color: palette.mint,
     fontSize: 12,
     fontWeight: '900',
+  },
+  faded: {
+    opacity: 0.5,
+  },
+  geoResult: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: -spacing.xs,
   },
   iconAction: {
     alignItems: 'center',

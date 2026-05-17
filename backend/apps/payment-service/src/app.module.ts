@@ -5,11 +5,17 @@ import { PaymentAdminController } from './features/payments/payment-admin.contro
 import { PaymentAdminService } from './features/payments/payment-admin.service';
 import { PaymentController } from './features/payments/payment.controller';
 import { PaymentService } from './features/payments/payment.service';
+import { SharedPaymentService } from './features/payments/shared-payment.service';
 import { SupabasePaymentRepository } from './features/payments/supabase-payment.repository';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
   controllers: [HealthController, PaymentController, PaymentAdminController],
-  providers: [PaymentService, PaymentAdminService, SupabasePaymentRepository],
+  providers: [
+    PaymentService,
+    SharedPaymentService,
+    PaymentAdminService,
+    SupabasePaymentRepository,
+  ],
 })
 export class AppModule {}

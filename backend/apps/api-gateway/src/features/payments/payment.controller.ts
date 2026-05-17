@@ -9,6 +9,7 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   BookingDependencyUnavailableError,
   BookingNotFoundError,
@@ -28,8 +29,11 @@ import {
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { PaymentGatewayService } from './payment.service';
 import {
+  CreateCheckoutSessionRequest,
+  ApicenterCheckoutWebhookRequest,
   PaymentSummary,
   PaymentVisibility,
+  PaymentCheckoutSessionSummary,
   PromotionValidationSummary,
   PayoutAccountSummary,
   CustomerPaymentMethodSummary,
@@ -39,6 +43,19 @@ import {
   UpsertPayoutMethodRequest,
 } from './payment.types';
 
+const APICENTER_WEBHOOK_REPLAY_TOLERANCE_MS = 5 * 60 * 1000;
+const APICENTER_CHECKOUT_STATUSES = new Set([
+  'created',
+  'pending',
+  'paid',
+  'failed',
+  'cancelled',
+  'expired',
+  'refunded',
+  'partially_refunded',
+]);
+const APICENTER_PAYMENT_PROVIDERS = new Set(['paymongo', 'mock']);
+
 @Controller('v1/payments')
 export class PaymentController {
   constructor(
@@ -47,6 +64,7 @@ export class PaymentController {
     private readonly authTokenService: AuthTokenService,
     private readonly catalogServiceClient: CatalogServiceClient,
     private readonly notificationServiceClient?: NotificationServiceClient,
+    private readonly configService?: ConfigService,
   ) {}
 
   @Get()
@@ -115,6 +133,137 @@ export class PaymentController {
 
       return {
         data: payment,
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('checkout-sessions')
+  async createCheckoutSession(
+    @Headers('authorization') authorization: string | undefined,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: CreateCheckoutSessionRequest,
+  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
+    try {
+      if (
+        !body.bookingId ||
+        !this.isValidUrl(body.successUrl) ||
+        !this.isValidUrl(body.cancelUrl)
+      ) {
+        throw new InvalidPaymentRequestError();
+      }
+
+      const participant = await this.resolveParticipant(authorization);
+      const booking = await this.bookingGatewayService.findBooking(
+        body.bookingId,
+        participant.userId,
+        participant.visibility.providerId,
+      );
+
+      this.assertPaymentActorIsCustomer(participant.userId, booking.customerId);
+
+      if (!Number.isFinite(booking.totalAmount) || booking.totalAmount <= 0) {
+        throw new InvalidPaymentRequestError();
+      }
+
+      const promoCode = body.promoCode?.trim();
+      let amount = booking.totalAmount;
+      if (promoCode) {
+        const promotion = await this.paymentGatewayService.validatePromotion(
+          promoCode,
+          booking.totalAmount,
+        );
+        if (!promotion.valid || promotion.finalAmount <= 0) {
+          throw new InvalidPaymentRequestError();
+        }
+        amount = promotion.finalAmount;
+      }
+
+      const checkout = await this.paymentGatewayService.createCheckoutSession(
+        {
+          referenceId: booking.id,
+          mode: 'payment',
+          successUrl: body.successUrl.trim(),
+          cancelUrl: body.cancelUrl.trim(),
+          paymentMethods: body.paymentMethods,
+          lineItems: [
+            {
+              name: booking.serviceTitle ?? 'ServEase booking',
+              quantity: 1,
+              amount: {
+                value: this.toMinorCurrencyUnit(amount),
+                currency: 'PHP',
+              },
+            },
+          ],
+          metadata: {
+            bookingId: booking.id,
+            customerId: booking.customerId,
+            providerId: booking.providerId,
+            promoCode: promoCode ?? '',
+          },
+          localPayment: {
+            bookingId: booking.id,
+            customerId: booking.customerId,
+            providerId: booking.providerId,
+            amount,
+            paymentMethod: body.paymentMethods?.[0] ?? 'apicenter_checkout',
+          },
+        },
+        idempotencyKey ?? null,
+      );
+
+      return { data: checkout };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('checkout-sessions/:checkoutId/status')
+  async checkoutStatus(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('checkoutId') checkoutId: string,
+  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
+    try {
+      const participant = await this.resolveParticipant(authorization);
+      if (!checkoutId?.trim()) {
+        throw new InvalidPaymentRequestError();
+      }
+
+      const checkout = await this.paymentGatewayService.getCheckoutStatus(checkoutId);
+      const bookingId = checkout.bookingId ?? checkout.referenceId;
+      if (!bookingId?.trim()) {
+        throw new InvalidPaymentRequestError();
+      }
+
+      await this.bookingGatewayService.findBooking(
+        bookingId,
+        participant.userId,
+        participant.visibility.providerId,
+      );
+
+      return {
+        data: checkout,
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('webhooks/apicenter')
+  async apicenterWebhook(
+    @Headers('x-apicenter-webhook-secret') apicenterSecret: string | undefined,
+    @Headers('x-webhook-secret') webhookSecret: string | undefined,
+    @Headers('x-apicenter-webhook-timestamp') timestamp: string | undefined,
+    @Body() body: ApicenterCheckoutWebhookRequest,
+  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
+    try {
+      this.assertApicenterWebhookSecret(apicenterSecret ?? webhookSecret);
+      this.assertApicenterWebhookTimestamp(timestamp);
+      this.assertApicenterWebhookPayload(body);
+      return {
+        data: await this.paymentGatewayService.syncApicenterCheckoutWebhook(body),
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -347,6 +496,65 @@ export class PaymentController {
     customerId: string | null | undefined,
   ): void {
     if (userId !== customerId) {
+      throw new InvalidPaymentRequestError();
+    }
+  }
+
+  private toMinorCurrencyUnit(amount: number): number {
+    return Math.round(amount * 100);
+  }
+
+  private isValidUrl(value: string | undefined): value is string {
+    try {
+      if (!value?.trim()) {
+        return false;
+      }
+      new URL(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private assertApicenterWebhookSecret(provided: string | undefined): void {
+    const configured =
+      this.configService?.get<string>('APICENTER_WEBHOOK_SECRET')?.trim() ??
+      process.env.APICENTER_WEBHOOK_SECRET?.trim() ??
+      '';
+    if (!configured) {
+      throw new PaymentDependencyUnavailableError();
+    }
+
+    if (!provided?.trim() || provided.trim() !== configured) {
+      throw new InvalidAuthTokenError();
+    }
+  }
+
+  private assertApicenterWebhookTimestamp(timestamp: string | undefined): void {
+    const parsed = Number(timestamp?.trim());
+    if (!Number.isFinite(parsed)) {
+      throw new InvalidPaymentRequestError();
+    }
+
+    if (Math.abs(Date.now() - parsed) > APICENTER_WEBHOOK_REPLAY_TOLERANCE_MS) {
+      throw new InvalidPaymentRequestError();
+    }
+  }
+
+  private assertApicenterWebhookPayload(
+    body: ApicenterCheckoutWebhookRequest,
+  ): void {
+    if (
+      !body.checkoutId?.trim() ||
+      !body.referenceId?.trim() ||
+      !APICENTER_CHECKOUT_STATUSES.has(body.status) ||
+      !APICENTER_PAYMENT_PROVIDERS.has(body.provider) ||
+      (body.redirectUrl !== undefined && !this.isValidUrl(body.redirectUrl)) ||
+      (body.amount !== undefined &&
+        (!Number.isFinite(body.amount.value) ||
+          body.amount.value <= 0 ||
+          !body.amount.currency?.trim()))
+    ) {
       throw new InvalidPaymentRequestError();
     }
   }

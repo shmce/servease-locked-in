@@ -5,8 +5,11 @@ import {
   PaymentNotFoundError,
 } from '../payment.errors';
 import {
+  CreateCheckoutSessionInput,
+  ApicenterCheckoutWebhookRequest,
   CreatePaymentRequest,
   CustomerPaymentMethodSummary,
+  PaymentCheckoutSessionSummary,
   PaymentSummary,
   PaymentVisibility,
   PromotionValidationSummary,
@@ -23,6 +26,35 @@ export class PaymentServiceClient {
 
   createPayment(input: CreatePaymentRequest): Promise<PaymentSummary> {
     return this.request<PaymentSummary>('/internal/payments', 'POST', input);
+  }
+
+  createCheckoutSession(
+    input: CreateCheckoutSessionInput,
+    idempotencyKey?: string | null,
+  ): Promise<PaymentCheckoutSessionSummary> {
+    return this.request<PaymentCheckoutSessionSummary>(
+      '/internal/payments/checkout-sessions',
+      'POST',
+      input,
+      idempotencyKey,
+    );
+  }
+
+  getCheckoutStatus(checkoutId: string): Promise<PaymentCheckoutSessionSummary> {
+    return this.request<PaymentCheckoutSessionSummary>(
+      `/internal/payments/checkout-sessions/${encodeURIComponent(checkoutId)}/status`,
+      'GET',
+    );
+  }
+
+  syncApicenterCheckoutWebhook(
+    input: ApicenterCheckoutWebhookRequest,
+  ): Promise<PaymentCheckoutSessionSummary> {
+    return this.request<PaymentCheckoutSessionSummary>(
+      '/internal/payments/checkout-sessions/webhook',
+      'POST',
+      input,
+    );
   }
 
   listPayments(visibility: PaymentVisibility): Promise<PaymentSummary[]> {

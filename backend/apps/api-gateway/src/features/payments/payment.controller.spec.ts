@@ -2,6 +2,7 @@ import { BookingGatewayService } from '../booking/booking.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
+import { ConfigService } from '@nestjs/config';
 import { PaymentController } from './payment.controller';
 import { PaymentGatewayService } from './payment.service';
 
@@ -208,6 +209,315 @@ describe('PaymentController', () => {
       amount: 1080,
       paymentMethod: 'cash_on_service',
     });
+  });
+
+  it('creates APICenter checkout sessions only after booking ownership is confirmed', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('customer-1'),
+    } as unknown as AuthTokenService;
+    const catalogServiceClient = {
+      findProviderProfileByUserId: jest.fn().mockResolvedValue(null),
+    } as unknown as CatalogServiceClient;
+    const bookingGatewayService = {
+      findBooking: jest.fn().mockResolvedValue({
+        id: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        serviceTitle: 'Home cleaning',
+        totalAmount: 1200,
+      }),
+    } as unknown as BookingGatewayService;
+    const paymentGatewayService = {
+      createCheckoutSession: jest.fn().mockResolvedValue({
+        checkoutId: 'checkout-1',
+        provider: 'paymongo',
+        status: 'created',
+        referenceId: 'booking-1',
+        redirectUrl: 'https://pay.test/checkout-1',
+      }),
+    } as unknown as PaymentGatewayService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      bookingGatewayService,
+      authTokenService,
+      catalogServiceClient,
+    );
+
+    const response = await controller.createCheckoutSession(
+      'Bearer token',
+      'idem-1',
+      {
+        bookingId: 'booking-1',
+        successUrl: 'https://servease.test/pay/success',
+        cancelUrl: 'https://servease.test/pay/cancel',
+        paymentMethods: ['gcash'],
+      },
+    );
+
+    expect(bookingGatewayService.findBooking).toHaveBeenCalledWith(
+      'booking-1',
+      'customer-1',
+      null,
+    );
+    expect(paymentGatewayService.createCheckoutSession).toHaveBeenCalledWith(
+      {
+        referenceId: 'booking-1',
+        mode: 'payment',
+        successUrl: 'https://servease.test/pay/success',
+        cancelUrl: 'https://servease.test/pay/cancel',
+        paymentMethods: ['gcash'],
+        lineItems: [
+          {
+            name: 'Home cleaning',
+            quantity: 1,
+            amount: {
+              value: 120000,
+              currency: 'PHP',
+            },
+          },
+        ],
+        metadata: {
+          bookingId: 'booking-1',
+          customerId: 'customer-1',
+          providerId: 'provider-1',
+          promoCode: '',
+        },
+        localPayment: {
+          bookingId: 'booking-1',
+          customerId: 'customer-1',
+          providerId: 'provider-1',
+          amount: 1200,
+          paymentMethod: 'gcash',
+        },
+      },
+      'idem-1',
+    );
+    expect(response.data.checkoutId).toBe('checkout-1');
+  });
+
+  it('rejects checkout creation when the authenticated user is not the customer', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('provider-user-1'),
+    } as unknown as AuthTokenService;
+    const catalogServiceClient = {
+      findProviderProfileByUserId: jest.fn().mockResolvedValue({
+        id: 'provider-1',
+      }),
+    } as unknown as CatalogServiceClient;
+    const bookingGatewayService = {
+      findBooking: jest.fn().mockResolvedValue({
+        id: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        totalAmount: 1200,
+      }),
+    } as unknown as BookingGatewayService;
+    const paymentGatewayService = {
+      createCheckoutSession: jest.fn(),
+    } as unknown as PaymentGatewayService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      bookingGatewayService,
+      authTokenService,
+      catalogServiceClient,
+    );
+
+    await expect(
+      controller.createCheckoutSession('Bearer token', undefined, {
+        bookingId: 'booking-1',
+        successUrl: 'https://servease.test/pay/success',
+        cancelUrl: 'https://servease.test/pay/cancel',
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_payment_request',
+        },
+      },
+    });
+    expect(paymentGatewayService.createCheckoutSession).not.toHaveBeenCalled();
+  });
+
+  it('loads APICenter checkout status only after returned booking visibility is confirmed', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('customer-1'),
+    } as unknown as AuthTokenService;
+    const catalogServiceClient = {
+      findProviderProfileByUserId: jest.fn().mockResolvedValue(null),
+    } as unknown as CatalogServiceClient;
+    const bookingGatewayService = {
+      findBooking: jest.fn().mockResolvedValue({
+        id: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        totalAmount: 1200,
+      }),
+    } as unknown as BookingGatewayService;
+    const paymentGatewayService = {
+      getCheckoutStatus: jest.fn().mockResolvedValue({
+        checkoutId: 'checkout-1',
+        provider: 'paymongo',
+        status: 'paid',
+        referenceId: 'booking-1',
+        redirectUrl: 'https://pay.test/checkout-1',
+      }),
+    } as unknown as PaymentGatewayService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      bookingGatewayService,
+      authTokenService,
+      catalogServiceClient,
+    );
+
+    const response = await controller.checkoutStatus(
+      'Bearer token',
+      'checkout-1',
+    );
+
+    expect(bookingGatewayService.findBooking).toHaveBeenCalledWith(
+      'booking-1',
+      'customer-1',
+      null,
+    );
+    expect(response.data.status).toBe('paid');
+  });
+
+  it('accepts APICenter payment webhooks only when the shared secret matches', async () => {
+    const paymentGatewayService = {
+      syncApicenterCheckoutWebhook: jest.fn().mockResolvedValue({
+        checkoutId: 'checkout-1',
+        provider: 'paymongo',
+        status: 'paid',
+        referenceId: 'booking-1',
+        redirectUrl: 'https://pay.test/checkout-1',
+        paymentId: 'payment-1',
+        bookingId: 'booking-1',
+        localPaymentStatus: 'paid',
+      }),
+    } as unknown as PaymentGatewayService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      {} as unknown as BookingGatewayService,
+      {} as unknown as AuthTokenService,
+      {} as unknown as CatalogServiceClient,
+      undefined,
+      { get: jest.fn().mockReturnValue('webhook-secret') } as unknown as ConfigService,
+    );
+
+    const response = await controller.apicenterWebhook(
+      'webhook-secret',
+      undefined,
+      String(Date.now()),
+      {
+        checkoutId: 'checkout-1',
+        provider: 'paymongo',
+        status: 'paid',
+        referenceId: 'booking-1',
+        redirectUrl: 'https://pay.test/checkout-1',
+      },
+    );
+
+    expect(paymentGatewayService.syncApicenterCheckoutWebhook).toHaveBeenCalledWith({
+      checkoutId: 'checkout-1',
+      provider: 'paymongo',
+      status: 'paid',
+      referenceId: 'booking-1',
+      redirectUrl: 'https://pay.test/checkout-1',
+    });
+    expect(response.data.localPaymentStatus).toBe('paid');
+
+    await expect(
+      controller.apicenterWebhook(
+        'wrong-secret',
+        undefined,
+        String(Date.now()),
+        {
+          checkoutId: 'checkout-1',
+          provider: 'paymongo',
+          status: 'paid',
+          referenceId: 'booking-1',
+          redirectUrl: 'https://pay.test/checkout-1',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_auth_token',
+        },
+      },
+    });
+  });
+
+  it('rejects stale APICenter payment webhook timestamps before forwarding', async () => {
+    const paymentGatewayService = {
+      syncApicenterCheckoutWebhook: jest.fn(),
+    } as unknown as PaymentGatewayService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      {} as unknown as BookingGatewayService,
+      {} as unknown as AuthTokenService,
+      {} as unknown as CatalogServiceClient,
+      undefined,
+      { get: jest.fn().mockReturnValue('webhook-secret') } as unknown as ConfigService,
+    );
+
+    await expect(
+      controller.apicenterWebhook(
+        'webhook-secret',
+        undefined,
+        String(Date.now() - 10 * 60 * 1000),
+        {
+          checkoutId: 'checkout-1',
+          provider: 'paymongo',
+          status: 'paid',
+          referenceId: 'booking-1',
+          redirectUrl: 'https://pay.test/checkout-1',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_payment_request',
+        },
+      },
+    });
+    expect(paymentGatewayService.syncApicenterCheckoutWebhook).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid APICenter payment webhook payloads before forwarding', async () => {
+    const paymentGatewayService = {
+      syncApicenterCheckoutWebhook: jest.fn(),
+    } as unknown as PaymentGatewayService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      {} as unknown as BookingGatewayService,
+      {} as unknown as AuthTokenService,
+      {} as unknown as CatalogServiceClient,
+      undefined,
+      { get: jest.fn().mockReturnValue('webhook-secret') } as unknown as ConfigService,
+    );
+
+    await expect(
+      controller.apicenterWebhook(
+        'webhook-secret',
+        undefined,
+        String(Date.now()),
+        {
+          checkoutId: 'checkout-1',
+          provider: 'paymongo',
+          status: 'settled' as never,
+          referenceId: 'booking-1',
+          redirectUrl: 'https://pay.test/checkout-1',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_payment_request',
+        },
+      },
+    });
+    expect(paymentGatewayService.syncApicenterCheckoutWebhook).not.toHaveBeenCalled();
   });
 
   it('validates a promo code only after booking visibility is confirmed', async () => {

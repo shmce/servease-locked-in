@@ -3,6 +3,7 @@ import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import { PaymentNotFoundError } from './payment.errors';
 import {
   CreatePaymentInput,
+  ApicenterCheckoutSyncSummary,
   CommissionRuleStatus,
   CommissionRuleSummary,
   CustomerPaymentMethodSummary,
@@ -23,6 +24,7 @@ import {
   PayoutEventType,
   PayoutSummary,
   RecordPayoutEventInput,
+  RecordApicenterCheckoutInput,
   UpsertPayoutMethodInput,
   CreatePayoutRequestInput,
   UpsertCustomerPaymentMethodInput,
@@ -32,7 +34,15 @@ import {
 interface SupabaseRpcClient {
   rpc(
     functionName: string,
-    args: Record<string, string | number | boolean | null>,
+    args: Record<
+      string,
+      | string
+      | number
+      | boolean
+      | string[]
+      | Record<string, string>
+      | null
+    >,
   ): PromiseLike<{
     data:
       | PaymentRow[]
@@ -45,6 +55,7 @@ interface SupabaseRpcClient {
       | RefundRow[]
       | PromotionValidationRow[]
       | PromotionRow[]
+      | ApicenterCheckoutSyncRow[]
       | null;
     error: { message: string; code?: string } | null;
   }> & {
@@ -60,6 +71,7 @@ interface SupabaseRpcClient {
         | RefundRow
         | PromotionValidationRow
         | PromotionRow
+        | ApicenterCheckoutSyncRow
         | null;
       error: { message: string; code?: string } | null;
     }>;
@@ -197,6 +209,13 @@ interface PromotionRow {
   created_at: string | null;
 }
 
+interface ApicenterCheckoutSyncRow {
+  payment_id: string;
+  booking_id: string;
+  local_payment_status: PaymentStatus;
+  paid_at: string | null;
+}
+
 @Injectable()
 export class SupabasePaymentRepository {
   private readonly client: SupabaseRpcClient;
@@ -267,6 +286,67 @@ export class SupabasePaymentRepository {
     }
 
     return this.mapPromotionValidation(data as PromotionValidationRow);
+  }
+
+  async recordApicenterCheckout(
+    input: RecordApicenterCheckoutInput,
+  ): Promise<ApicenterCheckoutSyncSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_record_apicenter_checkout', {
+        p_booking_id: input.bookingId,
+        p_customer_id: input.customerId,
+        p_provider_id: input.providerId,
+        p_amount: input.amount,
+        p_payment_method: input.paymentMethod,
+        p_provider: input.session.provider,
+        ...this.checkoutStatusRpcArgs(input.session),
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to record APICenter checkout: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapApicenterCheckoutSync(data as ApicenterCheckoutSyncRow);
+  }
+
+  async syncApicenterCheckoutStatus(
+    session: Pick<
+      RecordApicenterCheckoutInput['session'],
+      | 'checkoutId'
+      | 'status'
+      | 'referenceId'
+      | 'redirectUrl'
+      | 'expiresAt'
+      | 'amount'
+      | 'currency'
+      | 'paymentMethodsAllowed'
+      | 'metadata'
+    >,
+  ): Promise<ApicenterCheckoutSyncSummary> {
+    const { data, error } = await this.client
+      .rpc(
+        'servease_sync_apicenter_checkout_status',
+        this.checkoutStatusRpcArgs(session),
+      )
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      throw new Error(`Failed to sync APICenter checkout: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapApicenterCheckoutSync(data as ApicenterCheckoutSyncRow);
   }
 
   async listAllPayments(status: PaymentStatus | null): Promise<PaymentSummary[]> {
@@ -805,6 +885,50 @@ export class SupabasePaymentRepository {
       retryCount: Number(row.retry_count ?? 0),
       lastRetryAt: row.last_retry_at,
       disputeId: row.dispute_id ?? null,
+    };
+  }
+
+  private checkoutStatusRpcArgs(
+    session: Pick<
+      RecordApicenterCheckoutInput['session'],
+      | 'checkoutId'
+      | 'providerMode'
+      | 'status'
+      | 'referenceId'
+      | 'redirectUrl'
+      | 'expiresAt'
+      | 'amount'
+      | 'currency'
+      | 'paymentMethodsAllowed'
+      | 'metadata'
+    >,
+  ): Record<
+    string,
+    string | number | string[] | Record<string, string> | null
+  > {
+    return {
+      p_checkout_id: session.checkoutId,
+      p_provider_mode: session.providerMode ?? null,
+      p_checkout_status: session.status,
+      p_reference_id: session.referenceId,
+      p_redirect_url: session.redirectUrl,
+      p_expires_at: session.expiresAt ?? null,
+      p_amount_value: session.amount?.value ?? null,
+      p_amount_currency: session.amount?.currency ?? null,
+      p_currency: session.currency ?? null,
+      p_payment_methods_allowed: session.paymentMethodsAllowed ?? [],
+      p_metadata: session.metadata ?? {},
+    };
+  }
+
+  private mapApicenterCheckoutSync(
+    row: ApicenterCheckoutSyncRow,
+  ): ApicenterCheckoutSyncSummary {
+    return {
+      paymentId: row.payment_id,
+      bookingId: row.booking_id,
+      localPaymentStatus: row.local_payment_status,
+      paidAt: row.paid_at,
     };
   }
 

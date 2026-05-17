@@ -6,6 +6,9 @@ import {
   NotificationSummary,
   PushDeviceSummary,
   RegisterPushDeviceRequest,
+  SharedEmailSendRequest,
+  SharedMessageResponse,
+  SharedSmsSendRequest,
 } from '../notification.types';
 
 @Injectable()
@@ -60,6 +63,22 @@ export class NotificationServiceClient {
       `/internal/notifications/devices/${encodeURIComponent(token)}`,
       'DELETE',
       { userId },
+    );
+  }
+
+  sendSharedEmail(input: SharedEmailSendRequest): Promise<SharedMessageResponse> {
+    return this.request<SharedMessageResponse>(
+      '/internal/shared-messaging/email/send',
+      'POST',
+      input,
+    );
+  }
+
+  sendSharedSms(input: SharedSmsSendRequest): Promise<SharedMessageResponse> {
+    return this.request<SharedMessageResponse>(
+      '/internal/shared-messaging/sms/send',
+      'POST',
+      input,
     );
   }
 

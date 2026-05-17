@@ -68,6 +68,103 @@ describe('SupabasePaymentRepository', () => {
     });
   });
 
+  it('records APICenter checkout sessions through the payment-owned RPC', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        payment_id: 'payment-1',
+        booking_id: 'booking-1',
+        local_payment_status: 'pending',
+        paid_at: null,
+      },
+      error: null,
+    });
+    const rpc = jest.fn().mockReturnValue({ maybeSingle });
+    const repository = new SupabasePaymentRepository({ rpc });
+
+    const result = await repository.recordApicenterCheckout({
+      bookingId: 'booking-1',
+      customerId: 'customer-1',
+      providerId: 'provider-1',
+      amount: 1200,
+      paymentMethod: 'gcash',
+      session: {
+        checkoutId: 'checkout-1',
+        provider: 'paymongo',
+        providerMode: 'test',
+        status: 'created',
+        referenceId: 'booking-1',
+        redirectUrl: 'https://pay.test/checkout-1',
+        expiresAt: '2026-05-18T10:00:00.000Z',
+        amount: { value: 120000, currency: 'PHP' },
+        currency: 'PHP',
+        paymentMethodsAllowed: ['gcash'],
+        metadata: { bookingId: 'booking-1' },
+      },
+    });
+
+    expect(rpc).toHaveBeenCalledWith('servease_record_apicenter_checkout', {
+      p_booking_id: 'booking-1',
+      p_customer_id: 'customer-1',
+      p_provider_id: 'provider-1',
+      p_amount: 1200,
+      p_payment_method: 'gcash',
+      p_checkout_id: 'checkout-1',
+      p_provider: 'paymongo',
+      p_provider_mode: 'test',
+      p_checkout_status: 'created',
+      p_reference_id: 'booking-1',
+      p_redirect_url: 'https://pay.test/checkout-1',
+      p_expires_at: '2026-05-18T10:00:00.000Z',
+      p_amount_value: 120000,
+      p_amount_currency: 'PHP',
+      p_currency: 'PHP',
+      p_payment_methods_allowed: ['gcash'],
+      p_metadata: { bookingId: 'booking-1' },
+    });
+    expect(result).toEqual({
+      paymentId: 'payment-1',
+      bookingId: 'booking-1',
+      localPaymentStatus: 'pending',
+      paidAt: null,
+    });
+  });
+
+  it('syncs APICenter checkout status through the payment-owned RPC', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        payment_id: 'payment-1',
+        booking_id: 'booking-1',
+        local_payment_status: 'paid',
+        paid_at: '2026-05-18T10:00:00.000Z',
+      },
+      error: null,
+    });
+    const rpc = jest.fn().mockReturnValue({ maybeSingle });
+    const repository = new SupabasePaymentRepository({ rpc });
+
+    const result = await repository.syncApicenterCheckoutStatus({
+      checkoutId: 'checkout-1',
+      status: 'paid',
+      referenceId: 'booking-1',
+      redirectUrl: 'https://pay.test/checkout-1',
+    });
+
+    expect(rpc).toHaveBeenCalledWith('servease_sync_apicenter_checkout_status', {
+      p_checkout_id: 'checkout-1',
+      p_checkout_status: 'paid',
+      p_provider_mode: null,
+      p_reference_id: 'booking-1',
+      p_redirect_url: 'https://pay.test/checkout-1',
+      p_expires_at: null,
+      p_amount_value: null,
+      p_amount_currency: null,
+      p_currency: null,
+      p_payment_methods_allowed: [],
+      p_metadata: {},
+    });
+    expect(result.localPaymentStatus).toBe('paid');
+  });
+
   it('lists admin promotions through the service RPC', async () => {
     const rpc = jest.fn().mockResolvedValue({
       data: [

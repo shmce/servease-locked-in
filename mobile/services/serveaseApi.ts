@@ -201,6 +201,58 @@ export interface CreatePaymentRequest {
   promoCode?: string | null;
 }
 
+export type SharedPaymentMethod =
+  | 'qrph'
+  | 'gcash'
+  | 'grab_pay'
+  | 'grabpay'
+  | 'paymaya'
+  | 'maya'
+  | 'card'
+  | 'visa'
+  | 'mastercard'
+  | 'dob'
+  | 'brankas'
+  | 'direct_online_banking'
+  | 'online_banking';
+
+export interface CreateCheckoutSessionRequest {
+  bookingId: string;
+  successUrl: string;
+  cancelUrl: string;
+  promoCode?: string | null;
+  paymentMethods?: SharedPaymentMethod[];
+}
+
+export interface PaymentCheckoutSessionSummary {
+  checkoutId: string;
+  provider: 'paymongo' | 'mock';
+  providerMode?: 'test' | 'live';
+  status:
+    | 'created'
+    | 'pending'
+    | 'paid'
+    | 'failed'
+    | 'cancelled'
+    | 'expired'
+    | 'refunded'
+    | 'partially_refunded';
+  referenceId: string;
+  redirectUrl: string;
+  expiresAt?: string;
+  amount?: {
+    value: number;
+    currency: string;
+  };
+  currency?: string;
+  paymentMethodsAllowed?: string[];
+  metadata?: Record<string, string>;
+  paymentId?: string;
+  bookingId?: string;
+  localPaymentStatus?: PaymentStatus;
+  paidAt?: string | null;
+}
+
 export interface PromotionValidationSummary {
   code: string;
   valid: boolean;
@@ -473,6 +525,82 @@ export interface PasswordResetRequest {
 
 export interface PasswordResetResponse {
   ok: true;
+}
+
+export interface OtpGenerateRequest {
+  target: string;
+  channel: 'sms' | 'email';
+  length?: number;
+  expiresInSeconds?: number;
+}
+
+export interface OtpGenerateResponse {
+  otpId: string;
+  expiresAt: string;
+  channel: string;
+  target: string;
+  code?: string;
+}
+
+export interface OtpVerifyResponse {
+  valid: boolean;
+  target: string;
+  channel: string;
+}
+
+export interface GoogleAuthorizationUrlRequest {
+  redirectUri: string;
+  state?: string;
+  scopes?: string[];
+  codeChallenge?: string;
+  codeChallengeMethod?: 'S256' | 'plain';
+  accessType?: 'online' | 'offline';
+  prompt?: string;
+  loginHint?: string;
+  includeGrantedScopes?: boolean;
+}
+
+export interface GoogleAuthorizationUrlResponse {
+  authorizationUrl: string;
+  state?: string;
+  expiresAt?: string;
+}
+
+export interface GoogleTokenExchangeRequest {
+  code: string;
+  redirectUri: string;
+  codeVerifier?: string;
+}
+
+export interface GoogleOAuthTokenResponse {
+  accessToken: string;
+  expiresIn: number;
+  tokenType?: string;
+  scope?: string;
+  idToken?: string;
+  refreshToken?: string | null;
+}
+
+export interface GeoAddressResult {
+  formattedAddress: string;
+  latitude: number;
+  longitude: number;
+  placeId?: string;
+  types?: string[];
+  provider: 'google-maps' | 'mock';
+  raw?: unknown;
+}
+
+export interface GeoFenceCheckResponse {
+  inside: boolean;
+  distanceDetails: Array<{
+    fenceId: string;
+    name?: string;
+    inside: boolean;
+    distanceMeters: number;
+    radiusMeters: number;
+  }>;
+  provider: 'local';
 }
 
 export interface UpdateCurrentUserProfileRequest {
@@ -803,6 +931,51 @@ export function requestPasswordReset(
   options: ApiOptions = {},
 ): Promise<PasswordResetResponse> {
   return request<PasswordResetResponse>('/v1/auth/password-reset', {
+    ...options,
+    method: 'POST',
+    body,
+  });
+}
+
+export function generateOtp(
+  body: OtpGenerateRequest,
+  options: ApiOptions = {},
+): Promise<OtpGenerateResponse> {
+  return request<OtpGenerateResponse>('/v1/auth/otp/generate', {
+    ...options,
+    method: 'POST',
+    body,
+  });
+}
+
+export function verifyOtp(
+  otpId: string,
+  code: string,
+  options: ApiOptions = {},
+): Promise<OtpVerifyResponse> {
+  return request<OtpVerifyResponse>('/v1/auth/otp/verify', {
+    ...options,
+    method: 'POST',
+    body: { otpId, code },
+  });
+}
+
+export function getGoogleAuthorizationUrl(
+  body: GoogleAuthorizationUrlRequest,
+  options: ApiOptions = {},
+): Promise<GoogleAuthorizationUrlResponse> {
+  return request<GoogleAuthorizationUrlResponse>('/v1/auth/google/authorize', {
+    ...options,
+    method: 'POST',
+    body,
+  });
+}
+
+export function exchangeGoogleCode(
+  body: GoogleTokenExchangeRequest,
+  options: ApiOptions = {},
+): Promise<GoogleOAuthTokenResponse> {
+  return request<GoogleOAuthTokenResponse>('/v1/auth/google/token', {
     ...options,
     method: 'POST',
     body,
@@ -1161,6 +1334,75 @@ export function createPayment(
   options: ApiOptions = {},
 ): Promise<PaymentSummary> {
   return request<PaymentSummary>('/v1/payments', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function createCheckoutSession(
+  body: CreateCheckoutSessionRequest,
+  options: ApiOptions = {},
+): Promise<PaymentCheckoutSessionSummary> {
+  return request<PaymentCheckoutSessionSummary>('/v1/payments/checkout-sessions', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function getCheckoutStatus(
+  checkoutId: string,
+  options: ApiOptions = {},
+): Promise<PaymentCheckoutSessionSummary> {
+  return request<PaymentCheckoutSessionSummary>(
+    `/v1/payments/checkout-sessions/${encodeURIComponent(checkoutId)}/status`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function geocodeAddress(
+  address: string,
+  options: ApiOptions & { language?: string; region?: string } = {},
+): Promise<GeoAddressResult> {
+  const { language, region, ...apiOptions } = options;
+  return request<GeoAddressResult>('/v1/geo/geocode', {
+    ...apiOptions,
+    method: 'POST',
+    body: { address, language, region },
+    requiresAuth: true,
+  });
+}
+
+export function reverseGeocode(
+  latitude: number,
+  longitude: number,
+  options: ApiOptions & { language?: string } = {},
+): Promise<GeoAddressResult> {
+  const { language, ...apiOptions } = options;
+  return request<GeoAddressResult>('/v1/geo/reverse-geocode', {
+    ...apiOptions,
+    method: 'POST',
+    body: { latitude, longitude, language },
+    requiresAuth: true,
+  });
+}
+
+export function checkGeoFence(
+  body: {
+    latitude: number;
+    longitude: number;
+    fenceId?: string;
+  },
+  options: ApiOptions = {},
+): Promise<GeoFenceCheckResponse> {
+  return request<GeoFenceCheckResponse>('/v1/geo/geofence/check', {
     ...options,
     method: 'POST',
     body,

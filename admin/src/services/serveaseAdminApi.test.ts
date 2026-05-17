@@ -723,6 +723,7 @@ describe("serveaseAdminApi", () => {
     const { sendAdminBroadcast } = await import("./serveaseAdminApi");
     const result = await sendAdminBroadcast("admin-token", {
       audience: "customers",
+      channels: ["in_app", "email"],
       title: "Holiday schedule",
       message: "ServEase support hours are updated this week.",
     });
@@ -733,6 +734,7 @@ describe("serveaseAdminApi", () => {
         method: "POST",
         body: JSON.stringify({
           audience: "customers",
+          channels: ["in_app", "email"],
           title: "Holiday schedule",
           message: "ServEase support hours are updated this week.",
         }),

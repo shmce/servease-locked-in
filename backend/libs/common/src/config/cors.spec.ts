@@ -27,7 +27,13 @@ describe('gateway CORS config', () => {
     expect(resolveGatewayCorsOrigins({ NODE_ENV: 'production' })).toEqual([]);
   });
 
-  it('allows Expo local web origins outside production', () => {
+  it('allows local web app origins outside production', () => {
+    expect(resolveGatewayCorsOrigins({ NODE_ENV: 'development' })).toContain(
+      'http://localhost:3000',
+    );
+    expect(resolveGatewayCorsOrigins({ NODE_ENV: 'development' })).toContain(
+      'http://localhost:3001',
+    );
     expect(resolveGatewayCorsOrigins({ NODE_ENV: 'development' })).toContain(
       'http://localhost:8082',
     );

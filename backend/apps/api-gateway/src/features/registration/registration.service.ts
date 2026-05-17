@@ -5,10 +5,23 @@ import { UserServiceClient } from '../current-user/clients/user-service.client';
 import {
   InvalidPasswordResetRequestError,
   InvalidRegistrationRequestError,
+  InvalidSharedAuthRequestError,
   ProviderApplicationDependencyUnavailableError,
   ProviderApplicationNotFoundError,
 } from './registration.errors';
 import {
+  GoogleAuthorizationUrlRequest,
+  GoogleAuthorizationUrlResponse,
+  GoogleLogoutRequest,
+  GoogleLogoutResponse,
+  GoogleOAuthTokenResponse,
+  GoogleTokenExchangeRequest,
+  GoogleTokenRefreshRequest,
+  OtpGenerateRequest,
+  OtpGenerateResponse,
+  OtpStatusResponse,
+  OtpVerifyRequest,
+  OtpVerifyResponse,
   PasswordResetRequest,
   PasswordResetResponse,
   ProviderApplicationStatusResponse,
@@ -66,6 +79,79 @@ export class RegistrationGatewayService {
       email: input.email.trim().toLowerCase(),
       redirectTo: input.redirectTo?.trim() || null,
     });
+  }
+
+  async generateOtp(input: OtpGenerateRequest): Promise<OtpGenerateResponse> {
+    if (
+      !input.target?.trim() ||
+      !['sms', 'email'].includes(input.channel) ||
+      (input.length !== undefined &&
+        (!Number.isInteger(input.length) || input.length < 4 || input.length > 10)) ||
+      (input.expiresInSeconds !== undefined &&
+        (!Number.isInteger(input.expiresInSeconds) ||
+          input.expiresInSeconds < 30 ||
+          input.expiresInSeconds > 3600))
+    ) {
+      throw new InvalidSharedAuthRequestError();
+    }
+
+    return this.authServiceClient.generateOtp({
+      target: input.target.trim(),
+      channel: input.channel,
+      length: input.length,
+      expiresInSeconds: input.expiresInSeconds,
+    });
+  }
+
+  async verifyOtp(input: OtpVerifyRequest): Promise<OtpVerifyResponse> {
+    if (!input.otpId?.trim() || !input.code?.trim()) {
+      throw new InvalidSharedAuthRequestError();
+    }
+    return this.authServiceClient.verifyOtp({
+      otpId: input.otpId.trim(),
+      code: input.code.trim(),
+    });
+  }
+
+  async getOtpStatus(otpId: string): Promise<OtpStatusResponse> {
+    if (!otpId?.trim()) {
+      throw new InvalidSharedAuthRequestError();
+    }
+    return this.authServiceClient.getOtpStatus(otpId.trim());
+  }
+
+  async getGoogleAuthorizationUrl(
+    input: GoogleAuthorizationUrlRequest,
+  ): Promise<GoogleAuthorizationUrlResponse> {
+    if (!isValidUrl(input.redirectUri)) {
+      throw new InvalidSharedAuthRequestError();
+    }
+    return this.authServiceClient.getGoogleAuthorizationUrl(input);
+  }
+
+  async exchangeGoogleCode(
+    input: GoogleTokenExchangeRequest,
+  ): Promise<GoogleOAuthTokenResponse> {
+    if (!input.code?.trim() || !isValidUrl(input.redirectUri)) {
+      throw new InvalidSharedAuthRequestError();
+    }
+    return this.authServiceClient.exchangeGoogleCode(input);
+  }
+
+  async refreshGoogleToken(
+    input: GoogleTokenRefreshRequest,
+  ): Promise<GoogleOAuthTokenResponse> {
+    if (!input.refreshToken?.trim()) {
+      throw new InvalidSharedAuthRequestError();
+    }
+    return this.authServiceClient.refreshGoogleToken(input);
+  }
+
+  async logoutGoogle(input: GoogleLogoutRequest): Promise<GoogleLogoutResponse> {
+    if (!input.token?.trim() && !input.refreshToken?.trim() && !input.idTokenHint?.trim()) {
+      throw new InvalidSharedAuthRequestError();
+    }
+    return this.authServiceClient.logoutGoogle(input);
   }
 
   async getProviderApplicationStatus(

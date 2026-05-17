@@ -15,14 +15,28 @@ import {
 } from '../current-user.errors';
 import {
   InvalidRegistrationRequestError,
+  InvalidSharedAuthRequestError,
   InvalidPasswordResetRequestError,
   InvalidPasswordChangeRequestError,
   PasswordChangeDependencyUnavailableError,
   PasswordResetDependencyUnavailableError,
   RegistrationConflictError,
   RegistrationDependencyUnavailableError,
+  SharedAuthDependencyUnavailableError,
 } from '../../registration/registration.errors';
 import {
+  GoogleAuthorizationUrlRequest,
+  GoogleAuthorizationUrlResponse,
+  GoogleLogoutRequest,
+  GoogleLogoutResponse,
+  GoogleOAuthTokenResponse,
+  GoogleTokenExchangeRequest,
+  GoogleTokenRefreshRequest,
+  OtpGenerateRequest,
+  OtpGenerateResponse,
+  OtpStatusResponse,
+  OtpVerifyRequest,
+  OtpVerifyResponse,
   PasswordResetRequest,
   PasswordResetResponse,
   RegisterAccountRequest,
@@ -233,6 +247,67 @@ export class AuthServiceClient {
     return payload.data;
   }
 
+  generateOtp(input: OtpGenerateRequest): Promise<OtpGenerateResponse> {
+    return this.sharedAuthRequest<OtpGenerateResponse>(
+      '/internal/auth/shared/otp/generate',
+      'POST',
+      input,
+    );
+  }
+
+  verifyOtp(input: OtpVerifyRequest): Promise<OtpVerifyResponse> {
+    return this.sharedAuthRequest<OtpVerifyResponse>(
+      '/internal/auth/shared/otp/verify',
+      'POST',
+      input,
+    );
+  }
+
+  getOtpStatus(otpId: string): Promise<OtpStatusResponse> {
+    return this.sharedAuthRequest<OtpStatusResponse>(
+      `/internal/auth/shared/otp/${encodeURIComponent(otpId)}/status`,
+      'GET',
+    );
+  }
+
+  getGoogleAuthorizationUrl(
+    input: GoogleAuthorizationUrlRequest,
+  ): Promise<GoogleAuthorizationUrlResponse> {
+    return this.sharedAuthRequest<GoogleAuthorizationUrlResponse>(
+      '/internal/auth/shared/google/authorize',
+      'POST',
+      input,
+    );
+  }
+
+  exchangeGoogleCode(
+    input: GoogleTokenExchangeRequest,
+  ): Promise<GoogleOAuthTokenResponse> {
+    return this.sharedAuthRequest<GoogleOAuthTokenResponse>(
+      '/internal/auth/shared/google/token',
+      'POST',
+      input,
+    );
+  }
+
+  refreshGoogleToken(
+    input: GoogleTokenRefreshRequest,
+  ): Promise<GoogleOAuthTokenResponse> {
+    return this.sharedAuthRequest<GoogleOAuthTokenResponse>(
+      '/internal/auth/shared/google/token/refresh',
+      'POST',
+      input,
+    );
+  }
+
+  logoutGoogle(input: GoogleLogoutRequest): Promise<GoogleLogoutResponse> {
+    return this.sharedAuthRequest<GoogleLogoutResponse>(
+      '/internal/auth/shared/google/logout',
+      'POST',
+      input,
+    );
+  }
+
   async updatePassword(
     userId: string,
     email: string,
@@ -310,6 +385,31 @@ export class AuthServiceClient {
     } catch {
       return null;
     }
+  }
+
+  private async sharedAuthRequest<T>(
+    path: string,
+    method: 'GET' | 'POST',
+    body?: unknown,
+  ): Promise<T> {
+    const response = await fetch(`${this.baseUrl()}${path}`, {
+      method,
+      headers: {
+        'content-type': 'application/json',
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const code = await this.readErrorCode(response);
+      if (code === 'invalid_shared_auth_request') {
+        throw new InvalidSharedAuthRequestError();
+      }
+      throw new SharedAuthDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as { data: T };
+    return payload.data;
   }
 
   private async writeTwoFactorStatus(

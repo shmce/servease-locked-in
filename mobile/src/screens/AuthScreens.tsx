@@ -37,6 +37,9 @@ type AuthScreensProps = {
   signIn: (role: AppRole) => Promise<void>;
   signUp: (role: AppRole) => Promise<void>;
   requestPasswordReset: () => Promise<void>;
+  startGoogleSignIn: (role: AppRole) => Promise<void>;
+  requestPhoneOtp: (target: string) => Promise<string | null>;
+  verifyPhoneOtp: (otpId: string, code: string) => Promise<boolean>;
 };
 
 export function AuthScreens({
@@ -64,8 +67,14 @@ export function AuthScreens({
   signIn,
   signUp,
   requestPasswordReset,
+  startGoogleSignIn,
+  requestPhoneOtp,
+  verifyPhoneOtp,
 }: AuthScreensProps) {
   const [isAgreed, setIsAgreed] = useState(false);
+  const [phoneLoginTarget, setPhoneLoginTarget] = useState('');
+  const [phoneOtpId, setPhoneOtpId] = useState<string | null>(null);
+  const [phoneOtpCode, setPhoneOtpCode] = useState('');
 
   if (screen === 'loginRole') {
     return (
@@ -243,18 +252,70 @@ export function AuthScreens({
           </View>
           <Pressable
             style={styles.socialButton}
-            onPress={() => setNotice('Google sign-in needs native auth setup before enabling.')}
+            onPress={() => void startGoogleSignIn(intendedRole)}
+            disabled={busyAction === 'google-auth'}
+            accessibilityRole="button"
           >
             <Text style={styles.googleMark}>G</Text>
-            <Text style={styles.socialText}>Continue with Google</Text>
+            <Text style={styles.socialText}>
+              {busyAction === 'google-auth' ? 'Opening Google...' : 'Continue with Google'}
+            </Text>
           </Pressable>
+          <Field
+            label="Phone Verification"
+            value={phoneLoginTarget}
+            onChangeText={(value) => {
+              setPhoneLoginTarget(value);
+              setPhoneOtpId(null);
+              setPhoneOtpCode('');
+            }}
+            keyboardType="phone-pad"
+            placeholder="+639000000000"
+          />
           <Pressable
             style={styles.socialButton}
-            onPress={() => setNotice('Phone login needs OTP backend support before enabling.')}
+            onPress={async () => {
+              if (!phoneLoginTarget.trim()) {
+                setNotice('Enter your phone number first.');
+                return;
+              }
+              const otpId = await requestPhoneOtp(phoneLoginTarget);
+              if (otpId) {
+                setPhoneOtpId(otpId);
+              }
+            }}
+            disabled={busyAction === 'otp-generate'}
+            accessibilityRole="button"
           >
             <Text style={styles.phoneMark}>P</Text>
-            <Text style={styles.socialText}>Continue with Phone Number</Text>
+            <Text style={styles.socialText}>
+              {busyAction === 'otp-generate'
+                ? 'Sending OTP...'
+                : 'Send Phone Verification OTP'}
+            </Text>
           </Pressable>
+          {phoneOtpId ? (
+            <>
+              <Field
+                label="OTP Code"
+                value={phoneOtpCode}
+                onChangeText={setPhoneOtpCode}
+                keyboardType="number-pad"
+                placeholder="6-digit code"
+              />
+              <PrimaryButton
+                label={busyAction === 'otp-verify' ? 'Verifying OTP...' : 'Verify OTP'}
+                onPress={async () => {
+                  const isValid = await verifyPhoneOtp(phoneOtpId, phoneOtpCode);
+                  if (isValid) {
+                    setPhoneOtpCode('');
+                  }
+                }}
+                disabled={busyAction === 'otp-verify' || phoneOtpCode.trim().length < 4}
+                variant="secondary"
+              />
+            </>
+          ) : null}
           <Text style={styles.noticeText}>{notice}</Text>
         </ScrollView>
       </PhoneFrame>

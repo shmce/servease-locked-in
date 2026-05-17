@@ -17,6 +17,8 @@ This directory contains the source-of-truth documentation for the active ServEas
 - [Feature Specs](specs/README.md): approved feature specs for backend, mobile, admin, and workflow slices.
 - [Feature Spec Template](templates/feature-spec.md): required structure for new feature specs.
 - [Audits](audits/): dated findings and verification records.
+- [Runbooks](runbooks/): operational setup, smoke checks, rollback, and troubleshooting notes.
+  - [APICenter Owner Handoff](runbooks/apicenter-owner-handoff.md): copy-ready webhook registration request.
 - [Superpowers Specs](superpowers/specs/): agent-created design specs for scoped changes.
 - [Supabase Baseline](supabase-baseline.md): observed live database state and advisor findings.
 - [Media Upload Spec](media-upload-spec.md): upload ownership, validation, and storage behavior.

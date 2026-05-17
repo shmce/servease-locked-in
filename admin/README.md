@@ -13,6 +13,17 @@ npm run dev
 
 The dev server runs on `http://localhost:3001` by default.
 
+## Commands
+
+```bash
+npm run env:check
+npm run typecheck
+npm test
+npm run smoke:routes
+npm run smoke:integration
+npm run build
+```
+
 ## Required environment
 
 Create `.env.local` in this folder with:

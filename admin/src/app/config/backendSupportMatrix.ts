@@ -238,7 +238,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
     area: "Marketing",
     screen: "Promotions and Broadcasts",
     status: "wired",
-    currentSupport: "Promotion code listing and create/update/delete APIs are backend-backed. Broadcasts send or schedule gateway-backed notifications to active role-based audiences.",
+    currentSupport: "Promotion code listing and create/update/delete APIs are backend-backed. Broadcasts send or schedule gateway-backed in-app, email, and SMS notifications to active role-based audiences.",
     existingEndpoints: [
       "GET /v1/admin/promotions",
       "POST /v1/admin/promotions",
@@ -248,7 +248,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "POST /v1/admin/broadcasts",
     ],
     backendNeeded: [],
-    notes: "Broadcast delivery records history, scheduled sends, repeat intent, and optional cohort filters.",
+    notes: "Broadcast delivery records history, scheduled sends, repeat intent, selected delivery channels, and optional cohort filters.",
   },
   {
     area: "Account",

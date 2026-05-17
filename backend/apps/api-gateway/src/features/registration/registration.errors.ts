@@ -40,6 +40,18 @@ export class PasswordResetDependencyUnavailableError extends Error {
   }
 }
 
+export class InvalidSharedAuthRequestError extends Error {
+  constructor() {
+    super('invalid_shared_auth_request');
+  }
+}
+
+export class SharedAuthDependencyUnavailableError extends Error {
+  constructor() {
+    super('shared_auth_dependency_unavailable');
+  }
+}
+
 export class InvalidPasswordChangeRequestError extends Error {
   constructor() {
     super('invalid_password_change_request');

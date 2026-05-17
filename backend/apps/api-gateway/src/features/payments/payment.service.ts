@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PaymentServiceClient } from './clients/payment-service.client';
 import {
+  CreateCheckoutSessionInput,
+  ApicenterCheckoutWebhookRequest,
   CreatePaymentRequest,
   CustomerPaymentMethodSummary,
+  PaymentCheckoutSessionSummary,
   PaymentSummary,
   PaymentVisibility,
   PromotionValidationSummary,
@@ -19,6 +22,26 @@ export class PaymentGatewayService {
 
   createPayment(input: CreatePaymentRequest): Promise<PaymentSummary> {
     return this.paymentServiceClient.createPayment(input);
+  }
+
+  createCheckoutSession(
+    input: CreateCheckoutSessionInput,
+    idempotencyKey?: string | null,
+  ): Promise<PaymentCheckoutSessionSummary> {
+    return this.paymentServiceClient.createCheckoutSession(
+      input,
+      idempotencyKey,
+    );
+  }
+
+  getCheckoutStatus(checkoutId: string): Promise<PaymentCheckoutSessionSummary> {
+    return this.paymentServiceClient.getCheckoutStatus(checkoutId);
+  }
+
+  syncApicenterCheckoutWebhook(
+    input: ApicenterCheckoutWebhookRequest,
+  ): Promise<PaymentCheckoutSessionSummary> {
+    return this.paymentServiceClient.syncApicenterCheckoutWebhook(input);
   }
 
   listPayments(visibility: PaymentVisibility): Promise<PaymentSummary[]> {

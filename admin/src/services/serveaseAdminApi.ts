@@ -32,6 +32,7 @@ export type AdminCommissionRuleStatus = 'active' | 'pending' | 'inactive'
 export type AdminBroadcastAudience = 'admins' | 'all' | 'customers' | 'providers'
 export type AdminBroadcastRepeatRule = 'none' | 'daily' | 'weekly' | 'monthly'
 export type AdminBroadcastStatus = 'scheduled' | 'sent' | 'failed' | 'cancelled'
+export type AdminBroadcastChannel = 'in_app' | 'email' | 'sms'
 export type AdminPayoutEventType =
   | 'requested'
   | 'approved'
@@ -212,6 +213,7 @@ export interface AdminReviewSummary {
 export interface SendAdminBroadcastRequest {
   audience: AdminBroadcastAudience
   audienceCohort?: string | null
+  channels?: AdminBroadcastChannel[]
   title: string
   message: string
   scheduledAt?: string | null

@@ -2,8 +2,10 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   addProviderPortfolioMedia,
+  checkGeoFence,
   createBooking,
   createBookingServiceUpdate,
+  createCheckoutSession,
   createConversationMessage,
   createPayment,
   createSupportTicket,
@@ -13,6 +15,11 @@ import {
   deleteProviderPortfolioMedia,
   disableCurrentUserTwoFactor,
   enableCurrentUserTwoFactor,
+  exchangeGoogleCode,
+  generateOtp,
+  geocodeAddress,
+  getCheckoutStatus,
+  getGoogleAuthorizationUrl,
   getPublicProviderAvailability,
   getProviderAvailability,
   getBookingTrackingSnapshot,
@@ -37,12 +44,14 @@ import {
   replaceProviderAvailabilityWindows,
   requestPasswordReset,
   requestProviderPayout,
+  reverseGeocode,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
   updateProviderPortfolioMedia,
   upsertCustomerPaymentMethod,
   updateUserPreferences,
   unregisterPushDevice,
+  verifyOtp,
   verifyCurrentUserTwoFactor,
   uploadMedia,
   validatePromotion,
@@ -403,6 +412,108 @@ describe('serveaseApi', () => {
     });
   });
 
+  it('requests APICenter OTP and Google auth through the gateway', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      if (url.endsWith('/v1/auth/otp/generate')) {
+        return jsonResponse({
+          data: {
+            otpId: 'otp-1',
+            expiresAt: '2026-05-18T00:00:00.000Z',
+            channel: 'email',
+            target: 'customer@example.com',
+          },
+        });
+      }
+
+      if (url.endsWith('/v1/auth/otp/verify')) {
+        return jsonResponse({
+          data: {
+            valid: true,
+            channel: 'email',
+            target: 'customer@example.com',
+          },
+        });
+      }
+
+      if (url.endsWith('/v1/auth/google/token')) {
+        return jsonResponse({
+          data: {
+            accessToken: 'google-access-token',
+            expiresIn: 3600,
+            tokenType: 'Bearer',
+            refreshToken: 'google-refresh-token',
+          },
+        });
+      }
+
+      return jsonResponse({
+        data: {
+          authorizationUrl: 'https://accounts.google.test/auth',
+          state: 'state-1',
+        },
+      });
+    };
+
+    await generateOtp(
+      { target: 'customer@example.com', channel: 'email' },
+      { baseUrl: 'http://gateway.test', fetcher },
+    );
+    await verifyOtp('otp-1', '123456', {
+      baseUrl: 'http://gateway.test',
+      fetcher,
+    });
+    await getGoogleAuthorizationUrl(
+      {
+        redirectUri: 'servease://auth/google/callback',
+        scopes: ['openid', 'email', 'profile'],
+      },
+      { baseUrl: 'http://gateway.test', fetcher },
+    );
+    await exchangeGoogleCode(
+      {
+        code: 'code-1',
+        redirectUri: 'servease://auth/google/callback',
+      },
+      { baseUrl: 'http://gateway.test', fetcher },
+    );
+
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/auth/otp/generate',
+        method: 'POST',
+        body: { target: 'customer@example.com', channel: 'email' },
+      },
+      {
+        url: 'http://gateway.test/v1/auth/otp/verify',
+        method: 'POST',
+        body: { otpId: 'otp-1', code: '123456' },
+      },
+      {
+        url: 'http://gateway.test/v1/auth/google/authorize',
+        method: 'POST',
+        body: {
+          redirectUri: 'servease://auth/google/callback',
+          scopes: ['openid', 'email', 'profile'],
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/auth/google/token',
+        method: 'POST',
+        body: {
+          code: 'code-1',
+          redirectUri: 'servease://auth/google/callback',
+        },
+      },
+    ]);
+  });
+
   it('updates the current user profile through the gateway', async () => {
     let authorization: string | null = null;
     let requestBody: unknown = null;
@@ -686,6 +797,149 @@ describe('serveaseApi', () => {
     });
     assert.equal(payment.status, 'pending');
     assert.equal(ticket.status, 'open');
+  });
+
+  it('creates APICenter checkout sessions and reads checkout status', async () => {
+    const calls: Array<{
+      url: string;
+      method: string;
+      authorization: string | null;
+      body: unknown;
+    }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        authorization: new Headers(init?.headers).get('authorization'),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      return jsonResponse({
+        data: {
+          checkoutId: 'checkout-1',
+          provider: 'paymongo',
+          status: url.endsWith('/status') ? 'paid' : 'created',
+          referenceId: 'booking-1',
+          redirectUrl: 'https://pay.test/checkout-1',
+          paymentId: 'payment-1',
+          bookingId: 'booking-1',
+          localPaymentStatus: url.endsWith('/status') ? 'paid' : 'pending',
+        },
+      });
+    };
+
+    const checkout = await createCheckoutSession(
+      {
+        bookingId: 'booking-1',
+        successUrl: 'servease://payment/success',
+        cancelUrl: 'servease://payment/cancel',
+        paymentMethods: ['gcash'],
+      },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
+    const status = await getCheckoutStatus('checkout-1', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.equal(checkout.checkoutId, 'checkout-1');
+    assert.equal(status.status, 'paid');
+    assert.equal(status.paymentId, 'payment-1');
+    assert.equal(status.localPaymentStatus, 'paid');
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/payments/checkout-sessions',
+        method: 'POST',
+        authorization: 'Bearer access-token',
+        body: {
+          bookingId: 'booking-1',
+          successUrl: 'servease://payment/success',
+          cancelUrl: 'servease://payment/cancel',
+          paymentMethods: ['gcash'],
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/payments/checkout-sessions/checkout-1/status',
+        method: 'GET',
+        authorization: 'Bearer access-token',
+        body: null,
+      },
+    ]);
+  });
+
+  it('uses authenticated APICenter geo gateway endpoints', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+
+      if (url.endsWith('/geofence/check')) {
+        return jsonResponse({
+          data: {
+            inside: true,
+            distanceDetails: [],
+            provider: 'local',
+          },
+        });
+      }
+
+      return jsonResponse({
+        data: {
+          formattedAddress: 'Manila, Philippines',
+          latitude: 14.5995,
+          longitude: 120.9842,
+          provider: 'google-maps',
+        },
+      });
+    };
+
+    await geocodeAddress('Manila, Philippines', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+      language: 'en',
+    });
+    await reverseGeocode(14.5995, 120.9842, {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    await checkGeoFence(
+      { latitude: 14.5995, longitude: 120.9842, fenceId: 'metro-manila' },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
+
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/geo/geocode',
+        method: 'POST',
+        body: {
+          address: 'Manila, Philippines',
+          language: 'en',
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/geo/reverse-geocode',
+        method: 'POST',
+        body: {
+          latitude: 14.5995,
+          longitude: 120.9842,
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/geo/geofence/check',
+        method: 'POST',
+        body: {
+          latitude: 14.5995,
+          longitude: 120.9842,
+          fenceId: 'metro-manila',
+        },
+      },
+    ]);
   });
 
   it('validates promotion codes through the authenticated gateway endpoint', async () => {

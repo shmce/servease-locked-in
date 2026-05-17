@@ -15,8 +15,23 @@ import {
   PaymentNotFoundError,
 } from './payment.errors';
 import { PaymentService } from './payment.service';
+import { SharedPaymentService } from './shared-payment.service';
 import {
+  CreateCheckoutSessionInput,
+  ApicenterCheckoutWebhookInput,
+  CreatePaymentCustomerInput,
+  CreatePaymentPriceInput,
+  CreatePaymentProductInput,
+  CreatePaymentRefundInput,
+  CreatePaymentSubscriptionInput,
+  PaymentCheckoutSessionSummary,
+  PaymentCustomerSummary,
+  PaymentInvoiceSummary,
+  PaymentPriceSummary,
+  PaymentProductSummary,
+  PaymentRefundSummary,
   PaymentSummary,
+  PaymentSubscriptionSummary,
   PromotionValidationSummary,
   PayoutAccountSummary,
   PayoutMethodSummary,
@@ -26,7 +41,10 @@ import {
 
 @Controller('internal/payments')
 export class PaymentController {
-  constructor(private readonly paymentService: PaymentService) {}
+  constructor(
+    private readonly paymentService: PaymentService,
+    private readonly sharedPaymentService: SharedPaymentService,
+  ) {}
 
   @Get()
   async list(
@@ -79,6 +97,160 @@ export class PaymentController {
           body.code ?? '',
           Number(body.amount ?? 0),
         ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('checkout-sessions')
+  async createCheckoutSession(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: CreateCheckoutSessionInput,
+  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.createCheckoutSession({
+          ...body,
+          idempotencyKey: idempotencyKey ?? body.idempotencyKey ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('checkout-sessions/:checkoutId/status')
+  async checkoutStatus(
+    @Param('checkoutId') checkoutId: string,
+  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.getCheckoutStatus(checkoutId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('checkout-sessions/webhook')
+  async checkoutWebhook(
+    @Body() body: ApicenterCheckoutWebhookInput,
+  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.syncCheckoutWebhook(body),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('shared-refunds')
+  async createSharedRefund(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: CreatePaymentRefundInput,
+  ): Promise<{ data: PaymentRefundSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.createRefund({
+          ...body,
+          idempotencyKey: idempotencyKey ?? body.idempotencyKey ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('shared-customers')
+  async createSharedCustomer(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: CreatePaymentCustomerInput,
+  ): Promise<{ data: PaymentCustomerSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.createCustomer({
+          ...body,
+          idempotencyKey: idempotencyKey ?? body.idempotencyKey ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('shared-products')
+  async createSharedProduct(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: CreatePaymentProductInput,
+  ): Promise<{ data: PaymentProductSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.createProduct({
+          ...body,
+          idempotencyKey: idempotencyKey ?? body.idempotencyKey ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('shared-prices')
+  async createSharedPrice(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: CreatePaymentPriceInput,
+  ): Promise<{ data: PaymentPriceSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.createPrice({
+          ...body,
+          idempotencyKey: idempotencyKey ?? body.idempotencyKey ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('shared-subscriptions')
+  async createSharedSubscription(
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
+    @Body() body: CreatePaymentSubscriptionInput,
+  ): Promise<{ data: PaymentSubscriptionSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.createSubscription({
+          ...body,
+          idempotencyKey: idempotencyKey ?? body.idempotencyKey ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('shared-subscriptions/:subscriptionId')
+  async sharedSubscription(
+    @Param('subscriptionId') subscriptionId: string,
+  ): Promise<{ data: PaymentSubscriptionSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.getSubscription(subscriptionId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('shared-subscriptions/:subscriptionId/invoices')
+  async sharedSubscriptionInvoices(
+    @Param('subscriptionId') subscriptionId: string,
+  ): Promise<{ data: PaymentInvoiceSummary[] }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.listSubscriptionInvoices(subscriptionId),
       };
     } catch (error) {
       throw this.toHttpException(error);

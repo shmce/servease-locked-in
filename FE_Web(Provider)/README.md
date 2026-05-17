@@ -1,19 +1,39 @@
+# ServEase Provider Web
 
-# FE_Web(Provider)
-
-This is the ServEase provider web dashboard migrated from a Figma Make/Vite bundle into Next.js.
+Next.js provider dashboard migrated from a Figma Make/Vite bundle.
 
 The original Figma project is available at https://www.figma.com/design/NjHaqneACA1gTlpAe8leya/FE_Web-Provider-.
 
-## Running the code
+## Structure
 
-Run `npm install` to install the dependencies.
+- `src/app/components`: provider dashboard pages and UI components.
+- `src/app/context`: provider data context and state wiring.
+- `src/app/utils`: provider dashboard helpers.
+- `src/assets`: static imported assets.
+- `BACKEND_ADJUSTMENTS.md`: backend contracts still needed for full live provider data.
 
-Run `npm run dev` to start the Next.js development server.
+## Environment
 
-Run `npm run build` to verify the production build.
+Copy `.env.example` to `.env`:
 
-## Backend wiring
+```sh
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5001
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
+```
 
-This frontend currently runs with local Figma-generated state. See `BACKEND_ADJUSTMENTS.md` for the backend API contracts needed to connect it to live provider data.
-  
+Use only public Supabase browser keys in this app.
+
+## Commands
+
+```sh
+npm install
+npm run dev
+npm run typecheck
+npm run smoke:demo-api
+npm run build
+```
+
+## Backend Wiring
+
+The provider dashboard should use gateway-backed provider routes as live wiring is completed. It must not call internal service ports or use Supabase service-role credentials.

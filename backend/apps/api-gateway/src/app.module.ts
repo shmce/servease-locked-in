@@ -41,6 +41,9 @@ import { CatalogServiceClient } from './features/current-user/clients/catalog-se
 import { UserServiceClient } from './features/current-user/clients/user-service.client';
 import { CurrentUserController } from './features/current-user/current-user.controller';
 import { CurrentUserService } from './features/current-user/current-user.service';
+import { GeoServiceClient } from './features/geo/clients/geo-service.client';
+import { GeoController } from './features/geo/geo.controller';
+import { GeoGatewayService } from './features/geo/geo.service';
 import { HealthController } from './features/health/health.controller';
 import { MessagingServiceClient } from './features/messaging/clients/messaging-service.client';
 import { MessagingController } from './features/messaging/messaging.controller';
@@ -74,6 +77,7 @@ import { UploadGatewayService } from './features/uploads/upload.service';
   controllers: [
     HealthController,
     CurrentUserController,
+    GeoController,
     CatalogController,
     BookingController,
     AvailabilityController,
@@ -119,6 +123,8 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     AvailabilityGatewayService,
     BookingServiceClient,
     BookingGatewayService,
+    GeoServiceClient,
+    GeoGatewayService,
     CatalogBrowseServiceClient,
     CatalogGatewayService,
     MessagingServiceClient,

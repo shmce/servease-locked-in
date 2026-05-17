@@ -25,6 +25,7 @@ import { AdminAuditGatewayService } from './admin-audit.service';
 import { AdminServiceClient } from './clients/admin-service.client';
 import {
   AdminBroadcastAudience,
+  AdminBroadcastChannel,
   AdminBroadcastRepeatRule,
   AdminBroadcastSummary,
   CreateAdminBroadcastRequest,
@@ -78,12 +79,14 @@ export class AdminBroadcastController {
       const title = body.title?.trim() ?? '';
       const message = body.message?.trim() ?? '';
       const audienceCohort = body.audienceCohort?.trim() || null;
+      const channels = this.normalizeChannels(body.channels);
       const scheduledAt = body.scheduledAt?.trim() || null;
       const isScheduled =
         scheduledAt !== null && new Date(scheduledAt).getTime() > Date.now();
       if (
         !this.isValidAudience(audience) ||
         !this.isValidRepeatRule(repeatRule) ||
+        !channels.length ||
         !title ||
         !message ||
         (scheduledAt && Number.isNaN(new Date(scheduledAt).getTime()))
@@ -96,6 +99,7 @@ export class AdminBroadcastController {
         : await this.deliverBroadcast(admin, {
             audience,
             audienceCohort,
+            channels,
             title,
             message,
           });
@@ -119,6 +123,7 @@ export class AdminBroadcastController {
       void this.recordAudit(admin, request, {
         audience,
         audienceCohort,
+        channels,
         title,
         status: broadcast.status,
         deliveredCount,
@@ -154,6 +159,21 @@ export class AdminBroadcastController {
     return ['none', 'daily', 'weekly', 'monthly'].includes(repeatRule);
   }
 
+  private normalizeChannels(
+    channels: AdminBroadcastChannel[] | undefined,
+  ): AdminBroadcastChannel[] {
+    if (!channels || channels.length === 0) {
+      return ['in_app'];
+    }
+
+    const normalized = [...new Set(channels)];
+    return normalized.every((channel) =>
+      ['in_app', 'email', 'sms'].includes(channel),
+    )
+      ? normalized
+      : [];
+  }
+
   private toUserRole(
     audience: AdminBroadcastAudience,
   ): 'admin' | 'customer' | 'provider' | null {
@@ -168,6 +188,7 @@ export class AdminBroadcastController {
     input: {
       audience: AdminBroadcastAudience;
       audienceCohort: string | null;
+      channels: AdminBroadcastChannel[];
       title: string;
       message: string;
     },
@@ -179,21 +200,54 @@ export class AdminBroadcastController {
       input.audienceCohort,
     );
     const activeRecipients = users.filter((user) => user.status === 'active');
-    const outcomes = await Promise.allSettled(
-      activeRecipients.map((user) =>
-        this.notificationServiceClient.createNotification({
-          userId: user.id,
-          type: 'admin_broadcast',
-          title: input.title,
-          body: input.message,
-          metadata: {
-            audience: input.audience,
-            audienceCohort: input.audienceCohort,
-            adminUserId: admin.user.id,
-          },
-        }),
-      ),
-    );
+    const deliveries: Promise<unknown>[] = [];
+    for (const user of activeRecipients) {
+      const metadata = {
+        audience: input.audience,
+        audienceCohort: input.audienceCohort,
+        adminUserId: admin.user.id,
+      };
+
+      for (const channel of input.channels) {
+        if (channel === 'in_app') {
+          deliveries.push(
+            this.notificationServiceClient.createNotification({
+              userId: user.id,
+              type: 'admin_broadcast',
+              title: input.title,
+              body: input.message,
+              metadata,
+            }),
+          );
+        } else if (channel === 'email' && user.email) {
+          deliveries.push(
+            this.notificationServiceClient.sendSharedEmail({
+              to: [{ email: user.email, name: user.fullName ?? undefined }],
+              subject: input.title,
+              text: input.message,
+              metadata: {
+                audience: input.audience,
+                adminUserId: admin.user.id,
+                userId: user.id,
+              },
+            }),
+          );
+        } else if (channel === 'sms' && user.contactNumber) {
+          deliveries.push(
+            this.notificationServiceClient.sendSharedSms({
+              to: user.contactNumber,
+              message: input.message,
+              metadata: {
+                audience: input.audience,
+                adminUserId: admin.user.id,
+                userId: user.id,
+              },
+            }),
+          );
+        }
+      }
+    }
+    const outcomes = await Promise.allSettled(deliveries);
     const deliveredCount = outcomes.filter(
       (outcome) => outcome.status === 'fulfilled',
     ).length;
@@ -209,6 +263,7 @@ export class AdminBroadcastController {
     input: {
       audience: AdminBroadcastAudience;
       audienceCohort: string | null;
+      channels: AdminBroadcastChannel[];
       title: string;
       status: string;
       deliveredCount: number;
@@ -228,6 +283,7 @@ export class AdminBroadcastController {
       metadata: {
         audience: input.audience,
         audienceCohort: input.audienceCohort,
+        channels: input.channels,
         title: input.title,
         status: input.status,
         deliveredCount: input.deliveredCount,

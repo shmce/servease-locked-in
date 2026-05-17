@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import {
@@ -42,9 +43,11 @@ import {
   Download,
   Eye,
   MessageSquare,
+  Mail,
   Package,
   RefreshCw,
   Search,
+  Smartphone,
   TrendingUp,
   Users,
   XCircle,
@@ -58,6 +61,7 @@ import {
   listAdminSupportTickets,
   listAdminUsers,
   sendAdminBroadcast,
+  type AdminBroadcastChannel,
   updateAdminSupportTicketStatus,
   updateAdminUserStatus,
   type AdminBroadcastAudience,
@@ -71,6 +75,16 @@ import {
 } from "../../services/serveaseAdminApi";
 import { toast } from "sonner";
 import { usePersistentState } from "../../hooks/usePersistentState";
+
+const broadcastChannelOptions: Array<{
+  value: AdminBroadcastChannel;
+  label: string;
+  icon: typeof MessageSquare;
+}> = [
+  { value: "in_app", label: "In-app", icon: MessageSquare },
+  { value: "email", label: "Email", icon: Mail },
+  { value: "sms", label: "SMS", icon: Smartphone },
+];
 
 export function Customers() {
   const { accessToken } = useAuth();
@@ -865,6 +879,7 @@ export function Broadcasts() {
   const [audienceCohort, setAudienceCohort] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [repeatRule, setRepeatRule] = useState<AdminBroadcastRepeatRule>("none");
+  const [channels, setChannels] = useState<AdminBroadcastChannel[]>(["in_app"]);
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -876,7 +891,22 @@ export function Broadcasts() {
     listAdminBroadcasts(accessToken, 25).then(setHistory).catch(() => {});
   }, [accessToken]);
 
-  const canSend = !!accessToken && title.trim().length > 0 && message.trim().length > 0;
+  const canSend =
+    !!accessToken &&
+    title.trim().length > 0 &&
+    message.trim().length > 0 &&
+    channels.length > 0;
+
+  const toggleChannel = (channel: AdminBroadcastChannel) => {
+    setChannels((current) => {
+      if (current.includes(channel)) {
+        return current.length === 1
+          ? current
+          : current.filter((item) => item !== channel);
+      }
+      return [...current, channel];
+    });
+  };
 
   const handleSend = async () => {
     if (!accessToken || !canSend) return;
@@ -885,6 +915,7 @@ export function Broadcasts() {
       const result = await sendAdminBroadcast(accessToken, {
         audience,
         audienceCohort: audienceCohort.trim() || null,
+        channels,
         title: title.trim(),
         message: message.trim(),
         scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
@@ -895,6 +926,7 @@ export function Broadcasts() {
       setTitle("");
       setMessage("");
       setScheduledAt("");
+      setChannels(["in_app"]);
       toast.success(
         result.status === "scheduled"
           ? "Broadcast scheduled."
@@ -950,8 +982,9 @@ export function Broadcasts() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Title</label>
+                <label htmlFor="broadcast-title" className="text-sm font-medium text-gray-700">Title</label>
                 <Input
+                  id="broadcast-title"
                   value={title}
                   onChange={(event) => setTitle(event.target.value)}
                   placeholder="Service update"
@@ -983,10 +1016,40 @@ export function Broadcasts() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium text-gray-700">Delivery channels</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {broadcastChannelOptions.map((option) => {
+                    const Icon = option.icon;
+                    const checked = channels.includes(option.value);
+                    return (
+                      <label
+                        key={option.value}
+                        htmlFor={`broadcast-channel-${option.value}`}
+                        className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors ${
+                          checked
+                            ? "border-[#16A34A] bg-[#F0FDF4] text-gray-900"
+                            : "border-gray-200 bg-white text-gray-700"
+                        }`}
+                      >
+                        <Checkbox
+                          id={`broadcast-channel-${option.value}`}
+                          checked={checked}
+                          onCheckedChange={() => toggleChannel(option.value)}
+                          aria-label={option.label}
+                        />
+                        <Icon className="h-4 w-4 text-gray-500" />
+                        <span className="font-medium">{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Message</label>
+              <label htmlFor="broadcast-message" className="text-sm font-medium text-gray-700">Message</label>
               <Textarea
+                id="broadcast-message"
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder="Write the announcement users should receive..."

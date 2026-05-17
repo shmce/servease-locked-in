@@ -101,7 +101,7 @@ export const customerHelpFaqs = [
     category: 'Payments & Refunds',
     question: 'When do I get my refund?',
     answer:
-      'Refund processing depends on the payment provider. Current cash-on-service payments do not reserve a card charge.',
+      'Refund processing depends on the payment provider. Cash-on-service bookings do not reserve a card charge.',
   },
   {
     id: 3,

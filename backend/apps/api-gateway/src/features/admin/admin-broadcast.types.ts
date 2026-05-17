@@ -1,10 +1,12 @@
 export type AdminBroadcastAudience = 'admins' | 'all' | 'customers' | 'providers';
 export type AdminBroadcastRepeatRule = 'none' | 'daily' | 'weekly' | 'monthly';
 export type AdminBroadcastStatus = 'scheduled' | 'sent' | 'failed' | 'cancelled';
+export type AdminBroadcastChannel = 'in_app' | 'email' | 'sms';
 
 export interface CreateAdminBroadcastRequest {
   audience?: AdminBroadcastAudience;
   audienceCohort?: string | null;
+  channels?: AdminBroadcastChannel[];
   title?: string;
   message?: string;
   scheduledAt?: string | null;

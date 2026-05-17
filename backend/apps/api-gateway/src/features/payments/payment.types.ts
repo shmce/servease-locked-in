@@ -27,6 +27,104 @@ export interface CreatePaymentRequest {
   paymentMethod: string;
 }
 
+export type SharedPaymentMethod =
+  | 'qrph'
+  | 'gcash'
+  | 'grab_pay'
+  | 'grabpay'
+  | 'paymaya'
+  | 'maya'
+  | 'card'
+  | 'visa'
+  | 'mastercard'
+  | 'dob'
+  | 'brankas'
+  | 'direct_online_banking'
+  | 'online_banking';
+
+export interface CreateCheckoutSessionRequest {
+  bookingId?: string;
+  successUrl?: string;
+  cancelUrl?: string;
+  promoCode?: string | null;
+  paymentMethods?: SharedPaymentMethod[];
+}
+
+export interface PaymentCheckoutSessionSummary {
+  checkoutId: string;
+  provider: 'paymongo' | 'mock';
+  providerMode?: 'test' | 'live';
+  status:
+    | 'created'
+    | 'pending'
+    | 'paid'
+    | 'failed'
+    | 'cancelled'
+    | 'expired'
+    | 'refunded'
+    | 'partially_refunded';
+  referenceId: string;
+  redirectUrl: string;
+  expiresAt?: string;
+  amount?: {
+    value: number;
+    currency: string;
+  };
+  currency?: string;
+  paymentMethodsAllowed?: string[];
+  metadata?: Record<string, string>;
+  paymentId?: string;
+  bookingId?: string;
+  localPaymentStatus?: PaymentStatus;
+  paidAt?: string | null;
+}
+
+export type ApicenterCheckoutWebhookRequest = Pick<
+  PaymentCheckoutSessionSummary,
+  | 'checkoutId'
+  | 'provider'
+  | 'providerMode'
+  | 'status'
+  | 'referenceId'
+  | 'redirectUrl'
+  | 'expiresAt'
+  | 'amount'
+  | 'currency'
+  | 'paymentMethodsAllowed'
+  | 'metadata'
+>;
+
+export interface CreateCheckoutSessionInput {
+  referenceId: string;
+  idempotencyKey?: string | null;
+  mode?: 'payment' | 'subscription';
+  successUrl: string;
+  cancelUrl: string;
+  lineItems: {
+    name: string;
+    quantity: number;
+    amount: {
+      value: number;
+      currency: string;
+    };
+  }[];
+  paymentMethods?: SharedPaymentMethod[];
+  customer?: {
+    email?: string;
+    phone?: string;
+    firstName?: string;
+    lastName?: string;
+  };
+  metadata?: Record<string, string>;
+  localPayment?: {
+    bookingId: string;
+    customerId: string;
+    providerId: string;
+    amount: number;
+    paymentMethod: string;
+  };
+}
+
 export interface PromotionValidationSummary {
   code: string;
   valid: boolean;

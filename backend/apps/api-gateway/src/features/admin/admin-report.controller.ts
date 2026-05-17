@@ -4,7 +4,6 @@ import {
   Get,
   Header,
   Headers,
-  HttpCode,
   HttpException,
   Param,
   Post,

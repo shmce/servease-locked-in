@@ -1,14 +1,14 @@
 import { ConfigService } from '@nestjs/config';
-import { TribeClient } from '@implementsprint/sdk';
+import { createApicenterClient } from '@servease/common';
 import { AdminReportDeliveryService } from './admin-report-delivery.service';
 import { AdminReportService } from './admin-report.service';
 import { AdminReportScheduleSummary } from './admin-report.types';
 
-jest.mock('@implementsprint/sdk', () => ({
-  TribeClient: jest.fn(),
+jest.mock('@servease/common', () => ({
+  createApicenterClient: jest.fn(),
 }));
 
-const MockTribeClient = TribeClient as jest.MockedClass<typeof TribeClient>;
+const mockCreateApicenterClient = createApicenterClient as jest.Mock;
 
 function schedule(
   overrides: Partial<AdminReportScheduleSummary> = {},
@@ -34,23 +34,16 @@ function schedule(
 
 describe('AdminReportDeliveryService', () => {
   beforeEach(() => {
-    MockTribeClient.mockReset();
+    mockCreateApicenterClient.mockReset();
   });
 
   it('sends due report schedules through APICenter email and advances the schedule', async () => {
-    const authenticate = jest.fn().mockResolvedValue(undefined);
     const emailSend = jest.fn().mockResolvedValue({
       messageId: 'message-1',
       provider: 'resend',
       status: 'queued',
     });
-    MockTribeClient.mockImplementation(
-      () =>
-        ({
-          authenticate,
-          emailSend,
-        }) as unknown as TribeClient,
-    );
+    mockCreateApicenterClient.mockReturnValue({ emailSend });
 
     const dueSchedule = schedule();
     const reportService = {
@@ -87,12 +80,11 @@ describe('AdminReportDeliveryService', () => {
       5,
     );
 
-    expect(MockTribeClient).toHaveBeenCalledWith({
-      gatewayUrl: 'https://apicenter.test',
-      tribeId: 'servease-admin',
-      secret: 'secret',
+    expect(mockCreateApicenterClient).toHaveBeenCalledWith({
+      APICENTER_URL: 'https://apicenter.test/',
+      APICENTER_TRIBE_ID: 'servease-admin',
+      APICENTER_TRIBE_SECRET: 'secret',
     });
-    expect(authenticate).toHaveBeenCalled();
     expect(emailSend).toHaveBeenCalledWith(
       expect.objectContaining({
         to: [{ email: 'finance@example.com' }],
@@ -120,13 +112,9 @@ describe('AdminReportDeliveryService', () => {
   });
 
   it('records failed APICenter delivery attempts', async () => {
-    MockTribeClient.mockImplementation(
-      () =>
-        ({
-          authenticate: jest.fn().mockResolvedValue(undefined),
-          emailSend: jest.fn().mockRejectedValue(new Error('email denied')),
-        }) as unknown as TribeClient,
-    );
+    mockCreateApicenterClient.mockReturnValue({
+      emailSend: jest.fn().mockRejectedValue(new Error('email denied')),
+    });
 
     const dueSchedule = schedule();
     const reportService = {

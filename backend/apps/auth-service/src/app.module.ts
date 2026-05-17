@@ -26,6 +26,8 @@ import {
   RegistrationService,
 } from './features/registration/registration.service';
 import { SupabaseRegistrationRepository } from './features/registration/supabase-registration.repository';
+import { SharedAuthController } from './features/shared-auth/shared-auth.controller';
+import { SharedAuthService } from './features/shared-auth/shared-auth.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
@@ -36,12 +38,14 @@ import { SupabaseRegistrationRepository } from './features/registration/supabase
     AdminUserController,
     PasswordResetController,
     PasswordChangeController,
+    SharedAuthController,
   ],
   providers: [
     InternalUserService,
     RegistrationService,
     PasswordResetService,
     PasswordChangeService,
+    SharedAuthService,
     {
       provide: USER_REPOSITORY,
       useFactory: () => new SupabaseUserRepository(),

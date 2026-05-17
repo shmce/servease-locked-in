@@ -1,7 +1,10 @@
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import { UserServiceClient } from '../current-user/clients/user-service.client';
-import { InvalidRegistrationRequestError } from './registration.errors';
+import {
+  InvalidRegistrationRequestError,
+  InvalidSharedAuthRequestError,
+} from './registration.errors';
 import { RegistrationGatewayService } from './registration.service';
 
 describe('RegistrationGatewayService', () => {
@@ -124,6 +127,78 @@ describe('RegistrationGatewayService', () => {
     expect(authServiceClient.requestPasswordReset).toHaveBeenCalledWith({
       email: 'customer@example.com',
       redirectTo: 'https://servease.test/reset-password',
+    });
+  });
+
+  it('generates OTP through Auth Service shared auth', async () => {
+    const authServiceClient = {
+      generateOtp: jest.fn().mockResolvedValue({
+        otpId: 'otp-1',
+        expiresAt: '2026-05-18T00:00:00.000Z',
+        channel: 'email',
+        target: 'customer@example.com',
+      }),
+    } as unknown as AuthServiceClient;
+    const service = new RegistrationGatewayService(
+      authServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+    );
+
+    await service.generateOtp({
+      target: ' customer@example.com ',
+      channel: 'email',
+      length: 6,
+      expiresInSeconds: 300,
+    });
+
+    expect(authServiceClient.generateOtp).toHaveBeenCalledWith({
+      target: 'customer@example.com',
+      channel: 'email',
+      length: 6,
+      expiresInSeconds: 300,
+    });
+  });
+
+  it('rejects invalid shared auth requests before Auth Service calls', async () => {
+    const authServiceClient = {
+      generateOtp: jest.fn(),
+    } as unknown as AuthServiceClient;
+    const service = new RegistrationGatewayService(
+      authServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+    );
+
+    await expect(
+      service.generateOtp({
+        target: '',
+        channel: 'email',
+      }),
+    ).rejects.toBeInstanceOf(InvalidSharedAuthRequestError);
+    expect(authServiceClient.generateOtp).not.toHaveBeenCalled();
+  });
+
+  it('gets Google authorization URLs through Auth Service shared auth', async () => {
+    const authServiceClient = {
+      getGoogleAuthorizationUrl: jest.fn().mockResolvedValue({
+        authorizationUrl: 'https://accounts.google.test/auth',
+      }),
+    } as unknown as AuthServiceClient;
+    const service = new RegistrationGatewayService(
+      authServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+    );
+
+    await service.getGoogleAuthorizationUrl({
+      redirectUri: 'https://servease.test/auth/google/callback',
+      scopes: ['openid', 'email'],
+    });
+
+    expect(authServiceClient.getGoogleAuthorizationUrl).toHaveBeenCalledWith({
+      redirectUri: 'https://servease.test/auth/google/callback',
+      scopes: ['openid', 'email'],
     });
   });
 });

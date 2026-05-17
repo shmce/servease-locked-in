@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TribeClient } from '@implementsprint/sdk';
+import { createApicenterClient } from '@servease/common';
 import {
   AdminReportDeliverySummary,
   AdminReportScheduleSummary,
@@ -94,8 +94,13 @@ export class AdminReportDeliveryService
   private async sendScheduleEmail(
     schedule: AdminReportScheduleSummary,
   ): Promise<void> {
-    const client = this.createClient();
-    await client.authenticate();
+    const client = createApicenterClient({
+      APICENTER_URL: this.configService.get<string>('APICENTER_URL'),
+      APICENTER_TRIBE_ID: this.configService.get<string>('APICENTER_TRIBE_ID'),
+      APICENTER_TRIBE_SECRET: this.configService.get<string>(
+        'APICENTER_TRIBE_SECRET',
+      ),
+    });
     await client.emailSend({
       to: schedule.recipients.map((email) => ({ email })),
       subject: `ServEase scheduled ${schedule.type} report`,
@@ -118,21 +123,6 @@ export class AdminReportDeliveryService
         format: schedule.format,
       },
     });
-  }
-
-  private createClient(): TribeClient {
-    const gatewayUrl =
-      this.configService.get<string>('APICENTER_URL')?.replace(/\/$/, '') ?? '';
-    const tribeId =
-      this.configService.get<string>('APICENTER_TRIBE_ID')?.trim() ?? '';
-    const secret =
-      this.configService.get<string>('APICENTER_TRIBE_SECRET')?.trim() ?? '';
-
-    if (!gatewayUrl || !tribeId || !secret) {
-      throw new Error('APICenter email delivery is not configured.');
-    }
-
-    return new TribeClient({ gatewayUrl, tribeId, secret });
   }
 
   private downloadUrl(downloadPath: string): string {
