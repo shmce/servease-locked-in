@@ -1,57 +1,125 @@
 import {
+  Body,
   Controller,
+  Get,
   Headers,
-  HttpCode,
   HttpException,
+  Param,
   Patch,
   Post,
 } from '@nestjs/common';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
-import { AdminRequiredError } from './admin-support.errors';
+import { AdminRequiredError, AdminDependencyUnavailableError } from './admin-support.errors';
+import { AdminServiceClient } from './clients/admin-service.client';
+import { AdminIntegrationSummary } from './admin-integration.types';
 
-const notImplemented = {
-  error: {
-    code: 'not_implemented',
-    message: 'Integration management is not yet implemented.',
-  },
-};
+interface UpdateCredentialsBody {
+  isEnabled?: boolean | null;
+  webhookUrl?: string | null;
+  apiKeyPreview?: string | null;
+}
+
+interface TestIntegrationBody {
+  success?: boolean;
+  errorMessage?: string | null;
+}
 
 @Controller('v1/admin/integrations')
 export class AdminIntegrationController {
   constructor(
     private readonly authTokenService: AuthTokenService,
     private readonly currentUserService: CurrentUserService,
+    private readonly adminServiceClient: AdminServiceClient,
   ) {}
 
+  @Get()
+  async list(
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: AdminIntegrationSummary[] }> {
+    try {
+      await this.requireAdmin(authorization);
+      return {
+        data: await this.adminServiceClient.listAdminIntegrations(),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Patch(':provider/credentials')
-  @HttpCode(501)
   async updateCredentials(
     @Headers('authorization') authorization: string | undefined,
-  ): Promise<{ error: { code: string; message: string } }> {
-    await this.requireAdmin(authorization).catch(() => {
-      throw this.error('admin_required', 'An admin account is required.', 403);
-    });
-    return notImplemented;
+    @Param('provider') provider: string,
+    @Body() body: UpdateCredentialsBody,
+  ): Promise<{ data: AdminIntegrationSummary }> {
+    try {
+      const adminUserId = await this.requireAdmin(authorization);
+      return {
+        data: await this.adminServiceClient.updateAdminIntegrationCredentials({
+          provider,
+          adminUserId,
+          isEnabled: body.isEnabled ?? null,
+          webhookUrl:
+            body.webhookUrl === undefined ? undefined : body.webhookUrl,
+          apiKeyPreview:
+            body.apiKeyPreview === undefined ? undefined : body.apiKeyPreview,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
   }
 
   @Post(':provider/test')
-  @HttpCode(501)
   async test(
     @Headers('authorization') authorization: string | undefined,
-  ): Promise<{ error: { code: string; message: string } }> {
-    await this.requireAdmin(authorization).catch(() => {
-      throw this.error('admin_required', 'An admin account is required.', 403);
-    });
-    return notImplemented;
+    @Param('provider') provider: string,
+    @Body() body: TestIntegrationBody,
+  ): Promise<{ data: AdminIntegrationSummary }> {
+    try {
+      const adminUserId = await this.requireAdmin(authorization);
+      return {
+        data: await this.adminServiceClient.testAdminIntegration({
+          provider,
+          adminUserId,
+          success: body.success ?? true,
+          errorMessage: body.errorMessage ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<void> {
+  private async requireAdmin(authorization: string | undefined): Promise<string> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
     if (currentUser.user.role !== 'admin') {
       throw new AdminRequiredError();
     }
+    return userId;
+  }
+
+  private toHttpException(error: unknown): HttpException {
+    if (error instanceof AdminRequiredError) {
+      return this.error('admin_required', 'An admin account is required.', 403);
+    }
+    if (error instanceof AdminDependencyUnavailableError) {
+      return this.error(
+        'admin_dependency_unavailable',
+        'Admin integrations service is unavailable.',
+        503,
+      );
+    }
+    if (error instanceof HttpException) {
+      return error;
+    }
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin integrations request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

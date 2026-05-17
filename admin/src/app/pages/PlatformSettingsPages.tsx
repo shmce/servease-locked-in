@@ -28,8 +28,12 @@ import { notifyBackendRequired } from "../utils/backendRequired";
 import {
   exportAdminAuditLogsCsv,
   listAdminAuditLogs,
+  listAdminIntegrations,
+  testAdminIntegration,
+  updateAdminIntegrationCredentials,
   type AdminAuditActionType,
   type AdminAuditLogSummary,
+  type AdminIntegrationSummary,
 } from "../../services/serveaseAdminApi";
 
 // Admin type definition
@@ -735,39 +739,193 @@ export function AuditTrail() {
 }
 
 // Integrations
+const categoryStyles: Record<
+  string,
+  { icon: typeof CreditCard; label: string; badgeColor: string }
+> = {
+  payment: { icon: CreditCard, label: "Payment Gateway", badgeColor: "blue" },
+  messaging: { icon: Bell, label: "Messaging", badgeColor: "red" },
+  maps: { icon: MapPin, label: "Maps & Location", badgeColor: "yellow" },
+  analytics: { icon: BarChart3, label: "Analytics", badgeColor: "purple" },
+  push: { icon: Bell, label: "Push Notifications", badgeColor: "orange" },
+};
+
 export function Integrations() {
-  const [gcashEnabled, setGcashEnabled] = useState(true);
-  const [paymayaEnabled, setPaymayaEnabled] = useState(true);
-  const [stripeEnabled, setStripeEnabled] = useState(false);
-  const [twilioEnabled, setTwilioEnabled] = useState(true);
-  const [sendgridEnabled, setSendgridEnabled] = useState(true);
-  const [googleMapsEnabled, setGoogleMapsEnabled] = useState(true);
-  const [mixpanelEnabled, setMixpanelEnabled] = useState(false);
-  const [firebaseEnabled, setFirebaseEnabled] = useState(true);
+  const { accessToken } = useAuth();
+  const [integrations, setIntegrations] = useState<AdminIntegrationSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [pendingProvider, setPendingProvider] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const handleTestIntegration = (service: string) => {
-    notifyBackendRequired(
-      `Testing ${service} integrations`,
-      "POST /v1/admin/integrations/:provider/test",
-    );
+  const refresh = async () => {
+    if (!accessToken) return;
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const list = await listAdminIntegrations(accessToken);
+      setIntegrations(list);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Could not load integrations.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleUpdateCredentials = (service: string) => {
-    notifyBackendRequired(
-      `Updating ${service} credentials`,
-      "PATCH /v1/admin/integrations/:provider/credentials",
-    );
+  useEffect(() => {
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accessToken]);
+
+  const handleToggle = async (
+    provider: string,
+    nextEnabled: boolean,
+  ) => {
+    if (!accessToken) return;
+    setPendingProvider(provider);
+    try {
+      const updated = await updateAdminIntegrationCredentials(
+        accessToken,
+        provider,
+        { isEnabled: nextEnabled },
+      );
+      setIntegrations((current) =>
+        current.map((item) =>
+          item.provider === provider ? updated : item,
+        ),
+      );
+      toast.success(
+        `${updated.displayName} ${nextEnabled ? "enabled" : "disabled"}.`,
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update integration.",
+      );
+    } finally {
+      setPendingProvider(null);
+    }
   };
+
+  const handleTest = async (provider: string) => {
+    if (!accessToken) return;
+    setPendingProvider(provider);
+    try {
+      const updated = await testAdminIntegration(accessToken, provider, {
+        success: true,
+      });
+      setIntegrations((current) =>
+        current.map((item) =>
+          item.provider === provider ? updated : item,
+        ),
+      );
+      if (updated.status === "error") {
+        toast.error(updated.lastError ?? "Integration test failed.");
+      } else {
+        toast.success(`${updated.displayName} test passed.`);
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not run integration test.",
+      );
+    } finally {
+      setPendingProvider(null);
+    }
+  };
+
+  const handleUpdateCredentials = async (
+    integration: AdminIntegrationSummary,
+  ) => {
+    if (!accessToken) return;
+    const webhookUrl = window.prompt(
+      `Webhook URL for ${integration.displayName}`,
+      integration.webhookUrl ?? "",
+    );
+    if (webhookUrl === null) return;
+    const apiKeyPreview = window.prompt(
+      `API key preview for ${integration.displayName} (last 4 characters)`,
+      integration.apiKeyPreview ?? "",
+    );
+    if (apiKeyPreview === null) return;
+    setPendingProvider(integration.provider);
+    try {
+      const updated = await updateAdminIntegrationCredentials(
+        accessToken,
+        integration.provider,
+        {
+          webhookUrl: webhookUrl.trim() || null,
+          apiKeyPreview: apiKeyPreview.trim() || null,
+        },
+      );
+      setIntegrations((current) =>
+        current.map((item) =>
+          item.provider === integration.provider ? updated : item,
+        ),
+      );
+      toast.success(`${updated.displayName} credentials updated.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not update credentials.",
+      );
+    } finally {
+      setPendingProvider(null);
+    }
+  };
+
+  const activeCount = integrations.filter((item) => item.status === "active").length;
+  const totalCount = integrations.length;
+  const errorCount = integrations.filter((item) => item.status === "error").length;
+  const lastTestedAt = integrations
+    .map((item) => item.lastTestedAt)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .pop();
+
+  const grouped = useMemo(() => {
+    const buckets = new Map<string, AdminIntegrationSummary[]>();
+    for (const item of integrations) {
+      const key = item.category;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key)!.push(item);
+    }
+    return Array.from(buckets.entries());
+  }, [integrations]);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Integrations</h1>
-        <p className="text-gray-500 mt-1">
-          Manage third-party services and API integrations
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Integrations</h1>
+          <p className="text-gray-500 mt-1">
+            Manage third-party services and API integrations
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => void refresh()}
+          disabled={isLoading}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          {isLoading ? "Refreshing..." : "Refresh"}
+        </Button>
       </div>
+
+      {loadError && (
+        <Card>
+          <CardContent className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg">
+            {loadError}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -779,8 +937,12 @@ export function Integrations() {
               </div>
               <div className="flex-1">
                 <p className="text-sm text-gray-500">Active Integrations</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">6</p>
-                <p className="text-xs text-gray-400 mt-1">Out of 8 total</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {activeCount}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Out of {totalCount} total
+                </p>
               </div>
             </div>
           </CardContent>
@@ -789,13 +951,27 @@ export function Integrations() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-green-50">
-                <Wifi className="w-6 h-6 text-green-600" />
+              <div
+                className={`p-3 rounded-lg ${errorCount > 0 ? "bg-red-50" : "bg-green-50"}`}
+              >
+                {errorCount > 0 ? (
+                  <WifiOff className="w-6 h-6 text-red-600" />
+                ) : (
+                  <Wifi className="w-6 h-6 text-green-600" />
+                )}
               </div>
               <div className="flex-1">
-                <p className="text-sm text-gray-500">Connected Services</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">100%</p>
-                <p className="text-xs text-gray-400 mt-1">All services online</p>
+                <p className="text-sm text-gray-500">Healthy Services</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {totalCount === 0
+                    ? "0%"
+                    : `${Math.round(((totalCount - errorCount) / totalCount) * 100)}%`}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {errorCount > 0
+                    ? `${errorCount} service(s) reporting errors`
+                    : "All services healthy"}
+                </p>
               </div>
             </div>
           </CardContent>
@@ -809,465 +985,160 @@ export function Integrations() {
               </div>
               <div className="flex-1">
                 <p className="text-sm text-gray-500">Last Health Check</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">2 min</p>
-                <p className="text-xs text-gray-400 mt-1">All systems operational</p>
+                <p className="text-2xl font-bold text-gray-900 mt-1">
+                  {lastTestedAt
+                    ? new Date(lastTestedAt).toLocaleString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "Never"}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Updated via test button
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Payment Gateways */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-[#00BF63]" />
-            Payment Gateways
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* GCash */}
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-blue-600 flex items-center justify-center">
-                  <CreditCard className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">GCash</h4>
-                  <p className="text-sm text-gray-500">Philippine mobile wallet payment</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-gray-400" />
-                <Badge className={gcashEnabled ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-700 border-gray-200"}>
-                  {gcashEnabled ? (
-                    <>
-                      <Wifi className="w-3 h-3 mr-1" />
-                      Active
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3 h-3 mr-1" />
-                      Inactive
-                    </>
-                  )}
-                </Badge>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => handleTestIntegration("GCash")}
-                className="flex-1"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Test Integration
-              </Button>
-              <Button
-                onClick={() => handleUpdateCredentials("GCash")}
-                className="flex-1 bg-[#00BF63] hover:bg-[#00A055]"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Update Credentials
-              </Button>
-            </div>
-          </div>
-
-          {/* PayMaya */}
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-green-600 flex items-center justify-center">
-                  <CreditCard className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">PayMaya</h4>
-                  <p className="text-sm text-gray-500">Digital payment solution for Philippines</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-gray-400" />
-                <Badge className={paymayaEnabled ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-700 border-gray-200"}>
-                  {paymayaEnabled ? (
-                    <>
-                      <Wifi className="w-3 h-3 mr-1" />
-                      Active
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3 h-3 mr-1" />
-                      Inactive
-                    </>
-                  )}
-                </Badge>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => handleTestIntegration("PayMaya")}
-                className="flex-1"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Test Integration
-              </Button>
-              <Button
-                onClick={() => handleUpdateCredentials("PayMaya")}
-                className="flex-1 bg-[#00BF63] hover:bg-[#00A055]"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Update Credentials
-              </Button>
-            </div>
-          </div>
-
-          {/* Stripe */}
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-purple-600 flex items-center justify-center">
-                  <CreditCard className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">Stripe</h4>
-                  <p className="text-sm text-gray-500">International payment processing</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-gray-400" />
-                <Badge className={stripeEnabled ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-700 border-gray-200"}>
-                  {stripeEnabled ? (
-                    <>
-                      <Wifi className="w-3 h-3 mr-1" />
-                      Active
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3 h-3 mr-1" />
-                      Inactive
-                    </>
-                  )}
-                </Badge>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => handleTestIntegration("Stripe")}
-                className="flex-1"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Test Integration
-              </Button>
-              <Button
-                onClick={() => handleUpdateCredentials("Stripe")}
-                className="flex-1 bg-[#00BF63] hover:bg-[#00A055]"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Update Credentials
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* SMS Gateway */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="w-5 h-5 text-[#00BF63]" />
-            SMS Gateway
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Twilio */}
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-red-600 flex items-center justify-center">
-                  <Bell className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">Twilio</h4>
-                  <p className="text-sm text-gray-500">SMS and communication API</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-gray-400" />
-                <Badge className={twilioEnabled ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-700 border-gray-200"}>
-                  {twilioEnabled ? (
-                    <>
-                      <Wifi className="w-3 h-3 mr-1" />
-                      Active
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3 h-3 mr-1" />
-                      Inactive
-                    </>
-                  )}
-                </Badge>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => handleTestIntegration("Twilio")}
-                className="flex-1"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Test Integration
-              </Button>
-              <Button
-                onClick={() => handleUpdateCredentials("Twilio")}
-                className="flex-1 bg-[#00BF63] hover:bg-[#00A055]"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Update Credentials
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Email Service */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="w-5 h-5 text-[#00BF63]" />
-            Email Service
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* SendGrid */}
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-blue-500 flex items-center justify-center">
-                  <Bell className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">SendGrid</h4>
-                  <p className="text-sm text-gray-500">Email delivery service</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-gray-400" />
-                <Badge className={sendgridEnabled ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-700 border-gray-200"}>
-                  {sendgridEnabled ? (
-                    <>
-                      <Wifi className="w-3 h-3 mr-1" />
-                      Active
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3 h-3 mr-1" />
-                      Inactive
-                    </>
-                  )}
-                </Badge>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => handleTestIntegration("SendGrid")}
-                className="flex-1"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Test Integration
-              </Button>
-              <Button
-                onClick={() => handleUpdateCredentials("SendGrid")}
-                className="flex-1 bg-[#00BF63] hover:bg-[#00A055]"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Update Credentials
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Maps */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-[#00BF63]" />
-            Maps
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Google Maps */}
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-green-500 flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">Google Maps API</h4>
-                  <p className="text-sm text-gray-500">Location and mapping services</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-gray-400" />
-                <Badge className={googleMapsEnabled ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-700 border-gray-200"}>
-                  {googleMapsEnabled ? (
-                    <>
-                      <Wifi className="w-3 h-3 mr-1" />
-                      Active
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3 h-3 mr-1" />
-                      Inactive
-                    </>
-                  )}
-                </Badge>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="googleMapsKey">API Key</Label>
-                <Input
-                  id="googleMapsKey"
-                  type="text"
-                  placeholder="AIza..."
-                  defaultValue="AIzaSyBdVl-cTICSwYKrZ95SuvNw7dbMuDt1KG0"
-                  readOnly
-                  className="font-mono text-sm"
+      {grouped.map(([category, items]) => {
+        const style = categoryStyles[category] ?? {
+          icon: Plug,
+          label: category,
+          badgeColor: "gray",
+        };
+        const Icon = style.icon;
+        return (
+          <Card key={category}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Icon className="w-5 h-5 text-[#00BF63]" />
+                {style.label}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {items.map((integration) => (
+                <IntegrationCard
+                  key={integration.provider}
+                  integration={integration}
+                  pending={pendingProvider === integration.provider}
+                  onToggle={(next) => void handleToggle(integration.provider, next)}
+                  onTest={() => void handleTest(integration.provider)}
+                  onUpdateCredentials={() =>
+                    void handleUpdateCredentials(integration)
+                  }
                 />
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => handleTestIntegration("Google Maps")}
-                  className="flex-1"
-                >
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  Test Integration
-                </Button>
-                <Button
-                  onClick={() => handleUpdateCredentials("Google Maps")}
-                  className="flex-1 bg-[#00BF63] hover:bg-[#00A055]"
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Update Credentials
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+              ))}
+            </CardContent>
+          </Card>
+        );
+      })}
 
-      {/* Analytics */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-[#00BF63]" />
-            Analytics
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Mixpanel */}
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-purple-500 flex items-center justify-center">
-                  <BarChart3 className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">Mixpanel</h4>
-                  <p className="text-sm text-gray-500">Product analytics platform</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-gray-400" />
-                <Badge className={mixpanelEnabled ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-700 border-gray-200"}>
-                  {mixpanelEnabled ? (
-                    <>
-                      <Wifi className="w-3 h-3 mr-1" />
-                      Active
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3 h-3 mr-1" />
-                      Inactive
-                    </>
-                  )}
-                </Badge>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => handleTestIntegration("Mixpanel")}
-                className="flex-1"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Test Integration
-              </Button>
-              <Button
-                onClick={() => handleUpdateCredentials("Mixpanel")}
-                className="flex-1 bg-[#00BF63] hover:bg-[#00A055]"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Update Credentials
-              </Button>
-            </div>
-          </div>
+      {!isLoading && integrations.length === 0 && !loadError && (
+        <Card>
+          <CardContent className="p-6 text-center text-sm text-gray-500">
+            No integrations have been registered yet.
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
 
-          {/* Firebase */}
-          <div className="p-4 border rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-lg bg-orange-500 flex items-center justify-center">
-                  <BarChart3 className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-gray-900">Firebase</h4>
-                  <p className="text-sm text-gray-500">Analytics and app performance</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Settings className="w-4 h-4 text-gray-400" />
-                <Badge className={firebaseEnabled ? "bg-green-100 text-green-700 border-green-200" : "bg-gray-100 text-gray-700 border-gray-200"}>
-                  {firebaseEnabled ? (
-                    <>
-                      <Wifi className="w-3 h-3 mr-1" />
-                      Active
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3 h-3 mr-1" />
-                      Inactive
-                    </>
-                  )}
-                </Badge>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => handleTestIntegration("Firebase")}
-                className="flex-1"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Test Integration
-              </Button>
-              <Button
-                onClick={() => handleUpdateCredentials("Firebase")}
-                className="flex-1 bg-[#00BF63] hover:bg-[#00A055]"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Update Credentials
-              </Button>
-            </div>
+function IntegrationCard({
+  integration,
+  pending,
+  onToggle,
+  onTest,
+  onUpdateCredentials,
+}: {
+  integration: AdminIntegrationSummary;
+  pending: boolean;
+  onToggle: (next: boolean) => void;
+  onTest: () => void;
+  onUpdateCredentials: () => void;
+}) {
+  const statusBadge =
+    integration.status === "active"
+      ? "bg-green-100 text-green-700 border-green-200"
+      : integration.status === "error"
+        ? "bg-red-100 text-red-700 border-red-200"
+        : "bg-gray-100 text-gray-700 border-gray-200";
+
+  return (
+    <div className="p-4 border rounded-lg">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-lg bg-[#0F172A] flex items-center justify-center">
+            <Plug className="w-6 h-6 text-white" />
           </div>
-        </CardContent>
-      </Card>
+          <div>
+            <h4 className="font-semibold text-gray-900">
+              {integration.displayName}
+            </h4>
+            <p className="text-sm text-gray-500 capitalize">
+              {integration.category} integration
+            </p>
+            {integration.webhookUrl && (
+              <p className="text-xs text-gray-400 mt-1 truncate max-w-md">
+                Webhook: {integration.webhookUrl}
+              </p>
+            )}
+            {integration.lastError && integration.status === "error" && (
+              <p className="text-xs text-red-600 mt-1">
+                {integration.lastError}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge className={statusBadge}>
+            {integration.status === "active" ? (
+              <>
+                <Wifi className="w-3 h-3 mr-1" />
+                Active
+              </>
+            ) : integration.status === "error" ? (
+              <>
+                <WifiOff className="w-3 h-3 mr-1" />
+                Error
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-3 h-3 mr-1" />
+                Inactive
+              </>
+            )}
+          </Badge>
+          <Switch
+            checked={integration.isEnabled}
+            disabled={pending}
+            onCheckedChange={(checked) => onToggle(checked)}
+          />
+        </div>
+      </div>
+      <div className="flex gap-2 mt-4">
+        <Button
+          variant="outline"
+          onClick={onTest}
+          disabled={pending}
+          className="flex-1"
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          {pending ? "Working..." : "Test Integration"}
+        </Button>
+        <Button
+          onClick={onUpdateCredentials}
+          disabled={pending}
+          className="flex-1 bg-[#00BF63] hover:bg-[#00A055]"
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Update Credentials
+        </Button>
+      </div>
     </div>
   );
 }

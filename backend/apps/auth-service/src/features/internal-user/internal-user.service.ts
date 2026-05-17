@@ -5,6 +5,7 @@ import {
   InternalUserResponse,
   StoredUserRecord,
   UpdateInternalUserInput,
+  UserSessionRecord,
 } from './user.types';
 
 export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
@@ -12,6 +13,7 @@ export const USER_REPOSITORY = Symbol('USER_REPOSITORY');
 export interface UserRepository {
   findById(userId: string): Promise<StoredUserRecord | null>;
   update(input: UpdateInternalUserInput): Promise<StoredUserRecord | null>;
+  listSessions?(userId: string): Promise<UserSessionRecord[]>;
 }
 
 @Injectable()
@@ -22,6 +24,10 @@ export class EmptyUserRepository implements UserRepository {
 
   async update(): Promise<StoredUserRecord | null> {
     return null;
+  }
+
+  async listSessions(): Promise<UserSessionRecord[]> {
+    return [];
   }
 }
 
@@ -50,5 +56,12 @@ export class InternalUserService {
     }
 
     return presentInternalUser(user);
+  }
+
+  async listSessions(userId: string): Promise<UserSessionRecord[]> {
+    if (!this.userRepository.listSessions) {
+      return [];
+    }
+    return this.userRepository.listSessions(userId);
   }
 }

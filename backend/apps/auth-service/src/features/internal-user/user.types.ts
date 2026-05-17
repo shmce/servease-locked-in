@@ -25,3 +25,10 @@ export interface UpdateInternalUserInput {
   fullName: string;
   contactNumber?: string | null;
 }
+
+export interface UserSessionRecord {
+  id: string;
+  email: string;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+}

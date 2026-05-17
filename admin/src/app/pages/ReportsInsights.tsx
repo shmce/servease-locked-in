@@ -54,6 +54,7 @@ import {
 import { notifyBackendRequired } from "../utils/backendRequired";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  exportAdminReportCsv,
   getAdminBookingsSummary,
   getAdminUsersSummary,
   listAdminPayments,
@@ -227,8 +228,40 @@ export function ReportsInsights() {
     });
   }, [accessToken]);
 
-  const handleExportCSV = () => {
-    notifyBackendRequired(`Exporting ${activeTab} CSV`, `GET /v1/admin/reports/${activeTab}.csv`);
+  const handleExportCSV = async () => {
+    if (!accessToken) {
+      notifyBackendRequired(
+        `Exporting ${activeTab} CSV`,
+        `GET /v1/admin/reports/${activeTab}.csv`,
+      );
+      return;
+    }
+    const kindMap: Record<string, "revenue" | "bookings" | "users"> = {
+      revenue: "revenue",
+      bookings: "bookings",
+      providers: "users",
+      customers: "users",
+    };
+    const kind = kindMap[activeTab] ?? "bookings";
+    try {
+      const csv = await exportAdminReportCsv(accessToken, kind);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${activeTab}-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      notifyBackendRequired(
+        error instanceof Error
+          ? error.message
+          : `Exporting ${activeTab} CSV failed`,
+        `GET /v1/admin/reports/${kind}.csv`,
+      );
+    }
   };
 
   const handleExportPDF = () => {

@@ -86,4 +86,15 @@ export class CurrentUserService {
 
     return this.authServiceClient.updatePassword(user.id, user.email, input);
   }
+
+  async listCurrentUserSessions(userId: string) {
+    const sessions = await this.authServiceClient.listUserSessions(userId);
+    return sessions.map((session) => ({
+      id: session.id,
+      email: session.email,
+      createdAt: session.createdAt,
+      lastSignInAt: session.lastSignInAt,
+      isCurrent: session.id === userId,
+    }));
+  }
 }

@@ -54,6 +54,54 @@ import {
   type CustomerPaymentMethodSummary,
   type CustomerPaymentMethodType,
 } from "../lib/payments";
+import {
+  getUserPreferences,
+  updateUserPreferences,
+  type UserPreferenceSummary,
+} from "../lib/preferences";
+
+interface CustomerNotificationSettings {
+  bookingConfirmations: boolean;
+  bookingReminders: boolean;
+  bookingUpdates: boolean;
+  providerMessages: boolean;
+  paymentReceipts: boolean;
+  promotionalOffers: boolean;
+  platformUpdates: boolean;
+}
+
+const defaultCustomerNotificationSettings: CustomerNotificationSettings = {
+  bookingConfirmations: true,
+  bookingReminders: true,
+  bookingUpdates: true,
+  providerMessages: true,
+  paymentReceipts: true,
+  promotionalOffers: false,
+  platformUpdates: true,
+};
+
+function readCustomerNotificationPreferences(
+  value: Record<string, unknown> | null | undefined,
+): CustomerNotificationSettings {
+  const next: CustomerNotificationSettings = {
+    ...defaultCustomerNotificationSettings,
+  };
+
+  if (!value) {
+    return next;
+  }
+
+  for (const key of Object.keys(defaultCustomerNotificationSettings) as Array<
+    keyof CustomerNotificationSettings
+  >) {
+    const current = value[key];
+    if (typeof current === "boolean") {
+      next[key] = current;
+    }
+  }
+
+  return next;
+}
 
 interface ProfileFormState {
   fullName: string;
@@ -150,6 +198,15 @@ export function AccountPage() {
   });
   const [isSavingPaymentMethod, setIsSavingPaymentMethod] = useState(false);
   const [deletingPaymentMethodId, setDeletingPaymentMethodId] = useState("");
+  const [preferences, setPreferences] = useState<UserPreferenceSummary | null>(
+    null,
+  );
+  const [notificationSettings, setNotificationSettings] =
+    useState<CustomerNotificationSettings>(defaultCustomerNotificationSettings);
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(true);
+  const [preferenceError, setPreferenceError] = useState("");
+  const [preferenceSuccess, setPreferenceSuccess] = useState("");
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false);
 
   const loadAccount = async () => {
     if (!supabase) {
@@ -184,6 +241,7 @@ export function AccountPage() {
       notificationsResponse,
       referralResponse,
       paymentMethodsResponse,
+      preferencesResponse,
     ] = await Promise.all([
       getCurrentUserProfile(accessToken)
         .then((data) => ({ data }))
@@ -201,6 +259,9 @@ export function AccountPage() {
         .then((data) => ({ data }))
         .catch((error: unknown) => ({ error })),
       listCustomerPaymentMethods(accessToken)
+        .then((data) => ({ data }))
+        .catch((error: unknown) => ({ error })),
+      getUserPreferences(accessToken)
         .then((data) => ({ data }))
         .catch((error: unknown) => ({ error })),
     ]);
@@ -273,7 +334,81 @@ export function AccountPage() {
       setPaymentMethods(paymentMethodsResponse.data);
     }
 
+    if ("error" in preferencesResponse) {
+      setPreferenceError(
+        preferencesResponse.error instanceof Error
+          ? preferencesResponse.error.message
+          : "Could not load your notification preferences.",
+      );
+      setPreferences(null);
+      setNotificationSettings(defaultCustomerNotificationSettings);
+      setPushNotificationsEnabled(true);
+    } else {
+      setPreferences(preferencesResponse.data);
+      setNotificationSettings(
+        readCustomerNotificationPreferences(
+          preferencesResponse.data.notificationPreferences,
+        ),
+      );
+      setPushNotificationsEnabled(
+        preferencesResponse.data.pushNotificationsEnabled,
+      );
+    }
+
     setIsLoading(false);
+  };
+
+  const handleSavePreferences = async () => {
+    if (!supabase) {
+      setPreferenceError(setupError || "Supabase login is not configured.");
+      return;
+    }
+
+    setIsSavingPreferences(true);
+    setPreferenceError("");
+    setPreferenceSuccess("");
+
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
+
+    if (sessionError || !sessionData.session?.access_token) {
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const updated = await updateUserPreferences(
+        sessionData.session.access_token,
+        {
+          pushNotificationsEnabled,
+          notificationPreferences: { ...notificationSettings },
+        },
+      );
+      setPreferences(updated);
+      setNotificationSettings(
+        readCustomerNotificationPreferences(updated.notificationPreferences),
+      );
+      setPushNotificationsEnabled(updated.pushNotificationsEnabled);
+      setPreferenceSuccess("Notification preferences saved.");
+    } catch (error) {
+      setPreferenceError(
+        error instanceof Error
+          ? error.message
+          : "Could not save your notification preferences.",
+      );
+    } finally {
+      setIsSavingPreferences(false);
+    }
+  };
+
+  const toggleNotificationSetting = (
+    key: keyof CustomerNotificationSettings,
+  ) => {
+    setNotificationSettings((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
+    setPreferenceSuccess("");
   };
 
   useEffect(() => {
@@ -887,6 +1022,111 @@ export function AccountPage() {
             </section>
 
             <section className="bg-white rounded-2xl shadow-md p-6">
+              <div className="flex items-center justify-between gap-4 mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-[#00BF63]/10 flex items-center justify-center">
+                    <Bell className="text-[#00BF63]" size={24} />
+                  </div>
+                  <div>
+                    <h2 className="font-['Poppins',sans-serif] text-xl text-gray-900">
+                      Notification Preferences
+                    </h2>
+                    <p className="font-['Poppins',sans-serif] text-sm text-gray-500">
+                      Choose which ServEase alerts you want to receive.
+                    </p>
+                  </div>
+                </div>
+                {preferences?.updatedAt && (
+                  <span className="rounded-full bg-[#00BF63]/10 px-3 py-1 font-['Poppins',sans-serif] text-xs text-[#007A3F]">
+                    Last saved {formatDate(preferences.updatedAt)}
+                  </span>
+                )}
+              </div>
+
+              {preferenceError && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="font-['Poppins',sans-serif] text-sm text-red-700">
+                    {preferenceError}
+                  </p>
+                </div>
+              )}
+
+              {preferenceSuccess && (
+                <div className="mb-4 rounded-xl border border-[#00BF63]/20 bg-[#00BF63]/10 p-4">
+                  <p className="font-['Poppins',sans-serif] text-sm text-[#007A3F]">
+                    {preferenceSuccess}
+                  </p>
+                </div>
+              )}
+
+              <div className="divide-y divide-gray-100">
+                <PreferenceToggleRow
+                  label="Enable push notifications"
+                  description="Master switch for all push alerts on this account."
+                  checked={pushNotificationsEnabled}
+                  onChange={() => {
+                    setPushNotificationsEnabled((current) => !current);
+                    setPreferenceSuccess("");
+                  }}
+                />
+                <PreferenceToggleRow
+                  label="Booking confirmations"
+                  description="Alerts when a provider accepts your booking."
+                  checked={notificationSettings.bookingConfirmations}
+                  onChange={() => toggleNotificationSetting("bookingConfirmations")}
+                />
+                <PreferenceToggleRow
+                  label="Booking reminders"
+                  description="Reminders before your scheduled service."
+                  checked={notificationSettings.bookingReminders}
+                  onChange={() => toggleNotificationSetting("bookingReminders")}
+                />
+                <PreferenceToggleRow
+                  label="Booking updates"
+                  description="Status changes, cancellations, and rescheduling."
+                  checked={notificationSettings.bookingUpdates}
+                  onChange={() => toggleNotificationSetting("bookingUpdates")}
+                />
+                <PreferenceToggleRow
+                  label="Provider messages"
+                  description="Messages and replies from your service providers."
+                  checked={notificationSettings.providerMessages}
+                  onChange={() => toggleNotificationSetting("providerMessages")}
+                />
+                <PreferenceToggleRow
+                  label="Payment receipts"
+                  description="Receipts and refund updates for your payments."
+                  checked={notificationSettings.paymentReceipts}
+                  onChange={() => toggleNotificationSetting("paymentReceipts")}
+                />
+                <PreferenceToggleRow
+                  label="Promotional offers"
+                  description="Discounts, referral rewards, and seasonal offers."
+                  checked={notificationSettings.promotionalOffers}
+                  onChange={() => toggleNotificationSetting("promotionalOffers")}
+                />
+                <PreferenceToggleRow
+                  label="Platform updates"
+                  description="New features and important platform announcements."
+                  checked={notificationSettings.platformUpdates}
+                  onChange={() => toggleNotificationSetting("platformUpdates")}
+                />
+              </div>
+
+              <div className="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => void handleSavePreferences()}
+                  disabled={isSavingPreferences}
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#00BF63] px-4 py-2 font-['Poppins',sans-serif] text-sm text-white disabled:opacity-70"
+                >
+                  <Save size={16} />
+                  {isSavingPreferences ? "Saving..." : "Save Preferences"}
+                </button>
+              </div>
+            </section>
+
+            <section className="bg-white rounded-2xl shadow-md p-6">
               <div className="flex items-center gap-3 mb-5">
                 <div className="w-12 h-12 rounded-xl bg-[#00BF63]/10 flex items-center justify-center">
                   <ShieldCheck className="text-[#00BF63]" size={24} />
@@ -1343,6 +1583,47 @@ function PasswordInput({
         className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 font-['Poppins',sans-serif] text-sm focus:border-[#00BF63] focus:outline-none"
       />
     </label>
+  );
+}
+
+function PreferenceToggleRow({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
+      <div className="flex-1">
+        <p className="font-['Poppins',sans-serif] text-sm font-medium text-gray-900">
+          {label}
+        </p>
+        <p className="mt-1 font-['Poppins',sans-serif] text-xs text-gray-500">
+          {description}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onChange}
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        className={`relative h-6 w-11 rounded-full transition-colors ${
+          checked ? "bg-[#00BF63]" : "bg-gray-300"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-5" : "translate-x-0"
+          }`}
+        />
+      </button>
+    </div>
   );
 }
 

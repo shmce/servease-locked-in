@@ -41,6 +41,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyBackendRequired } from "../../utils/backendRequired";
+import { exportAdminBookingsCsv } from "../../../services/serveaseAdminApi";
+import { useAuth } from "../../contexts/AuthContext";
 
 // Mock data for recent reports
 const recentReports = [
@@ -110,6 +112,8 @@ const scheduledReportsData = [
 ];
 
 export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }) {
+  const { accessToken } = useAuth();
+  const [isExporting, setIsExporting] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [, setIsEditScheduleOpen] = useState(false);
@@ -131,13 +135,46 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
     format: "PDF",
   });
 
+  const downloadCsv = async (filename: string) => {
+    if (!accessToken) {
+      toast.error("Sign in to export business reports.");
+      return;
+    }
+    setIsExporting(true);
+    try {
+      const csv = await exportAdminBookingsCsv(accessToken);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Business report exported.");
+      setIsGenerateModalOpen(false);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to export business report.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleGenerateReport = () => {
     if (!generateForm.template) {
       toast.error("Please select a report template");
       return;
     }
-
-    notifyBackendRequired("Generating business reports", "POST /v1/admin/reports/business");
+    void downloadCsv(
+      `${generateForm.template.toLowerCase().replace(/\s+/g, "-")}-${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`,
+    );
   };
 
   const handleScheduleReport = () => {
@@ -165,9 +202,10 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
   };
 
   const handleDownloadReport = (reportName: string) => {
-    notifyBackendRequired(
-      `Downloading ${reportName}`,
-      "GET /v1/admin/reports/business/:id/download",
+    void downloadCsv(
+      `${reportName.toLowerCase().replace(/\s+/g, "-")}-${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`,
     );
   };
 
@@ -404,10 +442,11 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
                       <Button
                         size="sm"
                         onClick={() => handleDownloadReport(report.name)}
+                        disabled={isExporting}
                         className="bg-[#00BF63] hover:bg-[#00A055]"
                       >
                         <Download className="w-3 h-3 mr-2" />
-                        Download
+                        {isExporting ? "Downloading..." : "Download"}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -500,10 +539,11 @@ export function BusinessReports({ hideHeader = false }: { hideHeader?: boolean }
             </Button>
             <Button
               onClick={handleGenerateReport}
+              disabled={isExporting}
               className="bg-[#00BF63] hover:bg-[#00A055]"
             >
               <Plus className="w-4 h-4 mr-2" />
-              Generate Report
+              {isExporting ? "Generating..." : "Generate Report"}
             </Button>
           </DialogFooter>
         </DialogContent>

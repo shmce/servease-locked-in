@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -18,7 +18,11 @@ import {
 import { toast } from "sonner";
 import { notifyBackendRequired } from "../utils/backendRequired";
 import { useAuth } from "../contexts/AuthContext";
-import { updateCurrentUserPassword } from "../../services/serveaseAdminApi";
+import {
+  listCurrentUserSessions,
+  updateCurrentUserPassword,
+  type CurrentUserSessionSummary,
+} from "../../services/serveaseAdminApi";
 
 export function Security() {
   const { accessToken } = useAuth();
@@ -73,32 +77,50 @@ export function Security() {
     notifyBackendRequired("Two-factor authentication", "POST /v1/me/two-factor");
   };
 
-  const activeSessions = [
-    {
-      id: 1,
-      device: "Chrome on Windows",
-      location: "Makati, Metro Manila",
-      ip: "192.168.1.1",
-      lastActive: "Active now",
-      isCurrent: true,
-    },
-    {
-      id: 2,
-      device: "Safari on iPhone",
-      location: "Quezon City, Metro Manila",
-      ip: "192.168.1.25",
-      lastActive: "2 hours ago",
-      isCurrent: false,
-    },
-    {
-      id: 3,
-      device: "Edge on Windows",
-      location: "Taguig, Metro Manila",
-      ip: "192.168.1.50",
-      lastActive: "Yesterday",
-      isCurrent: false,
-    },
-  ];
+  const [sessions, setSessions] = useState<CurrentUserSessionSummary[]>([]);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      if (!accessToken) {
+        setIsLoadingSessions(false);
+        return;
+      }
+      setIsLoadingSessions(true);
+      setSessionsError(null);
+      try {
+        const data = await listCurrentUserSessions(accessToken);
+        if (!cancelled) setSessions(data);
+      } catch (error) {
+        if (!cancelled) {
+          setSessionsError(
+            error instanceof Error
+              ? error.message
+              : "Could not load active sessions.",
+          );
+        }
+      } finally {
+        if (!cancelled) setIsLoadingSessions(false);
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
+  const formatSessionTime = (value: string | null) => {
+    if (!value) return "Never";
+    return new Date(value).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -292,8 +314,22 @@ export function Security() {
             Manage devices where you're currently signed in
           </p>
 
+          {sessionsError && (
+            <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {sessionsError}
+            </div>
+          )}
+
           <div className="space-y-3">
-            {activeSessions.map((session) => (
+            {isLoadingSessions && (
+              <p className="text-sm text-gray-500">Loading sessions...</p>
+            )}
+            {!isLoadingSessions && sessions.length === 0 && !sessionsError && (
+              <p className="text-sm text-gray-500">
+                No active sessions detected.
+              </p>
+            )}
+            {sessions.map((session) => (
               <div
                 key={session.id}
                 className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-[#00BF63] transition-colors"
@@ -304,35 +340,32 @@ export function Security() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-medium text-gray-900">{session.device}</p>
+                      <p className="font-medium text-gray-900">
+                        {session.email || "Active session"}
+                      </p>
                       {session.isCurrent && (
                         <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]">
                           Current
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-gray-600 mt-1">{session.location}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Last sign-in: {formatSessionTime(session.lastSignInAt)}
+                    </p>
                     <p className="text-xs text-gray-400 mt-1">
-                      {session.ip} • {session.lastActive}
+                      Account created: {formatSessionTime(session.createdAt)}
                     </p>
                   </div>
                 </div>
-                {!session.isCurrent && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  >
-                    Revoke
-                  </Button>
-                )}
               </div>
             ))}
           </div>
 
-          <Button variant="outline" className="w-full mt-4 text-red-600 hover:text-red-700 hover:bg-red-50">
-            Sign Out All Other Sessions
-          </Button>
+          <p className="mt-4 text-xs text-gray-500">
+            Multi-device session listing requires a dedicated session store.
+            Today this view shows the active Supabase Auth session derived from
+            <code> auth.users.last_sign_in_at</code>.
+          </p>
         </CardContent>
       </Card>
     </div>

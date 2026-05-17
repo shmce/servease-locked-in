@@ -24,6 +24,7 @@ import { AuthTokenService } from './auth-token.service';
 import { CurrentUserService } from './current-user.service';
 import {
   CurrentUserProfile,
+  CurrentUserSessionSummary,
   UpdateCurrentUserPasswordInput,
   UpdateCurrentUserPasswordResponse,
   UpdateCurrentUserProfileInput,
@@ -114,10 +115,11 @@ export class CurrentUserController {
   @Get('sessions')
   async listSessions(
     @Headers('authorization') authorization?: string,
-  ): Promise<{ data: never[] }> {
+  ): Promise<{ data: CurrentUserSessionSummary[] }> {
     try {
-      await this.authTokenService.authenticate(authorization);
-      return { data: [] };
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.listCurrentUserSessions(userId);
+      return { data };
     } catch (error) {
       throw this.toHttpException(error);
     }

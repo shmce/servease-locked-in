@@ -42,6 +42,11 @@ import {
   AdminUsersSummaryStats,
   CreateAdminUserRequest,
 } from '../admin-users.types';
+import {
+  AdminIntegrationSummary,
+  UpdateAdminIntegrationCredentialsInput,
+  RecordAdminIntegrationTestInput,
+} from '../admin-integration.types';
 
 @Injectable()
 export class AdminServiceClient {
@@ -527,6 +532,42 @@ export class AdminServiceClient {
       {
         adminUserId: input.adminUserId,
         reason: input.reason,
+      },
+    );
+  }
+
+  listAdminIntegrations(): Promise<AdminIntegrationSummary[]> {
+    return this.request<AdminIntegrationSummary[]>(
+      '/internal/admin/integrations',
+      'GET',
+    );
+  }
+
+  updateAdminIntegrationCredentials(
+    input: UpdateAdminIntegrationCredentialsInput,
+  ): Promise<AdminIntegrationSummary> {
+    return this.request<AdminIntegrationSummary>(
+      `/internal/admin/integrations/${encodeURIComponent(input.provider)}/credentials`,
+      'PATCH',
+      {
+        adminUserId: input.adminUserId,
+        isEnabled: input.isEnabled,
+        webhookUrl: input.webhookUrl,
+        apiKeyPreview: input.apiKeyPreview,
+      },
+    );
+  }
+
+  testAdminIntegration(
+    input: RecordAdminIntegrationTestInput,
+  ): Promise<AdminIntegrationSummary> {
+    return this.request<AdminIntegrationSummary>(
+      `/internal/admin/integrations/${encodeURIComponent(input.provider)}/test`,
+      'POST',
+      {
+        adminUserId: input.adminUserId,
+        success: input.success,
+        errorMessage: input.errorMessage,
       },
     );
   }

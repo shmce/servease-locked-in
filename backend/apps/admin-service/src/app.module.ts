@@ -26,6 +26,9 @@ import { AdminUsersController } from './features/users/admin-users.controller';
 import { AdminUsersGatewayService } from './features/users/admin-users.service';
 import { AuthServiceClient } from './features/users/clients/auth-service.client';
 import { UserServiceClient } from './features/users/clients/user-service.client';
+import { AdminIntegrationController } from './features/integrations/admin-integration.controller';
+import { AdminIntegrationService } from './features/integrations/admin-integration.service';
+import { SupabaseAdminIntegrationRepository } from './features/integrations/supabase-admin-integration.repository';
 import { HealthController } from './features/health/health.controller';
 
 @Module({
@@ -41,6 +44,7 @@ import { HealthController } from './features/health/health.controller';
     AdminAuditController,
     AdminBookingController,
     AdminProviderApplicationController,
+    AdminIntegrationController,
   ],
   providers: [
     AdminCatalogGatewayService,
@@ -60,6 +64,8 @@ import { HealthController } from './features/health/health.controller';
     AdminBookingServiceClient,
     AdminProviderApplicationService,
     CatalogServiceClient,
+    AdminIntegrationService,
+    SupabaseAdminIntegrationRepository,
   ],
 })
 export class AppModule {}

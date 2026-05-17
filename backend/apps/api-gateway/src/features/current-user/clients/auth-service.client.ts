@@ -59,6 +59,37 @@ export class AuthServiceClient {
     };
   }
 
+  async listUserSessions(userId: string): Promise<
+    Array<{
+      id: string;
+      email: string;
+      createdAt: string | null;
+      lastSignInAt: string | null;
+    }>
+  > {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/sessions`,
+    );
+
+    if (response.status === 404) {
+      throw new UserNotFoundError();
+    }
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: Array<{
+        id: string;
+        email: string;
+        createdAt: string | null;
+        lastSignInAt: string | null;
+      }>;
+    };
+    return payload.data;
+  }
+
   async registerUser(input: RegisterAccountRequest): Promise<CurrentUserIdentity> {
     const response = await fetch(`${this.baseUrl()}/internal/auth/registrations`, {
       method: 'POST',

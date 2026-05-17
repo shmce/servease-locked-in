@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpException, Param, Patch } from '@nestjs/common';
 import { InternalUserService } from './internal-user.service';
-import { InternalUserResponse } from './user.types';
+import { InternalUserResponse, UserSessionRecord } from './user.types';
 import { UserNotFoundError } from './internal-user.errors';
 
 @Controller('internal/users')
@@ -33,6 +33,38 @@ export class InternalUserController {
           error: {
             code: 'profile_dependency_unavailable',
             message: 'User lookup failed.',
+            details: {},
+          },
+        },
+        503,
+      );
+    }
+  }
+
+  @Get(':userId/sessions')
+  async listSessions(
+    @Param('userId') userId: string,
+  ): Promise<{ data: UserSessionRecord[] }> {
+    try {
+      return { data: await this.internalUserService.listSessions(userId) };
+    } catch (error) {
+      if (error instanceof UserNotFoundError) {
+        throw new HttpException(
+          {
+            error: {
+              code: 'user_not_found',
+              message: 'User was not found.',
+              details: {},
+            },
+          },
+          404,
+        );
+      }
+      throw new HttpException(
+        {
+          error: {
+            code: 'profile_dependency_unavailable',
+            message: 'Session lookup failed.',
             details: {},
           },
         },

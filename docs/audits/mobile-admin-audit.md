@@ -1,10 +1,21 @@
-# Mobile ↔ Admin Coverage Audit
+# Frontend ↔ Backend ↔ Admin Coverage Audit
 
 _Last refreshed: 2026-05-17_
 
-This audit walks every entity the mobile app can create or mutate and verifies
-that the admin app has a path to view / track / moderate it. It is the
-companion to `admin/src/app/config/backendSupportMatrix.ts`, which already
+This audit walks every entity each customer-facing or provider-facing surface
+can create or mutate and verifies that:
+
+1. The backend API Gateway exposes a contract for it.
+2. The admin app has a path to view / track / moderate it where applicable.
+
+Surfaces covered:
+
+- **mobile** — React Native customer + provider app (`mobile/services/serveaseApi.ts`).
+- **landing** — Next.js customer marketing + account site (`Landing Page/src/app/lib/*`, `Landing Page/src/app/api/*`).
+- **provider-web** — Next.js provider dashboard (`FE_Web(Provider)/src/services/serveaseProviderApi.ts`).
+- **admin** — React/Vite admin console (`admin/src/services/serveaseAdminApi.ts`).
+
+It is the companion to `admin/src/app/config/backendSupportMatrix.ts`, which
 tracks the admin-side wiring of each screen.
 
 ## Method
@@ -100,3 +111,64 @@ After this PR:
 - **Reviews**: newly tracked end-to-end.
 - **Portfolio, messages, notifications, referrals, availability**: documented
   blind spots, owners assigned in `backendSupportMatrix.ts`.
+
+## Landing Page (customer) coverage
+
+The Next.js customer site uses server-side `/api/*` routes that proxy the
+gateway under `/v1/*`. Every write below has either an admin moderation surface
+or appears in another user-facing tracker (booking detail, account).
+
+| Customer entity (writer)                             | Gateway route                                  | Admin surface                | Status |
+| ---------------------------------------------------- | ---------------------------------------------- | ---------------------------- | ------ |
+| Customer registration (POST `/api/customer-registration`) | POST `/v1/auth/customers`                       | Users → Customers            | wired  |
+| Provider application (POST `/api/provider-registration`)  | POST `/v1/auth/providers`                       | Providers → Applications     | wired  |
+| Password reset (POST `/api/password-reset`)          | POST `/v1/auth/password-reset`                  | n/a                          | wired  |
+| Profile update (PATCH `/api/me`)                     | PATCH `/v1/me`                                  | Users → Customer detail      | wired  |
+| Password change (PATCH `/api/me/password`)           | PATCH `/v1/me/password`                         | n/a                          | wired  |
+| **Notification preferences (GET/PUT `/api/me/preferences`)** | GET/PUT `/v1/me/preferences`              | n/a (per-user)               | **newly wired (this PR)** |
+| Bookings (POST/GET `/api/bookings*`)                 | POST/GET `/v1/bookings*`                        | Operations → Bookings        | wired  |
+| Payment methods (GET/PUT/DELETE `/api/payments/methods*`) | GET/PUT/DELETE `/v1/payments/methods*`     | Finance (aggregate only)     | wired  |
+| Support tickets + replies (`/api/support-tickets*`)  | `/v1/support/tickets*`                          | Support                      | wired  |
+| Reviews (POST `/api/reviews`)                        | POST `/v1/reviews`                              | Operations → Reviews         | wired  |
+| Notifications read (PATCH `/api/notifications/:id/read`) | PATCH `/v1/notifications/:id/read`         | n/a (per-user)               | wired  |
+| Referrals (GET `/api/referrals`)                     | GET `/v1/referrals`                             | (per-user, by design)        | wired  |
+
+## FE_Web (Provider) coverage
+
+The provider Next.js dashboard calls the gateway directly with the stored
+Supabase access token (no proxy layer).
+
+| Provider entity (writer)                       | Gateway route                                  | Admin surface                          | Status |
+| ---------------------------------------------- | ---------------------------------------------- | -------------------------------------- | ------ |
+| Sign in / current user                         | Supabase Auth → `GET /v1/me`                    | Users → Providers                      | wired  |
+| Provider profile                               | `GET /v1/provider/profile`                      | Providers → ServiceProviderDetails     | wired  |
+| Provider dashboard summary                     | `GET /v1/provider/dashboard`                    | n/a (per-provider)                     | wired  |
+| Owned services (read / replace)                | `GET/PUT /v1/provider/services`                 | Marketplace → Services                 | wired  |
+| Availability windows / days off                | `GET/PUT /v1/provider/availability*`            | Providers → Availability viewer        | wired  |
+| Bookings list / detail / status                | `GET/PATCH /v1/bookings*`                       | Operations → Bookings, Ongoing         | wired  |
+| Payments / earnings                            | `GET /v1/payments`                              | Finance → Transactions                 | wired  |
+| Payout account / methods / requests            | `GET/PUT /v1/payments/payout-account`, `/payout-methods`, `GET/POST /v1/payments/payouts` | Finance → Payouts | wired  |
+| Conversations / messages                       | `GET/POST /v1/conversations*`                   | n/a (privacy)                          | wired (display fields thin) |
+| Notifications + mark read                      | `GET /v1/notifications`, `PATCH /:id/read`      | n/a (per-user)                         | wired  |
+| Reviews list / reply / flag                    | `GET /v1/reviews`, `POST /v1/reviews/:id/reply`, `POST /v1/reviews/:id/flag` | Operations → Reviews | wired  |
+| **Notification preferences**                   | `GET/PUT /v1/me/preferences`                    | n/a (per-user)                         | wired  |
+| Portfolio media (add / list / delete)          | `POST/GET/DELETE /v1/catalog/provider/portfolio*` | Providers → Portfolio moderation     | wired  |
+| Referral summary                               | `GET /v1/referrals`                             | n/a (per-user)                         | wired  |
+| Support tickets + replies                      | `/v1/support/tickets*`                          | Support                                | wired  |
+
+## Cross-frontend invariants
+
+- Every write below has at least one read path (user-facing or admin) on
+  another surface, so nothing is "fire and forget."
+- `/v1/me/preferences` is shared by **mobile, landing, provider-web** — the
+  shape (`pushNotificationsEnabled`, `darkModeEnabled`, `language`,
+  `notificationPreferences`) is identical, but each frontend may interpret its
+  own keys inside `notificationPreferences` (e.g. provider has
+  `newBookingRequests`, customer has `bookingReminders`). The backend stays
+  schema-agnostic for that field.
+- `/v1/me` profile updates from landing and provider-web both surface in admin
+  Users; admin status changes via `PATCH /v1/admin/users/:userId/status` are
+  honored by both frontends on next sign-in.
+- Bookings, payments, payouts, reviews, and support tickets all flow from
+  mobile/landing/provider-web → backend → admin moderation surface; the
+  write/read symmetry is what makes the platform "trackable."

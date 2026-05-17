@@ -5,8 +5,16 @@ import {
   StoredUserRecord,
   UpdateInternalUserInput,
   UserRole,
+  UserSessionRecord,
   UserStatus,
 } from './user.types';
+
+interface SupabaseSessionRow {
+  id: string;
+  created_at: string | null;
+  last_sign_in_at: string | null;
+  email: string | null;
+}
 
 interface SupabaseQueryClient {
   rpc(
@@ -17,7 +25,10 @@ interface SupabaseQueryClient {
       data: SupabaseUserRow | null;
       error: { message: string } | null;
     }>;
-  };
+  } & PromiseLike<{
+    data: SupabaseSessionRow[] | null;
+    error: { message: string } | null;
+  }>;
 }
 
 interface SupabaseUserRow {
@@ -91,5 +102,23 @@ export class SupabaseUserRepository implements UserRepository {
       role: data.role,
       status: data.status,
     };
+  }
+
+  async listSessions(userId: string): Promise<UserSessionRecord[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_list_user_sessions',
+      { p_user_id: userId },
+    );
+
+    if (error) {
+      throw new Error(`Failed to list sessions: ${error.message}`);
+    }
+
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      email: row.email ?? '',
+      createdAt: row.created_at,
+      lastSignInAt: row.last_sign_in_at,
+    }));
   }
 }

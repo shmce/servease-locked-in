@@ -609,6 +609,20 @@ export function updateCurrentUserPassword(
   })
 }
 
+export interface CurrentUserSessionSummary {
+  id: string
+  email: string
+  createdAt: string | null
+  lastSignInAt: string | null
+  isCurrent: boolean
+}
+
+export function listCurrentUserSessions(
+  token: string,
+): Promise<CurrentUserSessionSummary[]> {
+  return request<CurrentUserSessionSummary[]>('/v1/me/sessions', { token })
+}
+
 export function getUserPreferences(token: string): Promise<UserPreferenceSummary> {
   return request<UserPreferenceSummary>('/v1/me/preferences', {
     token,
@@ -1184,9 +1198,89 @@ export async function exportAdminAuditLogsCsv(
   return response.text()
 }
 
+export interface AdminIntegrationSummary {
+  provider: string
+  displayName: string
+  category: string
+  isEnabled: boolean
+  status: 'active' | 'inactive' | 'error'
+  webhookUrl: string | null
+  apiKeyPreview: string | null
+  lastTestedAt: string | null
+  lastError: string | null
+  updatedBy: string | null
+  updatedAt: string | null
+  createdAt: string | null
+}
+
+export function listAdminIntegrations(
+  token: string,
+): Promise<AdminIntegrationSummary[]> {
+  return request<AdminIntegrationSummary[]>('/v1/admin/integrations', { token })
+}
+
+export function updateAdminIntegrationCredentials(
+  token: string,
+  provider: string,
+  input: {
+    isEnabled?: boolean | null
+    webhookUrl?: string | null
+    apiKeyPreview?: string | null
+  },
+): Promise<AdminIntegrationSummary> {
+  return request<AdminIntegrationSummary>(
+    `/v1/admin/integrations/${encodeURIComponent(provider)}/credentials`,
+    {
+      token,
+      method: 'PATCH',
+      body: input,
+    },
+  )
+}
+
+export function testAdminIntegration(
+  token: string,
+  provider: string,
+  input: { success?: boolean; errorMessage?: string | null } = {},
+): Promise<AdminIntegrationSummary> {
+  return request<AdminIntegrationSummary>(
+    `/v1/admin/integrations/${encodeURIComponent(provider)}/test`,
+    {
+      token,
+      method: 'POST',
+      body: input,
+    },
+  )
+}
+
 export async function exportAdminBookingsCsv(token: string): Promise<string> {
+  return exportAdminReportCsv(token, 'bookings')
+}
+
+export async function exportAdminRevenueCsv(token: string): Promise<string> {
+  return exportAdminReportCsv(token, 'revenue')
+}
+
+export async function exportAdminUsersCsv(token: string): Promise<string> {
+  return exportAdminReportCsv(token, 'users')
+}
+
+export async function exportAdminFinancialCsv(token: string): Promise<string> {
+  return exportAdminReportCsv(token, 'financial')
+}
+
+export type AdminReportCsvKind =
+  | 'bookings'
+  | 'revenue'
+  | 'users'
+  | 'financial'
+
+export async function exportAdminReportCsv(
+  token: string,
+  kind: AdminReportCsvKind,
+): Promise<string> {
   const response = await fetch(
-    `${getAdminApiBaseUrl()}/v1/admin/reports/bookings.csv`,
+    `${getAdminApiBaseUrl()}/v1/admin/reports/${kind}.csv`,
     {
       headers: {
         accept: 'text/csv',

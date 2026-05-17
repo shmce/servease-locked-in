@@ -57,3 +57,11 @@ export interface UpdateCurrentUserPasswordInput {
 export interface UpdateCurrentUserPasswordResponse {
   ok: true;
 }
+
+export interface CurrentUserSessionSummary {
+  id: string;
+  email: string;
+  createdAt: string | null;
+  lastSignInAt: string | null;
+  isCurrent: boolean;
+}
