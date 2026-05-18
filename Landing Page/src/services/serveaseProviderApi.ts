@@ -552,6 +552,18 @@ interface RequestOptions {
   idempotencyKey?: string | null
 }
 
+let generatedIdempotencyCounter = 0
+
+export function createProviderPayoutIdempotencyKey(): string {
+  const randomUuid = globalThis.crypto?.randomUUID?.()
+  if (randomUuid) {
+    return `provider-payout-${randomUuid}`
+  }
+
+  generatedIdempotencyCounter += 1
+  return `provider-payout-${Date.now()}-${generatedIdempotencyCounter}`
+}
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_PUBLISHABLE_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
@@ -939,14 +951,16 @@ export function requestProviderPayout(
     amount: number
     payoutMethodId: string
   },
+  options: {
+    idempotencyKey?: string | null
+  } = {},
 ): Promise<PayoutSummary> {
   return request<PayoutSummary>('/v1/payments/payouts', {
     method: 'POST',
     token,
     body: input,
-    idempotencyKey: `provider-payout-${Date.now()}-${Math.random()
-      .toString(16)
-      .slice(2)}`,
+    idempotencyKey:
+      options.idempotencyKey ?? createProviderPayoutIdempotencyKey(),
   })
 }
 

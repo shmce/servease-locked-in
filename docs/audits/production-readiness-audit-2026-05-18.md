@@ -4,9 +4,9 @@
 
 Scope audited: `backend`, `mobile`, `Landing Page`, and `admin`.
 
-Overall confidence: moderate. Core compile/type/test/build checks are mostly healthy, but production readiness is blocked by a failing admin test, an admin production dependency advisory, unsafe localhost production fallbacks, and unresolved live-smoke coverage for workflows that mutate Supabase/demo data.
+Current confidence: moderate for release readiness, high for repo-controlled non-mutating gates. The original repo-controlled blockers from this audit have been remediated; final production certification is still blocked by external credentials, hosted workflow execution, EAS native build completion, and approved live APICenter/payment smoke checks.
 
-No application code was changed during this audit.
+This document preserves the original findings below for traceability. The current status is reflected in the remediation and hardening updates immediately after this summary.
 
 ## Remediation Update - 2026-05-18
 
@@ -34,6 +34,52 @@ Still externally blocked or intentionally not run:
 - Native iOS/Android production builds require EAS/native signing credentials and were not run locally.
 - Mutating Supabase/demo smoke scripts remain intentionally separate from the read-only gate; run them only against an isolated/resettable project.
 - Real APICenter send/payment/live audit paths were not exercised because they can send messages or create payment checkouts without explicit live-test approval.
+
+## Production Readiness Hardening - 2026-05-18
+
+Additional release gates were added so the remaining production-readiness items are enforceable:
+
+| Gap | Hardening added | Evidence |
+| --- | --- | --- |
+| Native mobile production builds were not configured | Added `mobile/eas.json`, `mobile/app.config.js`, production bundle IDs, and `mobile/scripts/check-production-env.mjs` with optional `EAS_PROJECT_ID` validation. | `npm run env:prod` passes with production-shaped HTTPS env and an EAS UUID; mobile tests still pass 67/67. The EAS production profile uses the Expo `production` environment. |
+| Production env validation was manual | Added `env:prod` scripts for `backend`, `mobile`, `Landing Page`, and `admin`. | All four env checks pass with dummy production-shaped HTTPS values. |
+| CI did not enforce all four app gates | Added `.github/workflows/production-readiness.yml`. | Workflow YAML parses; local commands used by the workflow have been run successfully. |
+| Live release verification had no formal gate | Added `.github/workflows/production-release.yml` using GitHub `production` environment secrets/vars and guarded live APICenter workflow inputs. | Workflow YAML parses; it repeats non-mutating quality gates, runs env checks, migration drift, safe APICenter contract smoke, can run approved live APICenter send/payment audits, validates `EAS_TOKEN`, then waits for EAS builds to complete when credentials are present. |
+| Release procedure was not documented | Added `docs/runbooks/production-release-readiness.md`. | Runbook lists required secrets, vars, local preflight, production verification, mutating smoke constraints, and live APICenter approval flow. |
+| No single command listed all non-mutating release gates | Added `scripts/production-preflight.mjs`. | `node scripts/production-preflight.mjs --list` prints backend, mobile, landing, and admin gate commands. Use `--include-env` when production-shaped env values are loaded. Each command has a default 15 minute timeout and a hard-kill fallback. |
+| Production workflow invariants were checked manually | Added `scripts/verify-production-workflows.mjs` and wired it into both production workflows. | The verifier checks required workflow jobs, guarded live audit inputs, blocking EAS build commands, and absence of `--no-wait`. |
+| Production env requirements were not templated | Added `.env.production.example` files for all four apps and updated `.gitignore` so those templates are tracked while local `.env.*` files remain ignored. | Templates match the production env checks and release runbook; `git status --untracked-files=all` lists all four templates. |
+| Production env templates had no drift check | Added `scripts/verify-production-env-templates.mjs` and wired it into both production workflows. | The verifier checks required template keys, rejects localhost template values, and confirms `.gitignore` keeps templates trackable. |
+| Provider payout retries generated fresh idempotency keys | Mobile and landing payout requests now accept a caller-supplied key, generate keys through a helper, and keep the same key for retries of an unchanged payout form submission. | Mobile test coverage asserts the payout idempotency header; landing script coverage asserts caller-supplied payout retry keys are forwarded. |
+
+Fresh hardening verification:
+
+- `node --check` passed for new env scripts, backend health smoke, and mobile app config.
+- `ruby` YAML parse passed for `.github/workflows/production-readiness.yml`, `.github/workflows/production-release.yml`, and `.github/workflows/migration-drift.yml`.
+- `npm run lint:check` passed in `backend`.
+- `npm run lint` passed in `mobile`, `Landing Page`, and `admin`.
+- `npm run typecheck` and `npm test` passed in `mobile` after the production app config changes.
+- Local `env:prod` checks correctly fail when pointed at development localhost values.
+- `npm run typecheck`, `npm run lint`, and `npm test` passed in `mobile` after payout idempotency hardening.
+- `npm run typecheck`, `npm run lint`, `npm test`, and `npm run build` passed in `Landing Page` after payout idempotency hardening.
+- `production-release.yml` job chain was parsed and verified as `quality-gates -> env-and-live-gates -> native-builds`.
+- `production-release.yml` was parsed and verified to include an explicit `EAS_TOKEN` secret check before native EAS builds.
+- `.gitignore` now unignores `.env.production.example` templates and ignores local `.codex/` agent config.
+- `production-release.yml` now exposes guarded `workflow_dispatch` inputs for approved APICenter live send/payment audits.
+- `node scripts/verify-production-workflows.mjs` passed after production workflow hardening and now also requires the env-template verifier in both production workflows.
+- `node scripts/production-preflight.mjs --list --include-env` passed after adding per-command timeout handling; `PREFLIGHT_COMMAND_TIMEOUT_MS=0` correctly fails validation.
+- `node scripts/verify-production-env-templates.mjs` passed after production env template hardening.
+- `node --check` passed for `scripts/production-preflight.mjs`, `scripts/verify-production-workflows.mjs`, and `scripts/verify-production-env-templates.mjs`.
+- `mobile/eas.json` now sets `build.production.environment` to `production`; `scripts/verify-production-workflows.mjs` enforces the production and preview EAS environment mappings.
+
+Remaining production actions now require external credentials or approvals, not repo code changes:
+
+- Add the listed GitHub `production` secrets and variables.
+- Add the listed Expo production environment variables.
+- Run the `Production readiness` workflow.
+- Run the `Production release verification` workflow, including the blocking native EAS build job.
+- Run mutating smoke scripts only against an isolated/resettable Supabase project.
+- Run live APICenter send/payment audit only with approved test recipients and payment mode, either through guarded workflow inputs or the documented local fallback.
 
 ## Environment Detected
 

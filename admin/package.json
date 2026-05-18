@@ -8,6 +8,7 @@
     "dev": "next dev",
     "start": "next start",
     "env:check": "node scripts/check-admin-env.mjs",
+    "env:prod": "node scripts/check-production-env.mjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"scripts/**/*.{js,mjs,ts}\"",
     "smoke:demo-api": "tsx scripts/smoke-demo-api.ts",
     "smoke:integration": "node scripts/smoke-admin-integration.mjs",

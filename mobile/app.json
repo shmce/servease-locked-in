@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "ServEase",
+    "slug": "servease",
     "scheme": "servease",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.mobile"
+      "bundleIdentifier": "com.servease.mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +27,7 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.mobile"
+      "package": "com.servease.mobile"
     },
     "web": {
       "favicon": "./assets/servease-logo.png"

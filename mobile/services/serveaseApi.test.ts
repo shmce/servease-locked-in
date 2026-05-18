@@ -1732,6 +1732,7 @@ describe('serveaseApi', () => {
         baseUrl: 'http://gateway.test',
         token: 'access-token',
         fetcher,
+        idempotencyKey: 'mobile-provider-payout-retry-1',
       },
     );
 
@@ -1752,7 +1753,7 @@ describe('serveaseApi', () => {
         },
       ],
     ]);
-    assert.ok(calls[3]?.idempotencyKey?.startsWith('mobile-provider-payout-'));
+    assert.equal(calls[3]?.idempotencyKey, 'mobile-provider-payout-retry-1');
   });
 });
 

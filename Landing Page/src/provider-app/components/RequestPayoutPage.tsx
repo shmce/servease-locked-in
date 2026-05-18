@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Wallet, AlertCircle, CheckCircle2, Clock, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
   getProviderPayoutAccount,
   getStoredProviderAccessToken,
   listProviderPayoutMethods,
+  createProviderPayoutIdempotencyKey,
   requestProviderPayout,
   type PayoutAccountSummary,
   type PayoutMethodSummary,
@@ -91,6 +92,7 @@ export function RequestPayoutPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const payoutIdempotencyKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const loadPayoutData = async () => {
@@ -119,6 +121,10 @@ export function RequestPayoutPage() {
     void loadPayoutData();
   }, []);
 
+  useEffect(() => {
+    payoutIdempotencyKeyRef.current = null;
+  }, [selectedMethod, withdrawAmount]);
+
   // Calculate fees and final amount
   const availableBalance = payoutAccount?.availableBalance ?? 0;
   const amount = parseFloat(withdrawAmount) || 0;
@@ -144,10 +150,19 @@ export function RequestPayoutPage() {
     try {
       setIsSubmitting(true);
       setSubmitError(null);
-      const payout = await requestProviderPayout(token, {
-        amount,
-        payoutMethodId: selectedMethod,
-      });
+      if (!payoutIdempotencyKeyRef.current) {
+        payoutIdempotencyKeyRef.current = createProviderPayoutIdempotencyKey();
+      }
+      const payout = await requestProviderPayout(
+        token,
+        {
+          amount,
+          payoutMethodId: selectedMethod,
+        },
+        {
+          idempotencyKey: payoutIdempotencyKeyRef.current,
+        },
+      );
 
       sessionStorage.setItem(
         "servease_payout_confirmation",
@@ -163,6 +178,7 @@ export function RequestPayoutPage() {
           requestDate: payout.requestedAt ?? payout.createdAt,
         }),
       );
+      payoutIdempotencyKeyRef.current = null;
       navigate("/provider/payout-confirmation");
     } catch (error) {
       setSubmitError(

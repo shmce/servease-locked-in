@@ -827,6 +827,22 @@ export interface ApiOptions {
   fetcher?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
+export interface IdempotentApiOptions extends ApiOptions {
+  idempotencyKey?: string | null;
+}
+
+let generatedIdempotencyCounter = 0;
+
+export function createProviderPayoutIdempotencyKey(): string {
+  const randomUuid = globalThis.crypto?.randomUUID?.();
+  if (randomUuid) {
+    return `mobile-provider-payout-${randomUuid}`;
+  }
+
+  generatedIdempotencyCounter += 1;
+  return `mobile-provider-payout-${Date.now()}-${generatedIdempotencyCounter}`;
+}
+
 export function listCatalogCategories(
   options: ApiOptions = {},
 ): Promise<CatalogCategory[]> {
@@ -1547,16 +1563,15 @@ export function listProviderPayouts(
 
 export function requestProviderPayout(
   body: { amount: number; payoutMethodId: string },
-  options: ApiOptions = {},
+  options: IdempotentApiOptions = {},
 ): Promise<PayoutSummary> {
+  const { idempotencyKey, ...requestOptions } = options;
   return request<PayoutSummary>('/v1/payments/payouts', {
-    ...options,
+    ...requestOptions,
     method: 'POST',
     body,
     requiresAuth: true,
-    idempotencyKey: `mobile-provider-payout-${Date.now()}-${Math.random()
-      .toString(16)
-      .slice(2)}`,
+    idempotencyKey: idempotencyKey ?? createProviderPayoutIdempotencyKey(),
   });
 }
 

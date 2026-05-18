@@ -1,0 +1,112 @@
+name: Production readiness
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  release-manifest:
+    name: Release workflow manifest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node scripts/verify-production-workflows.mjs
+      - run: node scripts/verify-production-env-templates.mjs
+
+  backend:
+    name: Backend gates
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint:check
+      - run: npm test
+      - run: npm run build
+      - run: npm run smoke:health
+      - run: npm audit --omit=dev
+
+  mobile:
+    name: Mobile gates
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm audit --omit=dev
+
+  landing:
+    name: Landing Page gates
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Landing Page
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: Landing Page/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+      - run: npm audit --omit=dev
+
+  admin:
+    name: Admin gates
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Admin route smoke
+        run: |
+          npm run start -- --port 3001 &
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://localhost:3001/login >/dev/null; then
+              npm run smoke:routes
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Admin server did not become ready" >&2
+          exit 1
+      - run: npm audit --omit=dev

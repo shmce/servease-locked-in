@@ -10,6 +10,9 @@ test-results/
 .env
 .env.*
 !.env.example
+!.env.production.example
+!**/.env.production.example
+.codex/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

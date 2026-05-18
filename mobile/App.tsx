@@ -177,6 +177,7 @@ import {
   createCheckoutSession,
   createConversationMessage,
   createPayment,
+  createProviderPayoutIdempotencyKey,
   createReview,
   createSupportTicket,
   createSupportTicketReply,
@@ -445,6 +446,7 @@ export default function App() {
   const lastPushRegistrationKey = useRef<string | null>(null);
   const handledPushNotificationIds = useRef<Set<string>>(new Set());
   const reconcilingCheckoutRef = useRef(false);
+  const payoutIdempotencyKeyRef = useRef<string | null>(null);
   const [providerPhotoCaption, setProviderPhotoCaption] = useState('');
   const [providerBeforePhotoUri, setProviderBeforePhotoUri] = useState<string | null>(null);
   const [providerBeforePhotoUrl, setProviderBeforePhotoUrl] = useState<string | null>(null);
@@ -548,6 +550,10 @@ export default function App() {
     setPromoCode('');
     setPromotionValidation(null);
   }, [selectedBookingId]);
+
+  useEffect(() => {
+    payoutIdempotencyKeyRef.current = null;
+  }, [requestPayoutAmount, selectedPayoutMethodId, session?.accessToken]);
 
   useEffect(() => {
     setProfileFullName(profile?.user.fullName ?? '');
@@ -2214,17 +2220,24 @@ export default function App() {
 
     setBusyAction('provider-payout');
     try {
+      if (!payoutIdempotencyKeyRef.current) {
+        payoutIdempotencyKeyRef.current = createProviderPayoutIdempotencyKey();
+      }
       const payout = await requestProviderPayout(
         {
           amount,
           payoutMethodId: methodId,
         },
-        apiOptions,
+        {
+          ...apiOptions,
+          idempotencyKey: payoutIdempotencyKeyRef.current,
+        },
       );
       setProviderPayouts((current) => [
         payout,
         ...current.filter((item) => item.id !== payout.id),
       ]);
+      payoutIdempotencyKeyRef.current = null;
       setRequestPayoutAmount('');
       setNotice(`Payout ${payout.reference ?? payout.id.slice(0, 8)} requested.`);
 

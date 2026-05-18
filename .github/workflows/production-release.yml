@@ -1,0 +1,206 @@
+name: Production release verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_live_apicenter_audit:
+        description: "Run approved APICenter live audit after safe contract smoke"
+        required: false
+        type: boolean
+        default: false
+      live_audit_send:
+        description: "Send live APICenter SMS/email/OTP during the live audit"
+        required: false
+        type: boolean
+        default: false
+      live_audit_payment:
+        description: "Create a PayMongo/test-mode checkout during the live audit"
+        required: false
+        type: boolean
+        default: false
+      live_audit_openrouteservice:
+        description: "Check OpenRouteService directions during the live audit"
+        required: false
+        type: boolean
+        default: false
+      live_audit_phone:
+        description: "Approved APICenter live audit phone recipient"
+        required: false
+        type: string
+        default: ""
+      live_audit_email:
+        description: "Approved APICenter live audit email recipient"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  quality-gates:
+    name: Production quality gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+      - name: Install landing dependencies
+        working-directory: Landing Page
+        run: npm ci
+      - name: Install admin dependencies
+        working-directory: admin
+        run: npm ci
+      - name: Install landing Playwright browser
+        working-directory: Landing Page
+        run: npx playwright install --with-deps chromium
+      - name: Verify release workflow manifest
+        run: node scripts/verify-production-workflows.mjs
+      - name: Verify production env templates
+        run: node scripts/verify-production-env-templates.mjs
+      - name: Run non-mutating release preflight
+        run: node scripts/production-preflight.mjs
+
+  env-and-live-gates:
+    name: Production env and live-safe gates
+    needs: quality-gates
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Backend production env
+        working-directory: backend
+        env:
+          API_GATEWAY_CORS_ORIGINS: ${{ vars.API_GATEWAY_CORS_ORIGINS }}
+          AUTH_SERVICE_URL: ${{ vars.AUTH_SERVICE_URL }}
+          USER_SERVICE_URL: ${{ vars.USER_SERVICE_URL }}
+          CATALOG_SERVICE_URL: ${{ vars.CATALOG_SERVICE_URL }}
+          BOOKING_SERVICE_URL: ${{ vars.BOOKING_SERVICE_URL }}
+          AVAILABILITY_SERVICE_URL: ${{ vars.AVAILABILITY_SERVICE_URL }}
+          MESSAGING_SERVICE_URL: ${{ vars.MESSAGING_SERVICE_URL }}
+          PAYMENT_SERVICE_URL: ${{ vars.PAYMENT_SERVICE_URL }}
+          REVIEW_SERVICE_URL: ${{ vars.REVIEW_SERVICE_URL }}
+          NOTIFICATION_SERVICE_URL: ${{ vars.NOTIFICATION_SERVICE_URL }}
+          SUPPORT_SERVICE_URL: ${{ vars.SUPPORT_SERVICE_URL }}
+          ADMIN_SERVICE_URL: ${{ vars.ADMIN_SERVICE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_STORAGE_BUCKET: ${{ vars.SUPABASE_STORAGE_BUCKET }}
+          APICENTER_URL: ${{ secrets.APICENTER_URL }}
+          APICENTER_TRIBE_ID: ${{ secrets.APICENTER_TRIBE_ID }}
+          APICENTER_TRIBE_SECRET: ${{ secrets.APICENTER_TRIBE_SECRET }}
+          APICENTER_WEBHOOK_SECRET: ${{ secrets.APICENTER_WEBHOOK_SECRET }}
+          OPENROUTESERVICE_API_KEY: ${{ secrets.OPENROUTESERVICE_API_KEY }}
+        run: npm run env:prod
+
+      - name: Mobile production env
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run env:prod
+
+      - name: Landing production env
+        working-directory: Landing Page
+        env:
+          SERVEASE_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run env:prod
+
+      - name: Admin production env
+        working-directory: admin
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          ADMIN_SMOKE_EMAIL: ${{ secrets.ADMIN_SMOKE_EMAIL }}
+          ADMIN_SMOKE_PASSWORD: ${{ secrets.ADMIN_SMOKE_PASSWORD }}
+        run: npm run env:prod
+
+      - name: Supabase migration drift
+        working-directory: backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run check:migrations
+
+      - name: APICenter contract smoke
+        working-directory: backend
+        env:
+          APICENTER_URL: ${{ secrets.APICENTER_URL }}
+          APICENTER_TRIBE_ID: ${{ secrets.APICENTER_TRIBE_ID }}
+          APICENTER_TRIBE_SECRET: ${{ secrets.APICENTER_TRIBE_SECRET }}
+        run: npm run smoke:apicenter
+
+      - name: Approved APICenter live audit
+        if: ${{ inputs.run_live_apicenter_audit == true }}
+        working-directory: backend
+        env:
+          APICENTER_URL: ${{ secrets.APICENTER_URL }}
+          APICENTER_TRIBE_ID: ${{ secrets.APICENTER_TRIBE_ID }}
+          APICENTER_TRIBE_SECRET: ${{ secrets.APICENTER_TRIBE_SECRET }}
+          OPENROUTESERVICE_API_KEY: ${{ secrets.OPENROUTESERVICE_API_KEY }}
+          APICENTER_LIVE_AUDIT_SEND: ${{ inputs.live_audit_send && 'true' || 'false' }}
+          APICENTER_LIVE_AUDIT_PAYMENT: ${{ inputs.live_audit_payment && 'true' || 'false' }}
+          APICENTER_LIVE_AUDIT_OPENROUTESERVICE: ${{ inputs.live_audit_openrouteservice && 'true' || 'false' }}
+          APICENTER_LIVE_AUDIT_PHONE: ${{ inputs.live_audit_phone }}
+          APICENTER_LIVE_AUDIT_EMAIL: ${{ inputs.live_audit_email }}
+        run: npm run audit:apicenter-live
+
+  native-builds:
+    name: Native mobile production builds
+    needs: env-and-live-gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment: production
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run env:prod
+        env:
+          EXPO_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+          MOBILE_REQUIRE_EAS_PROJECT: "true"
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+      - name: Validate EAS token
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+        run: |
+          if [ -z "$EAS_TOKEN" ]; then
+            echo "EAS_TOKEN production secret is required for native builds" >&2
+            exit 1
+          fi
+      - name: Run EAS production builds to completion
+        env:
+          EAS_TOKEN: ${{ secrets.EAS_TOKEN }}
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+          EXPO_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          npx eas-cli build --platform ios --profile production --non-interactive --wait
+          npx eas-cli build --platform android --profile production --non-interactive --wait
