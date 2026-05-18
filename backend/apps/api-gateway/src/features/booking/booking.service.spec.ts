@@ -4,6 +4,7 @@ import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { InvalidBookingTransitionError } from './booking.errors';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
+import { GeoServiceClient } from '../geo/clients/geo-service.client';
 
 describe('BookingGatewayService', () => {
   it('forwards booking creation with the authenticated user id', async () => {
@@ -15,7 +16,21 @@ describe('BookingGatewayService', () => {
       }),
     } as unknown as BookingServiceClient;
     const authClient = createAuthClient();
-    const service = new BookingGatewayService(client, authClient);
+    const catalogClient = {
+      findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
+        'GreenFix Home Services',
+      ),
+      findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
+        userId: 'provider-user-1',
+        businessName: 'GreenFix Home Services',
+      }),
+    };
+    const service = new BookingGatewayService(
+      client,
+      authClient,
+      undefined,
+      catalogClient as unknown as CatalogServiceClient,
+    );
 
     const booking = await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
       providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
@@ -33,6 +48,7 @@ describe('BookingGatewayService', () => {
     );
     expect(booking.customerFullName).toBe('Casey Customer');
     expect(booking.customerContactNumber).toBe('+639170001001');
+    expect(booking.providerBusinessName).toBe('GreenFix Home Services');
   });
 
   it('creates a provider notification when a customer books a service', async () => {
@@ -43,6 +59,9 @@ describe('BookingGatewayService', () => {
       createNotification: jest.fn().mockResolvedValue({ id: 'notification-1' }),
     };
     const catalogClient = {
+      findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
+        'GreenFix Home Services',
+      ),
       findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
         userId: 'provider-user-1',
         businessName: 'GreenFix Home Services',
@@ -91,7 +110,21 @@ describe('BookingGatewayService', () => {
       ]),
     } as unknown as BookingServiceClient;
     const authClient = createAuthClient();
-    const service = new BookingGatewayService(client, authClient);
+    const catalogClient = {
+      findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
+        'GreenFix Home Services',
+      ),
+      findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
+        userId: 'provider-user-1',
+        businessName: 'GreenFix Home Services',
+      }),
+    };
+    const service = new BookingGatewayService(
+      client,
+      authClient,
+      undefined,
+      catalogClient as unknown as CatalogServiceClient,
+    );
 
     const bookings = await service.listBookings(
       '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
@@ -103,14 +136,18 @@ describe('BookingGatewayService', () => {
       'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
     );
     expect(authClient.findUserById).toHaveBeenCalledTimes(1);
+    expect(catalogClient.findProviderBusinessNameByProviderId).toHaveBeenCalledTimes(1);
+    expect(catalogClient.findProviderOwnerByProviderId).not.toHaveBeenCalled();
     expect(bookings).toEqual([
       expect.objectContaining({
         customerFullName: 'Casey Customer',
         customerContactNumber: '+639170001001',
+        providerBusinessName: 'GreenFix Home Services',
       }),
       expect.objectContaining({
         customerFullName: 'Casey Customer',
         customerContactNumber: '+639170001001',
+        providerBusinessName: 'GreenFix Home Services',
       }),
     ]);
   });
@@ -257,7 +294,21 @@ describe('BookingGatewayService', () => {
         lastUpdatedAt: '2026-05-16T00:00:00.000Z',
       }),
     } as unknown as BookingServiceClient;
-    const service = new BookingGatewayService(client, createAuthClient());
+    const geoClient = {
+      geocodeAddress: jest.fn().mockResolvedValue({
+        formattedAddress: '123 Test St, Manila, Philippines',
+        latitude: 14.5995,
+        longitude: 120.9842,
+        provider: 'google-maps',
+      }),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      geoClient as unknown as GeoServiceClient,
+    );
 
     const snapshot = await service.getTrackingSnapshot(
       '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
@@ -270,7 +321,17 @@ describe('BookingGatewayService', () => {
       '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
       null,
     );
+    expect(geoClient.geocodeAddress).toHaveBeenCalledWith({
+      address: '123 Test St',
+      language: 'en',
+      region: 'ph',
+    });
     expect(snapshot.phase).toBe('on_the_way');
+    expect(snapshot.destinationLocation).toEqual({
+      latitude: 14.5995,
+      longitude: 120.9842,
+    });
+    expect(snapshot.destinationAddress).toBe('123 Test St, Manila, Philippines');
   });
 
   it('rejects provider-only transitions from the booking customer', async () => {
@@ -340,7 +401,12 @@ describe('BookingGatewayService', () => {
       client,
       createAuthClient(),
       notificationClient as unknown as NotificationServiceClient,
-      { findProviderOwnerByProviderId: jest.fn() } as unknown as CatalogServiceClient,
+      {
+        findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
+          'GreenFix Home Services',
+        ),
+        findProviderOwnerByProviderId: jest.fn(),
+      } as unknown as CatalogServiceClient,
     );
 
     await service.transitionStatus(

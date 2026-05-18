@@ -72,6 +72,7 @@ export function AuthScreens({
   verifyPhoneOtp,
 }: AuthScreensProps) {
   const [isAgreed, setIsAgreed] = useState(false);
+  const [loginMethod, setLoginMethod] = useState<'email' | 'google' | 'phone'>('email');
   const [phoneLoginTarget, setPhoneLoginTarget] = useState('');
   const [phoneOtpId, setPhoneOtpId] = useState<string | null>(null);
   const [phoneOtpCode, setPhoneOtpCode] = useState('');
@@ -216,85 +217,113 @@ export function AuthScreens({
     return (
       <PhoneFrame>
         <StatusStrip />
-        <TopBar title="Login" onBack={() => navigate('loginRole', null)} />
+        <TopBar title="Log in" onBack={() => navigate('loginRole', null)} />
         <ScrollView contentContainerStyle={styles.authContent}>
           <Text style={styles.authHero}>Welcome!</Text>
-          <Text style={styles.authSubhead}>Login to continue to ServEase</Text>
-          <Field
-            label="Email Address"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            placeholder="your.email@example.com"
-          />
-          <Field
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="Enter your password"
-          />
-          <PrimaryButton
-            label={busyAction === 'sign-in' ? 'Logging in...' : 'Login'}
-            onPress={() => void signIn(intendedRole)}
-            disabled={busyAction === 'sign-in'}
-          />
-          <Text
-            style={styles.forgotLink}
-            onPress={() => void requestPasswordReset()}
-          >
-            {busyAction === 'password-reset' ? 'Sending reset link...' : 'Forgot Password?'}
-          </Text>
-          <View style={styles.dividerRow}>
-            <View style={styles.divider} />
-            <Text style={styles.dividerText}>or continue with</Text>
-            <View style={styles.divider} />
+          <Text style={styles.authSubhead}>Choose one sign-in method</Text>
+          <View style={styles.methodTabs}>
+            {(['email', 'google', 'phone'] as const).map((method) => (
+              <Pressable
+                key={method}
+                style={[
+                  styles.methodTab,
+                  loginMethod === method && styles.methodTabSelected,
+                ]}
+                onPress={() => setLoginMethod(method)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: loginMethod === method }}
+              >
+                <Text
+                  style={[
+                    styles.methodTabText,
+                    loginMethod === method && styles.methodTabTextSelected,
+                  ]}
+                >
+                  {method === 'email' ? 'Email' : method === 'google' ? 'Google' : 'Phone'}
+                </Text>
+              </Pressable>
+            ))}
           </View>
-          <Pressable
-            style={styles.socialButton}
-            onPress={() => void startGoogleSignIn(intendedRole)}
-            disabled={busyAction === 'google-auth'}
-            accessibilityRole="button"
-          >
-            <Text style={styles.googleMark}>G</Text>
-            <Text style={styles.socialText}>
-              {busyAction === 'google-auth' ? 'Opening Google...' : 'Continue with Google'}
-            </Text>
-          </Pressable>
-          <Field
-            label="Phone Verification"
-            value={phoneLoginTarget}
-            onChangeText={(value) => {
-              setPhoneLoginTarget(value);
-              setPhoneOtpId(null);
-              setPhoneOtpCode('');
-            }}
-            keyboardType="phone-pad"
-            placeholder="+639000000000"
-          />
-          <Pressable
-            style={styles.socialButton}
-            onPress={async () => {
-              if (!phoneLoginTarget.trim()) {
-                setNotice('Enter your phone number first.');
-                return;
-              }
-              const otpId = await requestPhoneOtp(phoneLoginTarget);
-              if (otpId) {
-                setPhoneOtpId(otpId);
-              }
-            }}
-            disabled={busyAction === 'otp-generate'}
-            accessibilityRole="button"
-          >
-            <Text style={styles.phoneMark}>P</Text>
-            <Text style={styles.socialText}>
-              {busyAction === 'otp-generate'
-                ? 'Sending OTP...'
-                : 'Send Phone Verification OTP'}
-            </Text>
-          </Pressable>
-          {phoneOtpId ? (
+          {loginMethod === 'email' ? (
+            <>
+              <Field
+                label="Email Address"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                placeholder="your.email@example.com"
+              />
+              <Field
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                placeholder="Enter your password"
+              />
+              <PrimaryButton
+                label={busyAction === 'sign-in' ? 'Logging in...' : 'Log in'}
+                onPress={() => void signIn(intendedRole)}
+                disabled={busyAction === 'sign-in'}
+              />
+              <Text
+                style={styles.forgotLink}
+                onPress={() => void requestPasswordReset()}
+              >
+                {busyAction === 'password-reset' ? 'Sending reset link...' : 'Forgot Password?'}
+              </Text>
+            </>
+          ) : null}
+          {loginMethod === 'google' ? (
+            <Pressable
+              style={styles.socialButton}
+              onPress={() => void startGoogleSignIn(intendedRole)}
+              disabled={busyAction === 'google-auth'}
+              accessibilityRole="button"
+            >
+              <Text style={styles.googleMark}>G</Text>
+              <Text style={styles.socialText}>
+                {busyAction === 'google-auth' ? 'Opening Google...' : 'Continue with Google'}
+              </Text>
+            </Pressable>
+          ) : null}
+          {loginMethod === 'phone' ? (
+            <>
+              <Field
+                label="Phone Verification"
+                value={phoneLoginTarget}
+                onChangeText={(value) => {
+                  setPhoneLoginTarget(value);
+                  setPhoneOtpId(null);
+                  setPhoneOtpCode('');
+                }}
+                keyboardType="phone-pad"
+                placeholder="+639000000000"
+              />
+              <Pressable
+                style={styles.socialButton}
+                onPress={async () => {
+                  if (!phoneLoginTarget.trim()) {
+                    setNotice('Enter your phone number first.');
+                    return;
+                  }
+                  const otpId = await requestPhoneOtp(phoneLoginTarget);
+                  if (otpId) {
+                    setPhoneOtpId(otpId);
+                  }
+                }}
+                disabled={busyAction === 'otp-generate'}
+                accessibilityRole="button"
+              >
+                <Text style={styles.phoneMark}>P</Text>
+                <Text style={styles.socialText}>
+                  {busyAction === 'otp-generate'
+                    ? 'Sending OTP...'
+                    : 'Send Phone Verification OTP'}
+                </Text>
+              </Pressable>
+            </>
+          ) : null}
+          {loginMethod === 'phone' && phoneOtpId ? (
             <>
               <Field
                 label="OTP Code"
@@ -326,16 +355,41 @@ export function AuthScreens({
     <PhoneFrame>
       <View style={styles.authGate}>
         <View style={styles.claireTopLeftWrap}>
-          <Image source={claireImage2} style={styles.claireTopLeftAsset} resizeMode="stretch" />
+          <Image
+            source={claireImage2}
+            style={styles.claireTopLeftAsset}
+            resizeMode="stretch"
+            accessible={false}
+          />
         </View>
-        <Image source={claireImg0157} style={styles.claireTopRightAsset} resizeMode="stretch" />
+        <Image
+          source={claireImg0157}
+          style={styles.claireTopRightAsset}
+          resizeMode="stretch"
+          accessible={false}
+        />
         <View style={styles.claireBottomLeftWrap}>
-          <Image source={claireImage3} style={styles.claireBottomLeftAsset} resizeMode="stretch" />
+          <Image
+            source={claireImage3}
+            style={styles.claireBottomLeftAsset}
+            resizeMode="stretch"
+            accessible={false}
+          />
         </View>
-        <Image source={claireImage4} style={styles.claireBottomRightAsset} resizeMode="stretch" />
+        <Image
+          source={claireImage4}
+          style={styles.claireBottomRightAsset}
+          resizeMode="stretch"
+          accessible={false}
+        />
 
         <View style={styles.claireLogoWrap}>
-          <Image source={claireLogo} style={styles.claireLogoImage} resizeMode="contain" />
+          <Image
+            source={claireLogo}
+            style={styles.claireLogoImage}
+            resizeMode="contain"
+            accessibilityLabel="ServEase"
+          />
         </View>
 
         <Text style={styles.claireTagline}>
@@ -363,7 +417,7 @@ export function AuthScreens({
                 !isAgreed && styles.claireSignupTextDisabled,
               ]}
             >
-              Sign up to ServEase
+              Sign up for ServEase
             </Text>
           </Pressable>
 
@@ -386,9 +440,12 @@ export function AuthScreens({
                 !isAgreed && styles.claireLoginTextDisabled,
               ]}
             >
-              Log In
+              Log in
             </Text>
           </Pressable>
+          {!isAgreed ? (
+            <Text style={styles.legalHint}>Agree to the terms to continue.</Text>
+          ) : null}
         </View>
 
         <View style={styles.legalWrap}>
@@ -529,6 +586,13 @@ const styles = StyleSheet.create({
   claireLoginTextDisabled: {
     color: 'rgba(255,255,255,0.45)',
   },
+  legalHint: {
+    color: 'rgba(255,255,255,0.86)',
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+    textAlign: 'center',
+  },
   legalWrap: {
     left: 35,
     position: 'absolute',
@@ -601,6 +665,31 @@ const styles = StyleSheet.create({
     color: palette.faint,
     fontSize: 13,
     fontWeight: '600',
+  },
+  methodTabs: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    padding: spacing.xs,
+  },
+  methodTab: {
+    alignItems: 'center',
+    borderRadius: radius.pill,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  methodTabSelected: {
+    backgroundColor: palette.white,
+  },
+  methodTabText: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  methodTabTextSelected: {
+    color: palette.mint,
   },
   socialButton: {
     alignItems: 'center',

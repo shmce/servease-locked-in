@@ -147,6 +147,7 @@ export interface BookingSummary {
   customerFullName?: string | null;
   customerContactNumber?: string | null;
   providerId: string;
+  providerBusinessName?: string | null;
   serviceId: string | null;
   serviceTitle: string | null;
   serviceDescription: string | null;

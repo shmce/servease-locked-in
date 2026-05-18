@@ -11,6 +11,7 @@ import {
   nextBookingStatuses,
   pricingModeLabel,
   providerPayoutTotal,
+  timelineEventLabel,
   toManilaBookingIso,
 } from './booking';
 
@@ -60,6 +61,20 @@ describe('booking domain helpers', () => {
         currentStatus: 'pending',
         nextStatus: 'confirmed',
       },
+    );
+  });
+
+  it('humanizes raw booking timeline status labels', () => {
+    assert.equal(
+      timelineEventLabel({
+        eventType: 'status_changed',
+        label: 'Booking status changed to in_progress',
+      }),
+      'Service in progress',
+    );
+    assert.equal(
+      timelineEventLabel({ eventType: 'created', label: null }),
+      'Booking requested',
     );
   });
 

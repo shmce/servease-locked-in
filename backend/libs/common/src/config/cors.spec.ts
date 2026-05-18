@@ -14,6 +14,21 @@ describe('gateway CORS config', () => {
     ).toEqual(['https://app.servease.test', 'http://localhost:8082']);
   });
 
+  it('supplements configured local origins during development', () => {
+    expect(
+      resolveGatewayCorsOrigins({
+        API_GATEWAY_CORS_ORIGINS: 'http://localhost:8082',
+        NODE_ENV: 'development',
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        'http://localhost:8082',
+        'http://localhost:3000',
+        'http://localhost:3102',
+      ]),
+    );
+  });
+
   it('supports wildcard origins when explicitly configured', () => {
     expect(
       resolveGatewayCorsOrigins({
@@ -33,6 +48,9 @@ describe('gateway CORS config', () => {
     );
     expect(resolveGatewayCorsOrigins({ NODE_ENV: 'development' })).toContain(
       'http://localhost:3001',
+    );
+    expect(resolveGatewayCorsOrigins({ NODE_ENV: 'development' })).toContain(
+      'http://localhost:3102',
     );
     expect(resolveGatewayCorsOrigins({ NODE_ENV: 'development' })).toContain(
       'http://localhost:8082',

@@ -41,7 +41,10 @@ export function getCustomerTab(screen: AppScreen): CustomerTab {
     screen === 'providerEditProfile' ||
     screen === 'providerPortfolio' ||
     screen === 'providerPayoutManagement' ||
-    screen === 'providerRequestPayout'
+    screen === 'providerRequestPayout' ||
+    screen === 'providerServices' ||
+    screen === 'providerSecurity' ||
+    screen === 'providerSettings'
   ) {
     return 'more';
   }
@@ -69,7 +72,20 @@ export function getProviderTab(screen: AppScreen): ProviderTab {
   if (screen === 'messages') {
     return 'messages';
   }
-  if (screen === 'more') {
+  if (
+    screen === 'more' ||
+    screen === 'providerProfileView' ||
+    screen === 'providerEditProfile' ||
+    screen === 'providerPortfolio' ||
+    screen === 'providerPayoutManagement' ||
+    screen === 'providerRequestPayout' ||
+    screen === 'providerNotifications' ||
+    screen === 'providerInsights' ||
+    screen === 'providerHelp' ||
+    screen === 'providerServices' ||
+    screen === 'providerSecurity' ||
+    screen === 'providerSettings'
+  ) {
     return 'more';
   }
   return 'home';

@@ -4,6 +4,8 @@ dist/
 .next/
 .superpowers/
 coverage/
+playwright-report/
+test-results/
 .expo/
 .env
 .env.*

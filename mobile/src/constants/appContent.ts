@@ -32,7 +32,6 @@ export const dayOrder = Object.keys(dayLabels) as DayOfWeek[];
 
 export const hiddenProviderBottomNavScreens: AppScreen[] = [
   'providerBookingDetail',
-  'providerNavigationMode',
   'providerStartService',
   'providerServiceInProgress',
   'providerCompleteService',

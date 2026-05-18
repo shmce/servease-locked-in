@@ -5,6 +5,7 @@ import {
   ProviderOwnerSummary,
   ProviderProfileSummary,
 } from '../current-user.types';
+import { ProviderServiceListing } from '../../catalog/catalog.types';
 import { RegistrationDependencyUnavailableError } from '../../registration/registration.errors';
 import {
   ProviderApplicationStatusResponse,
@@ -83,6 +84,26 @@ export class CatalogServiceClient {
       userId: payload.data.userId,
       businessName: payload.data.businessName,
     };
+  }
+
+  async findProviderBusinessNameByProviderId(
+    providerId: string,
+  ): Promise<string | null> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/catalog/providers?providerId=${encodeURIComponent(
+        providerId,
+      )}`,
+    );
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: ProviderServiceListing[];
+    };
+    return payload.data.find((item) => item.providerBusinessName)
+      ?.providerBusinessName ?? null;
   }
 
   async getProviderApplicationByUserId(

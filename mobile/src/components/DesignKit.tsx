@@ -34,7 +34,12 @@ export function TopBar({
   return (
     <View style={[styles.topBar, green && styles.greenTopBar]}>
       {onBack ? (
-        <Pressable style={styles.iconButton} onPress={onBack} accessibilityRole="button">
+        <Pressable
+          style={styles.iconButton}
+          onPress={onBack}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <ArrowLeft color={green ? palette.white : palette.ink} size={24} strokeWidth={2.4} />
         </Pressable>
       ) : null}
@@ -77,17 +82,23 @@ export function Card({
   children,
   selected,
   onPress,
+  accessibilityLabel,
 }: {
   children: ReactNode;
   selected?: boolean;
   onPress?: () => void;
+  accessibilityLabel?: string;
 }) {
   const content = <View style={[styles.card, selected && styles.selectedCard]}>{children}</View>;
   if (!onPress) {
     return content;
   }
   return (
-    <Pressable onPress={onPress} accessibilityRole="button">
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? 'Open details'}
+    >
       {content}
     </Pressable>
   );
@@ -399,14 +410,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.lg,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.06)',
   },
   selectedCard: {
     borderColor: palette.mint,
-    shadowColor: palette.mint,
-    shadowOpacity: 0.18,
+    boxShadow: '0 4px 8px rgba(86,196,144,0.18)',
   },
   button: {
     alignItems: 'center',
@@ -417,9 +425,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 54,
     paddingHorizontal: spacing.lg,
-    shadowColor: palette.mint,
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
+    boxShadow: '0 5px 12px rgba(86,196,144,0.2)',
   },
   secondaryButton: {
     backgroundColor: palette.white,
@@ -496,9 +502,7 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.xs,
     padding: spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.08)',
   },
   featuredMetric: {
     borderRadius: radius.lg,
@@ -543,9 +547,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     borderTopColor: 'rgba(44, 42, 40, 0.07)',
     borderTopWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 20,
+    boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
     maxWidth: 393,
     width: '100%',
     alignSelf: 'center',

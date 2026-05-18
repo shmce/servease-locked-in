@@ -130,6 +130,46 @@ export function statusActionLabel(status: BookingStatus): string {
   return labels[status];
 }
 
+export function timelineEventLabel(event: {
+  eventType?: string | null;
+  label?: string | null;
+}): string {
+  const rawLabel = event.label?.trim();
+  const status = rawLabel?.match(/^Booking status changed to ([a-z_]+)$/i)?.[1];
+
+  if (status && isBookingStatus(status)) {
+    return statusTimelineLabel(status);
+  }
+
+  if (rawLabel) {
+    return rawLabel.replace(/_/g, ' ');
+  }
+
+  if (event.eventType === 'created') {
+    return 'Booking requested';
+  }
+
+  return 'Booking update';
+}
+
+function isBookingStatus(value: string): value is BookingStatus {
+  return ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'rejected'].includes(
+    value,
+  );
+}
+
+function statusTimelineLabel(status: BookingStatus): string {
+  const labels: Record<BookingStatus, string> = {
+    pending: 'Booking requested',
+    confirmed: 'Provider confirmed booking',
+    in_progress: 'Service in progress',
+    completed: 'Service completed',
+    cancelled: 'Booking cancelled',
+    rejected: 'Booking declined',
+  };
+  return labels[status];
+}
+
 export function statusLabel(status: BookingStatus): string {
   return status.replace('_', ' ');
 }

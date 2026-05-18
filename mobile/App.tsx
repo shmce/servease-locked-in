@@ -2,6 +2,7 @@ import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Bell,
+  BriefcaseBusiness,
   Calendar,
   Camera,
   ChevronRight,
@@ -44,6 +45,16 @@ import {
   Text,
   View,
 } from 'react-native';
+import Svg, {
+  Circle as SvgCircle,
+  Defs as SvgDefs,
+  G as SvgG,
+  Line as SvgLine,
+  LinearGradient as SvgLinearGradient,
+  Path as SvgPath,
+  Rect as SvgRect,
+  Stop as SvgStop,
+} from 'react-native-svg';
 import {
   Badge,
   BottomNavigation,
@@ -90,6 +101,7 @@ import {
   roleLabel,
   statusLabel,
   summarizeMonthlyEarnings,
+  timelineEventLabel,
   toManilaBookingIso,
 } from './src/domain/booking';
 import {
@@ -240,6 +252,43 @@ import {
 import { AuthSession, signInWithPassword } from './services/supabaseAuth';
 import { syncExpoPushRegistration } from './services/pushRegistration';
 
+function isInternalTestNotification(notification: NotificationSummary): boolean {
+  const text = `${notification.title ?? ''} ${notification.body ?? ''}`.toLowerCase();
+  const metadata = notification.metadata;
+  const markedTestOnly =
+    metadata &&
+    !Array.isArray(metadata) &&
+    typeof metadata === 'object' &&
+    (metadata as Record<string, unknown>).testOnly === true;
+
+  return (
+    markedTestOnly ||
+    text.includes('test broadcast') ||
+    text.includes('live integration test') ||
+    text.includes('smoke verification')
+  );
+}
+
+function completedRebookOptions(bookings: BookingSummary[]): BookingSummary[] {
+  const seen = new Set<string>();
+
+  return bookings.filter((booking) => {
+    if (booking.status !== 'completed') {
+      return false;
+    }
+
+    const key = `${booking.serviceId ?? booking.serviceTitle ?? booking.id}:${
+      booking.providerId
+    }`;
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
 export default function App() {
   const [route, setRoute] = useState<RouteState>({ role: null, screen: 'authGate' });
   const [apiBaseUrl, setApiBaseUrl] = useState(
@@ -270,6 +319,8 @@ export default function App() {
   const [profileContactNumber, setProfileContactNumber] = useState('');
   const [profileAddress, setProfileAddress] = useState('');
   const [profileBusinessName, setProfileBusinessName] = useState('');
+  const [customerAvatarUri, setCustomerAvatarUri] = useState<string | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [session, setSession] = useState<AuthSession | null>(null);
   const [profile, setProfile] = useState<CurrentUserProfile | null>(null);
   const [providerApplication, setProviderApplication] =
@@ -432,6 +483,9 @@ export default function App() {
   const selectedPayment = selectedBooking
     ? payments.find((payment) => payment.bookingId === selectedBooking.id)
     : null;
+  const selectedReview = selectedBooking
+    ? reviews.find((review) => review.bookingId === selectedBooking.id)
+    : null;
   const selectedCustomerPaymentMethod =
     customerPaymentMethods.find(
       (method) => method.id === selectedCustomerPaymentMethodId,
@@ -439,13 +493,18 @@ export default function App() {
     customerPaymentMethods.find((method) => method.isDefault) ??
     customerPaymentMethods[0] ??
     null;
-  const unreadCount = notifications.filter((notification) => !notification.isRead).length;
+  const visibleNotifications = notifications.filter(
+    (notification) => !isInternalTestNotification(notification),
+  );
+  const unreadCount = visibleNotifications.filter((notification) => !notification.isRead).length;
   const role = profile?.user.role ?? 'customer';
   const appRole: AppRole = role === 'provider' ? 'provider' : 'customer';
   const activeCount = activeBookingCount(bookings.map((booking) => booking.status));
   const completedCount = completedBookingCount(bookings.map((booking) => booking.status));
   const payoutTotal =
     payoutAccount?.availableBalance ?? providerPayoutTotal(payments);
+  const canConfirmAccountDeletion =
+    Boolean(profile?.user.email) && deleteConfirmText.trim() === profile?.user.email;
   const providerBookingSlots = useMemo(
     () =>
       buildProviderBookingSlots(
@@ -725,7 +784,6 @@ export default function App() {
       setCategories(nextCategories);
       setSelectedCategoryId(firstCategoryId);
       await loadServices(firstCategoryId);
-      setNotice('Marketplace loaded.');
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -1785,6 +1843,28 @@ export default function App() {
     }
   }
 
+  async function pickCustomerAvatar() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setNotice('Photo library permission is required to update your avatar.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets[0]?.uri) {
+      return;
+    }
+
+    setCustomerAvatarUri(result.assets[0].uri);
+    setNotice('Avatar updated on this device.');
+  }
+
   function notifyMissingCustomerPhone() {
     setNotice('This booking does not include a customer phone number yet. Use Messages for now.');
   }
@@ -2819,7 +2899,56 @@ export default function App() {
   }
 
   function navigate(screen: AppScreen, nextRole = route.role) {
+    setNotice('');
     setRoute({ role: nextRole, screen });
+  }
+
+  function bookingForConversation(
+    conversation: ConversationSummary,
+  ): BookingSummary | undefined {
+    return bookings.find((booking) => booking.id === conversation.bookingId);
+  }
+
+  function conversationTitle(
+    conversation: ConversationSummary,
+    booking?: BookingSummary,
+  ): string {
+    const serviceTitle = booking?.serviceTitle ?? 'Booking conversation';
+    const counterparty = conversationCounterpartyName(conversation, booking);
+    return counterparty ? `${serviceTitle} - ${counterparty}` : serviceTitle;
+  }
+
+  function conversationCounterpartyName(
+    conversation?: ConversationSummary,
+    booking?: BookingSummary,
+  ): string | null {
+    if (appRole === 'provider') {
+      return booking?.customerFullName ?? conversation?.customerId?.slice(0, 8) ?? null;
+    }
+
+    return (
+      booking?.providerBusinessName ??
+      booking?.bookingReference ??
+      conversation?.bookingId?.slice(0, 8) ??
+      null
+    );
+  }
+
+  function messageSenderLabel(senderRole: AppRole): string {
+    if (senderRole === appRole) {
+      return 'You';
+    }
+
+    return (
+      conversationCounterpartyName(selectedConversation, bookingForSelectedConversation()) ??
+      roleLabel(senderRole)
+    );
+  }
+
+  function bookingForSelectedConversation(): BookingSummary | undefined {
+    return selectedConversation
+      ? bookingForConversation(selectedConversation)
+      : undefined;
   }
 
   function openBooking(booking: BookingSummary, screen: AppScreen) {
@@ -2950,6 +3079,9 @@ export default function App() {
         {route.screen === 'providerNotifications' ? renderProviderNotifications() : null}
         {route.screen === 'providerInsights' ? renderProviderInsights() : null}
         {route.screen === 'providerHelp' ? renderProviderHelp() : null}
+        {route.screen === 'providerServices' ? renderProviderServices() : null}
+        {route.screen === 'providerSecurity' ? renderProviderSecurity() : null}
+        {route.screen === 'providerSettings' ? renderProviderSettings() : null}
         {activeTab === 'home' && route.screen === 'home' ? renderProviderHome() : null}
         {activeTab === 'bookings' && route.screen === 'bookings' ? renderProviderBookings() : null}
         {activeTab === 'calendar' && route.screen === 'calendar' ? renderProviderCalendar() : null}
@@ -2994,6 +3126,8 @@ export default function App() {
   }
 
   function renderExplore() {
+    const rebookOptions = completedRebookOptions(bookings);
+
     return (
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.customerHero}>
@@ -3032,50 +3166,67 @@ export default function App() {
         <View style={styles.content}>
           <Section
             title="Book it again"
-            action={<Text style={styles.linkText} onPress={() => navigate('customerServiceHistory', 'customer')}>Recent</Text>}
+            action={
+              <Text
+                style={styles.linkText}
+                onPress={() => {
+                  setBookingFilter('completed');
+                  navigate('bookings', 'customer');
+                }}
+              >
+                Recent
+              </Text>
+            }
           >
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalRail}
-            >
-              {bookings
-                .filter((booking) => booking.status === 'completed')
-                .slice(0, 5)
-                .map((booking) => (
-                  <Pressable
-                    key={booking.id}
-                    style={styles.bookAgainCard}
-                    onPress={() => openBooking(booking, 'customerBookingDetail')}
-                  >
+            <View style={styles.bookAgainRailWrap}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalRail}
+              >
+                {rebookOptions
+                  .slice(0, 5)
+                  .map((booking) => (
+                    <Pressable
+                      key={booking.id}
+                      style={styles.bookAgainCard}
+                      onPress={() => openBooking(booking, 'customerBookingDetail')}
+                      accessibilityRole="button"
+                    >
+                      <View style={styles.bookAgainAvatar}>
+                        <Text style={styles.bookAgainInitial}>
+                          {(booking.serviceTitle ?? 'S').slice(0, 1)}
+                        </Text>
+                      </View>
+                      <View style={styles.flex}>
+                        <Text style={styles.bookAgainTitle} numberOfLines={1}>
+                          {booking.serviceTitle ?? 'Service booking'}
+                        </Text>
+                        <Text style={styles.cardMeta} numberOfLines={1}>
+                          {booking.providerBusinessName ?? formatDateTime(booking.scheduledAt)}
+                        </Text>
+                      </View>
+                      <ChevronRight color={palette.faint} size={18} />
+                    </Pressable>
+                  ))}
+                {!rebookOptions.length ? (
+                  <View style={styles.bookAgainCard}>
                     <View style={styles.bookAgainAvatar}>
-                      <Text style={styles.bookAgainInitial}>
-                        {(booking.serviceTitle ?? 'S').slice(0, 1)}
-                      </Text>
+                      <Sparkles color={palette.white} size={18} />
                     </View>
                     <View style={styles.flex}>
-                      <Text style={styles.bookAgainTitle} numberOfLines={1}>
-                        {booking.serviceTitle ?? 'Service booking'}
-                      </Text>
-                      <Text style={styles.cardMeta} numberOfLines={1}>
-                        {formatDateTime(booking.scheduledAt)}
-                      </Text>
+                      <Text style={styles.bookAgainTitle}>No completed bookings yet</Text>
+                      <Text style={styles.cardMeta}>Completed services appear here</Text>
                     </View>
-                    <ChevronRight color={palette.faint} size={18} />
-                  </Pressable>
-                ))}
-              {!bookings.some((booking) => booking.status === 'completed') ? (
-                <View style={styles.bookAgainCard}>
-                  <View style={styles.bookAgainAvatar}>
-                    <Sparkles color={palette.white} size={18} />
                   </View>
-                  <View style={styles.flex}>
-                    <Text style={styles.bookAgainTitle}>No completed bookings yet</Text>
-                    <Text style={styles.cardMeta}>Completed services appear here</Text>
-                  </View>
+                ) : null}
+              </ScrollView>
+              {rebookOptions.length > 1 ? (
+                <View pointerEvents="none" style={styles.bookAgainRailCue}>
+                  <ChevronRight color={palette.mint} size={20} strokeWidth={2.6} />
                 </View>
               ) : null}
-            </ScrollView>
+            </View>
           </Section>
 
           <Section
@@ -3155,27 +3306,6 @@ export default function App() {
               </Card>
             ))}
           </Section>
-
-          <Section title="Book a service">
-            <Card>
-              <Text style={styles.cardTitle}>
-                {selectedProvider?.title ?? 'Choose a service provider'}
-              </Text>
-              <Text style={styles.cardMeta}>
-                {selectedProvider
-                  ? `${selectedProvider.providerBusinessName ?? selectedProvider.title} · ${formatMoney(selectedProvider.price)}${selectedProvider.pricingMode === 'hourly' ? ' / hr' : ''}`
-                  : 'Pick a provider above to start booking.'}
-              </Text>
-              <PrimaryButton
-                label={selectedProvider ? 'Book this provider' : 'Choose Provider'}
-                onPress={() =>
-                  selectedProvider
-                    ? navigate('customerBookingForm', 'customer')
-                    : navigate('customerTopProviders', 'customer')
-                }
-              />
-            </Card>
-          </Section>
         </View>
       </ScrollView>
     );
@@ -3216,12 +3346,15 @@ export default function App() {
                   <Text style={styles.cardMeta}>
                     {selectedProvider.averageRating.toFixed(1)} rating · {selectedProvider.reviewCount} reviews
                   </Text>
-                  <Text
-                    style={styles.linkText}
+                  <Pressable
+                    style={styles.profileLinkRow}
                     onPress={() => navigate('customerProviderProfile', 'customer')}
+                    accessibilityRole="button"
+                    accessibilityLabel="View provider profile"
                   >
-                    View Profile &gt;
-                  </Text>
+                    <Text style={styles.linkText}>View Profile</Text>
+                    <ChevronRight color={palette.mint} size={18} />
+                  </Pressable>
                 </View>
               </View>
             </Card>
@@ -3612,7 +3745,7 @@ export default function App() {
     const timeOnly = scheduledAt.slice(11, 16);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const upcomingDates = Array.from({ length: 7 }, (_, i) => {
+    const upcomingDates = Array.from({ length: 14 }, (_, i) => {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
       const yyyy = d.getFullYear();
@@ -3677,51 +3810,56 @@ export default function App() {
             </Card>
 
             <Section title="Pick a date">
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalRail}
-              >
-                {upcomingDates.map((d) => {
-                  const isSelected = dateOnly === d.value;
-                  return (
-                    <Pressable
-                      key={d.value}
-                      style={[styles.dateChip, isSelected && styles.dateChipSelected]}
-                      onPress={() =>
-                        setScheduledAt(`${d.value}T${timeOnly || '09:00'}`)
-                      }
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                    >
-                      <Text
-                        style={[
-                          styles.dateChipDow,
-                          isSelected && styles.dateChipDowSelected,
-                        ]}
+              <View style={styles.dateRailWrap}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator
+                  contentContainerStyle={styles.horizontalRail}
+                >
+                  {upcomingDates.map((d) => {
+                    const isSelected = dateOnly === d.value;
+                    return (
+                      <Pressable
+                        key={d.value}
+                        style={[styles.dateChip, isSelected && styles.dateChipSelected]}
+                        onPress={() =>
+                          setScheduledAt(`${d.value}T${timeOnly || '09:00'}`)
+                        }
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
                       >
-                        {d.isToday ? 'Today' : d.isTomorrow ? 'Tomorrow' : d.weekday}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.dateChipDay,
-                          isSelected && styles.dateChipDaySelected,
-                        ]}
-                      >
-                        {d.day}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.dateChipMonth,
-                          isSelected && styles.dateChipDowSelected,
-                        ]}
-                      >
-                        {d.month}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+                        <Text
+                          style={[
+                            styles.dateChipDow,
+                            isSelected && styles.dateChipDowSelected,
+                          ]}
+                        >
+                          {d.isToday ? 'Today' : d.isTomorrow ? 'Tomorrow' : d.weekday}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.dateChipDay,
+                            isSelected && styles.dateChipDaySelected,
+                          ]}
+                        >
+                          {d.day}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.dateChipMonth,
+                            isSelected && styles.dateChipDowSelected,
+                          ]}
+                        >
+                          {d.month}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                <View pointerEvents="none" style={styles.dateRailCue}>
+                  <ChevronRight color={palette.mint} size={20} strokeWidth={2.6} />
+                </View>
+              </View>
             </Section>
 
             <Section title="Pick a time">
@@ -3842,24 +3980,21 @@ export default function App() {
               </Pressable>
             </Section>
 
-            <Card>
-              <Text style={styles.cardTitle}>Estimated total</Text>
-              <InfoRow
-                label={selectedProvider.pricingMode === 'hourly' ? `${formatMoney(selectedProvider.price)} × ${duration}h` : 'Service rate'}
-                value={formatMoney(estimatedTotal)}
-              />
-              <InfoRow label="Callout fee" value={formatMoney(0)} />
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>You'll review on the next step</Text>
-                <Text style={styles.totalValue}>{formatMoney(estimatedTotal)}</Text>
-              </View>
-              <Text style={styles.cardMeta}>
-                You won't be charged until the service is completed.
-              </Text>
-            </Card>
           </View>
         </ScrollView>
         <View style={styles.stickyFooter}>
+          <View style={styles.footerTotalRow}>
+            <View>
+              <Text style={styles.footerTotalLabel}>Estimated total</Text>
+              <Text style={styles.cardMeta}>
+                {selectedProvider.pricingMode === 'hourly'
+                  ? `${formatMoney(selectedProvider.price)} x ${duration}h`
+                  : 'Service rate'}{' '}
+                · callout fee {formatMoney(0)}
+              </Text>
+            </View>
+            <Text style={styles.footerTotalValue}>{formatMoney(estimatedTotal)}</Text>
+          </View>
           {!canContinue ? (
             <Text style={styles.noticeText}>
               Add {missingFields.join(', ').replace(/, ([^,]*)$/, ' and $1')} to continue.
@@ -4050,7 +4185,21 @@ export default function App() {
                   <Text style={styles.cardMeta}>
                     {selectedProvider ? `${selectedProvider.averageRating.toFixed(1)} rating` : 'Provider details'}
                   </Text>
-                  <Text style={styles.linkText}>View Profile &gt;</Text>
+                  <Pressable
+                    style={styles.profileLinkRow}
+                    onPress={() => {
+                      if (selectedProvider) {
+                        navigate('customerProviderProfile', 'customer');
+                      } else {
+                        setNotice('Provider profile still loading.');
+                      }
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="View provider profile"
+                  >
+                    <Text style={styles.linkText}>View Profile</Text>
+                    <ChevronRight color={palette.mint} size={18} />
+                  </Pressable>
                 </View>
               </View>
             </Card>
@@ -4114,7 +4263,7 @@ export default function App() {
           <View style={styles.content}>
             <View style={styles.segmentRow}>
               <Pill
-                label="In Progress"
+                label="Active"
                 selected={bookingFilter === 'active'}
                 onPress={() => setBookingFilter('active')}
               />
@@ -4200,10 +4349,12 @@ export default function App() {
             <Card>
               <Text style={styles.cardTitle}>Service provider</Text>
               <Text style={styles.cardBody}>
-                {selectedProvider?.providerBusinessName ?? 'Provider details loading'}
+                {selectedBooking.providerBusinessName ??
+                  selectedProvider?.providerBusinessName ??
+                  'Provider details unavailable'}
               </Text>
-              <Text
-                style={styles.linkText}
+              <Pressable
+                style={styles.profileLinkRow}
                 onPress={() => {
                   if (selectedProvider) {
                     navigate('customerProviderProfile', 'customer');
@@ -4211,9 +4362,12 @@ export default function App() {
                     setNotice('Provider profile still loading.');
                   }
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="View provider profile"
               >
-                View Profile &gt;
-              </Text>
+                <Text style={styles.linkText}>View Profile</Text>
+                <ChevronRight color={palette.mint} size={18} />
+              </Pressable>
             </Card>
             {['confirmed', 'in_progress'].includes(selectedBooking.status) ? (
               <PrimaryButton
@@ -4237,12 +4391,24 @@ export default function App() {
                 onPress={() => void openSelectedConversation()}
               />
             </View>
-            <PrimaryButton
-              label={selectedPayment ? 'Payment reserved' : 'Reserve payment'}
-              variant="secondary"
-              onPress={() => navigate('customerReservePayment', 'customer')}
-              disabled={Boolean(selectedPayment)}
-            />
+            {selectedBooking.status !== 'completed' ? (
+              <PrimaryButton
+                label={selectedPayment ? 'Payment reserved' : 'Reserve payment'}
+                variant="secondary"
+                onPress={() => navigate('customerReservePayment', 'customer')}
+                disabled={Boolean(selectedPayment)}
+              />
+            ) : selectedPayment ? (
+              <Card>
+                <Text style={styles.cardTitle}>Payment</Text>
+                <Text style={styles.cardMeta}>
+                  {selectedPayment.status === 'paid'
+                    ? 'Paid'
+                    : `Payment ${selectedPayment.status}`}
+                  {' '}· {formatMoney(selectedPayment.amount)}
+                </Text>
+              </Card>
+            ) : null}
             {selectedBooking.status === 'completed' ? renderReviewPanel() : null}
           </View>
         </ScrollView>
@@ -4270,21 +4436,10 @@ export default function App() {
           >
             <Text style={styles.mapCloseText}>Close</Text>
           </Pressable>
-          <Card>
-            <View style={styles.providerSummaryRow}>
-              <View style={styles.quickIcon}>
-                <Navigation color={palette.mint} size={20} strokeWidth={2.6} />
-              </View>
-              <View style={styles.flex}>
-                <Text style={styles.cardTitle}>{trackingPhaseTitle(tracking)}</Text>
-                <Text style={styles.cardMeta}>{trackingRouteLabel(tracking)}</Text>
-              </View>
-            </View>
-          </Card>
-          <View style={styles.mapRouteLine} />
-          <View style={styles.mapPin}>
-            <MapPin color={palette.white} size={24} strokeWidth={2.8} />
-          </View>
+          <TrackingMapPreview
+            tracking={tracking}
+            title={trackingPhaseTitle(tracking)}
+          />
         </View>
         <View style={styles.navBottomSheet}>
           <View style={styles.dragHandle} />
@@ -4335,6 +4490,8 @@ export default function App() {
               <Pressable
                 style={styles.optionRow}
                 onPress={() => void openSelectedConversation()}
+                accessibilityRole="button"
+                accessibilityLabel="Message service provider"
               >
                 <Text style={styles.optionLabel}>Message Service Provider</Text>
                 <ChevronRight color={palette.faint} size={20} />
@@ -4348,6 +4505,8 @@ export default function App() {
                     }
                     navigate('customerTrackServiceProvider', 'customer');
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Track service provider"
                 >
                   <Text style={styles.optionLabel}>Track Service Provider</Text>
                   <ChevronRight color={palette.faint} size={20} />
@@ -4357,6 +4516,8 @@ export default function App() {
                 <Pressable
                   style={styles.optionRow}
                   onPress={() => navigate('customerReservePayment', 'customer')}
+                  accessibilityRole="button"
+                  accessibilityLabel="View payment details"
                 >
                   <Text style={styles.optionLabel}>View Payment Details</Text>
                   <ChevronRight color={palette.faint} size={20} />
@@ -4365,16 +4526,20 @@ export default function App() {
               <Pressable
                 style={styles.optionRow}
                 onPress={() => navigate('customerBookingReport', 'customer')}
+                accessibilityRole="button"
+                accessibilityLabel="Report an issue"
               >
                 <Text style={styles.optionLabel}>Report an issue</Text>
                 <ChevronRight color={palette.faint} size={20} />
               </Pressable>
               {isCancellable ? (
                 <Pressable
-                  style={styles.optionRow}
+                  style={[styles.optionRow, styles.optionRowDanger]}
                   onPress={() => navigate('customerBookingCancel', 'customer')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel booking"
                 >
-                  <Text style={[styles.optionLabel, { color: palette.red }]}>Cancel Booking</Text>
+                  <Text style={styles.optionLabelDanger}>Cancel Booking</Text>
                   <ChevronRight color={palette.faint} size={20} />
                 </Pressable>
               ) : null}
@@ -4391,7 +4556,7 @@ export default function App() {
         <TopBar title="Cancel Booking" onBack={() => navigate('customerBookingManage', 'customer')} />
         <ScrollView contentContainerStyle={styles.withBottomNav}>
           <View style={styles.content}>
-            <Text style={styles.sorryTitle}>I'M SORRY</Text>
+            <Text style={styles.sorryTitle}>Cancel this booking?</Text>
             <Text style={styles.pageCopy}>
               Please let us know why you're canceling your booking. We would really appreciate your feedback.
             </Text>
@@ -4414,29 +4579,31 @@ export default function App() {
             <View style={styles.policyCard}>
               <Text style={styles.cardTitle}>Cancellation policy</Text>
               <Text style={styles.cardMeta}>
-                Pending or confirmed bookings can be cancelled. Backend cancellation fees are not enabled yet.
+                Pending and confirmed bookings can be cancelled before the provider starts the service.
               </Text>
             </View>
-            <View style={styles.twoButtons}>
-              <PrimaryButton
-                label="Don't Cancel"
-                variant="secondary"
-                onPress={() => navigate('customerBookingDetail', 'customer')}
-              />
-              <PrimaryButton
-                label="Cancel Booking"
-                variant="danger"
-                onPress={async () => {
-                  await transitionSelectedBooking('cancelled', cancelReason);
-                  navigate('bookings', 'customer');
-                }}
-                disabled={
-                  !cancelReason ||
-                  !selectedBooking ||
-                  !nextBookingStatuses(selectedBooking.status, appRole).includes('cancelled')
-                }
-              />
-            </View>
+            {!cancelReason ? (
+              <Text style={styles.helperText}>Select a reason to continue.</Text>
+            ) : null}
+            <PrimaryButton
+              label="Cancel Booking"
+              variant="danger"
+              onPress={async () => {
+                await transitionSelectedBooking('cancelled', cancelReason);
+                navigate('bookings', 'customer');
+              }}
+              disabled={
+                !cancelReason ||
+                !selectedBooking ||
+                !nextBookingStatuses(selectedBooking.status, appRole).includes('cancelled')
+              }
+            />
+            <Text
+              style={styles.footerLink}
+              onPress={() => navigate('customerBookingDetail', 'customer')}
+            >
+              Don't Cancel
+            </Text>
           </View>
         </ScrollView>
       </>
@@ -4529,28 +4696,33 @@ export default function App() {
         <ScrollView contentContainerStyle={styles.withBottomNav}>
           <View style={styles.content}>
             <Section title="Conversations">
-              {conversations.map((conversation) => (
-                <Card
-                  key={conversation.id}
-                  selected={conversation.id === selectedConversationId}
-                  onPress={async () => {
-                    setSelectedConversationId(conversation.id);
-                    try {
-                      setMessages(await listConversationMessages(conversation.id, apiOptions));
-                    } catch (error) {
-                      setNotice(readError(error));
-                    }
-                  }}
-                >
-                  <Text style={styles.cardTitle}>Booking conversation</Text>
-                  <Text style={styles.cardMeta}>
-                    Booking {conversation.bookingId?.slice(0, 8) ?? 'unlinked'} ·{' '}
-                    {conversation.lastMessageAt
-                      ? formatDateTime(conversation.lastMessageAt)
-                      : 'No messages yet'}
-                  </Text>
-                </Card>
-              ))}
+              {conversations.map((conversation) => {
+                const conversationBooking = bookingForConversation(conversation);
+                return (
+                  <Card
+                    key={conversation.id}
+                    selected={conversation.id === selectedConversationId}
+                    onPress={async () => {
+                      setSelectedConversationId(conversation.id);
+                      try {
+                        setMessages(await listConversationMessages(conversation.id, apiOptions));
+                      } catch (error) {
+                        setNotice(readError(error));
+                      }
+                    }}
+                  >
+                    <Text style={styles.cardTitle}>
+                      {conversationTitle(conversation, conversationBooking)}
+                    </Text>
+                    <Text style={styles.cardMeta}>
+                      {conversationBooking?.bookingReference ?? 'Unlinked booking'} ·{' '}
+                      {conversation.lastMessageAt
+                        ? formatDateTime(conversation.lastMessageAt)
+                        : 'No messages yet'}
+                    </Text>
+                  </Card>
+                );
+              })}
               {!conversations.length ? (
                 <EmptyState title="No conversations" body="Open messages from a booking." />
               ) : null}
@@ -4566,7 +4738,7 @@ export default function App() {
                     ]}
                   >
                     <Text style={styles.cardMeta}>
-                      {message.senderRole}
+                      {messageSenderLabel(message.senderRole)}
                       {message.createdAt ? ` · ${formatDateTime(message.createdAt)}` : ''}
                     </Text>
                     {message.attachment ? (
@@ -4580,7 +4752,13 @@ export default function App() {
                     ) : null}
                   </View>
                 ))}
-                {!messages.length ? <Text style={styles.cardMeta}>No messages loaded.</Text> : null}
+                {!messages.length ? (
+                  <Text style={styles.cardMeta}>
+                    {selectedConversationId
+                      ? 'Say hi to start the conversation.'
+                      : 'Pick a conversation to start chatting.'}
+                  </Text>
+                ) : null}
               </Card>
               <Field label="Message" value={messageDraft} onChangeText={setMessageDraft} multiline />
               <View style={styles.twoButtons}>
@@ -4628,14 +4806,28 @@ export default function App() {
         <ScrollView contentContainerStyle={styles.withBottomNav}>
           <View style={styles.content}>
             <View style={styles.profileHero}>
-              <View style={styles.profileAvatarLarge}>
-                <Text style={styles.profileAvatarLargeText}>
-                  {(profile?.user.fullName ?? profile?.user.email ?? 'C').slice(0, 1).toUpperCase()}
-                </Text>
+              <Pressable
+                style={styles.profileAvatarLarge}
+                onPress={() => void pickCustomerAvatar()}
+                accessibilityRole="button"
+                accessibilityLabel="Update profile photo"
+              >
+                {customerAvatarUri ? (
+                  <Image
+                    source={{ uri: customerAvatarUri }}
+                    style={styles.profileAvatarImage}
+                    accessibilityLabel="Profile photo"
+                  />
+                ) : (
+                  <Text style={styles.profileAvatarLargeText}>
+                    {(profile?.user.fullName ?? profile?.user.email ?? 'C').slice(0, 1).toUpperCase()}
+                  </Text>
+                )}
                 <View style={styles.cameraBadge}>
                   <Camera color={palette.white} size={15} />
                 </View>
-              </View>
+              </Pressable>
+              <Text style={styles.cardMeta}>Tap the photo to update it.</Text>
             </View>
             <Field
               label="Full Name"
@@ -4787,7 +4979,7 @@ export default function App() {
                 onToggle={() => void toggleNotificationCategory('promotions')}
               />
             </SettingsSection>
-            <SettingsSection title="Account">
+            <SettingsSection title="Security">
               <SettingsRow
                 icon={Lock}
                 label="Change Password"
@@ -4813,6 +5005,8 @@ export default function App() {
                 disabled={busyAction === 'password-change'}
               />
               {renderTwoFactorSettings()}
+            </SettingsSection>
+            <SettingsSection title="Preferences">
               <SettingsRow
                 icon={Globe}
                 label="Language"
@@ -4823,8 +5017,6 @@ export default function App() {
                   })
                 }
               />
-            </SettingsSection>
-            <SettingsSection title="Appearance">
               <SettingsRow
                 icon={Moon}
                 label="Dark Mode"
@@ -4856,12 +5048,22 @@ export default function App() {
                 ))
               )}
             </SettingsSection>
-            <SettingsSection title="Delete account">
+            <SettingsSection title="Danger Zone">
+              <Text style={styles.cardMeta}>
+                Type {profile?.user.email ?? 'your email'} to enable account deletion.
+              </Text>
+              <Field
+                label="Confirm email"
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                placeholder={profile?.user.email ?? 'email@example.com'}
+                keyboardType="email-address"
+              />
               <PrimaryButton
                 label={busyAction === 'delete-account' ? 'Deleting...' : 'Delete Account'}
                 variant="danger"
                 onPress={() => void deleteMyAccount()}
-                disabled={busyAction === 'delete-account'}
+                disabled={busyAction === 'delete-account' || !canConfirmAccountDeletion}
               />
             </SettingsSection>
           </View>
@@ -4958,7 +5160,7 @@ export default function App() {
               {customerHelpCategories.map((category) => (
                 <Pill
                   key={category}
-                  label={category === 'all' ? 'All' : category.replace(' & ', ' ')}
+                  label={category === 'all' ? 'All' : category}
                   selected={helpCategory === category}
                   onPress={() => setHelpCategory(category)}
                 />
@@ -5008,7 +5210,13 @@ export default function App() {
 
     return (
       <>
-        <TopBar title="Service History" onBack={() => navigate('more', 'customer')} />
+        <TopBar
+          title="Completed Bookings"
+          onBack={() => {
+            setBookingFilter('completed');
+            navigate('bookings', 'customer');
+          }}
+        />
         <ScrollView contentContainerStyle={styles.withBottomNav}>
           <View style={styles.content}>
             {completedBookings.map((booking) => (
@@ -5257,7 +5465,7 @@ export default function App() {
         />
         <ScrollView contentContainerStyle={styles.withBottomNav}>
           <View style={styles.content}>
-            {notifications.map((notification) => (
+            {visibleNotifications.map((notification) => (
               <Pressable
                 key={notification.id}
                 style={[
@@ -5287,7 +5495,7 @@ export default function App() {
                 {!notification.isRead ? <View style={styles.notificationUnreadDot} /> : null}
               </Pressable>
             ))}
-            {!notifications.length ? (
+            {!visibleNotifications.length ? (
               <EmptyState title="No notifications yet" body="We'll notify you when something arrives." />
             ) : null}
           </View>
@@ -5440,6 +5648,17 @@ export default function App() {
     const todayCompleted = providerDashboard?.summary.todayCompleted ?? 0;
     const todayEarnings = providerDashboard?.summary.todayEarnings ?? 0;
     const acceptanceRate = providerDashboard?.performance.acceptanceRate ?? null;
+    const providerHomeActiveBookings = bookings
+      .filter((booking) =>
+        !['cancelled', 'completed', 'rejected'].includes(booking.status),
+      )
+      .slice()
+      .sort(
+        (a, b) =>
+          new Date(a.scheduledAt ?? 0).getTime() -
+          new Date(b.scheduledAt ?? 0).getTime(),
+      )
+      .slice(0, 4);
     return (
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.providerHero}>
@@ -5466,7 +5685,7 @@ export default function App() {
           </View>
         </View>
         <View style={styles.overlapContent}>
-          <MetricCard label="Total Earnings" value={formatMoney(payoutTotal)} featured />
+          <MetricCard label="Available Payout" value={formatMoney(payoutTotal)} featured />
           <View style={styles.metricGrid}>
             <MetricCard label="New Requests" value={pendingCount} />
             <MetricCard label="Today" value={activeCount} />
@@ -5475,27 +5694,42 @@ export default function App() {
         </View>
         <View style={styles.content}>
           {renderProviderApplicationBanner()}
-          <Pressable
-            style={styles.requestBanner}
-            onPress={() => navigate('bookings', 'provider')}
-          >
-            <View style={styles.flex}>
-              <Text style={styles.bannerTitle}>{pendingCount} New Booking Request{pendingCount === 1 ? '' : 's'}</Text>
-              <Text style={styles.bannerCopy}>Tap to review and accept</Text>
+          {pendingCount > 0 ? (
+            <Pressable
+              style={styles.requestBanner}
+              onPress={() => navigate('bookings', 'provider')}
+            >
+              <View style={styles.flex}>
+                <Text style={styles.bannerTitle}>{pendingCount} New Booking Request{pendingCount === 1 ? '' : 's'}</Text>
+                <Text style={styles.bannerCopy}>Tap to review and accept</Text>
+              </View>
+              <Text style={styles.bannerArrow}>{'>'}</Text>
+            </Pressable>
+          ) : (
+            <View style={[styles.requestBanner, styles.requestBannerMuted]}>
+              <View style={styles.flex}>
+                <Text style={[styles.bannerTitle, styles.bannerTitleMuted]}>You're all caught up</Text>
+                <Text style={[styles.bannerCopy, styles.bannerCopyMuted]}>No new booking requests right now</Text>
+              </View>
             </View>
-            <Text style={styles.bannerArrow}>{'>'}</Text>
-          </Pressable>
+          )}
           <Section
             title="Active Bookings"
             action={<Text style={styles.linkText} onPress={() => navigate('bookings', 'provider')}>View All</Text>}
           >
-            {bookings.slice(0, 4).map((booking) => (
+            {providerHomeActiveBookings.map((booking) => (
               <ProviderBookingRow
                 key={booking.id}
                 booking={booking}
                 onPress={() => openBooking(booking, 'providerBookingDetail')}
               />
             ))}
+            {!providerHomeActiveBookings.length ? (
+              <EmptyState
+                title="No active bookings"
+                body="Confirmed and in-progress jobs appear here."
+              />
+            ) : null}
           </Section>
           {(todayCompleted > 0 || todayEarnings > 0) ? (
             <Section title="Today">
@@ -5599,6 +5833,7 @@ export default function App() {
                   style={styles.circleButton}
                   onPress={() => void callSelectedBookingCustomer()}
                   accessibilityRole="button"
+                  accessibilityLabel="Call customer"
                 >
                   <Phone color={palette.mint} size={18} strokeWidth={2.5} />
                 </Pressable>
@@ -5606,6 +5841,7 @@ export default function App() {
                   style={styles.circleButton}
                   onPress={() => void openSelectedConversation()}
                   accessibilityRole="button"
+                  accessibilityLabel="Message customer"
                 >
                   <MessageCircle color={palette.mint} size={18} strokeWidth={2.5} />
                 </Pressable>
@@ -5768,7 +6004,7 @@ export default function App() {
           <Card key={event.id}>
             <View style={styles.rowBetween}>
               <View style={styles.flex}>
-                <Text style={styles.cardTitle}>{event.label ?? 'Booking update'}</Text>
+                <Text style={styles.cardTitle}>{timelineEventLabel(event)}</Text>
                 <Text style={styles.cardMeta}>{formatDateTime(event.createdAt)}</Text>
               </View>
               <Badge label={event.eventType.replace(/_/g, ' ')} tone="neutral" />
@@ -5866,29 +6102,23 @@ export default function App() {
         : null;
     return (
       <View style={styles.navigationScreen}>
-        <View style={styles.mapCanvas}>
+        <View
+          style={styles.mapCanvas}
+          accessible
+          accessibilityLabel="Route placeholder"
+        >
           <Pressable
             style={styles.mapCloseButton}
             onPress={() => navigate('providerBookingDetail', 'provider')}
             accessibilityRole="button"
+            accessibilityLabel="Back to booking details"
           >
             <Text style={styles.mapCloseText}>Close</Text>
           </Pressable>
-          <Card>
-            <View style={styles.providerSummaryRow}>
-              <View style={styles.quickIcon}>
-                <Navigation color={palette.mint} size={20} strokeWidth={2.6} />
-              </View>
-              <View style={styles.flex}>
-                <Text style={styles.cardTitle}>Head to the service location</Text>
-                <Text style={styles.cardMeta}>{trackingRouteLabel(tracking)}</Text>
-              </View>
-            </View>
-          </Card>
-          <View style={styles.mapRouteLine} />
-          <View style={styles.mapPin}>
-            <MapPin color={palette.white} size={24} strokeWidth={2.8} />
-          </View>
+          <TrackingMapPreview
+            tracking={tracking}
+            title="Head to the service location"
+          />
         </View>
         <View style={styles.navBottomSheet}>
           <View style={styles.dragHandle} />
@@ -6482,14 +6712,31 @@ export default function App() {
             </Section>
             <Section title="Edit window">
               <View style={styles.wrap}>
-                {dayOrder.map((day) => (
-                  <Pill
-                    key={day}
-                    label={dayLabels[day].slice(0, 3)}
-                    selected={day === windowDay}
-                    onPress={() => setWindowDay(day)}
-                  />
-                ))}
+                {dayOrder.map((day) => {
+                  const selected = day === windowDay;
+                  return (
+                    <Pressable
+                      key={day}
+                      style={[
+                        styles.weekdayChip,
+                        selected && styles.weekdayChipSelected,
+                      ]}
+                      onPress={() => setWindowDay(day)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`${dayLabels[day]} availability window`}
+                    >
+                      <Text
+                        style={[
+                          styles.weekdayChipText,
+                          selected && styles.weekdayChipTextSelected,
+                        ]}
+                      >
+                        {dayLabels[day].slice(0, 3)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
               <Field label="Start" value={windowStart} onChangeText={setWindowStart} />
               <Field label="End" value={windowEnd} onChangeText={setWindowEnd} />
@@ -7126,10 +7373,9 @@ export default function App() {
   function renderProviderMore() {
     return (
       <>
-        <TopBar title="More" subtitle="Earnings, profile, support, and settings" />
+        <TopBar title="More" subtitle="Provider tools and account settings" />
         <ScrollView contentContainerStyle={styles.withBottomNav}>
           <View style={styles.content}>
-            <MetricCard label="Available Payout" value={formatMoney(payoutTotal)} featured />
             <View style={styles.twoButtons}>
               <QuickAction
                 label="Profile"
@@ -7138,6 +7384,16 @@ export default function App() {
               <QuickAction
                 label="Portfolio"
                 onPress={() => navigate('providerPortfolio', 'provider')}
+              />
+            </View>
+            <View style={styles.twoButtons}>
+              <QuickAction
+                label="Services"
+                onPress={() => navigate('providerServices', 'provider')}
+              />
+              <QuickAction
+                label="Availability"
+                onPress={() => navigate('calendar', 'provider')}
               />
             </View>
             <View style={styles.twoButtons}>
@@ -7166,25 +7422,32 @@ export default function App() {
                 onPress={() => navigate('providerHelp', 'provider')}
               />
               <QuickAction
-                label="Set Availability"
-                onPress={() => navigate('calendar', 'provider')}
+                label="Security"
+                onPress={() => navigate('providerSecurity', 'provider')}
               />
             </View>
-            <Section title="Payments">
-              {payments.map((payment) => (
-                <Card key={payment.id}>
-                  <View style={styles.rowBetween}>
-                    <View>
-                      <Text style={styles.cardTitle}>{formatMoney(payment.providerPayout)}</Text>
-                      <Text style={styles.cardMeta}>
-                        Fee {formatMoney(payment.platformFee)} · Booking {payment.bookingId.slice(0, 8)}
-                      </Text>
-                    </View>
-                    <Badge label={payment.status} tone={payment.status === 'paid' ? 'success' : 'warning'} />
-                  </View>
-                </Card>
-              ))}
-            </Section>
+            <View style={styles.twoButtons}>
+              <QuickAction
+                label="Settings"
+                onPress={() => navigate('providerSettings', 'provider')}
+              />
+            </View>
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
+  function renderProviderServices() {
+    return (
+      <>
+        <TopBar
+          title="Services"
+          subtitle="Manage marketplace listings"
+          onBack={() => navigate('more', 'provider')}
+        />
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
             <Section title="My Services">
               {ownedServices.map((svc) => (
                 <Card key={svc.id}>
@@ -7309,18 +7572,68 @@ export default function App() {
                 />
               )}
             </Section>
-            {renderProfileCard()}
-            <Section title="Security">
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
+  function renderProviderSecurity() {
+    return (
+      <>
+        <TopBar
+          title="Security"
+          subtitle="Protect your provider account"
+          onBack={() => navigate('more', 'provider')}
+        />
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
+            <Section title="Two-factor authentication">
               {renderTwoFactorSettings()}
             </Section>
+          </View>
+        </ScrollView>
+      </>
+    );
+  }
+
+  function renderProviderSettings() {
+    return (
+      <>
+        <TopBar
+          title="Settings"
+          subtitle="Account access and danger zone"
+          onBack={() => navigate('more', 'provider')}
+        />
+        <ScrollView contentContainerStyle={styles.withBottomNav}>
+          <View style={styles.content}>
+            <SettingsSection title="Account">
+              <SettingsRow
+                icon={BriefcaseBusiness}
+                label={profile?.providerProfile?.businessName ?? 'Provider account'}
+                value={profile?.user.email ?? 'Email unavailable'}
+              />
+            </SettingsSection>
             {renderSupportPanel()}
             <PrimaryButton label="Sign out" variant="secondary" onPress={signOut} />
-            <PrimaryButton
-              label={busyAction === 'delete-account' ? 'Deleting...' : 'Delete Account'}
-              variant="danger"
-              onPress={() => void deleteMyAccount()}
-              disabled={busyAction === 'delete-account'}
-            />
+            <SettingsSection title="Danger Zone">
+              <Text style={styles.cardMeta}>
+                Type {profile?.user.email ?? 'your email'} to enable account deletion.
+              </Text>
+              <Field
+                label="Confirm email"
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                placeholder={profile?.user.email ?? 'email@example.com'}
+                keyboardType="email-address"
+              />
+              <PrimaryButton
+                label={busyAction === 'delete-account' ? 'Deleting...' : 'Delete Account'}
+                variant="danger"
+                onPress={() => void deleteMyAccount()}
+                disabled={busyAction === 'delete-account' || !canConfirmAccountDeletion}
+              />
+            </SettingsSection>
           </View>
         </ScrollView>
       </>
@@ -7551,7 +7864,7 @@ export default function App() {
   function renderNotificationsPanel() {
     return (
       <Section title="Notifications">
-        {notifications.slice(0, 5).map((notification) => (
+        {visibleNotifications.slice(0, 5).map((notification) => (
           <Card key={notification.id}>
             <View style={styles.rowBetween}>
               <View style={styles.flex}>
@@ -7568,7 +7881,7 @@ export default function App() {
             </View>
           </Card>
         ))}
-        {!notifications.length ? (
+        {!visibleNotifications.length ? (
           <EmptyState title="No notifications" body="Updates will appear here." />
         ) : null}
       </Section>
@@ -7576,6 +7889,17 @@ export default function App() {
   }
 
   function renderReviewPanel() {
+    if (selectedReview) {
+      return (
+        <Section title="Your review">
+          <Card>
+            <Text style={styles.cardTitle}>{selectedReview.rating}/5 rating</Text>
+            <Text style={styles.cardMeta}>{selectedReview.reviewText ?? 'No review text'}</Text>
+          </Card>
+        </Section>
+      );
+    }
+
     return (
       <Section title="Review provider">
         <Field label="Rating" value={rating} onChangeText={setRating} keyboardType="number-pad" />
@@ -7586,12 +7910,6 @@ export default function App() {
           onPress={() => void submitReview()}
           disabled={busyAction === 'review'}
         />
-        {reviews.slice(0, 2).map((review) => (
-          <Card key={review.id}>
-            <Text style={styles.cardTitle}>{review.rating}/5 rating</Text>
-            <Text style={styles.cardMeta}>{review.reviewText ?? 'No review text'}</Text>
-          </Card>
-        ))}
       </Section>
     );
   }
@@ -7636,6 +7954,197 @@ export default function App() {
   );
 }
 
+type TrackingMapLocation = {
+  latitude: number;
+  longitude: number;
+};
+
+function TrackingMapPreview({
+  tracking,
+  title,
+}: {
+  tracking: BookingTrackingSnapshot | null;
+  title: string;
+}) {
+  const destination = tracking?.destinationLocation ?? null;
+  const provider =
+    tracking?.providerLocation ??
+    derivePreviewProviderLocation(destination, tracking?.distanceKm ?? null);
+  const points = projectTrackingPoints(provider, destination);
+  const routePath =
+    points.provider && points.destination
+      ? `M ${points.provider.x} ${points.provider.y} C 108 42, 184 230, ${points.destination.x} ${points.destination.y}`
+      : null;
+
+  return (
+    <View style={styles.trackingMapCard}>
+      <Svg viewBox="0 0 320 260" style={styles.trackingMapSvg}>
+        <SvgDefs>
+          <SvgLinearGradient id="mapBg" x1="0" y1="0" x2="1" y2="1">
+            <SvgStop offset="0" stopColor="#E4F4EA" />
+            <SvgStop offset="1" stopColor="#D7E9F8" />
+          </SvgLinearGradient>
+        </SvgDefs>
+        <SvgRect x="0" y="0" width="320" height="260" rx="22" fill="url(#mapBg)" />
+        {[44, 100, 156, 212].map((x) => (
+          <SvgLine
+            key={`v-${x}`}
+            x1={x}
+            y1="0"
+            x2={x + 28}
+            y2="260"
+            stroke="#FFFFFF"
+            strokeOpacity="0.48"
+            strokeWidth="3"
+          />
+        ))}
+        {[46, 104, 164, 222].map((y) => (
+          <SvgLine
+            key={`h-${y}`}
+            x1="0"
+            y1={y}
+            x2="320"
+            y2={y - 22}
+            stroke="#FFFFFF"
+            strokeOpacity="0.42"
+            strokeWidth="3"
+          />
+        ))}
+        {routePath ? (
+          <SvgPath
+            d={routePath}
+            fill="none"
+            stroke="#0B7A44"
+            strokeLinecap="round"
+            strokeWidth="8"
+          />
+        ) : null}
+        {routePath ? (
+          <SvgPath
+            d={routePath}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeDasharray="10 12"
+            strokeLinecap="round"
+            strokeWidth="3"
+          />
+        ) : null}
+        {points.provider ? (
+          <SvgG>
+            <SvgCircle
+              cx={points.provider.x}
+              cy={points.provider.y}
+              r="15"
+              fill="#FFFFFF"
+            />
+            <SvgCircle
+              cx={points.provider.x}
+              cy={points.provider.y}
+              r="9"
+              fill="#2F6FED"
+            />
+          </SvgG>
+        ) : null}
+        {points.destination ? (
+          <SvgG>
+            <SvgCircle
+              cx={points.destination.x}
+              cy={points.destination.y}
+              r="18"
+              fill="#FFFFFF"
+            />
+            <SvgCircle
+              cx={points.destination.x}
+              cy={points.destination.y}
+              r="11"
+              fill="#00BF63"
+            />
+          </SvgG>
+        ) : null}
+      </Svg>
+      <View style={styles.trackingMapOverlay}>
+        <View style={styles.providerSummaryRow}>
+          <View style={styles.quickIcon}>
+            <Navigation color={palette.mint} size={20} strokeWidth={2.6} />
+          </View>
+          <View style={styles.flex}>
+            <Text style={styles.cardTitle}>{title}</Text>
+            <Text style={styles.cardMeta}>{trackingRouteLabel(tracking)}</Text>
+          </View>
+        </View>
+        <View style={styles.trackingMapLegend}>
+          <View style={styles.trackingLegendItem}>
+            <View style={[styles.trackingLegendDot, styles.trackingLegendDotProvider]} />
+            <Text style={styles.cardMeta}>
+              {tracking?.providerLocation ? 'Provider location' : 'Route preview'}
+            </Text>
+          </View>
+          <View style={styles.trackingLegendItem}>
+            <View style={[styles.trackingLegendDot, styles.trackingLegendDotDestination]} />
+            <Text style={styles.cardMeta}>Service address</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function derivePreviewProviderLocation(
+  destination: TrackingMapLocation | null,
+  distanceKm: number | null,
+): TrackingMapLocation | null {
+  if (!destination || distanceKm === null) {
+    return null;
+  }
+
+  const offset = Math.min(Math.max(distanceKm, 1.4), 8) * 0.006;
+  return {
+    latitude: destination.latitude + offset,
+    longitude: destination.longitude - offset * 0.75,
+  };
+}
+
+function projectTrackingPoints(
+  provider: TrackingMapLocation | null,
+  destination: TrackingMapLocation | null,
+): {
+  provider: { x: number; y: number } | null;
+  destination: { x: number; y: number } | null;
+} {
+  const locations = [provider, destination].filter(
+    Boolean,
+  ) as TrackingMapLocation[];
+
+  if (!locations.length) {
+    return { provider: null, destination: null };
+  }
+
+  const latitudes = locations.map((location) => location.latitude);
+  const longitudes = locations.map((location) => location.longitude);
+  const minLat = Math.min(...latitudes);
+  const maxLat = Math.max(...latitudes);
+  const minLng = Math.min(...longitudes);
+  const maxLng = Math.max(...longitudes);
+  const latRange = Math.max(maxLat - minLat, 0.01);
+  const lngRange = Math.max(maxLng - minLng, 0.01);
+
+  const project = (location: TrackingMapLocation | null) => {
+    if (!location) {
+      return null;
+    }
+
+    return {
+      x: 48 + ((location.longitude - minLng) / lngRange) * 224,
+      y: 212 - ((location.latitude - minLat) / latRange) * 164,
+    };
+  };
+
+  return {
+    provider: project(provider),
+    destination: project(destination),
+  };
+}
+
 function trackingPhaseTitle(tracking: BookingTrackingSnapshot | null): string {
   switch (tracking?.phase) {
     case 'awaiting_confirmation':
@@ -7657,11 +8166,10 @@ function trackingPhaseTitle(tracking: BookingTrackingSnapshot | null): string {
 
 function trackingRouteLabel(tracking: BookingTrackingSnapshot | null): string {
   if (!tracking) {
-    return 'Fetching ETA and route distance';
+    return 'Route preview loading';
   }
 
   const routeParts = [
-    tracking.etaMinutes === null ? null : `ETA ${tracking.etaMinutes} min`,
     tracking.distanceKm === null ? null : `${tracking.distanceKm.toFixed(1)} km`,
     tracking.trafficLevel ? `${tracking.trafficLevel} traffic` : null,
   ].filter(Boolean);
@@ -7720,6 +8228,11 @@ const styles = StyleSheet.create({
     height: 96,
     justifyContent: 'center',
     position: 'relative',
+    width: 96,
+  },
+  profileAvatarImage: {
+    borderRadius: radius.pill,
+    height: 96,
     width: 96,
   },
   profileAvatarLargeText: {
@@ -7854,9 +8367,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     gap: spacing.md,
     padding: spacing.base,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.04)',
   },
   faqCardOpen: {
     backgroundColor: '#FAFFFE',
@@ -7889,9 +8400,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.base,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.08)',
   },
   notificationCardUnread: {
     backgroundColor: '#F0FFF4',
@@ -7923,9 +8432,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.lg,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.05)',
   },
   roleIcon: {
     alignItems: 'center',
@@ -7992,10 +8499,10 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.32)',
     borderRadius: radius.lg,
     borderWidth: 1,
-    height: 42,
+    height: 44,
     justifyContent: 'center',
     position: 'relative',
-    width: 42,
+    width: 44,
   },
   heroUnreadDot: {
     backgroundColor: palette.coral,
@@ -8021,9 +8528,7 @@ const styles = StyleSheet.create({
     minHeight: 52,
     justifyContent: 'center',
     paddingHorizontal: spacing.base,
-    shadowColor: '#2C5A3C',
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
+    boxShadow: '0 6px 16px rgba(44,90,60,0.12)',
   },
   searchText: {
     color: palette.faint,
@@ -8060,6 +8565,34 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.md,
     paddingTop: spacing.md,
+  },
+  dateRailWrap: {
+    position: 'relative',
+  },
+  dateRailCue: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(240,255,244,0.94)',
+    borderRadius: radius.pill,
+    height: 36,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 0,
+    top: 22,
+    width: 36,
+  },
+  bookAgainRailWrap: {
+    position: 'relative',
+  },
+  bookAgainRailCue: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(240,255,244,0.96)',
+    borderRadius: radius.pill,
+    height: 36,
+    justifyContent: 'center',
+    position: 'absolute',
+    right: 0,
+    top: 20,
+    width: 36,
   },
   dateChip: {
     alignItems: 'center',
@@ -8136,6 +8669,29 @@ const styles = StyleSheet.create({
   timeTileTextDisabled: {
     color: palette.faint,
   },
+  weekdayChip: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    minHeight: 44,
+    minWidth: 64,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.md,
+  },
+  weekdayChipSelected: {
+    backgroundColor: palette.mint,
+    borderColor: palette.mintDark,
+  },
+  weekdayChipText: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  weekdayChipTextSelected: {
+    color: palette.white,
+  },
   horizontalRail: {
     gap: spacing.md,
     paddingRight: spacing.sm,
@@ -8151,9 +8707,7 @@ const styles = StyleSheet.create({
     paddingLeft: spacing.md,
     paddingRight: spacing.base,
     paddingTop: spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.07,
-    shadowRadius: 16,
+    boxShadow: '0 6px 16px rgba(0,0,0,0.07)',
   },
   bookAgainAvatar: {
     alignItems: 'center',
@@ -8185,9 +8739,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.base,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    boxShadow: '0 5px 10px rgba(0,0,0,0.05)',
   },
   categoryTileSelected: {
     borderColor: palette.mint,
@@ -8231,9 +8783,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    boxShadow: '0 3px 6px rgba(0,0,0,0.04)',
   },
   serviceThumb: {
     alignItems: 'center',
@@ -8258,9 +8808,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     gap: spacing.sm,
     padding: spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.08)',
     width: '47.5%',
   },
   serviceImageMock: {
@@ -8290,9 +8838,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.base,
-    shadowColor: '#000',
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.07)',
   },
   providerListAvatar: {
     alignItems: 'center',
@@ -8331,9 +8877,7 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     height: 100,
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
+    boxShadow: '0 5px 10px rgba(0,0,0,0.12)',
     width: 100,
   },
   providerProfileAvatarText: {
@@ -8450,6 +8994,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
   },
+  profileLinkRow: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.xxs,
+    minHeight: 44,
+    paddingVertical: spacing.xs,
+  },
   detailTitle: {
     ...type.title,
     color: palette.ink,
@@ -8489,9 +9041,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: palette.mintSoft,
     borderRadius: radius.pill,
-    height: 42,
+    height: 44,
     justifyContent: 'center',
-    width: 42,
+    width: 44,
   },
   infoRow: {
     alignItems: 'center',
@@ -8554,6 +9106,25 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
+  footerTotalRow: {
+    alignItems: 'center',
+    borderBottomColor: palette.lineSoft,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+    paddingBottom: spacing.sm,
+  },
+  footerTotalLabel: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  footerTotalValue: {
+    color: palette.ink,
+    fontSize: 18,
+    fontWeight: '900',
+  },
   footerLink: {
     color: palette.mint,
     fontSize: 14,
@@ -8596,8 +9167,11 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   smallAction: {
+    alignItems: 'center',
     backgroundColor: palette.mintSoft,
     borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 36,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
@@ -8662,18 +9236,33 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     borderBottomColor: palette.lineSoft,
     borderBottomWidth: 1,
+    borderRadius: radius.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     minHeight: 56,
+    paddingHorizontal: spacing.base,
     paddingVertical: spacing.base,
+  },
+  optionRowDanger: {
+    backgroundColor: '#FEF2F2',
   },
   optionLabel: {
     color: palette.ink,
     fontSize: 16,
     fontWeight: '600',
   },
+  optionLabelDanger: {
+    color: palette.red,
+    fontSize: 16,
+    fontWeight: '800',
+  },
   pageCopy: {
     ...type.body,
+    color: palette.muted,
+    textAlign: 'center',
+  },
+  helperText: {
+    ...type.caption,
     color: palette.muted,
     textAlign: 'center',
   },
@@ -8767,6 +9356,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderWidth: 2,
     gap: spacing.sm,
+    minHeight: 160,
     paddingVertical: spacing.xxl,
   },
   uploadPreview: {
@@ -8791,10 +9381,51 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     position: 'relative',
   },
+  trackingMapCard: {
+    backgroundColor: palette.white,
+    borderRadius: radius.lg,
+    gap: spacing.base,
+    overflow: 'hidden',
+    padding: spacing.sm,
+    boxShadow: '0 10px 24px rgba(44,90,60,0.14)',
+  },
+  trackingMapSvg: {
+    height: 260,
+    width: '100%',
+  },
+  trackingMapOverlay: {
+    gap: spacing.base,
+    paddingHorizontal: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  trackingMapLegend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+  },
+  trackingLegendItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  trackingLegendDot: {
+    borderRadius: radius.pill,
+    height: 10,
+    width: 10,
+  },
+  trackingLegendDotProvider: {
+    backgroundColor: '#2F6FED',
+  },
+  trackingLegendDotDestination: {
+    backgroundColor: palette.mint,
+  },
   mapCloseButton: {
     alignSelf: 'flex-end',
     backgroundColor: palette.white,
     borderRadius: radius.pill,
+    minHeight: 44,
+    minWidth: 64,
+    justifyContent: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
   },
@@ -8830,9 +9461,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg,
     gap: spacing.md,
     padding: spacing.xl,
-    shadowColor: '#000',
-    shadowOpacity: 0.14,
-    shadowRadius: 18,
+    boxShadow: '0 8px 18px rgba(0,0,0,0.14)',
   },
   dragHandle: {
     alignSelf: 'center',
@@ -8874,9 +9503,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     gap: spacing.sm,
     padding: spacing.xl,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
+    boxShadow: '0 6px 14px rgba(0,0,0,0.08)',
   },
   timerText: {
     color: palette.ink,
@@ -8908,15 +9535,24 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.base,
   },
+  requestBannerMuted: {
+    backgroundColor: palette.mintSoft,
+  },
   bannerTitle: {
     color: palette.white,
     fontSize: 15,
     fontWeight: '900',
   },
+  bannerTitleMuted: {
+    color: palette.ink,
+  },
   bannerCopy: {
     color: 'rgba(255,255,255,0.82)',
     fontSize: 12,
     fontWeight: '700',
+  },
+  bannerCopyMuted: {
+    color: palette.muted,
   },
   bannerArrow: {
     color: palette.white,
@@ -8979,9 +9615,7 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.sm,
     padding: spacing.base,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.08)',
   },
   quickIcon: {
     alignItems: 'center',

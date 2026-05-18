@@ -2,6 +2,46 @@ import { ConfigService } from '@nestjs/config';
 import { CatalogServiceClient } from './catalog-service.client';
 
 describe('CatalogServiceClient', () => {
+  it('loads provider business name from public provider listings by provider id', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'listing-1',
+            providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+            providerBusinessName: 'GreenFix Home Services',
+            serviceId: 'service-1',
+            title: 'Deep Cleaning',
+            description: null,
+            price: 1500,
+            pricingMode: 'flat',
+            averageRating: 4.9,
+            reviewCount: 28,
+            verificationStatus: 'approved',
+          },
+        ],
+      }),
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const client = new CatalogServiceClient(configService());
+      const businessName = await client.findProviderBusinessNameByProviderId(
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      );
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://catalog-service.test/internal/catalog/providers?providerId=b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      );
+      expect(businessName).toBe('GreenFix Home Services');
+    } finally {
+      globalThis.fetch = originalFetch;
+      jest.restoreAllMocks();
+    }
+  });
+
   it('loads provider ownership from the catalog service by provider id', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,

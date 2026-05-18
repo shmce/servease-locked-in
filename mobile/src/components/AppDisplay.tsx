@@ -1,11 +1,21 @@
 import { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
+  BarChart3,
+  Bell,
+  BriefcaseBusiness,
+  Calendar,
   CheckCircle,
   ChevronRight,
+  CircleDollarSign,
+  HelpCircle,
+  Image as ImageIcon,
+  Lock,
   MapPin,
+  Settings,
   Star,
   User,
+  Wallet,
 } from 'lucide-react-native';
 import { Badge, Card, EmptyState, TopBar } from './DesignKit';
 import {
@@ -33,7 +43,10 @@ export function BookingCard({
   onPress: () => void;
 }) {
   return (
-    <Card onPress={onPress}>
+    <Card
+      onPress={onPress}
+      accessibilityLabel={`Open ${booking.serviceTitle ?? 'service'} booking`}
+    >
       <View style={styles.bookingCardHeader}>
         <Text style={styles.cardTitle}>{booking.serviceTitle ?? 'Service booking'}</Text>
         <Badge {...bookingStatusChip(booking.status)} />
@@ -50,7 +63,7 @@ export function BookingCard({
           <Text style={styles.providerName}>
             {role === 'provider'
               ? booking.customerFullName ?? booking.customerId.slice(0, 8)
-              : 'Assigned provider'}
+              : booking.providerBusinessName ?? booking.bookingReference}
           </Text>
         </View>
         <View style={styles.bookingActionButton}>
@@ -248,7 +261,14 @@ export function ProviderBookingRow({
   onPress: () => void;
 }) {
   return (
-    <Card onPress={onPress}>
+    <Pressable
+      style={styles.providerBookingCard}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${booking.serviceTitle ?? 'service'} booking for ${
+        booking.customerFullName ?? 'customer'
+      }`}
+    >
       <View style={styles.providerBookingRow}>
         <View style={styles.providerBookingCol}>
           <Text style={styles.tableLabel}>Customer</Text>
@@ -265,16 +285,39 @@ export function ProviderBookingRow({
           <Text style={styles.priceText}>{formatMoney(booking.totalAmount)}</Text>
         </View>
       </View>
+      <Text style={styles.cardMeta}>Scheduled for {formatDateTime(booking.scheduledAt)}</Text>
       <Badge {...bookingStatusChip(booking.status)} />
-    </Card>
+    </Pressable>
   );
 }
 
+const quickActionIcons: Record<string, typeof User> = {
+  Availability: Calendar,
+  Insights: BarChart3,
+  Notifications: Bell,
+  Payouts: Wallet,
+  Portfolio: ImageIcon,
+  Profile: User,
+  'Request Payout': CircleDollarSign,
+  Security: Lock,
+  Services: BriefcaseBusiness,
+  Settings,
+  'Set Availability': Calendar,
+  'Help Center': HelpCircle,
+};
+
 export function QuickAction({ label, onPress }: { label: string; onPress: () => void }) {
+  const Icon = quickActionIcons[label] ?? ChevronRight;
+
   return (
-    <Pressable style={styles.quickAction} onPress={onPress}>
+    <Pressable
+      style={styles.quickAction}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
       <View style={styles.quickIcon}>
-        <Text style={styles.quickIconText}>{label.slice(0, 1)}</Text>
+        <Icon color={palette.mint} size={20} strokeWidth={2.4} />
       </View>
       <Text style={styles.cardTitle}>{label}</Text>
     </Pressable>
@@ -356,9 +399,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
+    boxShadow: '0 3px 6px rgba(0,0,0,0.04)',
   },
   serviceThumb: {
     alignItems: 'center',
@@ -382,9 +423,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.base,
-    shadowColor: '#000',
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.07)',
   },
   providerListAvatar: {
     alignItems: 'center',
@@ -415,6 +454,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     justifyContent: 'space-between',
+  },
+  providerBookingCard: {
+    backgroundColor: palette.white,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    gap: spacing.base,
+    padding: spacing.base,
   },
   infoRow: {
     alignItems: 'center',
@@ -520,9 +567,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.base,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
+    boxShadow: '0 5px 10px rgba(0,0,0,0.05)',
   },
   categoryTileSelected: {
     borderColor: palette.mint,
@@ -603,9 +648,7 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing.sm,
     padding: spacing.base,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.08)',
   },
   quickIcon: {
     alignItems: 'center',
@@ -627,9 +670,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.base,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
+    boxShadow: '0 5px 12px rgba(0,0,0,0.08)',
   },
   roleIcon: {
     alignItems: 'center',

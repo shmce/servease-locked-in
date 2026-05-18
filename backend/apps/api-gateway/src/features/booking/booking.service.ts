@@ -3,6 +3,7 @@ import { BookingServiceClient } from './clients/booking-service.client';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { CurrentUserIdentity } from '../current-user/current-user.types';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
+import { GeoServiceClient } from '../geo/clients/geo-service.client';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import {
   AddBookingAttachmentRequest,
@@ -26,6 +27,7 @@ export class BookingGatewayService {
     private readonly authServiceClient: AuthServiceClient,
     private readonly notificationServiceClient?: NotificationServiceClient,
     private readonly catalogServiceClient?: CatalogServiceClient,
+    private readonly geoServiceClient?: GeoServiceClient,
   ) {}
 
   async createBooking(
@@ -62,16 +64,16 @@ export class BookingGatewayService {
     );
   }
 
-  getTrackingSnapshot(
+  async getTrackingSnapshot(
     bookingId: string,
     customerId: string | null,
     providerId: string | null,
   ): Promise<BookingTrackingSnapshot> {
-    return this.bookingServiceClient.getTrackingSnapshot(
+    return this.enrichTrackingSnapshot(await this.bookingServiceClient.getTrackingSnapshot(
       bookingId,
       customerId,
       providerId,
-    );
+    ));
   }
 
   async transitionStatus(
@@ -283,14 +285,18 @@ export class BookingGatewayService {
     bookings: BookingSummary[],
   ): Promise<BookingSummary[]> {
     const customerCache = new Map<string, Promise<CurrentUserIdentity>>();
+    const providerCache = new Map<string, Promise<string | null>>();
     return Promise.all(
-      bookings.map((booking) => this.enrichBooking(booking, customerCache)),
+      bookings.map((booking) =>
+        this.enrichBooking(booking, customerCache, providerCache),
+      ),
     );
   }
 
   private async enrichBooking(
     booking: BookingSummary,
     customerCache = new Map<string, Promise<CurrentUserIdentity>>(),
+    providerCache = new Map<string, Promise<string | null>>(),
   ): Promise<BookingSummary> {
     let customer = customerCache.get(booking.customerId);
 
@@ -300,11 +306,71 @@ export class BookingGatewayService {
     }
 
     const customerIdentity = await customer;
+    const providerBusinessName =
+      booking.providerBusinessName ??
+      (await this.providerBusinessName(booking.providerId, providerCache));
 
     return {
       ...booking,
       customerFullName: customerIdentity.fullName,
       customerContactNumber: customerIdentity.contactNumber,
+      providerBusinessName,
     };
+  }
+
+  private providerBusinessName(
+    providerId: string,
+    providerCache: Map<string, Promise<string | null>>,
+  ): Promise<string | null> {
+    if (!this.catalogServiceClient) {
+      return Promise.resolve(null);
+    }
+
+    let provider = providerCache.get(providerId);
+    if (!provider) {
+      provider = this.catalogServiceClient
+        .findProviderBusinessNameByProviderId(providerId)
+        .catch(() =>
+          Promise.resolve(
+            this.catalogServiceClient?.findProviderOwnerByProviderId(providerId),
+          ).then((owner) => owner?.businessName ?? null),
+        )
+        .catch(() => null);
+      providerCache.set(providerId, provider);
+    }
+
+    return provider;
+  }
+
+  private async enrichTrackingSnapshot(
+    snapshot: BookingTrackingSnapshot,
+  ): Promise<BookingTrackingSnapshot> {
+    if (
+      !this.geoServiceClient ||
+      snapshot.destinationLocation ||
+      !snapshot.destinationAddress?.trim()
+    ) {
+      return snapshot;
+    }
+
+    try {
+      const destination = await this.geoServiceClient.geocodeAddress({
+        address: snapshot.destinationAddress,
+        language: 'en',
+        region: 'ph',
+      });
+
+      return {
+        ...snapshot,
+        destinationAddress:
+          destination.formattedAddress || snapshot.destinationAddress,
+        destinationLocation: {
+          latitude: destination.latitude,
+          longitude: destination.longitude,
+        },
+      };
+    } catch {
+      return snapshot;
+    }
   }
 }

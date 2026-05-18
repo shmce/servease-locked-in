@@ -75,12 +75,16 @@ export function LoginPage() {
           className="bg-white rounded-2xl shadow-md p-8 space-y-5"
         >
           <div>
-            <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">
+            <label
+              htmlFor="customer-login-email"
+              className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2"
+            >
               Email
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <input
+                id="customer-login-email"
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -92,12 +96,16 @@ export function LoginPage() {
           </div>
 
           <div>
-            <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">
+            <label
+              htmlFor="customer-login-password"
+              className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2"
+            >
               Password
             </label>
             <div className="relative">
               <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
               <input
+                id="customer-login-password"
                 type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}

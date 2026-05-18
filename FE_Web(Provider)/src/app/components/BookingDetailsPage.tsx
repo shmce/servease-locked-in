@@ -23,6 +23,7 @@ import {
   createProviderBookingServiceUpdate,
   deleteProviderBookingAttachment,
   getProviderBooking,
+  getProviderBookingTrackingSnapshot,
   getStoredProviderAccessToken,
   listProviderBookingServiceUpdates,
   updateProviderBookingStatus,
@@ -30,6 +31,7 @@ import {
   type BookingStatus,
   type BookingServiceUpdateSummary,
   type BookingSummary,
+  type BookingTrackingSnapshot,
 } from "../../services/serveaseProviderApi";
 
 const styles = {
@@ -373,6 +375,59 @@ const styles = {
     alignItems: "flex-start",
     gap: "10px",
   },
+  routePreviewCard: {
+    background: "linear-gradient(135deg, #E8F8EF 0%, #E6F0FF 100%)",
+    border: "1px solid #D1FAE5",
+    borderRadius: "16px",
+    marginTop: "18px",
+    overflow: "hidden",
+  },
+  routePreviewMap: {
+    height: "180px",
+    position: "relative" as const,
+    backgroundImage:
+      "linear-gradient(110deg, rgba(255,255,255,0.55) 1px, transparent 1px), linear-gradient(20deg, rgba(255,255,255,0.45) 1px, transparent 1px)",
+    backgroundSize: "58px 58px",
+  },
+  routePreviewRoad: {
+    position: "absolute" as const,
+    left: "18%",
+    right: "18%",
+    top: "50%",
+    height: "10px",
+    borderRadius: "999px",
+    backgroundColor: "#0B7A44",
+    transform: "rotate(-18deg)",
+    boxShadow: "0 0 0 3px rgba(255,255,255,0.62)",
+  },
+  routePreviewProviderMarker: {
+    position: "absolute" as const,
+    left: "20%",
+    top: "34%",
+    width: "28px",
+    height: "28px",
+    borderRadius: "999px",
+    backgroundColor: "#2F6FED",
+    border: "6px solid white",
+    boxShadow: "0 8px 18px rgba(47,111,237,0.25)",
+  },
+  routePreviewDestinationMarker: {
+    position: "absolute" as const,
+    right: "22%",
+    bottom: "30%",
+    width: "32px",
+    height: "32px",
+    borderRadius: "999px",
+    backgroundColor: "#00BF63",
+    border: "6px solid white",
+    boxShadow: "0 8px 18px rgba(0,191,99,0.25)",
+  },
+  routePreviewMeta: {
+    backgroundColor: "rgba(255,255,255,0.86)",
+    display: "grid",
+    gap: "6px",
+    padding: "14px",
+  },
 };
 
 function toUiStatus(status: BookingStatus): string {
@@ -420,11 +475,74 @@ function formatTime(value: string): string {
   });
 }
 
+function trackingSummary(tracking: BookingTrackingSnapshot | null): string {
+  if (!tracking) {
+    return "Route preview loading";
+  }
+
+  const parts = [
+    tracking.distanceKm === null ? null : `${tracking.distanceKm.toFixed(1)} km`,
+    tracking.trafficLevel ? `${tracking.trafficLevel} traffic` : null,
+  ].filter(Boolean);
+
+  return parts.length ? parts.join(" · ") : tracking.status.replace("_", " ");
+}
+
+function buildDirectionsUrl(
+  booking: BookingSummary,
+  tracking: BookingTrackingSnapshot | null,
+): string | null {
+  const coordinateDestination = tracking?.destinationLocation
+    ? `${tracking.destinationLocation.latitude},${tracking.destinationLocation.longitude}`
+    : null;
+  const destination = coordinateDestination || booking.serviceAddress?.trim();
+
+  if (!destination) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    api: "1",
+    destination,
+    travelmode: "driving",
+  });
+
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function RoutePreview({
+  tracking,
+  address,
+}: {
+  tracking: BookingTrackingSnapshot | null;
+  address: string;
+}) {
+  return (
+    <div style={styles.routePreviewCard}>
+      <div style={styles.routePreviewMap}>
+        <div style={styles.routePreviewRoad} />
+        <div style={styles.routePreviewProviderMarker} />
+        <div style={styles.routePreviewDestinationMarker} />
+      </div>
+      <div style={styles.routePreviewMeta}>
+        <div style={styles.detailLabel}>Route preview</div>
+        <div style={styles.detailValue}>{trackingSummary(tracking)}</div>
+        <div style={styles.detailLabel}>
+          {tracking?.destinationLocation
+            ? `${tracking.destinationLocation.latitude.toFixed(5)}, ${tracking.destinationLocation.longitude.toFixed(5)}`
+            : address}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function BookingDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [chatMessage, setChatMessage] = useState("");
   const [apiBooking, setApiBooking] = useState<BookingSummary | null>(null);
+  const [tracking, setTracking] = useState<BookingTrackingSnapshot | null>(null);
   const [serviceUpdates, setServiceUpdates] = useState<BookingServiceUpdateSummary[]>([]);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -444,12 +562,14 @@ export function BookingDetailsPage() {
 
       try {
         setDetailError(null);
-        const [booking, updates] = await Promise.all([
+        const [booking, updates, trackingSnapshot] = await Promise.all([
           getProviderBooking(token, id),
           listProviderBookingServiceUpdates(token, id).catch(() => []),
+          getProviderBookingTrackingSnapshot(token, id).catch(() => null),
         ]);
         setApiBooking(booking);
         setServiceUpdates(updates);
+        setTracking(trackingSnapshot);
       } catch (error) {
         setDetailError(
           error instanceof Error ? error.message : "Unable to load booking details.",
@@ -519,6 +639,13 @@ export function BookingDetailsPage() {
       platformFee,
       yourEarnings,
     },
+  };
+
+  const openDirections = () => {
+    const url = buildDirectionsUrl(apiBooking, tracking);
+    if (url) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
   };
 
   const updateStatus = async (nextStatus: BookingStatus) => {
@@ -892,12 +1019,7 @@ export function BookingDetailsPage() {
                 <div style={styles.detailContent}>
                   <div style={styles.detailLabel}>Location</div>
                   <div style={styles.detailValue}>{booking.service.location}</div>
-                  <div style={styles.mapPlaceholder}>
-                    <div style={{ textAlign: "center" }}>
-                      <MapPin size={24} style={{ marginBottom: "8px" }} />
-                      <div>Map Preview</div>
-                    </div>
-                  </div>
+                  <RoutePreview tracking={tracking} address={booking.service.location} />
                 </div>
               </div>
 
@@ -1035,7 +1157,10 @@ export function BookingDetailsPage() {
                   </div>
 
                   <div style={styles.actionButtons}>
-                    <button style={{ ...styles.button, ...styles.primaryButton }}>
+                    <button
+                      style={{ ...styles.button, ...styles.primaryButton }}
+                      onClick={openDirections}
+                    >
                       <Navigation size={16} />
                       Get Directions
                     </button>

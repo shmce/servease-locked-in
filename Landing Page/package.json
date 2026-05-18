@@ -6,6 +6,7 @@
   "scripts": {
     "build": "next build",
     "dev": "next dev",
+    "e2e": "npm run build && playwright test",
     "start": "next start"
   },
   "dependencies": {
@@ -41,6 +42,7 @@
     "@radix-ui/react-toggle-group": "1.1.2",
     "@radix-ui/react-tooltip": "1.1.8",
     "@supabase/supabase-js": "^2.105.4",
+    "canvas-confetti": "^1.9.4",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
@@ -60,6 +62,7 @@
     "react-popper": "2.3.0",
     "react-resizable-panels": "2.1.7",
     "react-responsive-masonry": "2.7.1",
+    "react-router": "^7.13.0",
     "react-slick": "0.31.0",
     "recharts": "2.15.2",
     "sonner": "2.0.3",
@@ -67,7 +70,11 @@
     "tw-animate-css": "1.3.8",
     "vaul": "1.1.2"
   },
+  "overrides": {
+    "postcss": "8.5.14"
+  },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "4.1.12",
     "@types/node": "22.15.3",
     "@types/react": "18.3.12",

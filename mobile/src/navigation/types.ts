@@ -52,7 +52,10 @@ export type DetailScreen =
   | 'providerRequestPayout'
   | 'providerNotifications'
   | 'providerInsights'
-  | 'providerHelp';
+  | 'providerHelp'
+  | 'providerServices'
+  | 'providerSecurity'
+  | 'providerSettings';
 
 export type AppScreen = AuthScreen | DetailScreen | CustomerTab | ProviderTab;
 

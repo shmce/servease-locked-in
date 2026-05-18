@@ -4,6 +4,21 @@ export interface GatewayCorsRuntimeEnv {
   NODE_ENV?: string;
 }
 
+const LOCAL_DEVELOPMENT_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:3003',
+  'http://localhost:3100',
+  'http://localhost:3101',
+  'http://localhost:3102',
+  'http://localhost:8081',
+  'http://localhost:8082',
+  'http://localhost:8083',
+  'http://localhost:8084',
+  'http://localhost:19006',
+];
+
 export function resolveGatewayCorsOrigins(
   env: GatewayCorsRuntimeEnv = process.env,
 ): boolean | string[] {
@@ -19,24 +34,18 @@ export function resolveGatewayCorsOrigins(
   }
 
   if (configuredOrigins.length > 0) {
-    return configuredOrigins;
+    if (env.NODE_ENV === 'production') {
+      return configuredOrigins;
+    }
+
+    return [...new Set([...configuredOrigins, ...LOCAL_DEVELOPMENT_ORIGINS])];
   }
 
   if (env.NODE_ENV === 'production') {
     return [];
   }
 
-  return [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:3002',
-    'http://localhost:3003',
-    'http://localhost:8081',
-    'http://localhost:8082',
-    'http://localhost:8083',
-    'http://localhost:8084',
-    'http://localhost:19006',
-  ];
+  return LOCAL_DEVELOPMENT_ORIGINS;
 }
 
 export function createGatewayCorsOptions(env: GatewayCorsRuntimeEnv = process.env) {
