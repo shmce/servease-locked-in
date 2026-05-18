@@ -29,8 +29,10 @@ import {
 import { AdminDisputeSummary } from '../admin-dispute.types';
 import {
   AdminProviderApplicationDocumentSummary,
+  AdminProviderApplicationReview,
   AdminProviderApplicationSummary,
   ListProviderApplicationsFilter,
+  UpdateProviderApplicationReviewInput,
 } from '../admin-provider-application.types';
 import {
   AdminDependencyUnavailableError,
@@ -38,12 +40,17 @@ import {
 } from '../admin-support.errors';
 import {
   PaymentSummary,
+  CreatePricingFuelIndexRequest,
   CommissionRuleSummary,
+  PricingCategoryRuleSummary,
+  PricingFuelIndexSummary,
+  PricingQuoteAuditSummary,
   PromotionSummary,
   PayoutEventSummary,
   PayoutSummary,
   RefundSummary,
   RecordPayoutEventRequest,
+  UpsertPricingCategoryRuleRequest,
   UpsertPromotionRequest,
   UpdateCommissionRuleRequest,
 } from '../admin-payment.types';
@@ -285,6 +292,13 @@ export class AdminServiceClient {
     );
   }
 
+  syncPaymentWithApicenter(paymentId: string): Promise<PaymentSummary> {
+    return this.request<PaymentSummary>(
+      `/internal/admin/payments/${paymentId}/apicenter-sync`,
+      'POST',
+    );
+  }
+
   listPromotions(status?: string | null): Promise<PromotionSummary[]> {
     const searchParams = new URLSearchParams();
     if (status) {
@@ -446,6 +460,47 @@ export class AdminServiceClient {
       `/internal/admin/payments/commission-rules/${ruleId}`,
       'PATCH',
       input,
+    );
+  }
+
+  listPricingRules(): Promise<PricingCategoryRuleSummary[]> {
+    return this.request<PricingCategoryRuleSummary[]>(
+      '/internal/admin/pricing/rules',
+      'GET',
+    );
+  }
+
+  upsertPricingRule(
+    input: UpsertPricingCategoryRuleRequest,
+  ): Promise<PricingCategoryRuleSummary> {
+    return this.request<PricingCategoryRuleSummary>(
+      '/internal/admin/pricing/rules',
+      'PUT',
+      input,
+    );
+  }
+
+  listPricingFuelIndex(): Promise<PricingFuelIndexSummary[]> {
+    return this.request<PricingFuelIndexSummary[]>(
+      '/internal/admin/pricing/fuel-index',
+      'GET',
+    );
+  }
+
+  createPricingFuelIndex(
+    input: CreatePricingFuelIndexRequest,
+  ): Promise<PricingFuelIndexSummary> {
+    return this.request<PricingFuelIndexSummary>(
+      '/internal/admin/pricing/fuel-index',
+      'POST',
+      input,
+    );
+  }
+
+  listPricingQuoteAudits(): Promise<PricingQuoteAuditSummary[]> {
+    return this.request<PricingQuoteAuditSummary[]>(
+      '/internal/admin/pricing/quote-audits',
+      'GET',
     );
   }
 
@@ -636,6 +691,41 @@ export class AdminServiceClient {
     );
   }
 
+  getProviderApplicationReview(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationReview> {
+    return this.request<AdminProviderApplicationReview>(
+      `/internal/admin/provider-applications/${applicationId}/review`,
+      'GET',
+    );
+  }
+
+  updateProviderApplicationReview(input: {
+    applicationId: string;
+    adminUserId: string;
+  } & UpdateProviderApplicationReviewInput): Promise<AdminProviderApplicationReview> {
+    return this.request<AdminProviderApplicationReview>(
+      `/internal/admin/provider-applications/${input.applicationId}/review`,
+      'PUT',
+      input,
+    );
+  }
+
+  addProviderApplicationReviewNote(input: {
+    applicationId: string;
+    adminUserId: string;
+    note: string;
+  }): Promise<AdminProviderApplicationReview> {
+    return this.request<AdminProviderApplicationReview>(
+      `/internal/admin/provider-applications/${input.applicationId}/review/notes`,
+      'POST',
+      {
+        adminUserId: input.adminUserId,
+        note: input.note,
+      },
+    );
+  }
+
   decideProviderApplication(input: {
     applicationId: string;
     adminUserId: string;
@@ -718,26 +808,31 @@ export class AdminServiceClient {
 
   private async request<T>(
     path: string,
-    method: 'DELETE' | 'GET' | 'PATCH' | 'POST',
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(
       'ADMIN_SERVICE_URL',
       'http://localhost:8511',
     );
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch {
+      throw new AdminDependencyUnavailableError();
+    }
 
     if (!response.ok) {
-      if (response.status < 500) {
-        const payload = (await response.json().catch(() => ({}))) as {
-          error?: { code?: string; message?: string };
-        };
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: { code?: string; message?: string };
+      };
+      if (payload.error?.code || payload.error?.message || response.status < 500) {
         throw new AdminServiceRequestError(
           response.status,
           payload.error?.code ?? 'admin_request_failed',

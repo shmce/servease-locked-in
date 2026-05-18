@@ -5,7 +5,21 @@ export type UploadKind =
   | 'support_evidence'
   | 'message_attachment'
   | 'provider_portfolio'
-  | 'provider_progress';
+  | 'provider_progress'
+  | 'provider_document';
+
+export interface ProviderApplicationDocumentUploadSummary {
+  id: string;
+  applicationId: string;
+  userId: string;
+  documentType: string;
+  fileUrl: string | null;
+  storagePath: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string | null;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+}
 
 export interface UploadedFile {
   originalname: string;
@@ -21,4 +35,5 @@ export interface UploadSummary {
   kind: UploadKind;
   contentType: string;
   size: number;
+  document?: ProviderApplicationDocumentUploadSummary;
 }

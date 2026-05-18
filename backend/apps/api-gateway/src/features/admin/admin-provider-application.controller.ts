@@ -1,11 +1,26 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpException,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { AdminAuditGatewayService } from './admin-audit.service';
 import { AdminProviderApplicationGatewayService } from './admin-provider-application.service';
 import {
   AdminProviderApplicationDocumentSummary,
   AdminProviderApplicationInfoRequestResult,
+  AdminProviderApplicationReview,
   AdminProviderApplicationSummary,
+  ProviderApplicationReviewOcrData,
   ProviderApplicationStatus,
+  ProviderApplicationVerificationRecord,
+  UpdateProviderApplicationReviewInput,
 } from './admin-provider-application.types';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
@@ -17,6 +32,7 @@ import {
 import {
   AdminDependencyUnavailableError,
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
@@ -85,6 +101,111 @@ export class AdminProviderApplicationController {
     return this.getDocument(authorization, applicationId, documentId);
   }
 
+  @Get(':applicationId/review')
+  async getReview(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('applicationId') applicationId: string,
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    try {
+      await this.requireAdmin(authorization);
+      return {
+        data: await this.providerApplicationService.getProviderApplicationReview(
+          applicationId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Put(':applicationId/review')
+  async updateReview(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('applicationId') applicationId: string,
+    @Body() body: UpdateProviderApplicationReviewInput,
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      return {
+        data: await this.providerApplicationService.updateProviderApplicationReview({
+          ...body,
+          applicationId,
+          adminUserId: admin.user.id,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':applicationId/review/notes')
+  async addReviewNote(
+    @Headers('authorization') authorization: string | undefined,
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
+    @Param('applicationId') applicationId: string,
+    @Body() body: { note?: string },
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const note = body.note?.trim() ?? '';
+      if (!note) {
+        throw new InvalidAdminRequestError();
+      }
+      const application =
+        await this.providerApplicationService.getProviderApplication(
+          applicationId,
+        );
+      const data =
+        await this.providerApplicationService.addProviderApplicationReviewNote({
+          applicationId,
+          adminUserId: admin.user.id,
+          note,
+        });
+      void this.recordReviewNoteAudit(admin, request, application, note);
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':applicationId/ocr')
+  async runOcr(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('applicationId') applicationId: string,
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const [application, review] = await Promise.all([
+        this.providerApplicationService.getProviderApplication(applicationId),
+        this.providerApplicationService.getProviderApplicationReview(applicationId),
+      ]);
+      const extracted = await this.extractDocumentOcr(application);
+
+      return {
+        data: await this.providerApplicationService.updateProviderApplicationReview({
+          applicationId,
+          adminUserId: admin.user.id,
+          kycChecklist: review.kycChecklist,
+          businessChecklist: review.businessChecklist,
+          verificationRecords: this.mergeOcrVerificationRecords(
+            review.verificationRecords,
+            extracted,
+          ),
+          ocrData: {
+            ...review.ocrData,
+            ...extracted,
+          },
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get(':applicationId')
   async get(
     @Headers('authorization') authorization: string | undefined,
@@ -105,7 +226,11 @@ export class AdminProviderApplicationController {
   @Post(':applicationId/approve')
   approve(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('applicationId') applicationId: string,
     @Body() body: { reason?: string },
   ): Promise<{ data: AdminProviderApplicationSummary }> {
@@ -118,7 +243,11 @@ export class AdminProviderApplicationController {
   @Post(':applicationId/reject')
   reject(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('applicationId') applicationId: string,
     @Body() body: { reason?: string },
   ): Promise<{ data: AdminProviderApplicationSummary }> {
@@ -131,7 +260,11 @@ export class AdminProviderApplicationController {
   @Post(':applicationId/request-info')
   async requestInfo(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('applicationId') applicationId: string,
     @Body() body: { message?: string },
   ): Promise<{ data: AdminProviderApplicationInfoRequestResult }> {
@@ -174,7 +307,10 @@ export class AdminProviderApplicationController {
 
   private async decide(
     authorization: string | undefined,
-    request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     applicationId: string,
     input: { decision: 'approved' | 'rejected'; reason: string },
   ): Promise<{ data: AdminProviderApplicationSummary }> {
@@ -183,6 +319,15 @@ export class AdminProviderApplicationController {
       if (!input.reason.trim()) {
         throw new InvalidAdminRequestError();
       }
+      if (input.decision === 'approved') {
+        const review =
+          await this.providerApplicationService.getProviderApplicationReview(
+            applicationId,
+          );
+        if (!review.isComplete) {
+          throw new InvalidAdminRequestError();
+        }
+      }
       const application =
         await this.providerApplicationService.decideProviderApplication({
           applicationId,
@@ -190,6 +335,24 @@ export class AdminProviderApplicationController {
           decision: input.decision,
           reason: input.reason,
         });
+      void this.notificationServiceClient.createNotification({
+        userId: application.userId,
+        type:
+          input.decision === 'approved'
+            ? 'provider_application_approved'
+            : 'provider_application_rejected',
+        title:
+          input.decision === 'approved'
+            ? 'Provider application approved'
+            : 'Provider application rejected',
+        body: input.reason,
+        metadata: {
+          applicationId: application.id,
+          applicationReference: application.applicationReference,
+          adminUserId: admin.user.id,
+          decision: input.decision,
+        },
+      }).catch(() => undefined);
       void this.recordAudit(admin, request, application, input);
       return { data: application };
     } catch (error) {
@@ -197,7 +360,9 @@ export class AdminProviderApplicationController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
@@ -210,51 +375,211 @@ export class AdminProviderApplicationController {
 
   private recordAudit(
     admin: CurrentUserProfile,
-    request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     application: AdminProviderApplicationSummary,
     input: { decision: 'approved' | 'rejected'; reason: string },
   ): Promise<unknown> {
-    return this.adminAuditGatewayService.createAuditLog({
-      adminUserId: admin.user.id,
-      adminEmail: admin.user.email,
-      adminName: admin.user.fullName,
-      action: `${input.decision === 'approved' ? 'Approved' : 'Rejected'} provider application`,
-      actionType: input.decision === 'approved' ? 'approve' : 'reject',
-      entityType: 'ProviderApplication',
-      entityId: application.id,
-      details: `${application.applicationReference} for ${application.businessName ?? application.userId} was ${input.decision}.`,
-      ipAddress: this.getClientIp(request),
-      metadata: {
-        providerId: application.id,
-        userId: application.userId,
-        decision: input.decision,
-        reason: input.reason,
-      },
-    }).catch(() => undefined);
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: `${input.decision === 'approved' ? 'Approved' : 'Rejected'} provider application`,
+        actionType: input.decision === 'approved' ? 'approve' : 'reject',
+        entityType: 'ProviderApplication',
+        entityId: application.id,
+        details: `${application.applicationReference} for ${application.businessName ?? application.userId} was ${input.decision}.`,
+        ipAddress: this.getClientIp(request),
+        metadata: {
+          providerId: application.id,
+          userId: application.userId,
+          decision: input.decision,
+          reason: input.reason,
+        },
+      })
+      .catch(() => undefined);
   }
 
   private recordInfoRequestAudit(
     admin: CurrentUserProfile,
-    request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     application: AdminProviderApplicationSummary,
     message: string,
   ): Promise<unknown> {
-    return this.adminAuditGatewayService.createAuditLog({
-      adminUserId: admin.user.id,
-      adminEmail: admin.user.email,
-      adminName: admin.user.fullName,
-      action: 'Requested provider application information',
-      actionType: 'update',
-      entityType: 'ProviderApplication',
-      entityId: application.id,
-      details: `Requested more information for ${application.applicationReference}.`,
-      ipAddress: this.getClientIp(request),
-      metadata: {
-        providerId: application.id,
-        userId: application.userId,
-        message,
-      },
-    }).catch(() => undefined);
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: 'Requested provider application information',
+        actionType: 'update',
+        entityType: 'ProviderApplication',
+        entityId: application.id,
+        details: `Requested more information for ${application.applicationReference}.`,
+        ipAddress: this.getClientIp(request),
+        metadata: {
+          providerId: application.id,
+          userId: application.userId,
+          message,
+        },
+      })
+      .catch(() => undefined);
+  }
+
+  private recordReviewNoteAudit(
+    admin: CurrentUserProfile,
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
+    application: AdminProviderApplicationSummary,
+    note: string,
+  ): Promise<unknown> {
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: 'Added provider application review note',
+        actionType: 'update',
+        entityType: 'ProviderApplication',
+        entityId: application.id,
+        details: `Added a review note for ${application.applicationReference}.`,
+        ipAddress: this.getClientIp(request),
+        metadata: {
+          providerId: application.id,
+          userId: application.userId,
+          note,
+        },
+      })
+      .catch(() => undefined);
+  }
+
+  private async extractDocumentOcr(
+    application: AdminProviderApplicationSummary,
+  ): Promise<ProviderApplicationReviewOcrData> {
+    const documentText = await Promise.all(
+      application.documents.map((document) =>
+        this.extractTextWithLocalOcr(
+          document.previewUrl ?? document.downloadUrl ?? document.fileUrl,
+        ),
+      ),
+    );
+    const text = [
+      ...application.documents.map((document) =>
+        [
+          document.documentType,
+          document.fileUrl,
+          document.storagePath,
+          document.previewUrl,
+          document.downloadUrl,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      ),
+      ...documentText,
+    ].join(' ');
+    const governmentId = application.documents.find((document) =>
+      /government|national|passport|driver|license|id/i.test(document.documentType),
+    );
+
+    return {
+      governmentIdType: governmentId
+        ? this.humanizeDocumentType(governmentId.documentType)
+        : application.documents[0]
+          ? this.humanizeDocumentType(application.documents[0].documentType)
+          : null,
+      governmentIdNumber: this.firstMatch(
+        text,
+        /\b(?:PSN|ID|DL|PASS(?:PORT)?)[-_\s:]*([A-Z0-9-]{4,32})\b/i,
+      ),
+      tinNumber: this.firstMatch(
+        text,
+        /\b(?:TIN)[-_\s:]*([0-9]{3}[-\s]?[0-9]{3}[-\s]?[0-9]{3}(?:[-\s]?[0-9]{3})?)\b/i,
+      ),
+      nbiNumber: this.firstMatch(
+        text,
+        /\b(?:NBI)[-_\s:]*([A-Z0-9-]{4,32})\b/i,
+      ),
+      prcNumber: this.firstMatch(
+        text,
+        /\b(?:PRC)[-_\s:]*([A-Z0-9-]{4,32})\b/i,
+      ),
+    };
+  }
+
+  private mergeOcrVerificationRecords(
+    records: ProviderApplicationVerificationRecord[],
+    extracted: ProviderApplicationReviewOcrData,
+  ): ProviderApplicationVerificationRecord[] {
+    const now = new Date().toISOString();
+    const next = [...records];
+    const upsert = (
+      id: 'nbi' | 'prc' | 'tin',
+      label: string,
+      reference: string | null | undefined,
+    ) => {
+      const index = next.findIndex((record) => record.id === id);
+      const previous = index >= 0 ? next[index] : null;
+      const record: ProviderApplicationVerificationRecord = {
+        id,
+        label: previous?.label ?? label,
+        status: previous?.status ?? 'pending',
+        reference: reference ?? previous?.reference ?? null,
+        checkedAt: reference ? now : previous?.checkedAt ?? null,
+        details: reference
+          ? 'Reference extracted by internal OCR and awaiting admin verification.'
+          : previous?.details ?? null,
+      };
+
+      if (index >= 0) {
+        next[index] = record;
+      } else {
+        next.push(record);
+      }
+    };
+
+    upsert('nbi', 'NBI Clearance', extracted.nbiNumber);
+    upsert('prc', 'PRC License', extracted.prcNumber);
+    upsert('tin', 'TIN/BIR Record', extracted.tinNumber);
+    return next;
+  }
+
+  private firstMatch(text: string, pattern: RegExp): string | null {
+    return (
+      pattern
+        .exec(text)?.[1]
+        ?.replace(/[_\s]+/g, '-')
+        .replace(/-(?:NBI|PRC|TIN).*$/i, '') ?? null
+    );
+  }
+
+  private humanizeDocumentType(value: string): string {
+    return value
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  private async extractTextWithLocalOcr(
+    documentUrl: string | null | undefined,
+  ): Promise<string> {
+    if (!documentUrl) {
+      return '';
+    }
+
+    try {
+      const tesseract = await import('tesseract.js');
+      const result = await tesseract.recognize(documentUrl, 'eng');
+      return result.data.text ?? '';
+    } catch {
+      return '';
+    }
   }
 
   private getClientIp(request: {
@@ -266,7 +591,11 @@ export class AdminProviderApplicationController {
       return forwardedFor[0] ?? null;
     }
 
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -275,7 +604,11 @@ export class AdminProviderApplicationController {
     }
 
     if (error instanceof InvalidAuthTokenError) {
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     }
 
     if (error instanceof AdminRequiredError) {
@@ -283,7 +616,15 @@ export class AdminProviderApplicationController {
     }
 
     if (error instanceof InvalidAdminRequestError) {
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
+    }
+
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
     }
 
     if (error instanceof AdminDependencyUnavailableError) {
@@ -294,7 +635,11 @@ export class AdminProviderApplicationController {
       );
     }
 
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

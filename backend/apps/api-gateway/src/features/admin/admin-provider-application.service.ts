@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { AdminServiceClient } from './clients/admin-service.client';
 import {
   AdminProviderApplicationDocumentSummary,
+  AdminProviderApplicationReview,
   AdminProviderApplicationSummary,
   ListProviderApplicationsFilter,
+  UpdateProviderApplicationReviewInput,
 } from './admin-provider-application.types';
 
 @Injectable()
@@ -30,6 +32,27 @@ export class AdminProviderApplicationGatewayService {
       applicationId,
       documentId,
     );
+  }
+
+  getProviderApplicationReview(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationReview> {
+    return this.adminServiceClient.getProviderApplicationReview(applicationId);
+  }
+
+  updateProviderApplicationReview(input: {
+    applicationId: string;
+    adminUserId: string;
+  } & UpdateProviderApplicationReviewInput): Promise<AdminProviderApplicationReview> {
+    return this.adminServiceClient.updateProviderApplicationReview(input);
+  }
+
+  addProviderApplicationReviewNote(input: {
+    applicationId: string;
+    adminUserId: string;
+    note: string;
+  }): Promise<AdminProviderApplicationReview> {
+    return this.adminServiceClient.addProviderApplicationReviewNote(input);
   }
 
   decideProviderApplication(input: {

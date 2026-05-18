@@ -1,14 +1,27 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Patch, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpException,
+  Param,
+  Patch,
+  Req,
+} from '@nestjs/common';
 import { AdminAuditGatewayService } from './admin-audit.service';
 import { AdminPaymentGatewayService } from './admin-payment.service';
 import { CommissionRuleSummary } from './admin-payment.types';
 import {
   AdminDependencyUnavailableError,
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AuthTokenService } from '../current-user/auth-token.service';
-import { AuthRequiredError, InvalidAuthTokenError } from '../current-user/current-user.errors';
+import {
+  AuthRequiredError,
+  InvalidAuthTokenError,
+} from '../current-user/current-user.errors';
 import { CurrentUserService } from '../current-user/current-user.service';
 import { CurrentUserProfile } from '../current-user/current-user.types';
 
@@ -40,7 +53,11 @@ export class AdminCommissionController {
   @Patch(':ruleId')
   async update(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('ruleId') ruleId: string,
     @Body()
     body: {
@@ -75,7 +92,9 @@ export class AdminCommissionController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
@@ -88,27 +107,32 @@ export class AdminCommissionController {
 
   private recordAudit(
     admin: CurrentUserProfile,
-    request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     rule: CommissionRuleSummary,
   ): Promise<unknown> {
-    return this.adminAuditGatewayService.createAuditLog({
-      adminUserId: admin.user.id,
-      adminEmail: admin.user.email,
-      adminName: admin.user.fullName,
-      action: 'Updated commission rule',
-      actionType: 'update',
-      entityType: 'CommissionRule',
-      entityId: rule.id,
-      details: `${rule.categoryLabel} commission is now ${rule.currentRate}%.`,
-      ipAddress: this.getClientIp(request),
-      metadata: {
-        ruleId: rule.id,
-        categoryKey: rule.categoryKey,
-        currentRate: rule.currentRate,
-        previousRate: rule.previousRate,
-        status: rule.status,
-      },
-    }).catch(() => undefined);
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: 'Updated commission rule',
+        actionType: 'update',
+        entityType: 'CommissionRule',
+        entityId: rule.id,
+        details: `${rule.categoryLabel} commission is now ${rule.currentRate}%.`,
+        ipAddress: this.getClientIp(request),
+        metadata: {
+          ruleId: rule.id,
+          categoryKey: rule.categoryKey,
+          currentRate: rule.currentRate,
+          previousRate: rule.previousRate,
+          status: rule.status,
+        },
+      })
+      .catch(() => undefined);
   }
 
   private getClientIp(request: {
@@ -120,7 +144,11 @@ export class AdminCommissionController {
       return forwardedFor[0] ?? null;
     }
 
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -129,7 +157,11 @@ export class AdminCommissionController {
     }
 
     if (error instanceof InvalidAuthTokenError) {
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     }
 
     if (error instanceof AdminRequiredError) {
@@ -137,7 +169,15 @@ export class AdminCommissionController {
     }
 
     if (error instanceof InvalidAdminRequestError) {
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
+    }
+
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
     }
 
     if (error instanceof AdminDependencyUnavailableError) {
@@ -148,7 +188,11 @@ export class AdminCommissionController {
       );
     }
 
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

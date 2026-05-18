@@ -10,7 +10,10 @@ import {
 } from '@nestjs/common';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
-import { AdminRequiredError } from './admin-support.errors';
+import {
+  AdminRequiredError,
+  AdminServiceRequestError,
+} from './admin-support.errors';
 import { AdminBookingGatewayService } from './admin-booking.service';
 import { AdminBookingSummary } from './admin-booking.types';
 import { AdminPaymentGatewayService } from './admin-payment.service';
@@ -105,10 +108,7 @@ export class AdminReportController {
 
   @Get(':type.pdf')
   @Header('content-type', 'application/pdf')
-  @Header(
-    'content-disposition',
-    'attachment; filename="servease-report.pdf"',
-  )
+  @Header('content-disposition', 'attachment; filename="servease-report.pdf"')
   async reportPdf(
     @Param('type') type: string,
     @Headers('authorization') authorization: string | undefined,
@@ -125,10 +125,7 @@ export class AdminReportController {
 
   @Get('revenue.csv')
   @Header('content-type', 'text/csv; charset=utf-8')
-  @Header(
-    'content-disposition',
-    'attachment; filename="servease-revenue.csv"',
-  )
+  @Header('content-disposition', 'attachment; filename="servease-revenue.csv"')
   async revenueCsv(
     @Headers('authorization') authorization: string | undefined,
   ): Promise<string> {
@@ -149,7 +146,11 @@ export class AdminReportController {
   ): Promise<string> {
     try {
       await this.requireAdmin(authorization);
-      const users = await this.adminUsersGatewayService.listUsers(null, null, null);
+      const users = await this.adminUsersGatewayService.listUsers(
+        null,
+        null,
+        null,
+      );
       return this.toUsersCsv(users);
     } catch (error) {
       throw this.handleExportError(error, 'User report export failed.');
@@ -180,10 +181,7 @@ export class AdminReportController {
 
   @Get('bookings.csv')
   @Header('content-type', 'text/csv; charset=utf-8')
-  @Header(
-    'content-disposition',
-    'attachment; filename="servease-bookings.csv"',
-  )
+  @Header('content-disposition', 'attachment; filename="servease-bookings.csv"')
   async bookingsCsv(
     @Headers('authorization') authorization: string | undefined,
   ): Promise<string> {
@@ -215,15 +213,15 @@ export class AdminReportController {
 
       return {
         data: {
-        id: this.buildReportId(reportType, generatedAt),
-        type: reportType,
-        format,
-        status: 'ready',
-        generatedAt,
-        fileName: this.buildReportFileName(reportType, format, generatedAt),
-        downloadPath: `/v1/admin/reports/${reportType}.${format}`,
-        rowCount: dataset.rows.length,
-        dateRange: body.dateRange?.trim() || null,
+          id: this.buildReportId(reportType, generatedAt),
+          type: reportType,
+          format,
+          status: 'ready',
+          generatedAt,
+          fileName: this.buildReportFileName(reportType, format, generatedAt),
+          downloadPath: `/v1/admin/reports/${reportType}.${format}`,
+          rowCount: dataset.rows.length,
+          dateRange: body.dateRange?.trim() || null,
         },
       };
     } catch (error) {
@@ -266,7 +264,9 @@ export class AdminReportController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<string> {
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<string> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
     if (currentUser.user.role !== 'admin') {
@@ -279,6 +279,10 @@ export class AdminReportController {
     if (error instanceof AdminRequiredError) {
       return this.error('admin_required', 'An admin account is required.', 403);
     }
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
+    }
+
     return this.error('admin_dependency_unavailable', fallback, 503);
   }
 
@@ -626,7 +630,10 @@ export class AdminReportController {
   }
 
   private escapePdfText(value: string): string {
-    return value.replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+    return value
+      .replace(/\\/g, '\\\\')
+      .replace(/\(/g, '\\(')
+      .replace(/\)/g, '\\)');
   }
 
   private titleCase(value: string): string {

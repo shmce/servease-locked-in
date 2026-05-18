@@ -165,6 +165,24 @@ describe('SupabasePaymentRepository', () => {
     expect(result.localPaymentStatus).toBe('paid');
   });
 
+  it('loads the latest APICenter checkout id for admin payment sync', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: { checkout_id: 'checkout-1' },
+      error: null,
+    });
+    const rpc = jest.fn().mockReturnValue({ maybeSingle });
+    const repository = new SupabasePaymentRepository({ rpc });
+
+    const checkoutId =
+      await repository.getLatestApicenterCheckoutId('payment-1');
+
+    expect(rpc).toHaveBeenCalledWith(
+      'servease_admin_get_apicenter_checkout_for_payment',
+      { p_payment_id: 'payment-1' },
+    );
+    expect(checkoutId).toBe('checkout-1');
+  });
+
   it('lists admin promotions through the service RPC', async () => {
     const rpc = jest.fn().mockResolvedValue({
       data: [

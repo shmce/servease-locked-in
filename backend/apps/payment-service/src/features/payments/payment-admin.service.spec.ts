@@ -109,6 +109,37 @@ describe('PaymentAdminService', () => {
     );
   });
 
+  it('syncs admin payments from the latest APICenter checkout', async () => {
+    const repository = {
+      getLatestApicenterCheckoutId: jest.fn().mockResolvedValue('checkout-1'),
+      adminGetPayment: jest.fn().mockResolvedValue({
+        id: 'payment-1',
+        status: 'paid',
+      }),
+    } as unknown as SupabasePaymentRepository;
+    const sharedPaymentService = {
+      getCheckoutStatus: jest.fn().mockResolvedValue({
+        checkoutId: 'checkout-1',
+        localPaymentStatus: 'paid',
+      }),
+    };
+    const service = new PaymentAdminService(
+      repository,
+      sharedPaymentService as never,
+    );
+
+    const payment = await service.syncPaymentWithApicenter(' payment-1 ');
+
+    expect(repository.getLatestApicenterCheckoutId).toHaveBeenCalledWith(
+      'payment-1',
+    );
+    expect(sharedPaymentService.getCheckoutStatus).toHaveBeenCalledWith(
+      'checkout-1',
+    );
+    expect(repository.adminGetPayment).toHaveBeenCalledWith('payment-1');
+    expect(payment).toEqual({ id: 'payment-1', status: 'paid' });
+  });
+
   it('rejects invalid commission rules before repository writes', async () => {
     const repository = {
       updateCommissionRule: jest.fn(),

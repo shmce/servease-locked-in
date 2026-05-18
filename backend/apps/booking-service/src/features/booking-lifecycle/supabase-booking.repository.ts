@@ -56,6 +56,9 @@ interface BookingRow {
   hours_required?: number | null;
   service_amount?: string | number | null;
   pricing_mode?: string | null;
+  accepted_quote_id?: string | null;
+  quote_fairness_status?: string | null;
+  quote_confidence?: string | null;
   customer_notes?: string | null;
   status: BookingStatus;
   total_amount: string | number | null;
@@ -152,6 +155,9 @@ export class SupabaseBookingRepository {
         p_hours_required: input.hoursRequired ?? 1,
         p_service_amount: input.serviceAmount ?? 0,
         p_pricing_mode: input.pricingMode ?? 'flat',
+        p_accepted_quote_id: input.acceptedQuoteId ?? null,
+        p_quote_fairness_status: input.quoteFairnessStatus ?? null,
+        p_quote_confidence: input.quoteConfidence ?? null,
         p_payment_method: input.paymentMethod ?? 'cash_on_service',
         p_customer_notes: input.customerNotes ?? null,
       })
@@ -555,6 +561,9 @@ export class SupabaseBookingRepository {
           ? null
           : Number(row.service_amount),
       pricingMode,
+      acceptedQuoteId: row.accepted_quote_id ?? null,
+      quoteFairnessStatus: row.quote_fairness_status ?? null,
+      quoteConfidence: row.quote_confidence ?? null,
       customerNotes: row.customer_notes ?? null,
       status: row.status,
       totalAmount: Number(row.total_amount ?? 0),

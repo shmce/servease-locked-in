@@ -83,6 +83,8 @@ export type BookingStatus =
   | 'rejected'
 
 export type BookingPricingMode = 'flat' | 'hourly'
+export type PricingFairnessStatus = 'below_range' | 'within_range' | 'above_range'
+export type PricingConfidence = 'high' | 'medium' | 'low'
 
 export type BookingTrackingPhase =
   | 'awaiting_confirmation'
@@ -295,6 +297,16 @@ export interface ProviderOwnedServiceInput {
 
 export interface ProviderOwnedServiceSummary extends ProviderServiceListing {
   isActive: boolean
+}
+
+export interface ProviderPricingGuidanceSummary {
+  quoteId: string
+  estimatedTotal: number
+  fairRangeMin: number
+  fairRangeMax: number
+  fairnessStatus: PricingFairnessStatus
+  confidence: PricingConfidence
+  explanation: string
 }
 
 export interface ProviderPortfolioMediaSummary {
@@ -697,6 +709,25 @@ export function replaceProviderOwnedServices(
     method: 'PUT',
     token,
     body: { services },
+  })
+}
+
+export function getProviderPricingGuidance(
+  token: string,
+  input: {
+    serviceId: string
+    categoryId?: string | null
+    categoryName?: string | null
+    serviceTitle?: string | null
+    proposedPrice: number
+    pricingMode: BookingPricingMode
+    estimatedHours?: number | null
+  },
+): Promise<ProviderPricingGuidanceSummary> {
+  return request<ProviderPricingGuidanceSummary>('/v1/provider/pricing/guidance', {
+    method: 'POST',
+    token,
+    body: input,
   })
 }
 

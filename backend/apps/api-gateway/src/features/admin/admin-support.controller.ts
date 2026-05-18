@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpException,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { AdminAuditGatewayService } from './admin-audit.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
@@ -10,14 +21,23 @@ import {
 import {
   AdminDependencyUnavailableError,
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminSupportGatewayService } from './admin-support.service';
-import { SupportTicketReplySummary, SupportTicketSummary } from './admin-support.types';
+import {
+  SupportTicketReplySummary,
+  SupportTicketSummary,
+} from './admin-support.types';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { Optional } from '@nestjs/common';
 
-const validSupportStatuses = new Set(['open', 'in_progress', 'resolved', 'closed']);
+const validSupportStatuses = new Set([
+  'open',
+  'in_progress',
+  'resolved',
+  'closed',
+]);
 
 @Controller('v1/admin/support/tickets')
 export class AdminSupportController {
@@ -72,7 +92,9 @@ export class AdminSupportController {
   ): Promise<{ data: SupportTicketReplySummary[] }> {
     try {
       await this.requireAdmin(authorization);
-      return { data: await this.adminSupportGatewayService.listReplies(ticketId) };
+      return {
+        data: await this.adminSupportGatewayService.listReplies(ticketId),
+      };
     } catch (error) {
       throw this.toHttpException(error);
     }
@@ -129,7 +151,10 @@ export class AdminSupportController {
     try {
       await this.requireAdmin(authorization);
       return {
-        data: await this.adminSupportGatewayService.assignTicket(ticketId, body.assigneeId ?? null),
+        data: await this.adminSupportGatewayService.assignTicket(
+          ticketId,
+          body.assigneeId ?? null,
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -139,7 +164,11 @@ export class AdminSupportController {
   @Patch(':ticketId/status')
   async updateTicketStatus(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('ticketId') ticketId: string,
     @Body() body: { status?: string },
   ): Promise<{ data: SupportTicketSummary }> {
@@ -152,18 +181,20 @@ export class AdminSupportController {
         ticketId,
         body.status,
       );
-      void this.adminAuditGatewayService.createAuditLog({
-        adminUserId: admin.user.id,
-        adminEmail: admin.user.email,
-        adminName: admin.user.fullName,
-        action: `Updated support ticket status to ${ticket.status}`,
-        actionType: ticket.status === 'resolved' ? 'resolve' : 'update',
-        entityType: 'Support Ticket',
-        entityId: ticket.id,
-        details: `Support ticket ${ticket.id} is now ${ticket.status}.`,
-        ipAddress: this.getClientIp(request),
-        metadata: { ticketId: ticket.id, status: ticket.status },
-      }).catch(() => undefined);
+      void this.adminAuditGatewayService
+        .createAuditLog({
+          adminUserId: admin.user.id,
+          adminEmail: admin.user.email,
+          adminName: admin.user.fullName,
+          action: `Updated support ticket status to ${ticket.status}`,
+          actionType: ticket.status === 'resolved' ? 'resolve' : 'update',
+          entityType: 'Support Ticket',
+          entityId: ticket.id,
+          details: `Support ticket ${ticket.id} is now ${ticket.status}.`,
+          ipAddress: this.getClientIp(request),
+          metadata: { ticketId: ticket.id, status: ticket.status },
+        })
+        .catch(() => undefined);
       if (this.notificationServiceClient && ticket.userId) {
         void this.notificationServiceClient
           .createNotification({
@@ -197,7 +228,9 @@ export class AdminSupportController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
@@ -217,7 +250,11 @@ export class AdminSupportController {
       return forwardedFor[0] ?? null;
     }
 
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -226,7 +263,11 @@ export class AdminSupportController {
     }
 
     if (error instanceof InvalidAuthTokenError) {
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     }
 
     if (error instanceof AdminRequiredError) {
@@ -234,7 +275,15 @@ export class AdminSupportController {
     }
 
     if (error instanceof InvalidAdminRequestError) {
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
+    }
+
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
     }
 
     if (error instanceof AdminDependencyUnavailableError) {
@@ -245,7 +294,11 @@ export class AdminSupportController {
       );
     }
 
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

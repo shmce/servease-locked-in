@@ -35,6 +35,7 @@ const experienceLevels = [
 export function ProviderRegStep2() {
   const router = useRouter();
   const [formData, setFormData] = useState({
+    businessName: "",
     primaryCategory: "",
     subCategory: "",
     experienceYears: "",
@@ -90,6 +91,10 @@ export function ProviderRegStep2() {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+
+    if (formData.businessName.trim().length < 2) {
+      newErrors.businessName = "Business or display name must be at least 2 characters";
+    }
 
     // Category validation
     if (!formData.primaryCategory) {
@@ -174,6 +179,27 @@ export function ProviderRegStep2() {
           </h2>
 
           <form onSubmit={handleNext} className="space-y-5">
+            <div>
+              <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">
+                Business or Display Name <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={20} />
+                <input
+                  type="text"
+                  name="businessName"
+                  value={formData.businessName}
+                  onChange={handleInputChange}
+                  className={`w-full pl-11 pr-4 py-3 border ${errors.businessName ? 'border-red-500' : 'border-gray-300'} rounded-lg font-['Poppins',sans-serif] text-sm focus:outline-none focus:ring-2 focus:ring-[#00BF63]/50 focus:border-[#00BF63]`}
+                  placeholder="e.g. Maria Home Cleaning or HandyFix Services"
+                  required
+                />
+              </div>
+              {errors.businessName && (
+                <p className="font-['Poppins',sans-serif] text-xs text-red-500 mt-1">{errors.businessName}</p>
+              )}
+            </div>
+
             {/* Primary Category */}
             <div>
               <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">

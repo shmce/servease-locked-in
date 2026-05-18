@@ -5,6 +5,7 @@ import { CurrentUserIdentity } from '../current-user/current-user.types';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import { GeoServiceClient } from '../geo/clients/geo-service.client';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
+import { PricingGatewayService } from '../pricing/pricing.service';
 import {
   AddBookingAttachmentRequest,
   BookingAttachmentSummary,
@@ -20,7 +21,10 @@ import {
   RaiseBookingDisputeRequest,
   UpdateBookingLiveLocationRequest,
 } from './booking.types';
-import { InvalidBookingTransitionError } from './booking.errors';
+import {
+  InvalidBookingRequestError,
+  InvalidBookingTransitionError,
+} from './booking.errors';
 
 @Injectable()
 export class BookingGatewayService {
@@ -32,17 +36,53 @@ export class BookingGatewayService {
     private readonly notificationServiceClient?: NotificationServiceClient,
     private readonly catalogServiceClient?: CatalogServiceClient,
     private readonly geoServiceClient?: GeoServiceClient,
+    private readonly pricingGatewayService?: PricingGatewayService,
   ) {}
 
   async createBooking(
     customerId: string,
     input: CreateBookingRequest,
   ): Promise<BookingSummary> {
+    const bookingInput = await this.applyAcceptedQuote(customerId, input);
     const booking = await this.enrichBooking(
-      await this.bookingServiceClient.createBooking(customerId, input),
+      await this.bookingServiceClient.createBooking(customerId, bookingInput),
     );
     await this.notifyProviderBookingCreated(booking);
     return booking;
+  }
+
+  private async applyAcceptedQuote(
+    customerId: string,
+    input: CreateBookingRequest,
+  ): Promise<CreateBookingRequest> {
+    const acceptedQuoteId = input.acceptedQuoteId?.trim();
+    if (!acceptedQuoteId) {
+      return input;
+    }
+
+    if (!this.pricingGatewayService) {
+      return input;
+    }
+
+    const quote = await this.pricingGatewayService.validateQuote(acceptedQuoteId);
+    if (
+      quote.customerId !== customerId ||
+      quote.providerId !== input.providerId ||
+      quote.serviceId !== input.serviceId ||
+      !Number.isFinite(quote.amount) ||
+      quote.amount <= 0
+    ) {
+      throw new InvalidBookingRequestError();
+    }
+
+    return {
+      ...input,
+      acceptedQuoteId,
+      serviceAmount: quote.amount,
+      pricingMode: quote.pricingMode,
+      quoteFairnessStatus: quote.fairnessStatus,
+      quoteConfidence: quote.confidence,
+    };
   }
 
   async listBookings(

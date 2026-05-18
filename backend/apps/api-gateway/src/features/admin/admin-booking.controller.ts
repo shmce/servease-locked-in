@@ -22,6 +22,7 @@ import {
 import {
   AdminDependencyUnavailableError,
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminBookingGatewayService } from './admin-booking.service';
@@ -105,7 +106,9 @@ export class AdminBookingController {
       if (
         (status && !validStatuses.has(status)) ||
         (parsedLimit !== null &&
-          (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 200))
+          (!Number.isInteger(parsedLimit) ||
+            parsedLimit < 1 ||
+            parsedLimit > 200))
       ) {
         throw new InvalidAdminRequestError();
       }
@@ -143,7 +146,11 @@ export class AdminBookingController {
   @Post(':bookingId/cancel')
   async cancel(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('bookingId') bookingId: string,
     @Body() body: CancelAdminBookingRequest,
   ): Promise<{ data: AdminBookingSummary }> {
@@ -192,7 +199,11 @@ export class AdminBookingController {
   @Post(':bookingId/escalate')
   async escalate(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('bookingId') bookingId: string,
     @Body() body: EscalateAdminBookingRequest,
   ): Promise<{ data: AdminBookingSummary }> {
@@ -249,7 +260,11 @@ export class AdminBookingController {
   @Post(':bookingId/provider-messages')
   async sendProviderMessage(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('bookingId') bookingId: string,
     @Body() body: { message?: string },
   ): Promise<{ data: AdminProviderMessageResult }> {
@@ -260,7 +275,8 @@ export class AdminBookingController {
         throw new InvalidAdminRequestError();
       }
 
-      const booking = await this.adminBookingGatewayService.getBooking(bookingId);
+      const booking =
+        await this.adminBookingGatewayService.getBooking(bookingId);
       const providerOwner =
         await this.catalogServiceClient.findProviderOwnerByProviderId(
           booking.providerId,
@@ -350,7 +366,11 @@ export class AdminBookingController {
   @Post(':bookingId/messages')
   async appendMessage(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('bookingId') bookingId: string,
     @Body()
     body: {
@@ -366,7 +386,8 @@ export class AdminBookingController {
         throw new InvalidAdminRequestError();
       }
 
-      const booking = await this.adminBookingGatewayService.getBooking(bookingId);
+      const booking =
+        await this.adminBookingGatewayService.getBooking(bookingId);
       const senderRole: AdminBookingMessageRole = body.senderRole ?? 'admin';
       const persisted = await this.adminBookingGatewayService.appendMessage(
         booking.id,
@@ -411,7 +432,10 @@ export class AdminBookingController {
 
   private recordAudit(
     admin: CurrentUserProfile,
-    request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     input: {
       action: string;
       actionType: 'update';
@@ -420,18 +444,20 @@ export class AdminBookingController {
       metadata: Record<string, unknown>;
     },
   ): Promise<unknown> {
-    return this.adminAuditGatewayService.createAuditLog({
-      adminUserId: admin.user.id,
-      adminEmail: admin.user.email,
-      adminName: admin.user.fullName,
-      action: input.action,
-      actionType: input.actionType,
-      entityType: 'Booking',
-      entityId: input.entityId,
-      details: input.details,
-      ipAddress: this.getClientIp(request),
-      metadata: input.metadata,
-    }).catch(() => undefined);
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: input.action,
+        actionType: input.actionType,
+        entityType: 'Booking',
+        entityId: input.entityId,
+        details: input.details,
+        ipAddress: this.getClientIp(request),
+        metadata: input.metadata,
+      })
+      .catch(() => undefined);
   }
 
   private getClientIp(request: {
@@ -443,7 +469,11 @@ export class AdminBookingController {
       return forwardedFor[0] ?? null;
     }
 
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -452,7 +482,11 @@ export class AdminBookingController {
     }
 
     if (error instanceof InvalidAuthTokenError) {
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     }
 
     if (error instanceof AdminRequiredError) {
@@ -460,7 +494,15 @@ export class AdminBookingController {
     }
 
     if (error instanceof InvalidAdminRequestError) {
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
+    }
+
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
     }
 
     if (error instanceof AdminDependencyUnavailableError) {
@@ -471,7 +513,11 @@ export class AdminBookingController {
       );
     }
 
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

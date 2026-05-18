@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { CatalogServiceClient } from './clients/catalog-service.client';
 import {
   AdminProviderApplicationDocumentSummary,
+  AdminProviderApplicationReview,
   AdminProviderApplicationSummary,
   ListProviderApplicationsFilter,
+  UpdateProviderApplicationReviewInput,
 } from './admin-provider-application.types';
 
 @Injectable()
@@ -30,6 +32,26 @@ export class AdminProviderApplicationService {
       applicationId,
       documentId,
     );
+  }
+
+  getProviderApplicationReview(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationReview> {
+    return this.catalogServiceClient.getProviderApplicationReview(applicationId);
+  }
+
+  updateProviderApplicationReview(
+    input: UpdateProviderApplicationReviewInput,
+  ): Promise<AdminProviderApplicationReview> {
+    return this.catalogServiceClient.updateProviderApplicationReview(input);
+  }
+
+  addProviderApplicationReviewNote(input: {
+    applicationId: string;
+    adminUserId: string;
+    note: string;
+  }): Promise<AdminProviderApplicationReview> {
+    return this.catalogServiceClient.addProviderApplicationReviewNote(input);
   }
 
   decideProviderApplication(input: {

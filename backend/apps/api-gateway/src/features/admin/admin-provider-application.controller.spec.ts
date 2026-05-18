@@ -6,6 +6,27 @@ import { CurrentUserService } from '../current-user/current-user.service';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 
 describe('AdminProviderApplicationController documents', () => {
+  const adminUser = {
+    id: '99999999-9999-4999-8999-999999999999',
+    email: 'admin@servease.test',
+    fullName: 'Admin User',
+    role: 'admin',
+  };
+
+  function authTokenService(): AuthTokenService {
+    return {
+      authenticate: jest.fn().mockResolvedValue(adminUser.id),
+    } as unknown as AuthTokenService;
+  }
+
+  function currentUserService(): CurrentUserService {
+    return {
+      getCurrentUser: jest.fn().mockResolvedValue({
+        user: adminUser,
+      }),
+    } as unknown as CurrentUserService;
+  }
+
   it('returns provider application document metadata for admins', async () => {
     const providerApplicationService = {
       getProviderApplicationDocument: jest.fn().mockResolvedValue({
@@ -24,21 +45,8 @@ describe('AdminProviderApplicationController documents', () => {
     const controller = new AdminProviderApplicationController(
       providerApplicationService,
       { createAuditLog: jest.fn() } as unknown as AdminAuditGatewayService,
-      {
-        authenticate: jest
-          .fn()
-          .mockResolvedValue('99999999-9999-4999-8999-999999999999'),
-      } as unknown as AuthTokenService,
-      {
-        getCurrentUser: jest.fn().mockResolvedValue({
-          user: {
-            id: '99999999-9999-4999-8999-999999999999',
-            email: 'admin@servease.test',
-            fullName: 'Admin User',
-            role: 'admin',
-          },
-        }),
-      } as unknown as CurrentUserService,
+      authTokenService(),
+      currentUserService(),
       { createNotification: jest.fn() } as unknown as NotificationServiceClient,
     );
 
@@ -77,21 +85,8 @@ describe('AdminProviderApplicationController documents', () => {
     const controller = new AdminProviderApplicationController(
       providerApplicationService,
       adminAuditGatewayService,
-      {
-        authenticate: jest
-          .fn()
-          .mockResolvedValue('99999999-9999-4999-8999-999999999999'),
-      } as unknown as AuthTokenService,
-      {
-        getCurrentUser: jest.fn().mockResolvedValue({
-          user: {
-            id: '99999999-9999-4999-8999-999999999999',
-            email: 'admin@servease.test',
-            fullName: 'Admin User',
-            role: 'admin',
-          },
-        }),
-      } as unknown as CurrentUserService,
+      authTokenService(),
+      currentUserService(),
       notificationServiceClient,
     );
 
@@ -125,5 +120,193 @@ describe('AdminProviderApplicationController documents', () => {
       }),
     );
     expect(response.data.notificationId).toBe('notification-1');
+  });
+
+  it('blocks approval when the persisted review is incomplete', async () => {
+    const providerApplicationService = {
+      getProviderApplicationReview: jest.fn().mockResolvedValue({
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        isComplete: false,
+      }),
+      decideProviderApplication: jest.fn(),
+    } as unknown as AdminProviderApplicationGatewayService;
+    const controller = new AdminProviderApplicationController(
+      providerApplicationService,
+      { createAuditLog: jest.fn() } as unknown as AdminAuditGatewayService,
+      authTokenService(),
+      currentUserService(),
+      { createNotification: jest.fn() } as unknown as NotificationServiceClient,
+    );
+
+    await expect(
+      controller.approve(
+        'Bearer token',
+        { headers: {}, socket: {} },
+        '11111111-1111-4111-8111-111111111111',
+        { reason: 'Looks good.' },
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        error: expect.objectContaining({
+          code: 'invalid_admin_request',
+        }),
+      }),
+    });
+    expect(
+      providerApplicationService.decideProviderApplication,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('notifies the provider applicant after approval', async () => {
+    const providerApplicationService = {
+      getProviderApplicationReview: jest.fn().mockResolvedValue({
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        isComplete: true,
+      }),
+      decideProviderApplication: jest.fn().mockResolvedValue({
+        id: '11111111-1111-4111-8111-111111111111',
+        applicationReference: 'PA-1111111111',
+        userId: '22222222-2222-4222-8222-222222222222',
+        businessName: 'GreenFix',
+      }),
+    } as unknown as AdminProviderApplicationGatewayService;
+    const notificationServiceClient = {
+      createNotification: jest.fn().mockResolvedValue({
+        id: 'notification-1',
+      }),
+    } as unknown as NotificationServiceClient;
+    const controller = new AdminProviderApplicationController(
+      providerApplicationService,
+      {
+        createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+      } as unknown as AdminAuditGatewayService,
+      authTokenService(),
+      currentUserService(),
+      notificationServiceClient,
+    );
+
+    await controller.approve(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      '11111111-1111-4111-8111-111111111111',
+      { reason: 'Application met requirements.' },
+    );
+
+    expect(notificationServiceClient.createNotification).toHaveBeenCalledWith({
+      userId: '22222222-2222-4222-8222-222222222222',
+      type: 'provider_application_approved',
+      title: 'Provider application approved',
+      body: 'Application met requirements.',
+      metadata: {
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        applicationReference: 'PA-1111111111',
+        adminUserId: adminUser.id,
+        decision: 'approved',
+      },
+    });
+  });
+
+  it('updates review state with the authenticated admin id', async () => {
+    const providerApplicationService = {
+      updateProviderApplicationReview: jest.fn().mockResolvedValue({
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        isComplete: true,
+      }),
+    } as unknown as AdminProviderApplicationGatewayService;
+    const controller = new AdminProviderApplicationController(
+      providerApplicationService,
+      { createAuditLog: jest.fn() } as unknown as AdminAuditGatewayService,
+      authTokenService(),
+      currentUserService(),
+      { createNotification: jest.fn() } as unknown as NotificationServiceClient,
+    );
+
+    const response = await controller.updateReview(
+      'Bearer token',
+      '11111111-1111-4111-8111-111111111111',
+      {
+        kycChecklist: [],
+        businessChecklist: [],
+        verificationRecords: [],
+        ocrData: {},
+      },
+    );
+
+    expect(
+      providerApplicationService.updateProviderApplicationReview,
+    ).toHaveBeenCalledWith({
+      applicationId: '11111111-1111-4111-8111-111111111111',
+      adminUserId: adminUser.id,
+      kycChecklist: [],
+      businessChecklist: [],
+      verificationRecords: [],
+      ocrData: {},
+    });
+    expect(response.data.isComplete).toBe(true);
+  });
+
+  it('runs internal OCR against submitted application documents', async () => {
+    const providerApplicationService = {
+      getProviderApplication: jest.fn().mockResolvedValue({
+        id: '11111111-1111-4111-8111-111111111111',
+        applicationReference: 'PA-1111111111',
+        userId: '22222222-2222-4222-8222-222222222222',
+        businessName: 'GreenFix',
+        documents: [
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            applicationId: '11111111-1111-4111-8111-111111111111',
+            userId: '22222222-2222-4222-8222-222222222222',
+            documentType: 'government_id',
+            fileUrl: null,
+            storagePath: 'provider_document/user-1/PSN-2026-9999-NBI-ABC123.jpg',
+            status: 'pending',
+            createdAt: null,
+            previewUrl: null,
+            downloadUrl: null,
+          },
+        ],
+      }),
+      getProviderApplicationReview: jest.fn().mockResolvedValue({
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        kycChecklist: [],
+        businessChecklist: [],
+        verificationRecords: [],
+        ocrData: {},
+      }),
+      updateProviderApplicationReview: jest.fn().mockResolvedValue({
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        ocrData: {
+          governmentIdNumber: '2026-9999',
+          nbiNumber: 'ABC123',
+        },
+      }),
+    } as unknown as AdminProviderApplicationGatewayService;
+    const controller = new AdminProviderApplicationController(
+      providerApplicationService,
+      { createAuditLog: jest.fn() } as unknown as AdminAuditGatewayService,
+      authTokenService(),
+      currentUserService(),
+      { createNotification: jest.fn() } as unknown as NotificationServiceClient,
+    );
+
+    await controller.runOcr(
+      'Bearer token',
+      '11111111-1111-4111-8111-111111111111',
+    );
+
+    expect(
+      providerApplicationService.updateProviderApplicationReview,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        adminUserId: adminUser.id,
+        ocrData: expect.objectContaining({
+          governmentIdType: 'Government Id',
+          governmentIdNumber: '2026-9999',
+          nbiNumber: 'ABC123',
+        }),
+      }),
+    );
   });
 });

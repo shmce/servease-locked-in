@@ -17,6 +17,9 @@ export interface CreateBookingRequest {
   hoursRequired?: number | null;
   serviceAmount?: number | null;
   pricingMode?: 'flat' | 'hourly' | null;
+  acceptedQuoteId?: string | null;
+  quoteFairnessStatus?: string | null;
+  quoteConfidence?: string | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
   attachments?: BookingAttachmentInput[];
@@ -168,6 +171,9 @@ export interface BookingSummary {
   hoursRequired: number | null;
   serviceAmount: number | null;
   pricingMode: BookingPricingMode | null;
+  acceptedQuoteId?: string | null;
+  quoteFairnessStatus?: string | null;
+  quoteConfidence?: string | null;
   customerNotes: string | null;
   status: BookingStatus;
   totalAmount: number;

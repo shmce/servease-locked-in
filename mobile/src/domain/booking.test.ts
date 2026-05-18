@@ -9,6 +9,8 @@ import {
   buildProviderBookingSlots,
   formatBookingDuration,
   nextBookingStatuses,
+  pricingConfidenceLabel,
+  pricingFairnessLabel,
   pricingModeLabel,
   providerPayoutTotal,
   timelineEventLabel,
@@ -229,6 +231,14 @@ describe('booking domain helpers', () => {
     assert.equal(pricingModeLabel('hourly'), 'Hourly rate');
     assert.equal(pricingModeLabel(null), 'Standard rate');
     assert.equal(pricingModeLabel(undefined), 'Standard rate');
+  });
+
+  it('labels pricing engine fairness and confidence for display', () => {
+    assert.equal(pricingFairnessLabel('within_range'), 'Within fair range');
+    assert.equal(pricingFairnessLabel('above_range'), 'Above fair range');
+    assert.equal(pricingFairnessLabel('below_range'), 'Below fair range');
+    assert.equal(pricingConfidenceLabel('high'), 'High confidence');
+    assert.equal(pricingConfidenceLabel('low'), 'Low confidence');
   });
 
   it('builds a maps directions URL from a booking destination', () => {

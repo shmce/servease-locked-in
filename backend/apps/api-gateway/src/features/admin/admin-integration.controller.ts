@@ -10,7 +10,11 @@ import {
 } from '@nestjs/common';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
-import { AdminRequiredError, AdminDependencyUnavailableError } from './admin-support.errors';
+import {
+  AdminRequiredError,
+  AdminDependencyUnavailableError,
+  AdminServiceRequestError,
+} from './admin-support.errors';
 import { AdminServiceClient } from './clients/admin-service.client';
 import { AdminIntegrationSummary } from './admin-integration.types';
 
@@ -92,7 +96,9 @@ export class AdminIntegrationController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<string> {
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<string> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
     if (currentUser.user.role !== 'admin') {
@@ -105,6 +111,10 @@ export class AdminIntegrationController {
     if (error instanceof AdminRequiredError) {
       return this.error('admin_required', 'An admin account is required.', 403);
     }
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
+    }
+
     if (error instanceof AdminDependencyUnavailableError) {
       return this.error(
         'admin_dependency_unavailable',
@@ -117,7 +127,9 @@ export class AdminIntegrationController {
     }
     return this.error(
       'admin_dependency_unavailable',
+
       'Admin integrations request failed.',
+
       503,
     );
   }

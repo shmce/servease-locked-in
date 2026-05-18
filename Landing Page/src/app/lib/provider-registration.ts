@@ -1,3 +1,5 @@
+import { resolvePublicGatewayBaseUrl } from './gateway-base-url';
+
 export const providerRegistrationStorageKeys = [
   'providerRegStep1',
   'providerRegStep2',
@@ -14,6 +16,7 @@ export interface ProviderRegistrationStep1 {
 }
 
 export interface ProviderRegistrationStep2 {
+  businessName: string;
   primaryCategory: string;
   subCategory: string;
   experienceYears: string;
@@ -80,7 +83,7 @@ export function buildGatewayProviderRegistrationPayload(
     password: draft.step1.password,
     fullName: draft.step1.fullName.trim(),
     contactNumber: normalizePhilippineContactNumber(draft.step1.contactNumber),
-    businessName: draft.step1.fullName.trim(),
+    businessName: draft.step2.businessName.trim(),
     serviceDescription: serviceParts.join(' - '),
     serviceArea: areaParts.join(', '),
   };
@@ -112,6 +115,42 @@ export async function submitProviderRegistration(
   if (!response.ok) {
     throw new Error(
       payload?.error?.message ?? 'Registration failed. Please try again.',
+    );
+  }
+
+  return payload?.data ?? null;
+}
+
+export async function uploadProviderRegistrationDocument(
+  accessToken: string,
+  file: File,
+  documentType: string,
+): Promise<unknown> {
+  const formData = new FormData();
+  formData.append('kind', 'provider_document');
+  formData.append('documentType', documentType);
+  formData.append('file', file);
+
+  const response = await fetch(`${resolvePublicGatewayBaseUrl()}/v1/uploads`, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${accessToken}`,
+    },
+    body: formData,
+  }).catch(() => null);
+
+  if (!response) {
+    throw new Error('Could not reach the document upload service.');
+  }
+
+  const payload = (await response.json().catch(() => null)) as
+    | ApiResponse<unknown>
+    | null;
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.error?.message ?? 'Document upload failed. Please try again.',
     );
   }
 

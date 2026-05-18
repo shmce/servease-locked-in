@@ -60,6 +60,7 @@ import {
   StatusTimeline,
   TopBar,
 } from './src/components/DesignKit';
+import { ScreenTransition } from './src/components/Motion';
 import {
   CategoryTile,
   InfoRow,
@@ -85,6 +86,8 @@ import {
   formatMoney,
   nextActionLabel,
   nextBookingStatuses,
+  pricingConfidenceLabel,
+  pricingFairnessLabel,
   pricingModeLabel,
   providerPayoutTotal,
   roleLabel,
@@ -147,6 +150,7 @@ import {
   DayOfWeek,
   NotificationSummary,
   PaymentSummary,
+  PricingQuoteSummary,
   PromotionValidationSummary,
   PayoutAccountSummary,
   PayoutMethodSummary,
@@ -172,6 +176,7 @@ import {
   createCheckoutSession,
   createConversationMessage,
   createPayment,
+  createPricingQuote,
   createProviderPayoutIdempotencyKey,
   createReview,
   createSupportTicket,
@@ -398,6 +403,8 @@ export default function App() {
     null,
   );
   const [bookingFilter, setBookingFilter] = useState<'active' | 'completed'>('active');
+  const [customerGuideStep, setCustomerGuideStep] = useState(0);
+  const [customerGuideDismissed, setCustomerGuideDismissed] = useState(false);
   const [address, setAddress] = useState('Unit 12B Greenfield Residences');
   const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt);
   const [hoursRequired, setHoursRequired] = useState('2');
@@ -409,6 +416,7 @@ export default function App() {
   const [promoCode, setPromoCode] = useState('');
   const [promotionValidation, setPromotionValidation] =
     useState<PromotionValidationSummary | null>(null);
+  const [pricingQuote, setPricingQuote] = useState<PricingQuoteSummary | null>(null);
   const [messageDraft, setMessageDraft] = useState('');
   const [reviewText, setReviewText] = useState('');
   const [rating, setRating] = useState('5');
@@ -1545,17 +1553,41 @@ export default function App() {
 
     setBusyAction('create-booking');
     try {
+      const serviceId = selectedService?.id ?? selectedProvider.serviceId;
+      const quote =
+        serviceId && selectedProvider.providerId
+          ? await createPricingQuote(
+              {
+                providerId: selectedProvider.providerId,
+                serviceId,
+                serviceAddress: address.trim(),
+                scheduledAt: scheduledAtIso,
+                hoursRequired: Number(hoursRequired) || 1,
+                bookingUrgency: 'standard',
+                region: 'default',
+                destination: addressGeoResult
+                  ? {
+                      latitude: addressGeoResult.latitude,
+                      longitude: addressGeoResult.longitude,
+                    }
+                  : null,
+              },
+              apiOptions,
+            )
+          : null;
+      setPricingQuote(quote);
       const request: CreateBookingRequest = {
         providerId: selectedProvider.providerId,
-        serviceId: selectedService?.id ?? selectedProvider.serviceId,
+        serviceId,
         serviceTitle: selectedProvider.title,
         serviceName: selectedService?.name ?? selectedProvider.title,
         serviceDescription: selectedProvider.description,
         serviceAddress: address.trim(),
         scheduledAt: scheduledAtIso,
         hoursRequired: Number(hoursRequired) || 1,
-        serviceAmount: selectedProvider.price ?? selectedService?.price ?? 0,
+        serviceAmount: quote?.estimatedTotal ?? selectedProvider.price ?? selectedService?.price ?? 0,
         pricingMode: selectedProvider.pricingMode,
+        acceptedQuoteId: quote?.quoteId ?? null,
         paymentMethod: selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service',
         customerNotes: notes.trim() || null,
         attachments: bookingReferenceUpload
@@ -1578,6 +1610,49 @@ export default function App() {
       setNotice(`Booking ${booking.bookingReference} created.`);
     } catch (error) {
       setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function previewPricingQuote() {
+    if (!session) {
+      setNotice('Sign in before requesting a fair estimate.');
+      return null;
+    }
+
+    const scheduledAtIso = toManilaBookingIso(scheduledAt);
+    const serviceId = selectedService?.id ?? selectedProvider?.serviceId ?? null;
+    if (!selectedProvider || !serviceId || !address.trim() || !scheduledAtIso) {
+      setNotice('Choose a service provider, address, and schedule first.');
+      return null;
+    }
+
+    setBusyAction('pricing-quote');
+    try {
+      const quote = await createPricingQuote(
+        {
+          providerId: selectedProvider.providerId,
+          serviceId,
+          serviceAddress: address.trim(),
+          scheduledAt: scheduledAtIso,
+          hoursRequired: Number(hoursRequired) || 1,
+          bookingUrgency: 'standard',
+          region: 'default',
+          destination: addressGeoResult
+            ? {
+                latitude: addressGeoResult.latitude,
+                longitude: addressGeoResult.longitude,
+              }
+            : null,
+        },
+        apiOptions,
+      );
+      setPricingQuote(quote);
+      return quote;
+    } catch (error) {
+      setNotice(readError(error));
+      return null;
     } finally {
       setBusyAction(null);
     }
@@ -1865,6 +1940,7 @@ export default function App() {
   async function pickAndUploadImage(
     kind: UploadKind,
     onUploaded: (uri: string, upload: UploadSummary) => void | Promise<void>,
+    options: { documentType?: string | null } = {},
   ) {
     if (!session) {
       setNotice('Sign in before uploading media.');
@@ -1902,6 +1978,7 @@ export default function App() {
           uri,
           name,
           contentType,
+          documentType: options.documentType ?? null,
         },
         apiOptions,
       );
@@ -1912,6 +1989,16 @@ export default function App() {
     } finally {
       setBusyAction(null);
     }
+  }
+
+  async function uploadProviderGovernmentId() {
+    await pickAndUploadImage(
+      'provider_document',
+      async () => {
+        setProviderApplication(await getMyProviderApplication(apiOptions));
+      },
+      { documentType: 'government_id' },
+    );
   }
 
   async function pickCustomerAvatar() {
@@ -3145,9 +3232,9 @@ export default function App() {
 
   function renderCustomer() {
     const activeTab = getCustomerTab(route.screen);
-    return (
-      <PhoneFrame>
-        <StatusStrip />
+    const routeKey = `${route.role ?? 'customer'}-${route.screen}`;
+    const screenContent = (
+      <>
         {route.screen === 'customerBookingDetail' ? renderCustomerBookingDetail() : null}
         {route.screen === 'customerBookingReview' ? renderBookingReview() : null}
         {route.screen === 'customerReservePayment' ? renderReservePayment() : null}
@@ -3175,6 +3262,13 @@ export default function App() {
         {activeTab === 'bookings' && route.screen === 'bookings' ? renderBookings() : null}
         {activeTab === 'messages' && route.screen === 'messages' ? renderMessages() : null}
         {activeTab === 'more' && route.screen === 'more' ? renderMore() : null}
+      </>
+    );
+
+    return (
+      <PhoneFrame>
+        <StatusStrip />
+        <ScreenTransition routeKey={routeKey}>{screenContent}</ScreenTransition>
         <BottomNavigation
           tabs={[
             {
@@ -3209,9 +3303,9 @@ export default function App() {
   function renderProvider() {
     const activeTab = getProviderTab(route.screen);
     const hideBottomNav = hiddenProviderBottomNavScreens.includes(route.screen);
-    return (
-      <PhoneFrame>
-        <StatusStrip />
+    const routeKey = `${route.role ?? 'provider'}-${route.screen}`;
+    const screenContent = (
+      <>
         {route.screen === 'providerBookingDetail' ? renderProviderBookingDetail() : null}
         {route.screen === 'providerNavigationMode' ? renderProviderNavigationMode() : null}
         {route.screen === 'providerStartService' ? renderProviderStartService() : null}
@@ -3237,6 +3331,13 @@ export default function App() {
         {activeTab === 'calendar' && route.screen === 'calendar' ? renderProviderCalendar() : null}
         {activeTab === 'messages' && route.screen === 'messages' ? renderMessages() : null}
         {activeTab === 'more' && route.screen === 'more' ? renderProviderMore() : null}
+      </>
+    );
+
+    return (
+      <PhoneFrame>
+        <StatusStrip />
+        <ScreenTransition routeKey={routeKey}>{screenContent}</ScreenTransition>
         {hideBottomNav ? null : (
           <BottomNavigation
           tabs={[
@@ -3277,6 +3378,25 @@ export default function App() {
 
   function renderExplore() {
     const rebookOptions = completedRebookOptions(bookings);
+    const customerGuideSteps = [
+      {
+        icon: Search,
+        title: 'Find a service',
+        body: 'Search by task or browse categories when you are not sure where to start.',
+      },
+      {
+        icon: Star,
+        title: 'Pick a trusted provider',
+        body: 'Compare rating, price, availability, portfolio, and reviews before booking.',
+      },
+      {
+        icon: MessageCircle,
+        title: 'Track every update',
+        body: 'Follow booking status, chat with the provider, and review after completion.',
+      },
+    ];
+    const guideStep = customerGuideSteps[customerGuideStep % customerGuideSteps.length];
+    const GuideIcon = guideStep.icon;
 
     return (
       <ScrollView contentContainerStyle={styles.withBottomNav}>
@@ -3314,6 +3434,59 @@ export default function App() {
         </View>
 
         <View style={styles.content}>
+          {!customerGuideDismissed ? (
+            <Card>
+              <View style={styles.guideHeaderRow}>
+                <View style={styles.guideIcon}>
+                  <GuideIcon color={palette.mint} size={22} strokeWidth={2.5} />
+                </View>
+                <View style={styles.flex}>
+                  <Text style={styles.cardMeta}>
+                    Start here · {customerGuideStep + 1} of {customerGuideSteps.length}
+                  </Text>
+                  <Text style={styles.cardTitle}>{guideStep.title}</Text>
+                </View>
+                <Pressable
+                  style={styles.guideDismissButton}
+                  onPress={() => setCustomerGuideDismissed(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss getting started guide"
+                >
+                  <Text style={styles.guideDismissText}>Skip</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.cardBody}>{guideStep.body}</Text>
+              <View style={styles.guideFooterRow}>
+                <View style={styles.guideDots}>
+                  {customerGuideSteps.map((step, index) => (
+                    <View
+                      key={step.title}
+                      style={[
+                        styles.guideDot,
+                        index === customerGuideStep && styles.guideDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+                <Pressable
+                  style={styles.guideNextButton}
+                  onPress={() =>
+                    setCustomerGuideStep((current) =>
+                      current === customerGuideSteps.length - 1 ? 0 : current + 1,
+                    )
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Show next getting started tip"
+                >
+                  <Text style={styles.linkText}>
+                    {customerGuideStep === customerGuideSteps.length - 1 ? 'Replay' : 'Next tip'}
+                  </Text>
+                  <ChevronRight color={palette.mint} size={16} strokeWidth={2.5} />
+                </Pressable>
+              </View>
+            </Card>
+          ) : null}
+
           <Section
             title="Book it again"
             action={
@@ -3472,6 +3645,7 @@ export default function App() {
     const processingFee = Math.max(25, Math.round(subtotal * 0.05));
     const bookingCost = subtotal + processingFee;
     const scheduledAtIso = toManilaBookingIso(scheduledAt);
+    const displayedTotal = pricingQuote?.estimatedTotal ?? bookingCost;
 
     return (
       <>
@@ -3523,8 +3697,30 @@ export default function App() {
             </Section>
 
             <Section title="Price breakdown">
-              <InfoRow label="Sub-total" value={formatMoney(subtotal)} />
-              <InfoRow label="Processing fee" value={formatMoney(processingFee)} />
+              {pricingQuote ? (
+                <>
+                  <InfoRow
+                    label="Fair range"
+                    value={`${formatMoney(pricingQuote.fairRangeMin)} - ${formatMoney(pricingQuote.fairRangeMax)}`}
+                  />
+                  <InfoRow
+                    label="Fairness"
+                    value={pricingFairnessLabel(pricingQuote.fairnessStatus)}
+                  />
+                  <InfoRow
+                    label="Confidence"
+                    value={pricingConfidenceLabel(pricingQuote.confidence)}
+                  />
+                  {pricingQuote.lineItems.map((item) => (
+                    <InfoRow key={item.code} label={item.label} value={formatMoney(item.amount)} />
+                  ))}
+                </>
+              ) : (
+                <>
+                  <InfoRow label="Sub-total" value={formatMoney(subtotal)} />
+                  <InfoRow label="Processing fee" value={formatMoney(processingFee)} />
+                </>
+              )}
               <InfoRow
                 label="Promo code"
                 value={
@@ -3537,12 +3733,15 @@ export default function App() {
               />
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Booking Cost</Text>
-                <Text style={styles.totalValue}>{formatMoney(bookingCost)}</Text>
+                <Text style={styles.totalValue}>{formatMoney(displayedTotal)}</Text>
               </View>
             </Section>
 
             <View style={styles.noticeBox}>
-              <Text style={styles.noticeText}>You won't be charged until the service is completed.</Text>
+              <Text style={styles.noticeText}>
+                {pricingQuote?.explanation ??
+                  "Get a fair estimate before confirming. You won't be charged until the service is completed."}
+              </Text>
             </View>
           </View>
         </ScrollView>
@@ -3550,8 +3749,11 @@ export default function App() {
           <PrimaryButton
             label={busyAction === 'create-booking' ? 'Creating...' : 'Confirm Booking'}
             onPress={() => void submitBooking()}
-            disabled={busyAction === 'create-booking' || !address.trim() || !scheduledAtIso}
+            disabled={busyAction === 'create-booking' || busyAction === 'pricing-quote' || !address.trim() || !scheduledAtIso}
           />
+          <Text style={styles.footerLink} onPress={() => void previewPricingQuote()}>
+            {busyAction === 'pricing-quote' ? 'Getting fair estimate...' : 'Get fair estimate'}
+          </Text>
           <Text style={styles.footerLink} onPress={() => navigate('customerBookingForm', 'customer')}>
             Edit booking
           </Text>
@@ -5814,6 +6016,12 @@ export default function App() {
               setBusyAction(null);
             }
           }}
+        />
+        <PrimaryButton
+          label="Upload Government ID"
+          variant="secondary"
+          onPress={() => void uploadProviderGovernmentId()}
+          disabled={busyAction === 'upload-provider_document'}
         />
       </Card>
     );
@@ -8952,6 +9160,56 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
     padding: spacing.xl,
+  },
+  guideHeaderRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  guideIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.md,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  guideDismissButton: {
+    alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  guideDismissText: {
+    color: palette.faint,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  guideFooterRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  guideDots: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  guideDot: {
+    backgroundColor: palette.line,
+    borderRadius: radius.pill,
+    height: 8,
+    width: 8,
+  },
+  guideDotActive: {
+    backgroundColor: palette.mint,
+    width: 22,
+  },
+  guideNextButton: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xxs,
+    minHeight: 44,
   },
   overlapContent: {
     gap: spacing.md,

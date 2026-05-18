@@ -49,6 +49,10 @@ export class AdminPaymentGatewayService {
     return this.adminServiceClient.retryPayment(paymentId);
   }
 
+  syncPaymentWithApicenter(paymentId: string): Promise<PaymentSummary> {
+    return this.adminServiceClient.syncPaymentWithApicenter(paymentId);
+  }
+
   listPromotions(status?: string | null): Promise<PromotionSummary[]> {
     return this.adminServiceClient.listPromotions(status ?? null);
   }

@@ -158,6 +158,49 @@ async function main() {
     providerApplicationDetail.id === expected.providerId,
     'admin provider application detail mismatch',
   )
+  const providerApplicationReview = await adminApi.getAdminProviderApplicationReview(
+    token,
+    expected.providerId,
+  )
+  assert(
+    providerApplicationReview.applicationId === expected.providerId,
+    'admin provider application review detail mismatch',
+  )
+  const updatedProviderApplicationReview =
+    await adminApi.updateAdminProviderApplicationReview(token, expected.providerId, {
+      kycChecklist: providerApplicationReview.kycChecklist.map((item) => ({
+        ...item,
+        checked: true,
+      })),
+      businessChecklist: providerApplicationReview.businessChecklist.map((item) => ({
+        ...item,
+        checked: true,
+      })),
+      verificationRecords: providerApplicationReview.verificationRecords,
+      ocrData: providerApplicationReview.ocrData,
+    })
+  assert(
+    updatedProviderApplicationReview.isComplete,
+    'admin provider application review update did not complete approval gate',
+  )
+  const notedProviderApplicationReview =
+    await adminApi.addAdminProviderApplicationReviewNote(
+      token,
+      expected.providerId,
+      'Demo admin smoke review note',
+    )
+  assert(
+    notedProviderApplicationReview.notes.some(
+      (item) => item.note === 'Demo admin smoke review note',
+    ),
+    'admin provider application review note missing after create',
+  )
+  const ocrProviderApplicationReview =
+    await adminApi.runAdminProviderApplicationOcr(token, expected.providerId)
+  assert(
+    ocrProviderApplicationReview.applicationId === expected.providerId,
+    'admin provider application OCR review mismatch',
+  )
 
   const resolvedDispute = await adminApi.resolveAdminDispute(token, expected.disputeId)
   assert(resolvedDispute.status === 'resolved', 'admin dispute resolve failed')
@@ -228,6 +271,10 @@ async function startCoreServices(): Promise<void> {
 }
 
 async function startService(appName: string, port: number): Promise<void> {
+  if (await isHealthy(port)) {
+    return
+  }
+
   const child = spawn('node', [`dist/apps/${appName}/src/main.js`], {
     cwd: backendDir,
     env: {
@@ -247,6 +294,15 @@ async function startService(appName: string, port: number): Promise<void> {
   })
 
   await waitForHealthy(port, appName, () => logs)
+}
+
+async function isHealthy(port: number): Promise<boolean> {
+  try {
+    const response = await fetch(`http://localhost:${port}/health/live`)
+    return response.ok
+  } catch {
+    return false
+  }
 }
 
 async function waitForHealthy(

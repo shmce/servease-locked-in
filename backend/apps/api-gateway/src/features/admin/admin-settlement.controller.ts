@@ -20,6 +20,7 @@ import {
   AdminDependencyUnavailableError,
   InvalidAdminRequestError,
   AdminRequiredError,
+  AdminServiceRequestError,
 } from './admin-support.errors';
 import { AdminAuditGatewayService } from './admin-audit.service';
 import { AdminPaymentGatewayService } from './admin-payment.service';
@@ -192,30 +193,36 @@ export class AdminSettlementController {
       details: string;
     },
   ): Promise<unknown> {
-    return this.adminAuditGatewayService.createAuditLog({
-      adminUserId: admin.user.id,
-      adminEmail: admin.user.email,
-      adminName: admin.user.fullName,
-      action: override?.action ?? 'Approved settlement for processing',
-      actionType: override?.actionType ?? 'approve',
-      entityType: 'Settlement',
-      entityId: payout.id,
-      details:
-        override?.details ??
-        `Settlement ${payout.reference ?? payout.id} for provider ${payout.providerId} approved for processing.`,
-      ipAddress: this.getClientIp(request),
-      metadata: {
-        payoutId: payout.id,
-        providerId: payout.providerId,
-        status: payout.status,
-      },
-    }).catch(() => undefined);
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: override?.action ?? 'Approved settlement for processing',
+        actionType: override?.actionType ?? 'approve',
+        entityType: 'Settlement',
+        entityId: payout.id,
+        details:
+          override?.details ??
+          `Settlement ${payout.reference ?? payout.id} for provider ${payout.providerId} approved for processing.`,
+        ipAddress: this.getClientIp(request),
+        metadata: {
+          payoutId: payout.id,
+          providerId: payout.providerId,
+          status: payout.status,
+        },
+      })
+      .catch(() => undefined);
   }
 
   private getClientIp(request: AuditRequest): string | null {
     const forwardedFor = request.headers?.['x-forwarded-for'];
     if (Array.isArray(forwardedFor)) return forwardedFor[0] ?? null;
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -223,18 +230,38 @@ export class AdminSettlementController {
       return this.error('auth_required', 'Authentication is required.', 401);
     }
     if (error instanceof InvalidAuthTokenError) {
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     }
     if (error instanceof AdminRequiredError) {
       return this.error('admin_required', 'An admin account is required.', 403);
     }
     if (error instanceof InvalidAdminRequestError) {
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
     }
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
+    }
+
     if (error instanceof AdminDependencyUnavailableError) {
-      return this.error('admin_dependency_unavailable', 'Admin service is unavailable.', 503);
+      return this.error(
+        'admin_dependency_unavailable',
+        'Admin service is unavailable.',
+        503,
+      );
     }
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

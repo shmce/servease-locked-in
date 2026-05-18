@@ -135,6 +135,40 @@ describe("serveaseAdminApi", () => {
     expect(payments[0].status).toBe("cancelled");
   });
 
+  it("syncs payment status with APICenter through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "pay-1",
+          bookingId: "booking-1",
+          customerId: "customer-1",
+          providerId: "provider-1",
+          amount: 1000,
+          platformFee: 100,
+          providerPayout: 900,
+          status: "paid",
+          paymentMethod: "gcash",
+          paidAt: "2026-05-19T00:00:00.000Z",
+          createdAt: null,
+          apicenterCheckoutId: "checkout-1",
+          apicenterCheckoutStatus: "paid",
+          apicenterProvider: "paymongo",
+          apicenterProviderMode: "test",
+        },
+      }),
+    });
+
+    const { syncAdminPaymentWithApicenter } = await import("./serveaseAdminApi");
+    const payment = await syncAdminPaymentWithApicenter("admin-token", "pay-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/payments/pay-1/apicenter-sync",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(payment.apicenterCheckoutStatus).toBe("paid");
+  });
+
   it("updates current admin profile and password through shared account endpoints", async () => {
     fetchMock
       .mockResolvedValueOnce({
@@ -646,6 +680,152 @@ describe("serveaseAdminApi", () => {
     expect(approved.verificationStatus).toBe("approved");
     expect(document.previewUrl).toBe("https://storage.test/preview");
     expect(infoRequest.notificationId).toBe("notification-1");
+  });
+
+  it("loads and persists provider application review workflow state", async () => {
+    const reviewPayload = {
+      applicationId: "provider-1",
+      kycChecklist: [
+        { id: "identity", label: "Identity matches documents", checked: false },
+      ],
+      businessChecklist: [
+        { id: "contact", label: "Contact Person Details", checked: false },
+      ],
+      verificationRecords: [
+        {
+          id: "nbi",
+          label: "NBI Clearance",
+          status: "pending",
+          reference: null,
+          checkedAt: null,
+          details: null,
+        },
+      ],
+      ocrData: {
+        governmentIdType: "PhilSys National ID",
+        governmentIdNumber: "PSN-2026-0001",
+        tinNumber: null,
+        nbiNumber: null,
+        prcNumber: null,
+      },
+      notes: [],
+      isComplete: false,
+      updatedAt: null,
+    };
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: reviewPayload }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            ...reviewPayload,
+            kycChecklist: reviewPayload.kycChecklist.map((item) => ({
+              ...item,
+              checked: true,
+            })),
+            businessChecklist: reviewPayload.businessChecklist.map((item) => ({
+              ...item,
+              checked: true,
+            })),
+            isComplete: true,
+            updatedAt: "2026-05-19T02:00:00.000Z",
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            ...reviewPayload,
+            notes: [
+              {
+                id: "note-1",
+                note: "Manual check completed.",
+                createdBy: "admin-1",
+                createdAt: "2026-05-19T02:01:00.000Z",
+              },
+            ],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: {
+            ...reviewPayload,
+            ocrData: {
+              ...reviewPayload.ocrData,
+              governmentIdNumber: "PSN-2026-9999",
+            },
+          },
+        }),
+      });
+
+    const {
+      addAdminProviderApplicationReviewNote,
+      getAdminProviderApplicationReview,
+      runAdminProviderApplicationOcr,
+      updateAdminProviderApplicationReview,
+    } = await import("./serveaseAdminApi");
+
+    const review = await getAdminProviderApplicationReview("admin-token", "provider-1");
+    const updated = await updateAdminProviderApplicationReview(
+      "admin-token",
+      "provider-1",
+      {
+        kycChecklist: review.kycChecklist.map((item) => ({
+          ...item,
+          checked: true,
+        })),
+        businessChecklist: review.businessChecklist.map((item) => ({
+          ...item,
+          checked: true,
+        })),
+        verificationRecords: review.verificationRecords,
+        ocrData: review.ocrData,
+      },
+    );
+    const noted = await addAdminProviderApplicationReviewNote(
+      "admin-token",
+      "provider-1",
+      "Manual check completed.",
+    );
+    const ocr = await runAdminProviderApplicationOcr(
+      "admin-token",
+      "provider-1",
+    );
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "http://gateway.test/v1/admin/provider-applications/provider-1/review",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://gateway.test/v1/admin/provider-applications/provider-1/review",
+      expect.objectContaining({ method: "PUT" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://gateway.test/v1/admin/provider-applications/provider-1/review/notes",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ note: "Manual check completed." }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "http://gateway.test/v1/admin/provider-applications/provider-1/ocr",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(review.isComplete).toBe(false);
+    expect(updated.isComplete).toBe(true);
+    expect(noted.notes[0]?.note).toBe("Manual check completed.");
+    expect(ocr.ocrData.governmentIdNumber).toBe("PSN-2026-9999");
   });
 
   it("loads and moderates reviews through the gateway", async () => {

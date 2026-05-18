@@ -4,6 +4,7 @@ import { ProviderProfileRepository } from './provider-profile.service';
 import {
   CreateProviderProfileInput,
   AdminProviderApplicationDocumentSummary,
+  AdminProviderApplicationReview,
   AdminProviderApplicationSummary,
   ProviderPortfolioMediaInput,
   ProviderPortfolioMediaReplacementInput,
@@ -12,6 +13,8 @@ import {
   ProviderOwnedServiceInput,
   ProviderOwnedServiceSummary,
   ProviderProfileSummary,
+  SubmitProviderApplicationDocumentInput,
+  UpdateProviderApplicationReviewInput,
   UpdateProviderProfileInput,
 } from './provider-profile.types';
 
@@ -21,10 +24,12 @@ interface SupabaseQueryClient {
     args: Record<string, unknown>,
   ): PromiseLike<{
     data:
-      | SupabasePortfolioMediaRow[]
-      | SupabaseProviderOwnedServiceRow[]
-      | SupabaseProviderApplicationRow[]
-      | null;
+        | SupabasePortfolioMediaRow[]
+        | SupabaseProviderOwnedServiceRow[]
+        | SupabaseProviderApplicationRow[]
+        | SupabaseProviderDocumentRow[]
+        | SupabaseProviderApplicationReviewRow[]
+        | null;
     error: { message: string } | null;
   }> & {
     maybeSingle(): PromiseLike<{
@@ -32,14 +37,11 @@ interface SupabaseQueryClient {
         | SupabaseProviderProfileRow
         | SupabasePortfolioMediaRow
         | SupabaseProviderApplicationRow
+        | SupabaseProviderDocumentRow
+        | SupabaseProviderApplicationReviewRow
         | null;
       error: { message: string } | null;
     }>;
-  };
-  schema(schema: string): {
-    from(table: string): {
-      select(columns: string): SupabaseDocumentFilterBuilder;
-    };
   };
   storage: {
     from(bucket: string): {
@@ -53,18 +55,6 @@ interface SupabaseQueryClient {
       }>;
     };
   };
-}
-
-interface SupabaseDocumentFilterBuilder
-  extends PromiseLike<{
-    data: SupabaseProviderDocumentRow[] | null;
-    error: { message: string } | null;
-  }> {
-  eq(column: string, value: string): SupabaseDocumentFilterBuilder;
-  maybeSingle(): PromiseLike<{
-    data: SupabaseProviderDocumentRow | null;
-    error: { message: string } | null;
-  }>;
 }
 
 interface SupabaseProviderProfileRow {
@@ -140,6 +130,18 @@ interface SupabaseProviderDocumentRow {
   storage_path: string | null;
   status: 'pending' | 'approved' | 'rejected';
   created_at: string | null;
+}
+
+interface SupabaseProviderApplicationReviewRow {
+  application_id: string;
+  kyc_checklist: unknown;
+  business_checklist: unknown;
+  verification_records: unknown;
+  ocr_data: unknown;
+  notes: unknown;
+  is_complete: boolean;
+  updated_by: string | null;
+  updated_at: string | null;
 }
 
 @Injectable()
@@ -452,18 +454,123 @@ export class SupabaseProviderProfileRepository
     }
 
     const { data, error } = await this.client
-      .schema('provider_catalog')
-      .from('provider_documents')
-      .select('id,user_id,document_type,file_url,storage_path,status,created_at')
-      .eq('id', documentId)
-      .eq('user_id', application.userId)
+      .rpc('servease_admin_get_provider_application_document', {
+        p_provider_id: application.id,
+        p_document_id: documentId,
+      })
       .maybeSingle();
 
     if (error) {
       throw new Error(`Failed to get provider document: ${error.message}`);
     }
 
-    return data ? this.mapProviderDocument(data, application.id) : null;
+    return data
+      ? this.mapProviderDocument(data as SupabaseProviderDocumentRow, application.id)
+      : null;
+  }
+
+  async submitProviderApplicationDocument(
+    input: SubmitProviderApplicationDocumentInput,
+  ): Promise<AdminProviderApplicationDocumentSummary> {
+    const application = await this.getProviderApplicationByUserId(input.userId);
+    if (!application) {
+      throw new Error('Failed to submit provider document: application not found');
+    }
+
+    const { data, error } = await this.client
+      .rpc('servease_submit_provider_application_document', {
+        p_user_id: input.userId,
+        p_document_type: input.documentType,
+        p_file_url: input.fileUrl ?? null,
+        p_storage_path: input.storagePath ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to submit provider document: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Failed to submit provider document: missing row');
+    }
+
+    return this.mapProviderDocument(
+      data as SupabaseProviderDocumentRow,
+      application.id,
+    );
+  }
+
+  async getProviderApplicationReview(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationReview | null> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_get_provider_application_review', {
+        p_provider_id: applicationId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to get provider application review: ${error.message}`);
+    }
+
+    return data
+      ? this.mapProviderApplicationReview(
+          data as SupabaseProviderApplicationReviewRow,
+        )
+      : null;
+  }
+
+  async updateProviderApplicationReview(
+    input: UpdateProviderApplicationReviewInput,
+  ): Promise<AdminProviderApplicationReview> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_update_provider_application_review', {
+        p_provider_id: input.applicationId,
+        p_admin_user_id: input.adminUserId,
+        p_kyc_checklist: input.kycChecklist,
+        p_business_checklist: input.businessChecklist,
+        p_verification_records: input.verificationRecords,
+        p_ocr_data: input.ocrData,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to update provider application review: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Failed to update provider application review: missing row');
+    }
+
+    return this.mapProviderApplicationReview(
+      data as SupabaseProviderApplicationReviewRow,
+    );
+  }
+
+  async addProviderApplicationReviewNote(input: {
+    applicationId: string;
+    adminUserId: string;
+    note: string;
+  }): Promise<AdminProviderApplicationReview> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_add_provider_application_review_note', {
+        p_provider_id: input.applicationId,
+        p_admin_user_id: input.adminUserId,
+        p_note: input.note,
+      })
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(`Failed to add provider application review note: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new Error('Failed to add provider application review note: missing row');
+    }
+
+    return this.mapProviderApplicationReview(
+      data as SupabaseProviderApplicationReviewRow,
+    );
   }
 
   async decideProviderApplication(input: {
@@ -580,21 +687,45 @@ export class SupabaseProviderProfileRepository
     };
   }
 
+  private mapProviderApplicationReview(
+    row: SupabaseProviderApplicationReviewRow,
+  ): AdminProviderApplicationReview {
+    return {
+      applicationId: row.application_id,
+      kycChecklist: this.asArray(row.kyc_checklist),
+      businessChecklist: this.asArray(row.business_checklist),
+      verificationRecords: this.asArray(row.verification_records),
+      ocrData:
+        row.ocr_data && typeof row.ocr_data === 'object' && !Array.isArray(row.ocr_data)
+          ? (row.ocr_data as AdminProviderApplicationReview['ocrData'])
+          : {},
+      notes: this.asArray(row.notes),
+      isComplete: row.is_complete,
+      updatedBy: row.updated_by,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private asArray<T>(value: unknown): T[] {
+    return Array.isArray(value) ? (value as T[]) : [];
+  }
+
   private async listProviderApplicationDocuments(
     application: AdminProviderApplicationSummary,
   ): Promise<AdminProviderApplicationDocumentSummary[]> {
-    const { data, error } = await this.client
-      .schema('provider_catalog')
-      .from('provider_documents')
-      .select('id,user_id,document_type,file_url,storage_path,status,created_at')
-      .eq('user_id', application.userId);
+    const { data, error } = await this.client.rpc(
+      'servease_admin_list_provider_application_documents',
+      {
+        p_provider_id: application.id,
+      },
+    );
 
     if (error) {
       throw new Error(`Failed to list provider documents: ${error.message}`);
     }
 
     return Promise.all(
-      ((data ?? []) as SupabaseProviderDocumentRow[]).map((row) =>
+      ((data ?? []) as unknown as SupabaseProviderDocumentRow[]).map((row) =>
         this.mapProviderDocument(row, application.id),
       ),
     );

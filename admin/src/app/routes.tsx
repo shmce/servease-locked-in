@@ -33,6 +33,7 @@ import { Services } from "./pages/Services";
 import { ServiceAreas } from "./pages/ServiceAreas";
 import { Promotions } from "./pages/Promotions";
 import { CommissionRules } from "./pages/CommissionRules";
+import { PricingEngine } from "./pages/PricingEngine";
 import { Revenue } from "./pages/reports/Revenue";
 import { BookingAnalytics } from "./pages/reports/BookingAnalytics";
 import { AddNewAdmin } from "./pages/AddNewAdmin";
@@ -125,6 +126,7 @@ export const router = createBrowserRouter([
 
       // Platform Settings
       { path: "commission-rules", Component: CommissionRules },
+      { path: "pricing-engine", Component: PricingEngine },
       { path: "admin-roles", Component: AdminRoles },
       { path: "notification-settings", Component: NotificationSettings },
       { path: "security-settings", Component: SecuritySettings },

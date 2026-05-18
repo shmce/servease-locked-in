@@ -4,13 +4,21 @@ import { useNavigate, useParams } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import {
   AdminProviderApplicationDocumentSummary,
+  AdminProviderApplicationChecklistItem,
+  AdminProviderApplicationReview,
+  AdminProviderApplicationReviewOcrData,
+  AdminProviderApplicationVerificationRecord,
   AdminProviderApplicationSummary,
   AdminProviderApplicationStatus,
+  addAdminProviderApplicationReviewNote,
   approveAdminProviderApplication,
   getAdminProviderApplication,
   getAdminProviderApplicationDocument,
+  getAdminProviderApplicationReview,
   rejectAdminProviderApplication,
   requestAdminProviderApplicationInfo,
+  runAdminProviderApplicationOcr,
+  updateAdminProviderApplicationReview,
 } from "../../services/serveaseAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
@@ -54,10 +62,6 @@ import {
   Send,
   Columns2,
   ScanLine,
-  Briefcase,
-  ImageOff,
-  BookOpen,
-  Users,
   ShieldCheck,
   Activity,
   Building2,
@@ -254,7 +258,7 @@ function toReviewApplication(
 }
 
 /* ─── SHARED CONSTANTS ───────────────────────────────────────────── */
-const TABS = ["Overview", "Documents", "Portfolio", "References", "Background Check", "Activity Logs"];
+const TABS = ["Overview", "Documents", "Background Check", "Activity Logs"];
 
 const DOCUMENT_TYPES = [
   { id: "gov-id", name: "Government ID", file: "national-id-2026.jpg", date: "Mar 1, 2026", status: "verified", color: "bg-blue-100", iconColor: "text-blue-500" },
@@ -309,6 +313,31 @@ function getVerifResult(status: VerifStatus) {
   if (status === "error") return <span className="inline-flex items-center gap-1.5 text-amber-600 text-sm"><AlertCircle className="w-3.5 h-3.5" />Error – Retry</span>;
 }
 
+function toVerifStatus(
+  records: AdminProviderApplicationVerificationRecord[],
+  id: string,
+): VerifStatus {
+  const record = records.find((item) => item.id === id);
+  if (!record) return null;
+  if (record.status === "verified") return "verified";
+  if (record.status === "failed") return "error";
+  if (record.status === "not_applicable") return "no-match";
+  return null;
+}
+
+function formatReviewDate(value: string | null | undefined): string {
+  if (!value) return "Not recorded";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function toReviewDocument(
   document: AdminProviderApplicationDocumentSummary,
   index: number,
@@ -346,14 +375,6 @@ function toReviewDocument(
   };
 }
 
-const TAB_EMPTY_ICONS: Record<string, React.ReactNode> = {
-  Overview: <Briefcase className="w-10 h-10 text-gray-200 mb-3" />,
-  Portfolio: <ImageOff className="w-10 h-10 text-gray-200 mb-3" />,
-  References: <Users className="w-10 h-10 text-gray-200 mb-3" />,
-  "Background Check": <ShieldCheck className="w-10 h-10 text-gray-200 mb-3" />,
-  "Activity Logs": <Activity className="w-10 h-10 text-gray-200 mb-3" />,
-};
-
 /* ─── READ-ONLY FIELD ────────────────────────────────────────────── */
 function ReadOnlyField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -374,8 +395,11 @@ export function ProviderApplicationReview() {
   const mockApplication = applicationId ? mockApplications[applicationId] : null;
   const [backendApplication, setBackendApplication] =
     useState<AdminProviderApplicationSummary | null>(null);
+  const [backendReview, setBackendReview] =
+    useState<AdminProviderApplicationReview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoadingApplication, setIsLoadingApplication] = useState(false);
+  const [isSavingReview, setIsSavingReview] = useState(false);
   const application = backendApplication
     ? toReviewApplication(backendApplication)
     : mockApplication;
@@ -395,7 +419,7 @@ export function ProviderApplicationReview() {
   const [notes, setNotes] = useState(application?.notes || []);
 
   // KYC checklist — gates the Approve button (preserved from attachment)
-  const [checklist, setChecklist] = useState([
+  const [checklist, setChecklist] = useState<AdminProviderApplicationChecklistItem[]>([
     { id: "identity", label: "Identity matches documents", checked: true },
     { id: "nbi",      label: "NBI verified",               checked: false },
     { id: "prc",      label: "PRC verified",               checked: true },
@@ -404,7 +428,7 @@ export function ProviderApplicationReview() {
   ]);
 
   // Business registration checklist — shown in Overview tab (from image)
-  const [businessChecklist, setBusinessChecklist] = useState([
+  const [businessChecklist, setBusinessChecklist] = useState<AdminProviderApplicationChecklistItem[]>([
     { id: "permit",   label: "Business Permit",           subtitle: "Uploaded and verified",          checked: false },
     { id: "contact",  label: "Contact Person Details",    subtitle: "Name, phone, email complete",    checked: false },
     { id: "valid-id", label: "Valid ID of Contact Person", subtitle: "Uploaded and verified",         checked: false },
@@ -422,6 +446,89 @@ export function ProviderApplicationReview() {
   const [govIdNumber, setGovIdNumber] = useState(application?.govIdNumber || "");
   const [ocrRunning, setOcrRunning] = useState(false);
 
+  const buildVerificationRecords = (
+    nextNbiResult = nbiResult,
+    nextPrcResult = prcResult,
+  ): AdminProviderApplicationVerificationRecord[] => {
+    const existing = backendReview?.verificationRecords ?? [];
+    const toRecord = (
+      id: "nbi" | "prc" | "tin",
+      label: string,
+      status: VerifStatus,
+      reference: string | null,
+    ): AdminProviderApplicationVerificationRecord => {
+      const previous = existing.find((item) => item.id === id);
+      return {
+        id,
+        label: previous?.label ?? label,
+        status:
+          status === "verified"
+            ? "verified"
+            : status === "error"
+              ? "failed"
+              : status === "no-match"
+                ? "not_applicable"
+                : "pending",
+        reference: reference || previous?.reference || null,
+        checkedAt:
+          status && status !== "loading"
+            ? new Date().toISOString()
+            : previous?.checkedAt ?? null,
+        details:
+          status === "error"
+            ? "Manual verification service unavailable; admin must cross-check offline."
+            : previous?.details ?? null,
+      };
+    };
+
+    return [
+      toRecord("nbi", "NBI Clearance", nextNbiResult, nbiNumber),
+      toRecord("prc", "PRC License", nextPrcResult, prcNumber),
+      toRecord("tin", "TIN/BIR Record", tinNumber ? "verified" : null, tinNumber),
+    ];
+  };
+
+  const persistReview = async (
+    nextKycChecklist = checklist,
+    nextBusinessChecklist = businessChecklist,
+    nextOcrData: AdminProviderApplicationReviewOcrData = {
+      governmentIdType: govIdType,
+      governmentIdNumber: govIdNumber,
+      tinNumber,
+      nbiNumber,
+      prcNumber,
+    },
+    nextVerificationRecords = buildVerificationRecords(),
+  ) => {
+    if (!accessToken || !applicationId) {
+      return;
+    }
+
+    setIsSavingReview(true);
+    try {
+      const review = await updateAdminProviderApplicationReview(
+        accessToken,
+        applicationId,
+        {
+          kycChecklist: nextKycChecklist,
+          businessChecklist: nextBusinessChecklist,
+          verificationRecords: nextVerificationRecords,
+          ocrData: nextOcrData,
+        },
+      );
+      setBackendReview(review);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Provider application review failed to save.",
+      );
+    } finally {
+      setIsSavingReview(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     async function loadApplication() {
@@ -431,13 +538,35 @@ export function ProviderApplicationReview() {
       setIsLoadingApplication(true);
       setLoadError(null);
       try {
-        const data = await getAdminProviderApplication(accessToken, applicationId);
+        const [data, review] = await Promise.all([
+          getAdminProviderApplication(accessToken, applicationId),
+          getAdminProviderApplicationReview(accessToken, applicationId),
+        ]);
         if (!cancelled) {
           setBackendApplication(data);
+          setBackendReview(review);
           const nextApplication = toReviewApplication(data);
-          setNotes(nextApplication.notes);
-          setGovIdType(nextApplication.govIdType);
-          setGovIdNumber(nextApplication.govIdNumber);
+          setChecklist(review.kycChecklist);
+          setBusinessChecklist(review.businessChecklist);
+          setNotes(review.notes.map((note, index) => ({
+            id: index + 1,
+            text: note.note,
+            author: note.adminName ?? note.adminUserId,
+            timestamp: note.createdAt ?? "Date unavailable",
+          })));
+          setGovIdType(
+            review.ocrData.governmentIdType ??
+              nextApplication.govIdType,
+          );
+          setGovIdNumber(
+            review.ocrData.governmentIdNumber ??
+              nextApplication.govIdNumber,
+          );
+          setTinNumber(review.ocrData.tinNumber ?? "");
+          setNbiNumber(review.ocrData.nbiNumber ?? "");
+          setPrcNumber(review.ocrData.prcNumber ?? "");
+          setNbiResult(toVerifStatus(review.verificationRecords, "nbi"));
+          setPrcResult(toVerifStatus(review.verificationRecords, "prc"));
         }
       } catch (error) {
         if (!cancelled) {
@@ -481,27 +610,120 @@ export function ProviderApplicationReview() {
 
   /* ── Derived values ── */
   const checkedCount          = checklist.filter(c => c.checked).length;
-  const canApprove            = checkedCount === checklist.length;
   const displayedDocuments = backendApplication
     ? backendApplication.documents.map(toReviewDocument)
     : DOCUMENT_TYPES;
   const verifiedDocs          = displayedDocuments.filter(d => d.status === "verified").length;
   const businessCheckedCount  = businessChecklist.filter(c => c.checked).length;
+  const kycComplete =
+    checklist.length > 0 && checkedCount === checklist.length;
+  const businessComplete =
+    businessChecklist.length > 0 && businessCheckedCount === businessChecklist.length;
+  const canApprove =
+    !isSavingReview &&
+    (backendReview?.isComplete ?? (kycComplete && businessComplete));
+  const approvalBlockReason =
+    isSavingReview
+      ? "Review changes are still saving"
+      : !businessComplete
+        ? "Complete all business verification checks first"
+        : !kycComplete
+          ? "Complete all KYC verification checks first"
+          : "";
 
   /* ── Handlers ── */
-  const markVerificationUnavailable = (setter: (v: VerifStatus) => void) => {
-    setter("error");
+  const markManualVerificationComplete = async (
+    id: "nbi" | "prc",
+    setter: (v: VerifStatus) => void,
+  ) => {
+    setter("verified");
+    const nextRecords = buildVerificationRecords(
+      id === "nbi" ? "verified" : nbiResult,
+      id === "prc" ? "verified" : prcResult,
+    ).map((record) =>
+      record.id === id
+        ? {
+            ...record,
+            status: "verified" as const,
+            checkedAt: new Date().toISOString(),
+            details: "Admin manually verified this reference offline.",
+          }
+        : record,
+    );
+    await persistReview(checklist, businessChecklist, {
+      governmentIdType: govIdType,
+      governmentIdNumber: govIdNumber,
+      tinNumber,
+      nbiNumber,
+      prcNumber,
+    }, nextRecords);
   };
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (!adminNote.trim()) return;
-    setNotes(prev => [...prev, {
-      id: prev.length + 1,
-      text: adminNote.trim(),
-      author: "Admin User",
-      timestamp: "Mar 31, 2026 " + new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-    }]);
+    const nextNote = adminNote.trim();
+    if (accessToken && applicationId) {
+      try {
+        const review = await addAdminProviderApplicationReviewNote(
+          accessToken,
+          applicationId,
+          nextNote,
+        );
+        setBackendReview(review);
+        setNotes(review.notes.map((note, index) => ({
+          id: index + 1,
+          text: note.note,
+          author: note.adminName ?? note.adminUserId,
+          timestamp: note.createdAt ?? "Date unavailable",
+        })));
+      } catch (error) {
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Provider application note failed to save.",
+        );
+        return;
+      }
+    } else {
+      setNotes(prev => [...prev, {
+        id: prev.length + 1,
+        text: nextNote,
+        author: "Admin User",
+        timestamp: new Date().toLocaleString("en-US", { hour: "2-digit", minute: "2-digit" }),
+      }]);
+    }
     setAdminNote("");
+  };
+
+  const handleRunOcr = async () => {
+    if (!accessToken || !applicationId) {
+      return;
+    }
+
+    setOcrRunning(true);
+    try {
+      const review = await runAdminProviderApplicationOcr(
+        accessToken,
+        applicationId,
+      );
+      setBackendReview(review);
+      setGovIdType(review.ocrData.governmentIdType ?? govIdType);
+      setGovIdNumber(review.ocrData.governmentIdNumber ?? govIdNumber);
+      setTinNumber(review.ocrData.tinNumber ?? tinNumber);
+      setNbiNumber(review.ocrData.nbiNumber ?? nbiNumber);
+      setPrcNumber(review.ocrData.prcNumber ?? prcNumber);
+      setNbiResult(toVerifStatus(review.verificationRecords, "nbi"));
+      setPrcResult(toVerifStatus(review.verificationRecords, "prc"));
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Provider document OCR failed.",
+      );
+    } finally {
+      setOcrRunning(false);
+    }
   };
 
   const openDocModal = async (doc: ReviewDocument) => {
@@ -537,6 +759,9 @@ export function ProviderApplicationReview() {
   };
 
   const handleApproveConfirm = async () => {
+    if (!canApprove) {
+      return;
+    }
     if (!accessToken || !applicationId) {
       setShowApproveModal(false);
       navigate("/provider-applications");
@@ -669,6 +894,12 @@ export function ProviderApplicationReview() {
               <Calendar className="w-3.5 h-3.5" />
               Applied: {application.dateApplied}
             </span>
+            {isSavingReview && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-gray-500">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                Saving review
+              </span>
+            )}
           </div>
         </div>
 
@@ -685,7 +916,7 @@ export function ProviderApplicationReview() {
             className="gap-2 bg-[#16A34A] hover:bg-[#15803D]"
             onClick={() => setShowApproveModal(true)}
             disabled={!canApprove || application.status === "approved"}
-            title={canApprove ? "" : "Complete all KYC verification checks first"}
+            title={canApprove ? "" : approvalBlockReason}
           >
             <CheckCircle className="w-4 h-4" />Approve
           </Button>
@@ -851,11 +1082,13 @@ export function ProviderApplicationReview() {
                     <input
                       type="checkbox"
                       checked={item.checked}
-                      onChange={() =>
-                        setBusinessChecklist(prev =>
-                          prev.map(c => c.id === item.id ? { ...c, checked: !c.checked } : c)
-                        )
-                      }
+                      onChange={() => {
+                        const next = businessChecklist.map(c =>
+                          c.id === item.id ? { ...c, checked: !c.checked } : c
+                        );
+                        setBusinessChecklist(next);
+                        void persistReview(checklist, next);
+                      }}
                       className="mt-0.5 w-4 h-4 accent-[#16A34A] shrink-0"
                     />
                     <div className="flex-1 min-w-0">
@@ -881,7 +1114,7 @@ export function ProviderApplicationReview() {
                   <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-[#16A34A] rounded-full transition-all"
-                      style={{ width: `${(businessCheckedCount / businessChecklist.length) * 100}%` }}
+                      style={{ width: `${(businessCheckedCount / (businessChecklist.length || 1)) * 100}%` }}
                     />
                   </div>
                 </div>
@@ -891,26 +1124,26 @@ export function ProviderApplicationReview() {
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">KYC Verification</p>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Identity & Documents</span>
-                    <span className={`font-semibold ${canApprove ? "text-[#16A34A]" : "text-amber-600"}`}>
+                    <span className={`font-semibold ${kycComplete ? "text-[#16A34A]" : "text-amber-600"}`}>
                       {checkedCount}/{checklist.length}
                     </span>
                   </div>
                   <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1.5">
                     <div
                       className="h-full bg-[#16A34A] rounded-full transition-all"
-                      style={{ width: `${(checkedCount / checklist.length) * 100}%` }}
+                      style={{ width: `${(checkedCount / (checklist.length || 1)) * 100}%` }}
                     />
                   </div>
-                  {!canApprove && (
+                  {!kycComplete && (
                     <p className="text-xs text-amber-600 mt-2 flex items-center gap-1.5">
                       <AlertCircle className="w-3 h-3 shrink-0" />
                       Complete KYC checks in Documents tab to approve
                     </p>
                   )}
-                  {canApprove && (
+                  {kycComplete && businessComplete && (
                     <p className="text-xs text-[#16A34A] mt-2 flex items-center gap-1.5">
                       <CheckCircle className="w-3 h-3 shrink-0" />
-                      All KYC checks complete — ready to approve
+                      Review checks complete - ready to approve
                     </p>
                   )}
                 </div>
@@ -993,6 +1226,7 @@ export function ProviderApplicationReview() {
                     <select
                       value={govIdType}
                       onChange={e => setGovIdType(e.target.value)}
+                      onBlur={() => void persistReview()}
                       className="mt-1.5 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#16A34A]/20 focus:border-[#16A34A]"
                     >
                       <option>PhilSys National ID</option>
@@ -1008,6 +1242,7 @@ export function ProviderApplicationReview() {
                     <Input
                       value={govIdNumber}
                       onChange={e => setGovIdNumber(e.target.value)}
+                      onBlur={() => void persistReview()}
                       className="mt-1.5 text-sm"
                       placeholder="e.g. PSN-2026-1234"
                     />
@@ -1027,12 +1262,12 @@ export function ProviderApplicationReview() {
                     size="sm"
                     variant="outline"
                     className="gap-2 text-xs"
-                    onClick={() => { setOcrRunning(true); setTimeout(() => setOcrRunning(false), 2000); }}
+                    onClick={() => void handleRunOcr()}
                     disabled={ocrRunning}
                   >
                     {ocrRunning
-                      ? <><RefreshCw className="w-3 h-3 animate-spin" />Running…</>
-                      : <><ScanLine className="w-3 h-3" />Run OCR Again</>
+                      ? <><RefreshCw className="w-3 h-3 animate-spin" />Scanning...</>
+                      : <><ScanLine className="w-3 h-3" />Run OCR</>
                     }
                   </Button>
                 </div>
@@ -1058,6 +1293,7 @@ export function ProviderApplicationReview() {
                   <Input
                     value={nbiNumber}
                     onChange={e => setNbiNumber(e.target.value)}
+                    onBlur={() => void persistReview()}
                     placeholder="e.g. NBI-2026-XXXXXX"
                     className="text-sm"
                   />
@@ -1066,10 +1302,10 @@ export function ProviderApplicationReview() {
                       size="sm"
                       variant="outline"
                       className="gap-2 text-xs"
-                      onClick={() => markVerificationUnavailable(setNbiResult)}
+                    onClick={() => void markManualVerificationComplete("nbi", setNbiResult)}
                       disabled={nbiResult === "loading"}
                     >
-                      <Shield className="w-3 h-3" />Verify with NBI Online
+                      <Shield className="w-3 h-3" />Mark NBI Verified
                     </Button>
                     {getVerifResult(nbiResult)}
                   </div>
@@ -1083,6 +1319,7 @@ export function ProviderApplicationReview() {
                   <Input
                     value={prcNumber}
                     onChange={e => setPrcNumber(e.target.value)}
+                    onBlur={() => void persistReview()}
                     placeholder="e.g. PRC-2026-XXXXXX"
                     className="text-sm"
                   />
@@ -1091,10 +1328,10 @@ export function ProviderApplicationReview() {
                       size="sm"
                       variant="outline"
                       className="gap-2 text-xs"
-                      onClick={() => markVerificationUnavailable(setPrcResult)}
+                    onClick={() => void markManualVerificationComplete("prc", setPrcResult)}
                       disabled={prcResult === "loading"}
                     >
-                      <Shield className="w-3 h-3" />Verify with PRC Online
+                      <Shield className="w-3 h-3" />Mark PRC Verified
                     </Button>
                     {getVerifResult(prcResult)}
                   </div>
@@ -1108,6 +1345,7 @@ export function ProviderApplicationReview() {
                   <Input
                     value={tinNumber}
                     onChange={e => setTinNumber(e.target.value)}
+                    onBlur={() => void persistReview()}
                     placeholder="e.g. 123-456-789-000"
                     className="text-sm"
                   />
@@ -1129,7 +1367,7 @@ export function ProviderApplicationReview() {
                 <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-3">
                   <div
                     className="h-full bg-[#16A34A] rounded-full transition-all"
-                    style={{ width: `${(checkedCount / checklist.length) * 100}%` }}
+                    style={{ width: `${(checkedCount / (checklist.length || 1)) * 100}%` }}
                   />
                 </div>
                 {checklist.map(item => (
@@ -1140,11 +1378,13 @@ export function ProviderApplicationReview() {
                     <input
                       type="checkbox"
                       checked={item.checked}
-                      onChange={() =>
-                        setChecklist(prev =>
-                          prev.map(c => c.id === item.id ? { ...c, checked: !c.checked } : c)
-                        )
-                      }
+                      onChange={() => {
+                        const next = checklist.map(c =>
+                          c.id === item.id ? { ...c, checked: !c.checked } : c
+                        );
+                        setChecklist(next);
+                        void persistReview(next, businessChecklist);
+                      }}
                       className="w-4 h-4 accent-[#16A34A]"
                     />
                     <span className={`text-sm flex-1 ${item.checked ? "text-gray-900" : "text-gray-500"}`}>
@@ -1153,7 +1393,7 @@ export function ProviderApplicationReview() {
                     {item.checked && <CheckCircle className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />}
                   </label>
                 ))}
-                {!canApprove && (
+                {!kycComplete && (
                   <p className="text-xs text-amber-600 mt-2 pt-2 flex items-center gap-1.5 border-t border-gray-100">
                     <AlertCircle className="w-3 h-3 shrink-0" />Complete all checks to enable approval
                   </p>
@@ -1202,13 +1442,106 @@ export function ProviderApplicationReview() {
         </div>
       )}
 
-      {/* ─── EMPTY STATE TABS ─── */}
-      {activeTab !== "Overview" && activeTab !== "Documents" && (
-        <Card className="border-dashed border-gray-200">
-          <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-            {TAB_EMPTY_ICONS[activeTab] ?? <FileText className="w-10 h-10 text-gray-200 mb-3" />}
-            <p className="text-gray-400 text-sm font-medium">{activeTab}</p>
-            <p className="text-gray-300 text-xs mt-1">No information available for this section yet</p>
+      {activeTab === "Background Check" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="lg:col-span-7 space-y-5">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-[#16A34A]" />
+                  Verification Records
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                {(backendReview?.verificationRecords ?? buildVerificationRecords()).map(record => (
+                  <div key={record.id} className="rounded-xl border border-gray-100 p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{record.label}</p>
+                        <p className="text-xs text-gray-500 font-mono mt-1">
+                          {record.reference || "Reference not captured"}
+                        </p>
+                      </div>
+                      <Badge
+                        className={
+                          record.status === "verified"
+                            ? "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]"
+                            : record.status === "failed"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-gray-50 text-gray-600 border-gray-200"
+                        }
+                      >
+                        {record.status.replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-500">
+                      <span>Checked: {formatReviewDate(record.checkedAt)}</span>
+                      <span>{record.details || "No additional details recorded."}</span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+          <div className="lg:col-span-5 space-y-5">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-[#16A34A]" />
+                  Approval Gate
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
+                  <span className="text-sm text-gray-700">Business checks</span>
+                  <Badge className={businessComplete ? "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]" : "bg-amber-50 text-amber-700 border-amber-200"}>
+                    {businessCheckedCount}/{businessChecklist.length}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-gray-100 p-3">
+                  <span className="text-sm text-gray-700">KYC checks</span>
+                  <Badge className={kycComplete ? "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]" : "bg-amber-50 text-amber-700 border-amber-200"}>
+                    {checkedCount}/{checklist.length}
+                  </Badge>
+                </div>
+                <p className="text-xs text-gray-500">
+                  The backend enforces this same gate before approving a provider application.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "Activity Logs" && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Activity className="w-4 h-4 text-[#16A34A]" />
+              Review Activity
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 pt-0">
+            {backendReview?.updatedAt && (
+              <div className="rounded-xl border border-gray-100 p-4">
+                <p className="text-sm font-semibold text-gray-900">Review state updated</p>
+                <p className="text-xs text-gray-500 mt-1">{formatReviewDate(backendReview.updatedAt)}</p>
+              </div>
+            )}
+            {notes.map(note => (
+              <div key={note.id} className="rounded-xl border border-gray-100 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-gray-900">{note.author}</p>
+                  <p className="text-xs text-gray-500">{formatReviewDate(note.timestamp)}</p>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">{note.text}</p>
+              </div>
+            ))}
+            {!notes.length && !backendReview?.updatedAt && (
+              <div className="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500">
+                No persisted review activity has been recorded yet.
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -1246,7 +1579,7 @@ export function ProviderApplicationReview() {
                 className="gap-2 bg-[#16A34A] hover:bg-[#15803D]"
                 onClick={() => setShowApproveModal(true)}
                 disabled={!canApprove || application.status === "approved"}
-                title={canApprove ? "" : "Complete all KYC verification checklist items first"}
+                title={canApprove ? "" : approvalBlockReason}
               >
                 <CheckCircle className="w-4 h-4" />Approve Provider
               </Button>
@@ -1404,21 +1737,35 @@ export function ProviderApplicationReview() {
               You are about to approve <strong>{application.businessName}</strong> ({application.applicationId}) as a service provider on the ServEase platform.
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-[#DCFCE7] rounded-lg p-4 space-y-2">
-            <p className="text-sm font-medium text-[#15803D]">KYC Verification Summary</p>
-            <ul className="space-y-1">
-              {checklist.map(c => (
-                <li key={c.id} className="flex items-center gap-2 text-sm text-[#166534]">
-                  <CheckCircle className="w-3.5 h-3.5" />{c.label}
-                </li>
-              ))}
-            </ul>
+          <div className="bg-[#DCFCE7] rounded-lg p-4 space-y-3">
+            <p className="text-sm font-medium text-[#15803D]">Verification Summary</p>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-[#166534] uppercase tracking-wide">Business</p>
+              <ul className="space-y-1">
+                {businessChecklist.map(c => (
+                  <li key={c.id} className="flex items-center gap-2 text-sm text-[#166534]">
+                    <CheckCircle className="w-3.5 h-3.5" />{c.label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-[#166534] uppercase tracking-wide">KYC</p>
+              <ul className="space-y-1">
+                {checklist.map(c => (
+                  <li key={c.id} className="flex items-center gap-2 text-sm text-[#166534]">
+                    <CheckCircle className="w-3.5 h-3.5" />{c.label}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setShowApproveModal(false)}>Cancel</Button>
             <Button
               className="bg-[#16A34A] hover:bg-[#15803D] gap-2"
               onClick={() => void handleApproveConfirm()}
+              disabled={!canApprove}
             >
               <CheckCircle className="w-4 h-4" />Confirm Approval
             </Button>

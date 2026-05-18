@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   CreateProviderProfileInput,
   AdminProviderApplicationDocumentSummary,
+  AdminProviderApplicationReview,
   ProviderPortfolioMediaInput,
   ProviderPortfolioMediaReplacementInput,
   ProviderPortfolioOrderItem,
@@ -11,6 +12,8 @@ import {
   AdminProviderApplicationSummary,
   ProviderApplicationStatus,
   ProviderProfileSummary,
+  SubmitProviderApplicationDocumentInput,
+  UpdateProviderApplicationReviewInput,
   UpdateProviderProfileInput,
 } from './provider-profile.types';
 
@@ -52,6 +55,20 @@ export interface ProviderProfileRepository {
     applicationId: string,
     documentId: string,
   ): Promise<AdminProviderApplicationDocumentSummary | null>;
+  submitProviderApplicationDocument(
+    input: SubmitProviderApplicationDocumentInput,
+  ): Promise<AdminProviderApplicationDocumentSummary>;
+  getProviderApplicationReview(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationReview | null>;
+  updateProviderApplicationReview(
+    input: UpdateProviderApplicationReviewInput,
+  ): Promise<AdminProviderApplicationReview>;
+  addProviderApplicationReviewNote(input: {
+    applicationId: string;
+    adminUserId: string;
+    note: string;
+  }): Promise<AdminProviderApplicationReview>;
   decideProviderApplication(input: {
     applicationId: string;
     adminUserId: string;
@@ -116,6 +133,22 @@ export class EmptyProviderProfileRepository implements ProviderProfileRepository
 
   async getProviderApplicationDocument(): Promise<AdminProviderApplicationDocumentSummary | null> {
     return null;
+  }
+
+  async submitProviderApplicationDocument(): Promise<AdminProviderApplicationDocumentSummary> {
+    throw new Error('provider_profile_repository_not_configured');
+  }
+
+  async getProviderApplicationReview(): Promise<AdminProviderApplicationReview | null> {
+    return null;
+  }
+
+  async updateProviderApplicationReview(): Promise<AdminProviderApplicationReview> {
+    throw new Error('provider_profile_repository_not_configured');
+  }
+
+  async addProviderApplicationReviewNote(): Promise<AdminProviderApplicationReview> {
+    throw new Error('provider_profile_repository_not_configured');
   }
 
   async decideProviderApplication(): Promise<AdminProviderApplicationSummary> {
@@ -249,6 +282,68 @@ export class ProviderProfileService {
       applicationId,
       documentId,
     );
+  }
+
+  async submitProviderApplicationDocument(
+    input: SubmitProviderApplicationDocumentInput,
+  ): Promise<AdminProviderApplicationDocumentSummary> {
+    if (
+      !input.userId ||
+      !input.documentType?.trim() ||
+      (!input.fileUrl?.trim() && !input.storagePath?.trim())
+    ) {
+      throw new Error('invalid_provider_application_document_request');
+    }
+
+    return this.providerProfileRepository.submitProviderApplicationDocument({
+      userId: input.userId,
+      documentType: input.documentType.trim(),
+      fileUrl: input.fileUrl?.trim() || null,
+      storagePath: input.storagePath?.trim() || null,
+    });
+  }
+
+  getProviderApplicationReview(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationReview | null> {
+    if (!applicationId) {
+      throw new Error('invalid_provider_application_request');
+    }
+
+    return this.providerProfileRepository.getProviderApplicationReview(
+      applicationId,
+    );
+  }
+
+  updateProviderApplicationReview(
+    input: UpdateProviderApplicationReviewInput,
+  ): Promise<AdminProviderApplicationReview> {
+    if (
+      !input.applicationId ||
+      !input.adminUserId ||
+      !Array.isArray(input.kycChecklist) ||
+      !Array.isArray(input.businessChecklist) ||
+      !Array.isArray(input.verificationRecords)
+    ) {
+      throw new Error('invalid_provider_application_review_request');
+    }
+
+    return this.providerProfileRepository.updateProviderApplicationReview(input);
+  }
+
+  addProviderApplicationReviewNote(input: {
+    applicationId: string;
+    adminUserId: string;
+    note: string;
+  }): Promise<AdminProviderApplicationReview> {
+    if (!input.applicationId || !input.adminUserId || !input.note.trim()) {
+      throw new Error('invalid_provider_application_review_request');
+    }
+
+    return this.providerProfileRepository.addProviderApplicationReviewNote({
+      ...input,
+      note: input.note.trim(),
+    });
   }
 
   decideProviderApplication(input: {

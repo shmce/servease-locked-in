@@ -21,12 +21,18 @@ describe('UploadController', () => {
       buffer: Buffer.from('image-bytes'),
     };
 
-    const response = await controller.create('Bearer token', 'booking_reference', file);
+    const response = await controller.create(
+      'Bearer token',
+      'booking_reference',
+      undefined,
+      file,
+    );
 
     expect(uploadGatewayService.uploadFile).toHaveBeenCalledWith(
       'user-1',
       'booking_reference',
       file,
+      { documentType: undefined },
     );
     expect(response.data.path).toBe('booking_reference/user-1/file.jpg');
   });

@@ -31,6 +31,9 @@ export type AdminAuditActionType =
   | 'update'
 export type AdminProviderApplicationStatus = 'pending' | 'approved' | 'rejected'
 export type AdminCommissionRuleStatus = 'active' | 'pending' | 'inactive'
+export type AdminPricingMode = 'any' | 'flat' | 'hourly'
+export type AdminPricingFairnessStatus = 'below_range' | 'within_range' | 'above_range'
+export type AdminPricingConfidence = 'high' | 'medium' | 'low'
 export type AdminBroadcastAudience = 'admins' | 'all' | 'customers' | 'providers'
 export type AdminBroadcastRepeatRule = 'none' | 'daily' | 'weekly' | 'monthly'
 export type AdminBroadcastStatus = 'scheduled' | 'sent' | 'failed' | 'cancelled'
@@ -132,6 +135,10 @@ export interface AdminPaymentSummary {
   retryCount: number
   lastRetryAt: string | null
   disputeId: string | null
+  apicenterCheckoutId: string | null
+  apicenterCheckoutStatus: string | null
+  apicenterProvider: string | null
+  apicenterProviderMode: string | null
 }
 
 export interface RecordPaymentFailureRequest {
@@ -197,6 +204,50 @@ export interface AdminCommissionRuleSummary {
   monthlyCommission: number
   updatedBy: string | null
   updatedAt: string | null
+  createdAt: string | null
+}
+
+export interface AdminPricingCategoryRuleSummary {
+  id: string
+  categoryId: string | null
+  categoryName: string
+  pricingMode: AdminPricingMode
+  baselineMin: number
+  baselineMax: number
+  fairBandPercent: number
+  travelFeeMin: number
+  travelFeeMax: number
+  travelMultiplier: number
+  travelTimeFeePerMinute: number
+  urgencyPriorityMultiplier: number
+  urgencyEmergencyMultiplier: number
+  outlierWarnPercent: number
+  isActive: boolean
+  updatedAt: string | null
+}
+
+export interface AdminPricingFuelIndexSummary {
+  id: string
+  region: string
+  fuelPricePerLiter: number
+  source: string | null
+  effectiveAt: string
+  createdBy: string | null
+  createdAt: string | null
+}
+
+export interface AdminPricingQuoteAuditSummary {
+  quoteId: string
+  customerId: string
+  providerId: string
+  serviceId: string
+  categoryId: string | null
+  estimatedTotal: number
+  fairRangeMin: number
+  fairRangeMax: number
+  fairnessStatus: AdminPricingFairnessStatus
+  confidence: AdminPricingConfidence
+  expiresAt: string
   createdAt: string | null
 }
 
@@ -540,6 +591,57 @@ export interface AdminProviderApplicationDocumentSummary {
   downloadUrl: string | null
 }
 
+export interface AdminProviderApplicationChecklistItem {
+  id: string
+  label: string
+  subtitle?: string | null
+  checked: boolean
+}
+
+export interface AdminProviderApplicationVerificationRecord {
+  id: string
+  label: string
+  status: 'pending' | 'verified' | 'failed' | 'not_applicable'
+  reference: string | null
+  checkedAt: string | null
+  details: string | null
+}
+
+export interface AdminProviderApplicationReviewNote {
+  id: string
+  adminUserId: string
+  adminName?: string | null
+  note: string
+  createdAt: string | null
+}
+
+export interface AdminProviderApplicationReviewOcrData {
+  governmentIdType?: string | null
+  governmentIdNumber?: string | null
+  tinNumber?: string | null
+  nbiNumber?: string | null
+  prcNumber?: string | null
+}
+
+export interface AdminProviderApplicationReview {
+  applicationId: string
+  kycChecklist: AdminProviderApplicationChecklistItem[]
+  businessChecklist: AdminProviderApplicationChecklistItem[]
+  verificationRecords: AdminProviderApplicationVerificationRecord[]
+  ocrData: AdminProviderApplicationReviewOcrData
+  notes: AdminProviderApplicationReviewNote[]
+  isComplete: boolean
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+export interface UpdateAdminProviderApplicationReviewInput {
+  kycChecklist: AdminProviderApplicationChecklistItem[]
+  businessChecklist: AdminProviderApplicationChecklistItem[]
+  verificationRecords: AdminProviderApplicationVerificationRecord[]
+  ocrData: AdminProviderApplicationReviewOcrData
+}
+
 export interface AdminProviderApplicationInfoRequestResult {
   applicationId: string
   providerUserId: string
@@ -820,6 +922,19 @@ export function retryAdminPayment(
 ): Promise<AdminPaymentSummary> {
   return request<AdminPaymentSummary>(
     `/v1/admin/payments/${encodeURIComponent(paymentId)}/retry`,
+    {
+      method: 'POST',
+      token,
+    },
+  )
+}
+
+export function syncAdminPaymentWithApicenter(
+  token: string,
+  paymentId: string,
+): Promise<AdminPaymentSummary> {
+  return request<AdminPaymentSummary>(
+    `/v1/admin/payments/${encodeURIComponent(paymentId)}/apicenter-sync`,
     {
       method: 'POST',
       token,
@@ -1323,6 +1438,61 @@ export function getAdminProviderApplicationDocument(
   return request<AdminProviderApplicationDocumentSummary>(
     `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}/documents/${encodeURIComponent(documentId)}`,
     {
+      token,
+    },
+  )
+}
+
+export function getAdminProviderApplicationReview(
+  token: string,
+  applicationId: string,
+): Promise<AdminProviderApplicationReview> {
+  return request<AdminProviderApplicationReview>(
+    `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}/review`,
+    {
+      token,
+    },
+  )
+}
+
+export function updateAdminProviderApplicationReview(
+  token: string,
+  applicationId: string,
+  input: UpdateAdminProviderApplicationReviewInput,
+): Promise<AdminProviderApplicationReview> {
+  return request<AdminProviderApplicationReview>(
+    `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}/review`,
+    {
+      method: 'PUT',
+      token,
+      body: input,
+    },
+  )
+}
+
+export function addAdminProviderApplicationReviewNote(
+  token: string,
+  applicationId: string,
+  note: string,
+): Promise<AdminProviderApplicationReview> {
+  return request<AdminProviderApplicationReview>(
+    `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}/review/notes`,
+    {
+      method: 'POST',
+      token,
+      body: { note },
+    },
+  )
+}
+
+export function runAdminProviderApplicationOcr(
+  token: string,
+  applicationId: string,
+): Promise<AdminProviderApplicationReview> {
+  return request<AdminProviderApplicationReview>(
+    `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}/ocr`,
+    {
+      method: 'POST',
       token,
     },
   )
@@ -1917,6 +2087,68 @@ export function listProviderListings(
 ): Promise<ProviderServiceListing[]> {
   return request<ProviderServiceListing[]>('/v1/catalog/providers', {
     query: { serviceId },
+  })
+}
+
+export function listAdminPricingRules(
+  token: string,
+): Promise<AdminPricingCategoryRuleSummary[]> {
+  return request<AdminPricingCategoryRuleSummary[]>('/v1/admin/pricing/rules', {
+    token,
+  })
+}
+
+export function saveAdminPricingRule(
+  token: string,
+  body: {
+    ruleId?: string | null
+    categoryId?: string | null
+    categoryName: string
+    pricingMode?: AdminPricingMode | null
+    baselineMin: number
+    baselineMax: number
+    fairBandPercent?: number | null
+    travelFeeMin?: number | null
+    travelFeeMax?: number | null
+    outlierWarnPercent?: number | null
+    isActive?: boolean | null
+  },
+): Promise<AdminPricingCategoryRuleSummary> {
+  return request<AdminPricingCategoryRuleSummary>('/v1/admin/pricing/rules', {
+    method: 'PUT',
+    token,
+    body,
+  })
+}
+
+export function listAdminPricingFuelIndex(
+  token: string,
+): Promise<AdminPricingFuelIndexSummary[]> {
+  return request<AdminPricingFuelIndexSummary[]>('/v1/admin/pricing/fuel-index', {
+    token,
+  })
+}
+
+export function createAdminPricingFuelIndex(
+  token: string,
+  body: {
+    region: string
+    fuelPricePerLiter: number
+    source?: string | null
+  },
+): Promise<AdminPricingFuelIndexSummary> {
+  return request<AdminPricingFuelIndexSummary>('/v1/admin/pricing/fuel-index', {
+    method: 'POST',
+    token,
+    body,
+  })
+}
+
+export function listAdminPricingQuoteAudits(
+  token: string,
+): Promise<AdminPricingQuoteAuditSummary[]> {
+  return request<AdminPricingQuoteAuditSummary[]>('/v1/admin/pricing/quote-audits', {
+    token,
   })
 }
 

@@ -22,6 +22,7 @@ import {
 import {
   AdminDependencyUnavailableError,
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminPaymentGatewayService } from './admin-payment.service';
@@ -58,7 +59,9 @@ export class AdminPromotionController {
         throw new InvalidAdminRequestError();
       }
       return {
-        data: await this.adminPaymentGatewayService.listPromotions(status ?? null),
+        data: await this.adminPaymentGatewayService.listPromotions(
+          status ?? null,
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -68,13 +71,18 @@ export class AdminPromotionController {
   @Post()
   async create(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Body() body: UpsertPromotionRequest,
   ): Promise<{ data: PromotionSummary }> {
     try {
       const admin = await this.requireAdmin(authorization);
       this.validatePromotionBody(body);
-      const promotion = await this.adminPaymentGatewayService.createPromotion(body);
+      const promotion =
+        await this.adminPaymentGatewayService.createPromotion(body);
       void this.recordAudit(admin, request, {
         action: 'Created promotion',
         actionType: 'create',
@@ -93,7 +101,11 @@ export class AdminPromotionController {
   @Patch(':promotionId')
   async update(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('promotionId') promotionId: string,
     @Body() body: UpsertPromotionRequest,
   ): Promise<{ data: PromotionSummary }> {
@@ -125,7 +137,11 @@ export class AdminPromotionController {
   @Delete(':promotionId')
   async delete(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('promotionId') promotionId: string,
   ): Promise<{ data: PromotionSummary }> {
     try {
@@ -133,9 +149,8 @@ export class AdminPromotionController {
       if (!promotionId) {
         throw new InvalidAdminRequestError();
       }
-      const promotion = await this.adminPaymentGatewayService.deletePromotion(
-        promotionId,
-      );
+      const promotion =
+        await this.adminPaymentGatewayService.deletePromotion(promotionId);
       void this.recordAudit(admin, request, {
         action: 'Deleted promotion',
         actionType: 'delete',
@@ -164,7 +179,9 @@ export class AdminPromotionController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
@@ -177,7 +194,10 @@ export class AdminPromotionController {
 
   private recordAudit(
     admin: CurrentUserProfile,
-    request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     input: {
       action: string;
       actionType: 'create' | 'delete' | 'update';
@@ -186,18 +206,20 @@ export class AdminPromotionController {
       metadata: Record<string, unknown>;
     },
   ): Promise<unknown> {
-    return this.adminAuditGatewayService.createAuditLog({
-      adminUserId: admin.user.id,
-      adminEmail: admin.user.email,
-      adminName: admin.user.fullName,
-      action: input.action,
-      actionType: input.actionType,
-      entityType: 'Promotion',
-      entityId: input.entityId,
-      details: input.details,
-      ipAddress: this.getClientIp(request),
-      metadata: input.metadata,
-    }).catch(() => undefined);
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: input.action,
+        actionType: input.actionType,
+        entityType: 'Promotion',
+        entityId: input.entityId,
+        details: input.details,
+        ipAddress: this.getClientIp(request),
+        metadata: input.metadata,
+      })
+      .catch(() => undefined);
   }
 
   private getClientIp(request: {
@@ -209,7 +231,11 @@ export class AdminPromotionController {
       return forwardedFor[0] ?? null;
     }
 
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -218,7 +244,11 @@ export class AdminPromotionController {
     }
 
     if (error instanceof InvalidAuthTokenError) {
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     }
 
     if (error instanceof AdminRequiredError) {
@@ -226,7 +256,15 @@ export class AdminPromotionController {
     }
 
     if (error instanceof InvalidAdminRequestError) {
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
+    }
+
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
     }
 
     if (error instanceof AdminDependencyUnavailableError) {
@@ -237,7 +275,11 @@ export class AdminPromotionController {
       );
     }
 
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

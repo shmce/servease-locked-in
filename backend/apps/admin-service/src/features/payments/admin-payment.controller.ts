@@ -254,6 +254,23 @@ export class AdminPaymentController {
     }
   }
 
+  @Post(':paymentId/apicenter-sync')
+  async syncWithApicenter(
+    @Param('paymentId') paymentId: string,
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.adminPaymentService.syncPaymentWithApicenter(paymentId),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin payment workflow failed.',
+        503,
+      );
+    }
+  }
+
   @Get(':paymentId')
   async get(
     @Param('paymentId') paymentId: string,

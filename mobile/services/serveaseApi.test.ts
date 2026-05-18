@@ -8,6 +8,7 @@ import {
   createCheckoutSession,
   createConversationMessage,
   createPayment,
+  createPricingQuote,
   createSupportTicket,
   deleteCustomerPaymentMethod,
   deleteBookingAttachment,
@@ -130,6 +131,58 @@ describe('serveaseApi', () => {
       serviceId: 'service-1',
       serviceAddress: '123 Test St',
       scheduledAt: '2026-05-20T02:00:00.000Z',
+    });
+  });
+
+  it('creates pricing quotes through the gateway', async () => {
+    let requestBody: unknown = null;
+    let authorization: string | null = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/pricing/quotes');
+      assert.equal(init?.method, 'POST');
+      authorization = new Headers(init?.headers).get('authorization');
+      requestBody = JSON.parse(String(init?.body));
+      return jsonResponse({
+        data: {
+          quoteId: 'quote-1',
+          expiresAt: '2026-06-01T08:45:00.000Z',
+          currency: 'PHP',
+          estimatedTotal: 1450,
+          fairRangeMin: 1200,
+          fairRangeMax: 1550,
+          fairnessStatus: 'within_range',
+          confidence: 'high',
+          lineItems: [{ code: 'labor', label: 'Labor', amount: 1200 }],
+          signals: {
+            distanceKm: null,
+            durationMinutes: null,
+            fuelPricePerLiter: 68,
+            fuelIndexUpdatedAt: null,
+            staleFuelIndex: false,
+            fallbackUsed: true,
+          },
+          explanation: 'Within typical rates.',
+        },
+      });
+    };
+
+    const quote = await createPricingQuote(
+      {
+        providerId: 'provider-1',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-06-01T09:00:00.000Z',
+      },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
+
+    assert.equal(authorization, 'Bearer access-token');
+    assert.equal(quote.estimatedTotal, 1450);
+    assert.deepEqual(requestBody, {
+      providerId: 'provider-1',
+      serviceId: 'service-1',
+      serviceAddress: '123 Test St',
+      scheduledAt: '2026-06-01T09:00:00.000Z',
     });
   });
 

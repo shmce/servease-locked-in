@@ -99,4 +99,56 @@ describe('AdminPaymentController', () => {
     });
     expect(adminPaymentGatewayService.updatePaymentStatus).not.toHaveBeenCalled();
   });
+
+  it('syncs payment status with APICenter and writes an audit log', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('admin-user-1'),
+    } as unknown as AuthTokenService;
+    const currentUserService = {
+      getCurrentUser: jest.fn().mockResolvedValue({
+        user: {
+          id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
+          role: 'admin',
+          status: 'active',
+        },
+      }),
+    } as unknown as CurrentUserService;
+    const adminPaymentGatewayService = {
+      syncPaymentWithApicenter: jest.fn().mockResolvedValue({
+        id: 'payment-1',
+        bookingId: 'booking-1',
+        status: 'paid',
+        apicenterCheckoutId: 'checkout-1',
+        apicenterCheckoutStatus: 'paid',
+      }),
+    } as unknown as AdminPaymentGatewayService;
+    const adminAuditGatewayService = {
+      createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+    } as unknown as AdminAuditGatewayService;
+    const controller = new AdminPaymentController(
+      adminPaymentGatewayService,
+      adminAuditGatewayService,
+      authTokenService,
+      currentUserService,
+    );
+
+    const response = await controller.syncPaymentWithApicenter(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      'payment-1',
+    );
+
+    expect(adminPaymentGatewayService.syncPaymentWithApicenter).toHaveBeenCalledWith(
+      'payment-1',
+    );
+    expect(adminAuditGatewayService.createAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'Synced payment with APICenter',
+        entityId: 'payment-1',
+      }),
+    );
+    expect(response.data.apicenterCheckoutStatus).toBe('paid');
+  });
 });

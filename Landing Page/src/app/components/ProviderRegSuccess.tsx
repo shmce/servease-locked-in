@@ -1,7 +1,20 @@
+"use client";
+
 import Link from "next/link";
-import { CheckCircle, Home, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertCircle, CheckCircle, Home, Clock } from "lucide-react";
 
 export function ProviderRegSuccess() {
+  const [documentUploadWarning, setDocumentUploadWarning] = useState("");
+
+  useEffect(() => {
+    const warning = sessionStorage.getItem("providerRegDocumentUploadWarning");
+    if (warning) {
+      setDocumentUploadWarning(warning);
+      sessionStorage.removeItem("providerRegDocumentUploadWarning");
+    }
+  }, []);
+
   return (
     <div className="bg-gray-50 min-h-screen py-12 px-6">
       <div className="max-w-2xl mx-auto">
@@ -19,6 +32,15 @@ export function ProviderRegSuccess() {
           <p className="font-['Poppins',sans-serif] text-base md:text-lg text-gray-600 leading-relaxed mb-8 max-w-xl mx-auto">
             Thank you for applying to join ServEase as a service worker. Your application has been submitted and is currently under review.
           </p>
+
+          {documentUploadWarning && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 text-left flex items-start gap-3">
+              <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={20} />
+              <p className="font-['Poppins',sans-serif] text-sm text-amber-800 leading-relaxed">
+                {documentUploadWarning}
+              </p>
+            </div>
+          )}
 
           {/* Account Details */}
           <div className="bg-[#00BF63]/5 border border-[#00BF63]/20 rounded-xl p-6 mb-8">
@@ -55,7 +77,7 @@ export function ProviderRegSuccess() {
                   <span className="text-white text-sm font-bold">1</span>
                 </div>
                 <p className="font-['Poppins',sans-serif] text-sm text-gray-700 leading-relaxed">
-                  <strong className="text-gray-900">Application Review:</strong> Our team will review your submitted documents and information.
+                  <strong className="text-gray-900">Application Review:</strong> Our team will review your profile details and identity information.
                 </p>
               </div>
               <div className="flex items-start gap-3">
@@ -71,7 +93,7 @@ export function ProviderRegSuccess() {
                   <span className="text-white text-sm font-bold">3</span>
                 </div>
                 <p className="font-['Poppins',sans-serif] text-sm text-gray-700 leading-relaxed">
-                  <strong className="text-gray-900\">Start Working:</strong> Once approved, you can start accepting bookings and offering your services.
+                  <strong className="text-gray-900">Start Working:</strong> Once approved, you can start accepting bookings and offering your services.
                 </p>
               </div>
             </div>

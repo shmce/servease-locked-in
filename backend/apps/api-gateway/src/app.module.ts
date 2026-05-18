@@ -10,6 +10,8 @@ import { AdminDisputeController } from './features/admin/admin-dispute.controlle
 import { AdminDisputeGatewayService } from './features/admin/admin-dispute.service';
 import { AdminPaymentController } from './features/admin/admin-payment.controller';
 import { AdminPaymentGatewayService } from './features/admin/admin-payment.service';
+import { AdminPricingController } from './features/admin/admin-pricing.controller';
+import { AdminPricingGatewayService } from './features/admin/admin-pricing.service';
 import { AdminProviderApplicationController } from './features/admin/admin-provider-application.controller';
 import { AdminProviderApplicationGatewayService } from './features/admin/admin-provider-application.service';
 import { AdminPromotionController } from './features/admin/admin-promotion.controller';
@@ -54,6 +56,10 @@ import { NotificationGatewayService } from './features/notifications/notificatio
 import { PaymentServiceClient } from './features/payments/clients/payment-service.client';
 import { PaymentController } from './features/payments/payment.controller';
 import { PaymentGatewayService } from './features/payments/payment.service';
+import { PricingServiceClient } from './features/pricing/clients/pricing-service.client';
+import { ProviderPricingController } from './features/pricing/provider-pricing.controller';
+import { PricingController } from './features/pricing/pricing.controller';
+import { PricingGatewayService } from './features/pricing/pricing.service';
 import { ProviderController } from './features/provider/provider.controller';
 import { ProviderGatewayService } from './features/provider/provider.service';
 import { ReviewServiceClient } from './features/reviews/clients/review-service.client';
@@ -83,6 +89,8 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     AvailabilityController,
     MessagingController,
     PaymentController,
+    PricingController,
+    ProviderPricingController,
     ProviderController,
     ReviewController,
     SupportController,
@@ -92,6 +100,7 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     AdminProvidersController,
     AdminUsersController,
     AdminPaymentController,
+    AdminPricingController,
     AdminRefundController,
     AdminPromotionController,
     AdminDisputeController,
@@ -115,6 +124,7 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     AdminCatalogGatewayService,
     AdminUsersGatewayService,
     AdminPaymentGatewayService,
+    AdminPricingGatewayService,
     AdminDisputeGatewayService,
     AdminAuditGatewayService,
     AdminBookingGatewayService,
@@ -133,6 +143,8 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     NotificationGatewayService,
     PaymentServiceClient,
     PaymentGatewayService,
+    PricingServiceClient,
+    PricingGatewayService,
     ProviderGatewayService,
     ReviewServiceClient,
     ReviewGatewayService,

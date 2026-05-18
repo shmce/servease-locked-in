@@ -124,6 +124,24 @@ Admin routes require an admin-role context. Provider routes require provider own
 
 External shared-service integrations, including APICenter probing through `@implementsprint/sdk`, must stay behind backend service boundaries. Document the gateway route, the owning internal service, required environment variables, timeout behavior, and failure envelope before wiring a new integration into a client surface.
 
+## Pricing Engine
+
+- Public route: `POST /v1/pricing/quotes`
+- Gateway handler: `gateway -> payment-service`
+- Internal route: `POST /internal/pricing/quotes`
+- Auth: customer
+- Response: `quoteId`, `estimatedTotal`, `fairRangeMin`, `fairRangeMax`, `fairnessStatus`, `confidence`, `lineItems`, `signals`, and `explanation`.
+- Booking handoff: `POST /v1/bookings` accepts `acceptedQuoteId`; the gateway validates the quote with Payment Service and uses the quote amount instead of trusting client-entered totals.
+- Provider guidance: `POST /v1/provider/pricing/guidance` lets a provider check a proposed service price against the same fair-range engine before saving.
+
+Admin pricing routes:
+
+- `GET /v1/admin/pricing/rules`
+- `PUT /v1/admin/pricing/rules`
+- `GET /v1/admin/pricing/fuel-index`
+- `POST /v1/admin/pricing/fuel-index`
+- `GET /v1/admin/pricing/quote-audits`
+
 ## Contract Template
 
 ````md

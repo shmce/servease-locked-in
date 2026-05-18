@@ -1,9 +1,11 @@
-import { Body, Controller, Get, HttpException, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpException, Param, Post, Put, Query } from '@nestjs/common';
 import { AdminProviderApplicationService } from './admin-provider-application.service';
 import {
   AdminProviderApplicationDocumentSummary,
+  AdminProviderApplicationReview,
   AdminProviderApplicationSummary,
   ProviderApplicationStatus,
+  UpdateProviderApplicationReviewInput,
 } from './admin-provider-application.types';
 
 const validStatuses = new Set(['pending', 'approved', 'rejected']);
@@ -75,6 +77,74 @@ export class AdminProviderApplicationController {
       throw this.error(
         'admin_dependency_unavailable',
         'Admin provider application document lookup failed.',
+        503,
+      );
+    }
+  }
+
+  @Get(':applicationId/review')
+  async getReview(
+    @Param('applicationId') applicationId: string,
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    try {
+      return {
+        data: await this.providerApplicationService.getProviderApplicationReview(
+          applicationId,
+        ),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin provider application review lookup failed.',
+        503,
+      );
+    }
+  }
+
+  @Put(':applicationId/review')
+  async updateReview(
+    @Param('applicationId') applicationId: string,
+    @Body() body: Omit<UpdateProviderApplicationReviewInput, 'applicationId'>,
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    try {
+      if (!body.adminUserId) {
+        throw new Error('invalid_provider_application_review_request');
+      }
+      return {
+        data: await this.providerApplicationService.updateProviderApplicationReview({
+          ...body,
+          applicationId,
+        }),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin provider application review update failed.',
+        503,
+      );
+    }
+  }
+
+  @Post(':applicationId/review/notes')
+  async addReviewNote(
+    @Param('applicationId') applicationId: string,
+    @Body() body: { adminUserId?: string; note?: string },
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    try {
+      if (!body.adminUserId || !body.note?.trim()) {
+        throw new Error('invalid_provider_application_review_request');
+      }
+      return {
+        data: await this.providerApplicationService.addProviderApplicationReviewNote({
+          applicationId,
+          adminUserId: body.adminUserId,
+          note: body.note,
+        }),
+      };
+    } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin provider application review note failed.',
         503,
       );
     }

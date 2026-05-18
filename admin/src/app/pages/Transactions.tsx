@@ -51,6 +51,7 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import {
   listAdminPayments,
+  syncAdminPaymentWithApicenter,
   updateAdminPaymentStatus,
   type AdminPaymentStatus,
   type AdminPaymentSummary,
@@ -126,6 +127,7 @@ export function Transactions() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
+  const [syncingPaymentId, setSyncingPaymentId] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<AdminPaymentSummary | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     payment: AdminPaymentSummary;
@@ -169,7 +171,8 @@ export function Transactions() {
         payment.id.toLowerCase().includes(normalizedSearch) ||
         payment.bookingId.toLowerCase().includes(normalizedSearch) ||
         payment.customerId?.toLowerCase().includes(normalizedSearch) ||
-        payment.providerId?.toLowerCase().includes(normalizedSearch);
+        payment.providerId?.toLowerCase().includes(normalizedSearch) ||
+        payment.apicenterCheckoutId?.toLowerCase().includes(normalizedSearch);
 
       const matchesMethod =
         paymentMethodFilter === "all" || payment.paymentMethod === paymentMethodFilter;
@@ -225,6 +228,27 @@ export function Transactions() {
     }
   };
 
+  const syncGatewayStatus = async (payment: AdminPaymentSummary) => {
+    if (!accessToken || !payment.apicenterCheckoutId) return;
+
+    setSyncingPaymentId(payment.id);
+    try {
+      const updated = await syncAdminPaymentWithApicenter(accessToken, payment.id);
+      setPayments((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      );
+      toast.success(`Payment ${updated.id} synced from APICenter.`);
+    } catch (syncError) {
+      toast.error(
+        syncError instanceof Error
+          ? syncError.message
+          : "Unable to sync APICenter status.",
+      );
+    } finally {
+      setSyncingPaymentId(null);
+    }
+  };
+
   const exportCsv = () => {
     const rows = filteredPayments.map((payment) => [
       payment.id,
@@ -236,6 +260,8 @@ export function Transactions() {
       payment.providerPayout,
       payment.status,
       payment.paymentMethod ?? "",
+      payment.apicenterCheckoutId ?? "",
+      payment.apicenterCheckoutStatus ?? "",
       payment.paidAt ?? "",
       payment.createdAt ?? "",
     ]);
@@ -250,6 +276,8 @@ export function Transactions() {
         "Provider Payout",
         "Status",
         "Payment Method",
+        "APICenter Checkout ID",
+        "APICenter Checkout Status",
         "Paid At",
         "Created At",
       ],
@@ -417,6 +445,7 @@ export function Transactions() {
                   <TableHead>Platform Fee</TableHead>
                   <TableHead>Provider Payout</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>APICenter</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Details</TableHead>
                   <TableHead>Update</TableHead>
@@ -425,13 +454,13 @@ export function Transactions() {
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={13} className="text-center py-8 text-gray-500">
                       Loading transactions...
                     </TableCell>
                   </TableRow>
                 ) : filteredPayments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={13} className="text-center py-8 text-gray-500">
                       No transactions found
                     </TableCell>
                   </TableRow>
@@ -470,6 +499,34 @@ export function Transactions() {
                         {formatPeso(payment.providerPayout)}
                       </TableCell>
                       <TableCell>{getStatusBadge(payment.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <div className="min-w-0">
+                            <p className="max-w-36 truncate font-mono text-xs text-gray-700">
+                              {payment.apicenterCheckoutId ?? "N/A"}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {payment.apicenterCheckoutStatus ?? "No checkout"}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void syncGatewayStatus(payment)}
+                            disabled={
+                              !payment.apicenterCheckoutId ||
+                              syncingPaymentId === payment.id
+                            }
+                            title="Sync APICenter checkout status"
+                          >
+                            <RefreshCw
+                              className={`w-3 h-3 ${
+                                syncingPaymentId === payment.id ? "animate-spin" : ""
+                              }`}
+                            />
+                          </Button>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-sm text-gray-600">
                         {formatDate(payment.paidAt ?? payment.createdAt)}
                       </TableCell>
@@ -531,6 +588,23 @@ export function Transactions() {
               <Detail label="Provider Payout" value={formatPeso(selectedPayment.providerPayout)} />
               <Detail label="Payment Method" value={selectedPayment.paymentMethod ?? "N/A"} />
               <Detail label="Status" value={selectedPayment.status} />
+              <Detail
+                label="APICenter Checkout ID"
+                value={selectedPayment.apicenterCheckoutId ?? "N/A"}
+                mono
+              />
+              <Detail
+                label="APICenter Status"
+                value={selectedPayment.apicenterCheckoutStatus ?? "N/A"}
+              />
+              <Detail
+                label="APICenter Provider"
+                value={selectedPayment.apicenterProvider ?? "N/A"}
+              />
+              <Detail
+                label="APICenter Mode"
+                value={selectedPayment.apicenterProviderMode ?? "N/A"}
+              />
               <Detail label="Paid At" value={formatDate(selectedPayment.paidAt)} />
               <Detail label="Created At" value={formatDate(selectedPayment.createdAt)} />
             </div>

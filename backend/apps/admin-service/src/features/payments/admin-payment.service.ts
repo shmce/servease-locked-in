@@ -49,6 +49,10 @@ export class AdminPaymentService {
     return this.paymentServiceClient.retryPayment(paymentId);
   }
 
+  syncPaymentWithApicenter(paymentId: string): Promise<PaymentSummary> {
+    return this.paymentServiceClient.syncPaymentWithApicenter(paymentId);
+  }
+
   listPromotions(status?: string | null): Promise<PromotionSummary[]> {
     return this.paymentServiceClient.listPromotions(status ?? null);
   }

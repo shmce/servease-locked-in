@@ -20,6 +20,9 @@ export interface CreateBookingInput {
   hoursRequired?: number | null;
   serviceAmount?: number | null;
   pricingMode?: PricingMode | null;
+  acceptedQuoteId?: string | null;
+  quoteFairnessStatus?: string | null;
+  quoteConfidence?: string | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
   attachments?: BookingAttachmentInput[];
@@ -177,6 +180,9 @@ export interface BookingSummary {
   hoursRequired: number | null;
   serviceAmount: number | null;
   pricingMode: PricingMode | null;
+  acceptedQuoteId?: string | null;
+  quoteFairnessStatus?: string | null;
+  quoteConfidence?: string | null;
   customerNotes: string | null;
   status: BookingStatus;
   totalAmount: number;

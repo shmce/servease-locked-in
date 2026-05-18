@@ -62,4 +62,62 @@ describe('UploadGatewayService', () => {
     ).rejects.toBeInstanceOf(InvalidUploadRequestError);
     expect(client.storage.getBucket).not.toHaveBeenCalled();
   });
+
+  it('records provider document uploads with the catalog service', async () => {
+    process.env.SUPABASE_STORAGE_BUCKET = 'test-uploads';
+    const storageObject = {
+      upload: jest.fn().mockResolvedValue({ error: null }),
+      getPublicUrl: jest.fn().mockReturnValue({
+        data: { publicUrl: 'https://storage.test/test-uploads/document.pdf' },
+      }),
+    };
+    const client = {
+      storage: {
+        getBucket: jest.fn().mockResolvedValue({ error: null }),
+        createBucket: jest.fn(),
+        from: jest.fn().mockReturnValue(storageObject),
+      },
+    };
+    const catalogClient = {
+      submitProviderApplicationDocument: jest.fn().mockResolvedValue({
+        id: 'document-1',
+        applicationId: 'provider-1',
+        userId: 'user-1',
+        documentType: 'government_id',
+        fileUrl: 'https://storage.test/test-uploads/document.pdf',
+        storagePath: 'provider_document/user-1/2026-05-19/document.pdf',
+        status: 'pending',
+        createdAt: null,
+        previewUrl: null,
+        downloadUrl: null,
+      }),
+    };
+    const service = new UploadGatewayService(client, catalogClient as never);
+
+    const upload = await service.uploadFile(
+      'user-1',
+      'provider_document',
+      {
+        originalname: 'id.pdf',
+        mimetype: 'application/pdf',
+        size: 12,
+        buffer: Buffer.from('pdf-bytes'),
+      },
+      { documentType: 'government_id' },
+    );
+
+    expect(storageObject.upload).toHaveBeenCalledWith(
+      expect.stringMatching(/^provider_document\/user-1\/\d{4}-\d{2}-\d{2}\/.+\.pdf$/),
+      Buffer.from('pdf-bytes'),
+      { contentType: 'application/pdf', upsert: false },
+    );
+    expect(catalogClient.submitProviderApplicationDocument).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({
+        documentType: 'government_id',
+        fileUrl: 'https://storage.test/test-uploads/document.pdf',
+      }),
+    );
+    expect(upload.document?.id).toBe('document-1');
+  });
 });

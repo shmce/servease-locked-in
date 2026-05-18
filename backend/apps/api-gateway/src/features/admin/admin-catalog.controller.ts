@@ -23,6 +23,7 @@ import {
 import {
   AdminDependencyUnavailableError,
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminCatalogGatewayService } from './admin-catalog.service';
@@ -33,7 +34,10 @@ import {
   UpsertServiceRequest,
 } from './admin-catalog.types';
 
-type AuditRequest = { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } };
+type AuditRequest = {
+  headers?: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string };
+};
 
 @Controller('v1/admin/catalog')
 export class AdminCatalogController {
@@ -65,7 +69,8 @@ export class AdminCatalogController {
     try {
       const admin = await this.requireAdmin(authorization);
       if (!body.name?.trim()) throw new InvalidAdminRequestError();
-      const category = await this.adminCatalogGatewayService.createCategory(body);
+      const category =
+        await this.adminCatalogGatewayService.createCategory(body);
       void this.audit(admin, request, {
         action: `Created category ${category.name}`,
         actionType: 'create',
@@ -89,7 +94,10 @@ export class AdminCatalogController {
   ): Promise<{ data: AdminCategoryItem }> {
     try {
       const admin = await this.requireAdmin(authorization);
-      const category = await this.adminCatalogGatewayService.updateCategory(id, body);
+      const category = await this.adminCatalogGatewayService.updateCategory(
+        id,
+        body,
+      );
       void this.audit(admin, request, {
         action: `Updated category ${category.name}`,
         actionType: 'update',
@@ -134,7 +142,11 @@ export class AdminCatalogController {
   ): Promise<{ data: AdminServiceItem[] }> {
     try {
       await this.requireAdmin(authorization);
-      return { data: await this.adminCatalogGatewayService.listServices(categoryId ?? null) };
+      return {
+        data: await this.adminCatalogGatewayService.listServices(
+          categoryId ?? null,
+        ),
+      };
     } catch (error) {
       throw this.toHttpException(error);
     }
@@ -173,7 +185,10 @@ export class AdminCatalogController {
   ): Promise<{ data: AdminServiceItem }> {
     try {
       const admin = await this.requireAdmin(authorization);
-      const service = await this.adminCatalogGatewayService.updateService(id, body);
+      const service = await this.adminCatalogGatewayService.updateService(
+        id,
+        body,
+      );
       void this.audit(admin, request, {
         action: `Updated service ${service.name}`,
         actionType: 'update',
@@ -211,7 +226,9 @@ export class AdminCatalogController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
     if (currentUser.user.role !== 'admin') throw new AdminRequiredError();
@@ -230,38 +247,64 @@ export class AdminCatalogController {
       metadata: Record<string, unknown>;
     },
   ): Promise<unknown> {
-    return this.adminAuditGatewayService.createAuditLog({
-      adminUserId: admin.user.id,
-      adminEmail: admin.user.email,
-      adminName: admin.user.fullName,
-      action: input.action,
-      actionType: input.actionType,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      details: input.details,
-      ipAddress: this.getClientIp(request),
-      metadata: input.metadata,
-    }).catch(() => undefined);
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: input.action,
+        actionType: input.actionType,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        details: input.details,
+        ipAddress: this.getClientIp(request),
+        metadata: input.metadata,
+      })
+      .catch(() => undefined);
   }
 
   private getClientIp(request: AuditRequest): string | null {
     const forwardedFor = request.headers?.['x-forwarded-for'];
     if (Array.isArray(forwardedFor)) return forwardedFor[0] ?? null;
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
     if (error instanceof AuthRequiredError)
       return this.error('auth_required', 'Authentication is required.', 401);
     if (error instanceof InvalidAuthTokenError)
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     if (error instanceof AdminRequiredError)
       return this.error('admin_required', 'An admin account is required.', 403);
     if (error instanceof InvalidAdminRequestError)
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
+    }
+
     if (error instanceof AdminDependencyUnavailableError)
-      return this.error('admin_dependency_unavailable', 'Admin service is unavailable.', 503);
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+      return this.error(
+        'admin_dependency_unavailable',
+        'Admin service is unavailable.',
+        503,
+      );
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

@@ -5,7 +5,9 @@ import { FormEvent, useState } from "react";
 import { CalendarClock, MapPin, Send } from "lucide-react";
 import {
   createBookingRequest,
+  createPricingQuoteRequest,
   type CreateBookingInput,
+  type PricingQuoteSummary,
 } from "../lib/bookings";
 import type { ProviderServiceListing } from "../lib/catalog";
 import { createSupabaseBrowserClient } from "../lib/supabase-browser";
@@ -42,6 +44,7 @@ export function BookingRequestForm({
   const [isError, setIsError] = useState(Boolean(setupError));
   const [requiresSignIn, setRequiresSignIn] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [quote, setQuote] = useState<PricingQuoteSummary | null>(null);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -67,17 +70,52 @@ export function BookingRequestForm({
     }
 
     const parsedHours = Number(hoursRequired);
+    const serviceId = listing.serviceId;
+    if (!serviceId) {
+      setFeedback("This service is missing pricing details.");
+      setIsError(true);
+      setIsSubmitting(false);
+      return;
+    }
+
+    let acceptedQuote: PricingQuoteSummary | null = null;
+    try {
+      acceptedQuote = await createPricingQuoteRequest(
+        sessionData.session.access_token,
+        {
+          providerId: listing.providerId,
+          serviceId,
+          serviceAddress,
+          scheduledAt: new Date(scheduledAt).toISOString(),
+          hoursRequired: Number.isFinite(parsedHours) ? parsedHours : null,
+          bookingUrgency: "standard",
+          region: "default",
+        },
+      );
+      setQuote(acceptedQuote);
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Could not calculate a fair estimate.",
+      );
+      setIsError(true);
+      setIsSubmitting(false);
+      return;
+    }
+
     const body: CreateBookingInput = {
       providerId: listing.providerId,
-      serviceId: listing.serviceId,
+      serviceId,
       serviceTitle: listing.title,
       serviceName: listing.title,
       serviceDescription: listing.description,
       serviceAddress,
       scheduledAt: new Date(scheduledAt).toISOString(),
       hoursRequired: Number.isFinite(parsedHours) ? parsedHours : null,
-      serviceAmount: listing.price,
+      serviceAmount: acceptedQuote.estimatedTotal,
       pricingMode: listing.pricingMode,
+      acceptedQuoteId: acceptedQuote.quoteId,
       paymentMethod,
       customerNotes: customerNotes || null,
     };
@@ -93,6 +131,7 @@ export function BookingRequestForm({
       setHoursRequired("1");
       setPaymentMethod("cash_on_service");
       setCustomerNotes("");
+      setQuote(null);
       setFeedback(
         `Booking request ${booking.bookingReference} was created and is pending.`,
       );
@@ -126,6 +165,16 @@ export function BookingRequestForm({
           />
         </div>
       </label>
+
+      {quote ? (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 font-['Poppins',sans-serif] text-sm text-emerald-900">
+          <div className="font-semibold">Fair estimate: ₱{quote.estimatedTotal.toLocaleString()}</div>
+          <div>
+            Fair range: ₱{quote.fairRangeMin.toLocaleString()} - ₱{quote.fairRangeMax.toLocaleString()}
+          </div>
+          <div>{quote.explanation}</div>
+        </div>
+      ) : null}
 
       <label className="block">
         <span className="font-['Poppins',sans-serif] text-sm text-gray-700 block mb-1">

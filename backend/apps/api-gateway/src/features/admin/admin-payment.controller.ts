@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Headers, HttpException, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpException,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { AdminAuditGatewayService } from './admin-audit.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
@@ -10,12 +21,18 @@ import {
 import {
   AdminDependencyUnavailableError,
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminPaymentGatewayService } from './admin-payment.service';
 import { PaymentSummary, PayoutSummary } from './admin-payment.types';
 
-const validPaymentStatuses = new Set(['pending', 'paid', 'cancelled', 'refunded']);
+const validPaymentStatuses = new Set([
+  'pending',
+  'paid',
+  'cancelled',
+  'refunded',
+]);
 const validPayoutStatuses = new Set([
   'requested',
   'processing',
@@ -43,7 +60,9 @@ export class AdminPaymentController {
         throw new InvalidAdminRequestError();
       }
       return {
-        data: await this.adminPaymentGatewayService.listPayments(status ?? null),
+        data: await this.adminPaymentGatewayService.listPayments(
+          status ?? null,
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -80,7 +99,9 @@ export class AdminPaymentController {
       await this.requireAdmin(authorization);
       const all = await this.adminPaymentGatewayService.listPayments(null);
       return {
-        data: all.filter((p) => p.status === 'cancelled' || p.status === 'refunded'),
+        data: all.filter(
+          (p) => p.status === 'cancelled' || p.status === 'refunded',
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -90,7 +111,11 @@ export class AdminPaymentController {
   @Post('settlements/:settlementId/approve')
   async approveSettlement(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('settlementId') settlementId: string,
   ): Promise<{ data: PayoutSummary }> {
     try {
@@ -105,7 +130,11 @@ export class AdminPaymentController {
         entityType: 'Settlement',
         entityId: payout.id,
         details: `Settlement ${payout.reference ?? payout.id} for provider ${payout.providerId} approved for processing.`,
-        metadata: { payoutId: payout.id, providerId: payout.providerId, status: payout.status },
+        metadata: {
+          payoutId: payout.id,
+          providerId: payout.providerId,
+          status: payout.status,
+        },
       });
       return { data: payout };
     } catch (error) {
@@ -116,7 +145,11 @@ export class AdminPaymentController {
   @Patch('payouts/:payoutId/status')
   async updatePayoutStatus(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('payoutId') payoutId: string,
     @Body() body: { status?: string },
   ): Promise<{ data: PayoutSummary }> {
@@ -135,7 +168,11 @@ export class AdminPaymentController {
         entityType: 'Payout',
         entityId: payout.id,
         details: `Payout ${payout.id} for provider ${payout.providerId} is now ${payout.status}.`,
-        metadata: { payoutId: payout.id, providerId: payout.providerId, status: payout.status },
+        metadata: {
+          payoutId: payout.id,
+          providerId: payout.providerId,
+          status: payout.status,
+        },
       });
       return {
         data: payout,
@@ -165,7 +202,11 @@ export class AdminPaymentController {
   @Patch(':paymentId/status')
   async updatePaymentStatus(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('paymentId') paymentId: string,
     @Body() body: { status?: string },
   ): Promise<{ data: PaymentSummary }> {
@@ -184,7 +225,11 @@ export class AdminPaymentController {
         entityType: 'Payment',
         entityId: payment.id,
         details: `Payment ${payment.id} for booking ${payment.bookingId} is now ${payment.status}.`,
-        metadata: { paymentId: payment.id, bookingId: payment.bookingId, status: payment.status },
+        metadata: {
+          paymentId: payment.id,
+          bookingId: payment.bookingId,
+          status: payment.status,
+        },
       });
       return {
         data: payment,
@@ -197,7 +242,11 @@ export class AdminPaymentController {
   @Post(':paymentId/failure')
   async recordFailure(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('paymentId') paymentId: string,
     @Body()
     body: {
@@ -211,12 +260,13 @@ export class AdminPaymentController {
       if (!body.failureReason || !body.failureReason.trim()) {
         throw new InvalidAdminRequestError();
       }
-      const payment = await this.adminPaymentGatewayService.recordPaymentFailure(
-        paymentId,
-        body.failureReason,
-        body.failureCode ?? null,
-        body.disputeId ?? null,
-      );
+      const payment =
+        await this.adminPaymentGatewayService.recordPaymentFailure(
+          paymentId,
+          body.failureReason,
+          body.failureCode ?? null,
+          body.disputeId ?? null,
+        );
       void this.recordAudit(admin, request, {
         action: 'Recorded payment failure metadata',
         actionType: 'update',
@@ -239,12 +289,17 @@ export class AdminPaymentController {
   @Post(':paymentId/retry')
   async retryPayment(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('paymentId') paymentId: string,
   ): Promise<{ data: PaymentSummary }> {
     try {
       const admin = await this.requireAdmin(authorization);
-      const payment = await this.adminPaymentGatewayService.retryPayment(paymentId);
+      const payment =
+        await this.adminPaymentGatewayService.retryPayment(paymentId);
       void this.recordAudit(admin, request, {
         action: 'Re-queued failed payment for retry',
         actionType: 'update',
@@ -263,7 +318,45 @@ export class AdminPaymentController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
+  @Post(':paymentId/apicenter-sync')
+  async syncPaymentWithApicenter(
+    @Headers('authorization') authorization: string | undefined,
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
+    @Param('paymentId') paymentId: string,
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const payment =
+        await this.adminPaymentGatewayService.syncPaymentWithApicenter(
+          paymentId,
+        );
+      void this.recordAudit(admin, request, {
+        action: 'Synced payment with APICenter',
+        actionType: 'update',
+        entityType: 'Payment',
+        entityId: payment.id,
+        details: `Payment ${payment.id} synced from APICenter checkout ${payment.apicenterCheckoutId ?? 'unknown'}.`,
+        metadata: {
+          paymentId: payment.id,
+          bookingId: payment.bookingId,
+          status: payment.status,
+          apicenterCheckoutId: payment.apicenterCheckoutId,
+          apicenterCheckoutStatus: payment.apicenterCheckoutStatus,
+        },
+      });
+      return { data: payment };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
@@ -276,7 +369,10 @@ export class AdminPaymentController {
 
   private recordAudit(
     admin: CurrentUserProfile,
-    request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     input: {
       action: string;
       actionType: 'approve' | 'update';
@@ -286,18 +382,20 @@ export class AdminPaymentController {
       metadata: Record<string, unknown>;
     },
   ): Promise<unknown> {
-    return this.adminAuditGatewayService.createAuditLog({
-      adminUserId: admin.user.id,
-      adminEmail: admin.user.email,
-      adminName: admin.user.fullName,
-      action: input.action,
-      actionType: input.actionType,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      details: input.details,
-      ipAddress: this.getClientIp(request),
-      metadata: input.metadata,
-    }).catch(() => undefined);
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: input.action,
+        actionType: input.actionType,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        details: input.details,
+        ipAddress: this.getClientIp(request),
+        metadata: input.metadata,
+      })
+      .catch(() => undefined);
   }
 
   private getClientIp(request: {
@@ -309,7 +407,11 @@ export class AdminPaymentController {
       return forwardedFor[0] ?? null;
     }
 
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -318,7 +420,11 @@ export class AdminPaymentController {
     }
 
     if (error instanceof InvalidAuthTokenError) {
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     }
 
     if (error instanceof AdminRequiredError) {
@@ -326,7 +432,15 @@ export class AdminPaymentController {
     }
 
     if (error instanceof InvalidAdminRequestError) {
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
+    }
+
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
     }
 
     if (error instanceof AdminDependencyUnavailableError) {
@@ -337,7 +451,11 @@ export class AdminPaymentController {
       );
     }
 
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

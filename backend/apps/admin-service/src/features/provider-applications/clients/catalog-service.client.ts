@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   AdminProviderApplicationDocumentSummary,
+  AdminProviderApplicationReview,
   AdminProviderApplicationSummary,
   ListProviderApplicationsFilter,
+  UpdateProviderApplicationReviewInput,
 } from '../admin-provider-application.types';
 
 @Injectable()
@@ -49,6 +51,40 @@ export class CatalogServiceClient {
     );
   }
 
+  getProviderApplicationReview(
+    applicationId: string,
+  ): Promise<AdminProviderApplicationReview> {
+    return this.request<AdminProviderApplicationReview>(
+      `/internal/providers/applications/${applicationId}/review`,
+      'GET',
+    );
+  }
+
+  updateProviderApplicationReview(
+    input: UpdateProviderApplicationReviewInput,
+  ): Promise<AdminProviderApplicationReview> {
+    return this.request<AdminProviderApplicationReview>(
+      `/internal/providers/applications/${input.applicationId}/review`,
+      'PUT',
+      input,
+    );
+  }
+
+  addProviderApplicationReviewNote(input: {
+    applicationId: string;
+    adminUserId: string;
+    note: string;
+  }): Promise<AdminProviderApplicationReview> {
+    return this.request<AdminProviderApplicationReview>(
+      `/internal/providers/applications/${input.applicationId}/review/notes`,
+      'POST',
+      {
+        adminUserId: input.adminUserId,
+        note: input.note,
+      },
+    );
+  }
+
   decideProviderApplication(input: {
     applicationId: string;
     adminUserId: string;
@@ -68,7 +104,7 @@ export class CatalogServiceClient {
 
   private async request<T>(
     path: string,
-    method: 'GET' | 'POST',
+    method: 'GET' | 'POST' | 'PUT',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(

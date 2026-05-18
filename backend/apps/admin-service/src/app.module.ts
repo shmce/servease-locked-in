@@ -17,6 +17,8 @@ import { AdminDisputeService } from './features/disputes/admin-dispute.service';
 import { BookingServiceClient } from './features/disputes/clients/booking-service.client';
 import { AdminPaymentController } from './features/payments/admin-payment.controller';
 import { AdminPaymentService } from './features/payments/admin-payment.service';
+import { AdminPricingController } from './features/payments/admin-pricing.controller';
+import { AdminPricingService } from './features/payments/admin-pricing.service';
 import { AdminPromotionController } from './features/payments/admin-promotion.controller';
 import { PaymentServiceClient } from './features/payments/clients/payment-service.client';
 import { AdminProviderApplicationController } from './features/provider-applications/admin-provider-application.controller';
@@ -49,6 +51,7 @@ import { HealthController } from './features/health/health.controller';
     AdminUsersController,
     AdminSupportController,
     AdminPaymentController,
+    AdminPricingController,
     AdminPromotionController,
     AdminDisputeController,
     AdminAuditController,
@@ -69,6 +72,7 @@ import { HealthController } from './features/health/health.controller';
     AdminSupportService,
     SupportServiceClient,
     AdminPaymentService,
+    AdminPricingService,
     PaymentServiceClient,
     AdminDisputeService,
     BookingServiceClient,

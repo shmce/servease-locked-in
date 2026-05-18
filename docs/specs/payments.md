@@ -14,6 +14,7 @@ Bookings need a server-owned payment record so customers, providers, and future 
 ## Goals
 
 - Create or return a payment record for a booking visible to the authenticated caller.
+- Create and validate fair-price quote snapshots before booking creation.
 - List visible payments for customers and providers.
 - Keep payment persistence inside the Payment Service and `payment` schema.
 - Calculate platform fee and provider payout from the configured commission rate.
@@ -35,6 +36,29 @@ Bookings need a server-owned payment record so customers, providers, and future 
 - API Gateway authenticates and coordinates HTTP service calls only.
 
 ## Gateway Routes
+
+### `POST /v1/pricing/quotes`
+
+- Public route: `POST /v1/pricing/quotes`
+- Internal route: `POST /internal/pricing/quotes`
+- Auth: required
+
+Creates a server-owned quote snapshot for a provider/service/address/schedule. The quote returns `quoteId`, `estimatedTotal`, `fairRangeMin`, `fairRangeMax`, `fairnessStatus`, `confidence`, line items, fuel/travel signals, and an explanation.
+
+### Quote Validation
+
+- Internal route: `GET /internal/pricing/quotes/:quoteId/validation`
+- Caller: API Gateway booking workflow.
+
+Validates quote ownership, provider, service, amount, pricing mode, fairness status, confidence, and expiry before `POST /v1/bookings` persists an accepted quote.
+
+### Provider Pricing Guidance
+
+- Public route: `POST /v1/provider/pricing/guidance`
+- Internal route: `POST /internal/pricing/quotes`
+- Auth: provider required
+
+Returns the same fair range, confidence, and explanation for a proposed provider service price before the provider saves that rate.
 
 ### `GET /v1/payments`
 

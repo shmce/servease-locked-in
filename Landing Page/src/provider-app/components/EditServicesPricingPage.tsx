@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
 import {
   getStoredProviderAccessToken,
+  getProviderPricingGuidance,
   listProviderOwnedServices,
   replaceProviderOwnedServices,
   type ProviderOwnedServiceInput,
@@ -172,6 +173,9 @@ export function EditServicesPricingPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [pricingGuidance, setPricingGuidance] = useState<
+    Record<string, { total: number; min: number; max: number; status: string; confidence: string }>
+  >({});
 
   useEffect(() => {
     const token = getStoredProviderAccessToken();
@@ -218,6 +222,40 @@ export function EditServicesPricingPage() {
     setServices(
       services.map((s) => (s.id === id ? { ...s, [field]: value } : s))
     );
+  };
+
+  const checkPricingGuidance = async (service: Service) => {
+    const token = getStoredProviderAccessToken();
+    const proposedPrice = parseFloat(service.basePrice);
+
+    if (!token || !service.id || !Number.isFinite(proposedPrice) || proposedPrice <= 0) {
+      setSaveError("Enter a base price before checking fair pricing.");
+      return;
+    }
+
+    try {
+      const guidance = await getProviderPricingGuidance(token, {
+        serviceId: service.id,
+        serviceTitle: service.name || "Provider service",
+        categoryName: service.category || "Provider service",
+        proposedPrice,
+        pricingMode: service.priceUnit === "per hour" ? "hourly" : "flat",
+        estimatedHours: parseFloat(service.duration) || 1,
+      });
+      setPricingGuidance((current) => ({
+        ...current,
+        [service.id]: {
+          total: guidance.estimatedTotal,
+          min: guidance.fairRangeMin,
+          max: guidance.fairRangeMax,
+          status: guidance.fairnessStatus,
+          confidence: guidance.confidence,
+        },
+      }));
+      setSaveError(null);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to check fair pricing.");
+    }
   };
 
   const persistServices = async () => {
@@ -466,6 +504,24 @@ export function EditServicesPricingPage() {
                           }}
                         />
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => void checkPricingGuidance(service)}
+                        style={{
+                          ...styles.button,
+                          ...styles.secondaryButton,
+                          width: "100%",
+                          marginTop: "8px",
+                          padding: "9px 12px",
+                        }}
+                      >
+                        Check Fair Range
+                      </button>
+                      {pricingGuidance[service.id] ? (
+                        <p style={{ fontSize: "12px", color: "#047857", marginTop: "6px" }}>
+                          ₱{pricingGuidance[service.id].min.toLocaleString()} - ₱{pricingGuidance[service.id].max.toLocaleString()} · {pricingGuidance[service.id].status.replace("_", " ")}
+                        </p>
+                      ) : null}
                     </div>
                     <div>
                       <label style={styles.label}>Price Unit</label>

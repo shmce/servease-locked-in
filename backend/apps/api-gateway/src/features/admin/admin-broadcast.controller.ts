@@ -17,6 +17,7 @@ import {
 } from '../current-user/current-user.errors';
 import {
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminUsersGatewayService } from './admin-users.service';
@@ -55,7 +56,11 @@ export class AdminBroadcastController {
     try {
       await this.requireAdmin(authorization);
       const parsedLimit = limit ? Number(limit) : 100;
-      if (!Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 500) {
+      if (
+        !Number.isInteger(parsedLimit) ||
+        parsedLimit < 1 ||
+        parsedLimit > 500
+      ) {
         throw new InvalidAdminRequestError();
       }
       return {
@@ -149,7 +154,9 @@ export class AdminBroadcastController {
     return currentUser;
   }
 
-  private isValidAudience(audience: string): audience is AdminBroadcastAudience {
+  private isValidAudience(
+    audience: string,
+  ): audience is AdminBroadcastAudience {
     return ['admins', 'all', 'customers', 'providers'].includes(audience);
   }
 
@@ -270,32 +277,38 @@ export class AdminBroadcastController {
       failedCount: number;
     },
   ): Promise<unknown> {
-    return this.adminAuditGatewayService.createAuditLog({
-      adminUserId: admin.user.id,
-      adminEmail: admin.user.email,
-      adminName: admin.user.fullName,
-      action: 'Sent admin broadcast',
-      actionType: 'create',
-      entityType: 'Broadcast',
-      entityId: null,
-      details: `${input.title} sent to ${input.audience}.`,
-      ipAddress: this.getClientIp(request),
-      metadata: {
-        audience: input.audience,
-        audienceCohort: input.audienceCohort,
-        channels: input.channels,
-        title: input.title,
-        status: input.status,
-        deliveredCount: input.deliveredCount,
-        failedCount: input.failedCount,
-      },
-    }).catch(() => undefined);
+    return this.adminAuditGatewayService
+      .createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: 'Sent admin broadcast',
+        actionType: 'create',
+        entityType: 'Broadcast',
+        entityId: null,
+        details: `${input.title} sent to ${input.audience}.`,
+        ipAddress: this.getClientIp(request),
+        metadata: {
+          audience: input.audience,
+          audienceCohort: input.audienceCohort,
+          channels: input.channels,
+          title: input.title,
+          status: input.status,
+          deliveredCount: input.deliveredCount,
+          failedCount: input.failedCount,
+        },
+      })
+      .catch(() => undefined);
   }
 
   private getClientIp(request: AuditRequest): string | null {
     const forwardedFor = request.headers?.['x-forwarded-for'];
     if (Array.isArray(forwardedFor)) return forwardedFor[0] ?? null;
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -303,15 +316,31 @@ export class AdminBroadcastController {
       return this.error('auth_required', 'Authentication is required.', 401);
     }
     if (error instanceof InvalidAuthTokenError) {
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     }
     if (error instanceof AdminRequiredError) {
       return this.error('admin_required', 'An admin account is required.', 403);
     }
     if (error instanceof InvalidAdminRequestError) {
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
     }
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
+    }
+
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

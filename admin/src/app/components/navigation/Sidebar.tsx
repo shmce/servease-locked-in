@@ -34,6 +34,7 @@ import {
   Wallet,
   ServerCog,
   Star,
+  Gauge,
 } from "lucide-react";
 import logo from "../../../assets/d516c8a7c0636434620c64585c9fd8b4bb2db014.png";
 
@@ -149,6 +150,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       title: "Platform Settings",
       items: [
         { to: "/commission-rules",       icon: Percent,    label: "Commission" },
+        { to: "/pricing-engine",         icon: Gauge,      label: "Pricing Engine" },
         { to: "/admin-roles",            icon: Shield,     label: "Admin Roles & Permissions" },
         { to: "/security-settings",      icon: Settings,   label: "Security Settings" },
         { to: "/notification-settings",  icon: Bell,       label: "Notification Settings" },

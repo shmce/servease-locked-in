@@ -13,6 +13,59 @@ export interface AdminProviderApplicationDocumentSummary {
   downloadUrl: string | null;
 }
 
+export interface ProviderApplicationChecklistItem {
+  id: string;
+  label: string;
+  subtitle?: string | null;
+  checked: boolean;
+}
+
+export interface ProviderApplicationVerificationRecord {
+  id: string;
+  label: string;
+  status: 'pending' | 'verified' | 'failed' | 'not_applicable';
+  reference: string | null;
+  checkedAt: string | null;
+  details: string | null;
+}
+
+export interface ProviderApplicationReviewNote {
+  id: string;
+  adminUserId: string;
+  adminName?: string | null;
+  note: string;
+  createdAt: string | null;
+}
+
+export interface ProviderApplicationReviewOcrData {
+  governmentIdType?: string | null;
+  governmentIdNumber?: string | null;
+  tinNumber?: string | null;
+  nbiNumber?: string | null;
+  prcNumber?: string | null;
+}
+
+export interface AdminProviderApplicationReview {
+  applicationId: string;
+  kycChecklist: ProviderApplicationChecklistItem[];
+  businessChecklist: ProviderApplicationChecklistItem[];
+  verificationRecords: ProviderApplicationVerificationRecord[];
+  ocrData: ProviderApplicationReviewOcrData;
+  notes: ProviderApplicationReviewNote[];
+  isComplete: boolean;
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
+export interface UpdateProviderApplicationReviewInput {
+  applicationId: string;
+  adminUserId: string;
+  kycChecklist: ProviderApplicationChecklistItem[];
+  businessChecklist: ProviderApplicationChecklistItem[];
+  verificationRecords: ProviderApplicationVerificationRecord[];
+  ocrData: ProviderApplicationReviewOcrData;
+}
+
 export interface AdminProviderApplicationSummary {
   id: string;
   applicationReference: string;

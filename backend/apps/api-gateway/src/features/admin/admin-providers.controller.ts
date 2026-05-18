@@ -22,6 +22,7 @@ import {
 import {
   AdminDependencyUnavailableError,
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminCatalogGatewayService } from './admin-catalog.service';
@@ -29,9 +30,18 @@ import { AdminProviderSummary } from './admin-catalog.types';
 import { CatalogServiceClient as CatalogBrowseServiceClient } from '../catalog/clients/catalog-service.client';
 import { ProviderPortfolioMediaSummary } from '../catalog/catalog.types';
 
-const validProviderStatuses = new Set(['active', 'suspended', 'verified', 'unverified', 'rejected']);
+const validProviderStatuses = new Set([
+  'active',
+  'suspended',
+  'verified',
+  'unverified',
+  'rejected',
+]);
 
-type AuditRequest = { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } };
+type AuditRequest = {
+  headers?: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string };
+};
 
 @Controller('v1/admin/providers')
 export class AdminProvidersController {
@@ -51,8 +61,14 @@ export class AdminProvidersController {
   ): Promise<{ data: AdminProviderSummary[] }> {
     try {
       await this.requireAdmin(authorization);
-      if (status && !validProviderStatuses.has(status)) throw new InvalidAdminRequestError();
-      return { data: await this.adminCatalogGatewayService.listProviders(status ?? null, query ?? null) };
+      if (status && !validProviderStatuses.has(status))
+        throw new InvalidAdminRequestError();
+      return {
+        data: await this.adminCatalogGatewayService.listProviders(
+          status ?? null,
+          query ?? null,
+        ),
+      };
     } catch (error) {
       throw this.toHttpException(error);
     }
@@ -65,7 +81,9 @@ export class AdminProvidersController {
   ): Promise<{ data: AdminProviderSummary }> {
     try {
       await this.requireAdmin(authorization);
-      return { data: await this.adminCatalogGatewayService.getProvider(providerId) };
+      return {
+        data: await this.adminCatalogGatewayService.getProvider(providerId),
+      };
     } catch (error) {
       throw this.toHttpException(error);
     }
@@ -80,24 +98,32 @@ export class AdminProvidersController {
   ): Promise<{ data: AdminProviderSummary }> {
     try {
       const admin = await this.requireAdmin(authorization);
-      if (!body.status || !validProviderStatuses.has(body.status)) throw new InvalidAdminRequestError();
-      const provider = await this.adminCatalogGatewayService.updateProviderStatus(
-        providerId,
-        body.status,
-        body.reason ?? null,
-      );
-      void this.adminAuditGatewayService.createAuditLog({
-        adminUserId: admin.user.id,
-        adminEmail: admin.user.email,
-        adminName: admin.user.fullName,
-        action: `Updated provider status to ${body.status}`,
-        actionType: 'update',
-        entityType: 'Provider',
-        entityId: provider.id,
-        details: `Provider ${provider.id} status updated to ${body.status}.`,
-        ipAddress: this.getClientIp(request),
-        metadata: { providerId: provider.id, status: body.status, reason: body.reason ?? null },
-      }).catch(() => undefined);
+      if (!body.status || !validProviderStatuses.has(body.status))
+        throw new InvalidAdminRequestError();
+      const provider =
+        await this.adminCatalogGatewayService.updateProviderStatus(
+          providerId,
+          body.status,
+          body.reason ?? null,
+        );
+      void this.adminAuditGatewayService
+        .createAuditLog({
+          adminUserId: admin.user.id,
+          adminEmail: admin.user.email,
+          adminName: admin.user.fullName,
+          action: `Updated provider status to ${body.status}`,
+          actionType: 'update',
+          entityType: 'Provider',
+          entityId: provider.id,
+          details: `Provider ${provider.id} status updated to ${body.status}.`,
+          ipAddress: this.getClientIp(request),
+          metadata: {
+            providerId: provider.id,
+            status: body.status,
+            reason: body.reason ?? null,
+          },
+        })
+        .catch(() => undefined);
       return { data: provider };
     } catch (error) {
       throw this.toHttpException(error);
@@ -112,7 +138,9 @@ export class AdminProvidersController {
     try {
       await this.requireAdmin(authorization);
       return {
-        data: await this.catalogBrowseServiceClient.listProviderPortfolio(providerId),
+        data: await this.catalogBrowseServiceClient.listProviderPortfolio(
+          providerId,
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -129,7 +157,8 @@ export class AdminProvidersController {
   ): Promise<void> {
     try {
       const admin = await this.requireAdmin(authorization);
-      const provider = await this.adminCatalogGatewayService.getProvider(providerId);
+      const provider =
+        await this.adminCatalogGatewayService.getProvider(providerId);
       await this.catalogBrowseServiceClient.deleteProviderPortfolioMedia(
         provider.userId,
         mediaId,
@@ -153,7 +182,9 @@ export class AdminProvidersController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
     if (currentUser.user.role !== 'admin') throw new AdminRequiredError();
@@ -163,21 +194,45 @@ export class AdminProvidersController {
   private getClientIp(request: AuditRequest): string | null {
     const forwardedFor = request.headers?.['x-forwarded-for'];
     if (Array.isArray(forwardedFor)) return forwardedFor[0] ?? null;
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
     if (error instanceof AuthRequiredError)
       return this.error('auth_required', 'Authentication is required.', 401);
     if (error instanceof InvalidAuthTokenError)
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     if (error instanceof AdminRequiredError)
       return this.error('admin_required', 'An admin account is required.', 403);
     if (error instanceof InvalidAdminRequestError)
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
+    }
+
     if (error instanceof AdminDependencyUnavailableError)
-      return this.error('admin_dependency_unavailable', 'Admin service is unavailable.', 503);
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+      return this.error(
+        'admin_dependency_unavailable',
+        'Admin service is unavailable.',
+        503,
+      );
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

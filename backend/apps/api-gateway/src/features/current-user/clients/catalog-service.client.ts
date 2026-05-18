@@ -12,6 +12,19 @@ import {
   RegisterAccountRequest,
 } from '../../registration/registration.types';
 
+interface ProviderApplicationDocumentSummary {
+  id: string;
+  applicationId: string;
+  userId: string;
+  documentType: string;
+  fileUrl: string | null;
+  storagePath: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string | null;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+}
+
 @Injectable()
 export class CatalogServiceClient {
   constructor(private readonly configService: ConfigService) {}
@@ -151,6 +164,40 @@ export class CatalogServiceClient {
 
     const payload = (await response.json()) as {
       data: ProviderProfileSummary;
+    };
+    return payload.data;
+  }
+
+  async submitProviderApplicationDocument(
+    userId: string,
+    input: {
+      documentType: string;
+      fileUrl?: string | null;
+      storagePath?: string | null;
+    },
+  ): Promise<ProviderApplicationDocumentSummary> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/providers/applications/documents`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          documentType: input.documentType,
+          fileUrl: input.fileUrl ?? null,
+          storagePath: input.storagePath ?? null,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: ProviderApplicationDocumentSummary;
     };
     return payload.data;
   }

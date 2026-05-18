@@ -19,9 +19,12 @@ import {
   ProviderPortfolioMediaSummary,
   ProviderOwnedServiceInput,
   ProviderOwnedServiceSummary,
+  AdminProviderApplicationReview,
   AdminProviderApplicationSummary,
   ProviderProfileSummary,
+  SubmitProviderApplicationDocumentInput,
   UpdateProviderProfileInput,
+  UpdateProviderApplicationReviewInput,
 } from './provider-profile.types';
 
 const UUID_PATTERN =
@@ -222,6 +225,110 @@ export class ProviderProfileController {
         throw error;
       }
       throw this.dependencyError('Provider application document lookup failed.');
+    }
+  }
+
+  @Post('applications/documents')
+  async submitApplicationDocument(
+    @Body() body: SubmitProviderApplicationDocumentInput,
+  ) {
+    if (
+      !UUID_PATTERN.test(body.userId) ||
+      !body.documentType?.trim() ||
+      (!body.fileUrl?.trim() && !body.storagePath?.trim())
+    ) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      return {
+        data: await this.providerProfileService.submitProviderApplicationDocument({
+          userId: body.userId,
+          documentType: body.documentType,
+          fileUrl: body.fileUrl ?? null,
+          storagePath: body.storagePath ?? null,
+        }),
+      };
+    } catch {
+      throw this.dependencyError('Provider application document submission failed.');
+    }
+  }
+
+  @Get('applications/:applicationId/review')
+  async getApplicationReview(
+    @Param('applicationId') applicationId: string,
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    if (!UUID_PATTERN.test(applicationId)) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      const data =
+        await this.providerProfileService.getProviderApplicationReview(
+          applicationId,
+        );
+      if (!data) {
+        throw this.notFound('Provider application review was not found.');
+      }
+      return { data };
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw this.dependencyError('Provider application review lookup failed.');
+    }
+  }
+
+  @Put('applications/:applicationId/review')
+  async updateApplicationReview(
+    @Param('applicationId') applicationId: string,
+    @Body()
+    body: Omit<UpdateProviderApplicationReviewInput, 'applicationId'>,
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    if (
+      !UUID_PATTERN.test(applicationId) ||
+      !body.adminUserId ||
+      !UUID_PATTERN.test(body.adminUserId)
+    ) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      return {
+        data: await this.providerProfileService.updateProviderApplicationReview({
+          ...body,
+          applicationId,
+        }),
+      };
+    } catch {
+      throw this.dependencyError('Provider application review update failed.');
+    }
+  }
+
+  @Post('applications/:applicationId/review/notes')
+  async addApplicationReviewNote(
+    @Param('applicationId') applicationId: string,
+    @Body() body: { adminUserId?: string; note?: string },
+  ): Promise<{ data: AdminProviderApplicationReview }> {
+    if (
+      !UUID_PATTERN.test(applicationId) ||
+      !body.adminUserId ||
+      !UUID_PATTERN.test(body.adminUserId) ||
+      !body.note?.trim()
+    ) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      return {
+        data: await this.providerProfileService.addProviderApplicationReviewNote({
+          applicationId,
+          adminUserId: body.adminUserId,
+          note: body.note,
+        }),
+      };
+    } catch {
+      throw this.dependencyError('Provider application review note failed.');
     }
   }
 

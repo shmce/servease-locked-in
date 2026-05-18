@@ -1,6 +1,7 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import { ArrowLeft, Check } from 'lucide-react-native';
 import {
+  Animated,
   KeyboardTypeOptions,
   Pressable,
   StyleSheet,
@@ -8,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useEntranceMotion, usePressScale } from './Motion';
 import { palette, radius, spacing, type } from '../theme/serveaseDesign';
 
 export function PhoneFrame({ children }: { children: ReactNode }) {
@@ -89,10 +91,17 @@ export function Card({
   onPress?: () => void;
   accessibilityLabel?: string;
 }) {
-  const content = <View style={[styles.card, selected && styles.selectedCard]}>{children}</View>;
+  const entranceStyle = useEntranceMotion();
+  const content = (
+    <Animated.View style={[styles.card, selected && styles.selectedCard, entranceStyle]}>
+      {children}
+    </Animated.View>
+  );
+
   if (!onPress) {
     return content;
   }
+
   return (
     <Pressable
       onPress={onPress}
@@ -115,26 +124,34 @@ export function PrimaryButton({
   disabled?: boolean;
   variant?: 'primary' | 'secondary' | 'danger';
 }) {
+  const press = usePressScale(disabled);
+
   return (
     <Pressable
-      style={[
-        styles.button,
-        variant === 'secondary' && styles.secondaryButton,
-        variant === 'danger' && styles.dangerButton,
-        disabled && styles.disabled,
-      ]}
       onPress={onPress}
+      onPressIn={press.onPressIn}
+      onPressOut={press.onPressOut}
       disabled={disabled}
       accessibilityRole="button"
     >
-      <Text
+      <Animated.View
         style={[
-          styles.buttonText,
-          variant === 'secondary' && styles.secondaryButtonText,
+          styles.button,
+          variant === 'secondary' && styles.secondaryButton,
+          variant === 'danger' && styles.dangerButton,
+          disabled && styles.disabled,
+          { transform: [{ scale: press.scale }] },
         ]}
       >
-        {label}
-      </Text>
+        <Text
+          style={[
+            styles.buttonText,
+            variant === 'secondary' && styles.secondaryButtonText,
+          ]}
+        >
+          {label}
+        </Text>
+      </Animated.View>
     </Pressable>
   );
 }
@@ -252,32 +269,86 @@ export function BottomNavigation<T extends string>({
         {tabs.map((tab) => {
           const isActive = tab.key === active;
           return (
-            <Pressable
+            <BottomNavigationItem
               key={tab.key}
-              style={styles.navItem}
+              icon={tab.icon}
+              isActive={isActive}
+              label={tab.label}
+              mark={tab.mark}
+              unreadCount={unreadCount}
               onPress={() => onChange(tab.key)}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isActive }}
-            >
-              <View style={[styles.navIcon, isActive && styles.navIconActive]}>
-                {tab.icon ?? (
-                  <Text style={[styles.navMark, isActive && styles.navMarkActive]}>
-                    {tab.mark ?? tab.label.slice(0, 1)}
-                  </Text>
-                )}
-                {tab.label === 'Messages' && unreadCount > 0 ? (
-                  <View style={styles.unreadDot} />
-                ) : null}
-              </View>
-              <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
-                {tab.label}
-              </Text>
-            </Pressable>
+            />
           );
         })}
       </View>
       <View style={styles.homeIndicator} />
     </View>
+  );
+}
+
+function BottomNavigationItem({
+  icon,
+  isActive,
+  label,
+  mark,
+  unreadCount,
+  onPress,
+}: {
+  icon?: ReactNode;
+  isActive: boolean;
+  label: string;
+  mark?: string;
+  unreadCount: number;
+  onPress: () => void;
+}) {
+  const activeScale = useRef(new Animated.Value(isActive ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(activeScale, {
+      toValue: isActive ? 1 : 0,
+      damping: 16,
+      mass: 0.7,
+      stiffness: 240,
+      useNativeDriver: true,
+    }).start();
+  }, [activeScale, isActive]);
+
+  return (
+    <Pressable
+      style={styles.navItem}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: isActive }}
+    >
+      <Animated.View
+        style={[
+          styles.navIcon,
+          isActive && styles.navIconActive,
+          {
+            transform: [
+              {
+                scale: activeScale.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 1.08],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        {icon ?? (
+          <Text style={[styles.navMark, isActive && styles.navMarkActive]}>
+            {mark ?? label.slice(0, 1)}
+          </Text>
+        )}
+        {label === 'Messages' && unreadCount > 0 ? (
+          <View style={styles.unreadDot} />
+        ) : null}
+      </Animated.View>
+      <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 

@@ -109,6 +109,7 @@ export async function POST(request: Request) {
         hoursRequired: body.hoursRequired ?? null,
         serviceAmount: body.serviceAmount ?? null,
         pricingMode: body.pricingMode ?? null,
+        acceptedQuoteId: body.acceptedQuoteId ?? null,
         paymentMethod: body.paymentMethod ?? null,
         customerNotes: body.customerNotes?.trim() || null,
       }),

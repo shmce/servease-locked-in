@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'crypto';
 import { createSupabaseServiceClient } from '../../../../../libs/common/src';
+import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import {
   InvalidUploadRequestError,
   UploadDependencyUnavailableError,
@@ -37,12 +38,14 @@ const allowedKinds: UploadKind[] = [
   'message_attachment',
   'provider_portfolio',
   'provider_progress',
+  'provider_document',
 ];
 
 const allowedMimeTypes = [
   'image/jpeg',
   'image/png',
   'image/webp',
+  'application/pdf',
   'video/mp4',
   'video/quicktime',
 ];
@@ -51,6 +54,7 @@ const mimeExtensions: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
   'image/webp': '.webp',
+  'application/pdf': '.pdf',
   'video/mp4': '.mp4',
   'video/quicktime': '.mov',
 };
@@ -62,7 +66,10 @@ export class UploadGatewayService {
   private readonly bucket: string;
   private bucketReady = false;
 
-  constructor(@Optional() private readonly supabaseClient?: SupabaseStorageClient) {
+  constructor(
+    @Optional() private readonly supabaseClient?: SupabaseStorageClient,
+    @Optional() private readonly catalogServiceClient?: CatalogServiceClient,
+  ) {
     this.bucket = process.env.SUPABASE_STORAGE_BUCKET ?? 'servease-uploads';
   }
 
@@ -70,8 +77,13 @@ export class UploadGatewayService {
     userId: string,
     kind: string | undefined,
     file: UploadedFile | undefined,
+    metadata: { documentType?: string | null } = {},
   ): Promise<UploadSummary> {
     if (!userId || !this.isUploadKind(kind) || !file?.buffer?.length) {
+      throw new InvalidUploadRequestError();
+    }
+
+    if (kind === 'provider_document' && !metadata.documentType?.trim()) {
       throw new InvalidUploadRequestError();
     }
 
@@ -101,7 +113,7 @@ export class UploadGatewayService {
 
     const { data } = client.storage.from(this.bucket).getPublicUrl(path);
 
-    return {
+    const upload: UploadSummary = {
       bucket: this.bucket,
       path,
       publicUrl: data.publicUrl,
@@ -109,6 +121,21 @@ export class UploadGatewayService {
       contentType: file.mimetype,
       size: file.size,
     };
+
+    if (kind === 'provider_document') {
+      if (!this.catalogServiceClient) {
+        throw new UploadDependencyUnavailableError();
+      }
+
+      upload.document =
+        await this.catalogServiceClient.submitProviderApplicationDocument(userId, {
+          documentType: metadata.documentType?.trim() ?? '',
+          fileUrl: data.publicUrl,
+          storagePath: path,
+        });
+    }
+
+    return upload;
   }
 
   private isUploadKind(kind: string | undefined): kind is UploadKind {

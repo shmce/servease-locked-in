@@ -253,6 +253,42 @@ export function pricingModeLabel(mode: BookingPricingMode | null | undefined): s
   return 'Standard rate';
 }
 
+export function pricingFairnessLabel(
+  status: 'below_range' | 'within_range' | 'above_range' | null | undefined,
+): string {
+  if (status === 'below_range') {
+    return 'Below fair range';
+  }
+
+  if (status === 'above_range') {
+    return 'Above fair range';
+  }
+
+  if (status === 'within_range') {
+    return 'Within fair range';
+  }
+
+  return 'Fairness pending';
+}
+
+export function pricingConfidenceLabel(
+  confidence: 'high' | 'medium' | 'low' | null | undefined,
+): string {
+  if (confidence === 'high') {
+    return 'High confidence';
+  }
+
+  if (confidence === 'medium') {
+    return 'Medium confidence';
+  }
+
+  if (confidence === 'low') {
+    return 'Low confidence';
+  }
+
+  return 'Confidence pending';
+}
+
 export function formatMoney(value: number | null): string {
   if (value === null || !Number.isFinite(value)) {
     return 'Price pending';

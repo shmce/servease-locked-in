@@ -28,6 +28,10 @@ export interface PaymentSummary {
   retryCount: number;
   lastRetryAt: string | null;
   disputeId: string | null;
+  apicenterCheckoutId: string | null;
+  apicenterCheckoutStatus: string | null;
+  apicenterProvider: string | null;
+  apicenterProviderMode: string | null;
 }
 
 export interface RecordPaymentFailureRequest {
@@ -135,4 +139,79 @@ export interface UpsertPromotionRequest {
   startsAt?: string | null;
   endsAt?: string | null;
   isActive?: boolean | null;
+}
+
+export type PricingMode = 'flat' | 'hourly';
+export type PricingFairnessStatus = 'below_range' | 'within_range' | 'above_range';
+export type PricingConfidence = 'high' | 'medium' | 'low';
+
+export interface PricingCategoryRuleSummary {
+  id: string;
+  categoryId: string | null;
+  categoryName: string;
+  pricingMode: PricingMode | 'any';
+  baselineMin: number;
+  baselineMax: number;
+  fairBandPercent: number;
+  travelFeeMin: number;
+  travelFeeMax: number;
+  travelMultiplier: number;
+  travelTimeFeePerMinute: number;
+  urgencyPriorityMultiplier: number;
+  urgencyEmergencyMultiplier: number;
+  outlierWarnPercent: number;
+  isActive: boolean;
+  updatedAt: string | null;
+}
+
+export interface UpsertPricingCategoryRuleRequest {
+  ruleId?: string | null;
+  categoryId?: string | null;
+  categoryName: string;
+  pricingMode?: PricingMode | 'any' | null;
+  baselineMin: number;
+  baselineMax: number;
+  fairBandPercent?: number | null;
+  travelFeeMin?: number | null;
+  travelFeeMax?: number | null;
+  travelMultiplier?: number | null;
+  travelTimeFeePerMinute?: number | null;
+  urgencyPriorityMultiplier?: number | null;
+  urgencyEmergencyMultiplier?: number | null;
+  outlierWarnPercent?: number | null;
+  isActive?: boolean | null;
+  adminUserId: string;
+}
+
+export interface PricingFuelIndexSummary {
+  id: string;
+  region: string;
+  fuelPricePerLiter: number;
+  source: string | null;
+  effectiveAt: string;
+  createdBy: string | null;
+  createdAt: string | null;
+}
+
+export interface CreatePricingFuelIndexRequest {
+  region: string;
+  fuelPricePerLiter: number;
+  source?: string | null;
+  effectiveAt?: string | null;
+  adminUserId: string;
+}
+
+export interface PricingQuoteAuditSummary {
+  quoteId: string;
+  customerId: string;
+  providerId: string;
+  serviceId: string;
+  categoryId: string | null;
+  estimatedTotal: number;
+  fairRangeMin: number;
+  fairRangeMax: number;
+  fairnessStatus: PricingFairnessStatus;
+  confidence: PricingConfidence;
+  expiresAt: string;
+  createdAt: string | null;
 }

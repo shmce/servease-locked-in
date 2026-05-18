@@ -17,6 +17,7 @@ import {
   RecordPayoutEventInput,
   UpsertPromotionInput,
 } from './payment.types';
+import { SharedPaymentService } from './shared-payment.service';
 import { SupabasePaymentRepository } from './supabase-payment.repository';
 
 const validStatuses = new Set(['pending', 'paid', 'cancelled', 'refunded']);
@@ -50,7 +51,10 @@ const validCommissionRuleStatuses = new Set(['active', 'pending', 'inactive']);
 
 @Injectable()
 export class PaymentAdminService {
-  constructor(private readonly paymentRepository: SupabasePaymentRepository) {}
+  constructor(
+    private readonly paymentRepository: SupabasePaymentRepository,
+    private readonly sharedPaymentService?: SharedPaymentService,
+  ) {}
 
   async getPayment(paymentId: string): Promise<PaymentSummary> {
     if (!paymentId) {
@@ -108,6 +112,23 @@ export class PaymentAdminService {
     }
 
     return this.paymentRepository.retryPayment(paymentId);
+  }
+
+  async syncPaymentWithApicenter(paymentId: string): Promise<PaymentSummary> {
+    const normalizedPaymentId = paymentId?.trim();
+    if (!normalizedPaymentId) {
+      throw new InvalidPaymentRequestError();
+    }
+
+    if (!this.sharedPaymentService) {
+      throw new Error('shared_payment_service_unavailable');
+    }
+
+    const checkoutId =
+      await this.paymentRepository.getLatestApicenterCheckoutId(normalizedPaymentId);
+    await this.sharedPaymentService.getCheckoutStatus(checkoutId);
+
+    return this.paymentRepository.adminGetPayment(normalizedPaymentId);
   }
 
   async listPromotions(status?: string | null): Promise<PromotionSummary[]> {

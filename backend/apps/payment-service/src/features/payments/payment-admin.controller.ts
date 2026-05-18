@@ -340,6 +340,19 @@ export class PaymentAdminController {
     }
   }
 
+  @Post(':paymentId/apicenter-sync')
+  async syncWithApicenter(
+    @Param('paymentId') paymentId: string,
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.paymentAdminService.syncPaymentWithApicenter(paymentId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get(':paymentId')
   async get(
     @Param('paymentId') paymentId: string,

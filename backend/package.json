@@ -38,6 +38,7 @@
     "smoke:availability": "node scripts/smoke-availability.mjs",
     "smoke:apicenter": "node scripts/smoke-apicenter.mjs",
     "audit:apicenter-live": "node scripts/audit-apicenter-live.mjs",
+    "verify:admin-apicenter-payment-sync": "node scripts/verify-admin-apicenter-payment-sync.mjs",
     "smoke:apicenter-webhook": "node scripts/smoke-apicenter-webhook.mjs",
     "smoke:booking": "node scripts/smoke-booking.mjs",
     "smoke:catalog": "node scripts/smoke-catalog.mjs",
@@ -62,7 +63,8 @@
     "otplib": "^12.0.1",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.1.21",

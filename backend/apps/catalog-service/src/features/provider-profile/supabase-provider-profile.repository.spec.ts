@@ -43,13 +43,6 @@ describe('SupabaseProviderProfileRepository provider application documents', () 
       data: documentRow,
       error: null,
     });
-    const documentFilter = {
-      eq: jest.fn().mockReturnThis(),
-      maybeSingle: documentSingle,
-    };
-    const documentTable = {
-      select: jest.fn().mockReturnValue(documentFilter),
-    };
     const storageObject = {
       createSignedUrl: jest
         .fn()
@@ -63,9 +56,11 @@ describe('SupabaseProviderProfileRepository provider application documents', () 
         }),
     };
     const client = {
-      rpc: jest.fn().mockReturnValue({ maybeSingle: applicationSingle }),
-      schema: jest.fn().mockReturnValue({
-        from: jest.fn().mockReturnValue(documentTable),
+      rpc: jest.fn((functionName: string) => {
+        if (functionName === 'servease_admin_get_provider_application') {
+          return { maybeSingle: applicationSingle };
+        }
+        return { maybeSingle: documentSingle };
       }),
       storage: {
         from: jest.fn().mockReturnValue(storageObject),
@@ -84,14 +79,12 @@ describe('SupabaseProviderProfileRepository provider application documents', () 
       'servease_admin_get_provider_application',
       { p_provider_id: applicationRow.id },
     );
-    expect(client.schema).toHaveBeenCalledWith('provider_catalog');
-    expect(documentTable.select).toHaveBeenCalledWith(
-      'id,user_id,document_type,file_url,storage_path,status,created_at',
-    );
-    expect(documentFilter.eq).toHaveBeenCalledWith('id', documentRow.id);
-    expect(documentFilter.eq).toHaveBeenCalledWith(
-      'user_id',
-      applicationRow.user_id,
+    expect(client.rpc).toHaveBeenCalledWith(
+      'servease_admin_get_provider_application_document',
+      {
+        p_provider_id: applicationRow.id,
+        p_document_id: documentRow.id,
+      },
     );
     expect(storageObject.createSignedUrl).toHaveBeenNthCalledWith(
       1,
@@ -115,6 +108,178 @@ describe('SupabaseProviderProfileRepository provider application documents', () 
       createdAt: documentRow.created_at,
       previewUrl: 'https://storage.test/preview',
       downloadUrl: 'https://storage.test/download',
+    });
+  });
+
+  it('loads application details with an empty document list through RPC', async () => {
+    const applicationSingle = jest.fn().mockResolvedValue({
+      data: applicationRow,
+      error: null,
+    });
+    const documentsList = jest.fn().mockResolvedValue({
+      data: [],
+      error: null,
+    });
+    const client = {
+      rpc: jest.fn((functionName: string) => {
+        if (functionName === 'servease_admin_get_provider_application') {
+          return { maybeSingle: applicationSingle };
+        }
+        return documentsList();
+      }),
+      storage: {
+        from: jest.fn(),
+      },
+    };
+    const repository = new SupabaseProviderProfileRepository(
+      client as unknown as never,
+    );
+
+    const application = await repository.getProviderApplication(
+      applicationRow.id,
+    );
+
+    expect(client.rpc).toHaveBeenCalledWith(
+      'servease_admin_list_provider_application_documents',
+      { p_provider_id: applicationRow.id },
+    );
+    expect(application?.documents).toEqual([]);
+  });
+
+  it('submits provider application documents through RPC', async () => {
+    const documentRow = {
+      id: '33333333-3333-4333-8333-333333333333',
+      user_id: applicationRow.user_id,
+      document_type: 'government_id',
+      file_url: 'https://storage.test/provider-document.pdf',
+      storage_path: 'provider_document/user-1/provider-document.pdf',
+      status: 'pending' as const,
+      created_at: '2026-05-19T01:00:00.000Z',
+    };
+    const submitSingle = jest.fn().mockResolvedValue({
+      data: documentRow,
+      error: null,
+    });
+    const client = {
+      rpc: jest.fn((functionName: string) => {
+        if (functionName === 'servease_admin_list_provider_applications') {
+          return Promise.resolve({
+            data: [applicationRow],
+            error: null,
+          });
+        }
+        return { maybeSingle: submitSingle };
+      }),
+      storage: {
+        from: jest.fn(),
+      },
+    };
+    const repository = new SupabaseProviderProfileRepository(
+      client as unknown as never,
+    );
+
+    const document = await repository.submitProviderApplicationDocument({
+      userId: applicationRow.user_id,
+      documentType: 'government_id',
+      fileUrl: documentRow.file_url,
+      storagePath: documentRow.storage_path,
+    });
+
+    expect(client.rpc).toHaveBeenCalledWith(
+      'servease_submit_provider_application_document',
+      {
+        p_user_id: applicationRow.user_id,
+        p_document_type: 'government_id',
+        p_file_url: documentRow.file_url,
+        p_storage_path: documentRow.storage_path,
+      },
+    );
+    expect(document).toEqual(
+      expect.objectContaining({
+        id: documentRow.id,
+        applicationId: applicationRow.id,
+        documentType: 'government_id',
+        status: 'pending',
+      }),
+    );
+  });
+
+  it('persists and maps provider application review state through RPC', async () => {
+    const reviewRow = {
+      application_id: applicationRow.id,
+      kyc_checklist: [
+        { id: 'identity', label: 'Identity matches documents', checked: true },
+      ],
+      business_checklist: [
+        { id: 'permit', label: 'Business Permit', checked: true },
+      ],
+      verification_records: [
+        {
+          id: 'nbi',
+          label: 'NBI Clearance',
+          status: 'verified' as const,
+          reference: 'NBI-123',
+          checkedAt: '2026-05-19T00:00:00.000Z',
+          details: null,
+        },
+      ],
+      ocr_data: { governmentIdNumber: 'PSN-123' },
+      notes: [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          adminUserId: '99999999-9999-4999-8999-999999999999',
+          note: 'Documents reviewed.',
+          createdAt: '2026-05-19T00:00:00.000Z',
+        },
+      ],
+      is_complete: true,
+      updated_by: '99999999-9999-4999-8999-999999999999',
+      updated_at: '2026-05-19T00:00:00.000Z',
+    };
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: reviewRow,
+      error: null,
+    });
+    const client = {
+      rpc: jest.fn().mockReturnValue({ maybeSingle }),
+      storage: {
+        from: jest.fn(),
+      },
+    };
+    const repository = new SupabaseProviderProfileRepository(
+      client as unknown as never,
+    );
+
+    const review = await repository.updateProviderApplicationReview({
+      applicationId: applicationRow.id,
+      adminUserId: '99999999-9999-4999-8999-999999999999',
+      kycChecklist: reviewRow.kyc_checklist,
+      businessChecklist: reviewRow.business_checklist,
+      verificationRecords: reviewRow.verification_records,
+      ocrData: reviewRow.ocr_data,
+    });
+
+    expect(client.rpc).toHaveBeenCalledWith(
+      'servease_admin_update_provider_application_review',
+      {
+        p_provider_id: applicationRow.id,
+        p_admin_user_id: '99999999-9999-4999-8999-999999999999',
+        p_kyc_checklist: reviewRow.kyc_checklist,
+        p_business_checklist: reviewRow.business_checklist,
+        p_verification_records: reviewRow.verification_records,
+        p_ocr_data: reviewRow.ocr_data,
+      },
+    );
+    expect(review).toEqual({
+      applicationId: applicationRow.id,
+      kycChecklist: reviewRow.kyc_checklist,
+      businessChecklist: reviewRow.business_checklist,
+      verificationRecords: reviewRow.verification_records,
+      ocrData: reviewRow.ocr_data,
+      notes: reviewRow.notes,
+      isComplete: true,
+      updatedBy: '99999999-9999-4999-8999-999999999999',
+      updatedAt: '2026-05-19T00:00:00.000Z',
     });
   });
 });

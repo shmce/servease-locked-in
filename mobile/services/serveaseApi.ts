@@ -683,7 +683,8 @@ export type UploadKind =
   | 'support_evidence'
   | 'message_attachment'
   | 'provider_portfolio'
-  | 'provider_progress';
+  | 'provider_progress'
+  | 'provider_document';
 
 export interface UploadSummary {
   bucket: string;
@@ -699,6 +700,7 @@ export interface UploadMediaRequest {
   uri: string;
   name?: string | null;
   contentType?: string | null;
+  documentType?: string | null;
 }
 
 export interface MediaAttachmentInput {
@@ -828,9 +830,58 @@ export interface CreateBookingRequest {
   hoursRequired?: number | null;
   serviceAmount?: number | null;
   pricingMode?: 'flat' | 'hourly' | null;
+  acceptedQuoteId?: string | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
   attachments?: BookingAttachmentInput[];
+}
+
+export type PricingUrgency = 'standard' | 'priority' | 'emergency';
+export type PricingFairnessStatus = 'below_range' | 'within_range' | 'above_range';
+export type PricingConfidence = 'high' | 'medium' | 'low';
+
+export interface PricingRouteLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export interface CreatePricingQuoteRequest {
+  providerId: string;
+  serviceId: string;
+  serviceAddress: string;
+  scheduledAt: string;
+  hoursRequired?: number | null;
+  bookingUrgency?: PricingUrgency | null;
+  region?: string | null;
+  origin?: PricingRouteLocation | null;
+  destination?: PricingRouteLocation | null;
+}
+
+export interface PricingQuoteLineItem {
+  code: 'labor' | 'travel_fuel' | 'urgency' | 'adjustment';
+  label: string;
+  amount: number;
+}
+
+export interface PricingQuoteSummary {
+  quoteId: string;
+  expiresAt: string;
+  currency: 'PHP';
+  estimatedTotal: number;
+  fairRangeMin: number;
+  fairRangeMax: number;
+  fairnessStatus: PricingFairnessStatus;
+  confidence: PricingConfidence;
+  lineItems: PricingQuoteLineItem[];
+  signals: {
+    distanceKm: number | null;
+    durationMinutes: number | null;
+    fuelPricePerLiter: number;
+    fuelIndexUpdatedAt: string | null;
+    staleFuelIndex: boolean;
+    fallbackUsed: boolean;
+  };
+  explanation: string;
 }
 
 export interface ApiOptions {
@@ -1145,6 +1196,18 @@ export function createBooking(
   options: ApiOptions = {},
 ): Promise<BookingSummary> {
   return request<BookingSummary>('/v1/bookings', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function createPricingQuote(
+  body: CreatePricingQuoteRequest,
+  options: ApiOptions = {},
+): Promise<PricingQuoteSummary> {
+  return request<PricingQuoteSummary>('/v1/pricing/quotes', {
     ...options,
     method: 'POST',
     body,
@@ -1916,6 +1979,9 @@ export async function uploadMedia(
 
   const formData = new FormData();
   formData.append('kind', body.kind);
+  if (body.documentType?.trim()) {
+    formData.append('documentType', body.documentType.trim());
+  }
   formData.append(
     'file',
     {

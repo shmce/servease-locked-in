@@ -1,4 +1,13 @@
-import { Controller, Get, Headers, HttpException, Param, Post, Query, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Headers,
+  HttpException,
+  Param,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { AdminAuditGatewayService } from './admin-audit.service';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CurrentUserService } from '../current-user/current-user.service';
@@ -10,6 +19,7 @@ import {
 import {
   AdminDependencyUnavailableError,
   AdminRequiredError,
+  AdminServiceRequestError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminDisputeGatewayService } from './admin-dispute.service';
@@ -37,7 +47,9 @@ export class AdminDisputeController {
         throw new InvalidAdminRequestError();
       }
       return {
-        data: await this.adminDisputeGatewayService.listDisputes(status ?? null),
+        data: await this.adminDisputeGatewayService.listDisputes(
+          status ?? null,
+        ),
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -62,28 +74,35 @@ export class AdminDisputeController {
   @Post(':disputeId/resolve')
   async resolve(
     @Headers('authorization') authorization: string | undefined,
-    @Req() request: { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } },
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
     @Param('disputeId') disputeId: string,
   ): Promise<{ data: AdminDisputeSummary }> {
     try {
       const admin = await this.requireAdmin(authorization);
-      const dispute = await this.adminDisputeGatewayService.resolveDispute(disputeId);
-      void this.adminAuditGatewayService.createAuditLog({
-        adminUserId: admin.user.id,
-        adminEmail: admin.user.email,
-        adminName: admin.user.fullName,
-        action: 'Resolved dispute',
-        actionType: 'resolve',
-        entityType: 'Dispute',
-        entityId: dispute.id,
-        details: `Resolved dispute ${dispute.id} for booking ${dispute.bookingId ?? 'unknown'}.`,
-        ipAddress: this.getClientIp(request),
-        metadata: {
-          disputeId: dispute.id,
-          bookingId: dispute.bookingId,
-          amount: dispute.amount,
-        },
-      }).catch(() => undefined);
+      const dispute =
+        await this.adminDisputeGatewayService.resolveDispute(disputeId);
+      void this.adminAuditGatewayService
+        .createAuditLog({
+          adminUserId: admin.user.id,
+          adminEmail: admin.user.email,
+          adminName: admin.user.fullName,
+          action: 'Resolved dispute',
+          actionType: 'resolve',
+          entityType: 'Dispute',
+          entityId: dispute.id,
+          details: `Resolved dispute ${dispute.id} for booking ${dispute.bookingId ?? 'unknown'}.`,
+          ipAddress: this.getClientIp(request),
+          metadata: {
+            disputeId: dispute.id,
+            bookingId: dispute.bookingId,
+            amount: dispute.amount,
+          },
+        })
+        .catch(() => undefined);
       return {
         data: dispute,
       };
@@ -92,7 +111,9 @@ export class AdminDisputeController {
     }
   }
 
-  private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
+  private async requireAdmin(
+    authorization: string | undefined,
+  ): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
@@ -112,7 +133,11 @@ export class AdminDisputeController {
       return forwardedFor[0] ?? null;
     }
 
-    return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+    return (
+      forwardedFor?.split(',')[0]?.trim() ||
+      request.socket?.remoteAddress ||
+      null
+    );
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -121,7 +146,11 @@ export class AdminDisputeController {
     }
 
     if (error instanceof InvalidAuthTokenError) {
-      return this.error('invalid_auth_token', 'Authentication token is invalid.', 401);
+      return this.error(
+        'invalid_auth_token',
+        'Authentication token is invalid.',
+        401,
+      );
     }
 
     if (error instanceof AdminRequiredError) {
@@ -129,7 +158,15 @@ export class AdminDisputeController {
     }
 
     if (error instanceof InvalidAdminRequestError) {
-      return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+      return this.error(
+        'invalid_admin_request',
+        'Admin request is invalid.',
+        400,
+      );
+    }
+
+    if (error instanceof AdminServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
     }
 
     if (error instanceof AdminDependencyUnavailableError) {
@@ -140,7 +177,11 @@ export class AdminDisputeController {
       );
     }
 
-    return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
+    return this.error(
+      'admin_dependency_unavailable',
+      'Admin request failed.',
+      503,
+    );
   }
 
   private error(code: string, message: string, status: number): HttpException {

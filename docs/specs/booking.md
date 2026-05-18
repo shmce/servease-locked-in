@@ -60,8 +60,11 @@ Optional body fields:
 - `hoursRequired`
 - `serviceAmount`
 - `pricingMode`
+- `acceptedQuoteId`
 - `paymentMethod`
 - `customerNotes`
+
+When `acceptedQuoteId` is present, the gateway validates the quote with Payment Service before forwarding booking creation. The quote amount becomes `serviceAmount` and `totalAmount`; client-provided amounts are not trusted.
 
 ### Transition Status
 
@@ -148,13 +151,14 @@ Allowed transitions:
 
 - Owning schema: `booking`.
 - Tables:
-  - `booking.bookings`
+- `booking.bookings`
   - `booking.booking_attachments`
   - `booking.booking_service_updates`
   - `booking.booking_timeline_events`
   - `booking.bookings_cancellations`
 - Gateway owns no booking database access.
 - Booking Service owns all booking-schema reads/writes through service-role-only RPCs.
+- Quote references are stored as opaque `accepted_quote_id` values. Booking Service does not read `payment` tables.
 
 ## Security And Authorization
 

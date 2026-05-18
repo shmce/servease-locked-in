@@ -32,12 +32,15 @@ export class UploadController {
   async create(
     @Headers('authorization') authorization: string | undefined,
     @Body('kind') kind: string | undefined,
+    @Body('documentType') documentType: string | undefined,
     @NestUploadedFile() file: UploadedFile | undefined,
   ): Promise<{ data: UploadSummary }> {
     try {
       const userId = await this.authTokenService.authenticate(authorization);
       return {
-        data: await this.uploadGatewayService.uploadFile(userId, kind, file),
+        data: await this.uploadGatewayService.uploadFile(userId, kind, file, {
+          documentType,
+        }),
       };
     } catch (error) {
       throw this.toHttpException(error);

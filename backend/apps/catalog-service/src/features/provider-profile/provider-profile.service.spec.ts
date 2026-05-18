@@ -26,6 +26,10 @@ describe('ProviderProfileService', () => {
       getProviderApplication: jest.fn(),
       getProviderApplicationByUserId: jest.fn(),
       getProviderApplicationDocument: jest.fn(),
+      submitProviderApplicationDocument: jest.fn(),
+      getProviderApplicationReview: jest.fn(),
+      updateProviderApplicationReview: jest.fn(),
+      addProviderApplicationReviewNote: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -63,6 +67,10 @@ describe('ProviderProfileService', () => {
       getProviderApplication: jest.fn(),
       getProviderApplicationByUserId: jest.fn(),
       getProviderApplicationDocument: jest.fn(),
+      submitProviderApplicationDocument: jest.fn(),
+      getProviderApplicationReview: jest.fn(),
+      updateProviderApplicationReview: jest.fn(),
+      addProviderApplicationReviewNote: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -104,6 +112,10 @@ describe('ProviderProfileService', () => {
       getProviderApplication: jest.fn(),
       getProviderApplicationByUserId: jest.fn(),
       getProviderApplicationDocument: jest.fn(),
+      submitProviderApplicationDocument: jest.fn(),
+      getProviderApplicationReview: jest.fn(),
+      updateProviderApplicationReview: jest.fn(),
+      addProviderApplicationReviewNote: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -145,6 +157,10 @@ describe('ProviderProfileService', () => {
       getProviderApplication: jest.fn(),
       getProviderApplicationByUserId: jest.fn(),
       getProviderApplicationDocument: jest.fn(),
+      submitProviderApplicationDocument: jest.fn(),
+      getProviderApplicationReview: jest.fn(),
+      updateProviderApplicationReview: jest.fn(),
+      addProviderApplicationReviewNote: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -184,6 +200,10 @@ describe('ProviderProfileService', () => {
       getProviderApplication: jest.fn(),
       getProviderApplicationByUserId: jest.fn(),
       getProviderApplicationDocument: jest.fn(),
+      submitProviderApplicationDocument: jest.fn(),
+      getProviderApplicationReview: jest.fn(),
+      updateProviderApplicationReview: jest.fn(),
+      addProviderApplicationReviewNote: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -235,6 +255,10 @@ describe('ProviderProfileService', () => {
         previewUrl: 'https://storage.test/preview',
         downloadUrl: 'https://storage.test/download',
       }),
+      submitProviderApplicationDocument: jest.fn(),
+      getProviderApplicationReview: jest.fn(),
+      updateProviderApplicationReview: jest.fn(),
+      addProviderApplicationReviewNote: jest.fn(),
       decideProviderApplication: jest.fn(),
     };
     const service = new ProviderProfileService(repository);
@@ -254,5 +278,55 @@ describe('ProviderProfileService', () => {
       '11111111-1111-4111-8111-111111111111',
       '33333333-3333-4333-8333-333333333333',
     );
+  });
+
+  it('submits provider application documents after validating metadata', async () => {
+    const repository: ProviderProfileRepository = {
+      findByUserId: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      listPortfolioMedia: jest.fn(),
+      addPortfolioMedia: jest.fn(),
+      replacePortfolioMedia: jest.fn(),
+      reorderPortfolioMedia: jest.fn(),
+      deletePortfolioMedia: jest.fn(),
+      listOwnedServices: jest.fn(),
+      replaceOwnedServices: jest.fn(),
+      listProviderApplications: jest.fn(),
+      getProviderApplication: jest.fn(),
+      getProviderApplicationByUserId: jest.fn(),
+      getProviderApplicationDocument: jest.fn(),
+      submitProviderApplicationDocument: jest.fn().mockResolvedValue({
+        id: '33333333-3333-4333-8333-333333333333',
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        userId: '22222222-2222-4222-8222-222222222222',
+        documentType: 'government_id',
+        fileUrl: 'https://storage.test/id.pdf',
+        storagePath: 'provider_document/user-1/id.pdf',
+        status: 'pending',
+        createdAt: null,
+        previewUrl: null,
+        downloadUrl: null,
+      }),
+      getProviderApplicationReview: jest.fn(),
+      updateProviderApplicationReview: jest.fn(),
+      addProviderApplicationReviewNote: jest.fn(),
+      decideProviderApplication: jest.fn(),
+    };
+    const service = new ProviderProfileService(repository);
+
+    await service.submitProviderApplicationDocument({
+      userId: '22222222-2222-4222-8222-222222222222',
+      documentType: ' government_id ',
+      fileUrl: ' https://storage.test/id.pdf ',
+      storagePath: ' provider_document/user-1/id.pdf ',
+    });
+
+    expect(repository.submitProviderApplicationDocument).toHaveBeenCalledWith({
+      userId: '22222222-2222-4222-8222-222222222222',
+      documentType: 'government_id',
+      fileUrl: 'https://storage.test/id.pdf',
+      storagePath: 'provider_document/user-1/id.pdf',
+    });
   });
 });

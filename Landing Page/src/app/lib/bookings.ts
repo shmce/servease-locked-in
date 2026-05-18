@@ -18,8 +18,36 @@ export interface CreateBookingInput {
   hoursRequired?: number | null;
   serviceAmount?: number | null;
   pricingMode?: BookingPricingMode | null;
+  acceptedQuoteId?: string | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
+}
+
+export type PricingUrgency = 'standard' | 'priority' | 'emergency';
+export type PricingFairnessStatus = 'below_range' | 'within_range' | 'above_range';
+export type PricingConfidence = 'high' | 'medium' | 'low';
+
+export interface CreatePricingQuoteInput {
+  providerId: string;
+  serviceId: string;
+  serviceAddress: string;
+  scheduledAt: string;
+  hoursRequired?: number | null;
+  bookingUrgency?: PricingUrgency | null;
+  region?: string | null;
+}
+
+export interface PricingQuoteSummary {
+  quoteId: string;
+  expiresAt: string;
+  currency: 'PHP';
+  estimatedTotal: number;
+  fairRangeMin: number;
+  fairRangeMax: number;
+  fairnessStatus: PricingFairnessStatus;
+  confidence: PricingConfidence;
+  lineItems: { code: string; label: string; amount: number }[];
+  explanation: string;
 }
 
 export interface BookingSummary {
@@ -160,6 +188,17 @@ export function createBookingRequest(
   input: CreateBookingInput,
 ): Promise<BookingSummary> {
   return fetchBookingApi<BookingSummary>('/api/bookings', {
+    accessToken,
+    method: 'POST',
+    body: input,
+  });
+}
+
+export function createPricingQuoteRequest(
+  accessToken: string,
+  input: CreatePricingQuoteInput,
+): Promise<PricingQuoteSummary> {
+  return fetchBookingApi<PricingQuoteSummary>('/api/pricing/quotes', {
     accessToken,
     method: 'POST',
     body: input,

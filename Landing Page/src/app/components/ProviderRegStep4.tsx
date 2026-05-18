@@ -7,7 +7,9 @@ import {
   clearProviderRegistrationDraft,
   readProviderRegistrationDraft,
   submitProviderRegistration,
+  uploadProviderRegistrationDocument,
 } from "../lib/provider-registration";
+import { createSupabaseBrowserClient } from "../lib/supabase-browser";
 
 const idTypes = [
   "UMID",
@@ -64,6 +66,32 @@ export function ProviderRegStep4() {
 
       const draft = readProviderRegistrationDraft();
       await submitProviderRegistration(draft);
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: sessionData, error: signInError } =
+          await supabase.auth.signInWithPassword({
+            email: draft.step1.email.trim(),
+            password: draft.step1.password,
+          });
+
+        if (signInError || !sessionData.session?.access_token) {
+          sessionStorage.setItem(
+            "providerRegDocumentUploadWarning",
+            "Your account was created, but we could not upload your ID document automatically. Please sign in and upload it from your provider account.",
+          );
+        } else if (formData.idFile) {
+          await uploadProviderRegistrationDocument(
+            sessionData.session.access_token,
+            formData.idFile,
+            "government_id",
+          );
+        }
+      } catch {
+        sessionStorage.setItem(
+          "providerRegDocumentUploadWarning",
+          "Your account was created, but your ID document upload failed. Please sign in and upload it from your provider account.",
+        );
+      }
       clearProviderRegistrationDraft();
       router.push("/provider-registration/success");
     } catch (error) {
@@ -247,7 +275,7 @@ export function ProviderRegStep4() {
             {/* Privacy Note */}
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <p className="font-['Poppins',sans-serif] text-xs text-gray-600 leading-relaxed">
-                <strong className="text-gray-900">Privacy & Security:</strong> This form validates your ID file before submission. Document upload storage is not connected yet, so only your profile registration details will be submitted for review.
+                <strong className="text-gray-900">Privacy & Security:</strong> Your ID is uploaded to ServEase storage after account creation and is visible only to authorized review staff.
               </p>
             </div>
 

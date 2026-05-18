@@ -53,6 +53,7 @@ interface SupabaseRpcClient {
       | PayoutEventRow[]
       | PayoutAccountRow[]
       | RefundRow[]
+      | ApicenterPaymentCheckoutRow[]
       | PromotionValidationRow[]
       | PromotionRow[]
       | ApicenterCheckoutSyncRow[]
@@ -69,6 +70,7 @@ interface SupabaseRpcClient {
         | PayoutEventRow
         | PayoutAccountRow
         | RefundRow
+        | ApicenterPaymentCheckoutRow
         | PromotionValidationRow
         | PromotionRow
         | ApicenterCheckoutSyncRow
@@ -167,6 +169,14 @@ interface PaymentRow {
   retry_count: number | string | null;
   last_retry_at: string | null;
   dispute_id: string | null;
+  apicenter_checkout_id?: string | null;
+  apicenter_checkout_status?: string | null;
+  apicenter_provider?: string | null;
+  apicenter_provider_mode?: string | null;
+}
+
+interface ApicenterPaymentCheckoutRow {
+  checkout_id: string | null;
 }
 
 interface RefundRow {
@@ -441,6 +451,28 @@ export class SupabasePaymentRepository {
     }
 
     return this.mapPayment(data as PaymentRow);
+  }
+
+  async getLatestApicenterCheckoutId(paymentId: string): Promise<string> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_get_apicenter_checkout_for_payment', {
+        p_payment_id: paymentId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      throw new Error(`Failed to get APICenter checkout: ${error.message}`);
+    }
+
+    const checkoutId = (data as ApicenterPaymentCheckoutRow | null)?.checkout_id;
+    if (!checkoutId) {
+      throw new PaymentNotFoundError();
+    }
+
+    return checkoutId;
   }
 
   async listPromotions(
@@ -885,6 +917,10 @@ export class SupabasePaymentRepository {
       retryCount: Number(row.retry_count ?? 0),
       lastRetryAt: row.last_retry_at,
       disputeId: row.dispute_id ?? null,
+      apicenterCheckoutId: row.apicenter_checkout_id ?? null,
+      apicenterCheckoutStatus: row.apicenter_checkout_status ?? null,
+      apicenterProvider: row.apicenter_provider ?? null,
+      apicenterProviderMode: row.apicenter_provider_mode ?? null,
     };
   }
 

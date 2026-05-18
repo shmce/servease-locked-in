@@ -134,54 +134,46 @@ Required production configuration:
 
 ### Google OAuth
 
-Status: ServEase native mobile path is configured for the APICenter-required
-system-browser flow; real-device verification is still required.
+Status: blocked for end-user sign-in until APICenter's Google OAuth app is
+policy-compliant.
 
 Evidence:
 
 - APICenter returns a Google authorization URL.
-- APICenter clarified that Google rejects the flow with
-  `Error 400: invalid_request` when the authorization URL is opened inside an
-  embedded WebView or in-app browser.
-- `mobile/App.tsx` calls `getGoogleAuthorizationUrl`, opens the returned
-  `authorizationUrl` with `Linking.openURL`, handles
-  `servease://auth/google/callback`, and then calls `exchangeGoogleCode`.
-- The only `WebView` usage in the mobile app is for the map renderer, not
-  Google OAuth.
+- Google displays: `Error 400: invalid_request`.
+- The Google error names the developer/app as `cicd-workflow-external`, which
+  points to APICenter's Google Cloud OAuth project rather than ServEase-owned
+  Google credentials.
 
 Local ServEase fix already applied:
 
 - `mobile/app.json` registers the `servease` URI scheme so mobile callbacks can
   return to the app.
-- `mobile/src/appSource.test.ts` guards that Google auth opens the returned URL
-  with `Linking.openURL` and does not use `WebView`.
 
 Ask APICenter:
 
 ```text
-ServEase is following the APICenter gauth native-app guidance:
-- We pass servease://auth/google/callback as redirectUri.
-- We open the returned authorizationUrl through React Native Linking.openURL.
-- We handle the servease:// callback in the app and call gAuthExchangeCode.
-- We do not render Google OAuth in a WebView.
+ServEase receives a Google OAuth policy error for the APICenter gauth flow.
+The Google error page names the app/developer as "cicd-workflow-external".
 
 Please confirm:
 1. Does the APICenter Google OAuth client allow
    servease://auth/google/callback?
-2. Is the OAuth client type correct for this native callback flow?
-3. Should Shoteam use a custom-scheme callback or an HTTPS callback that
-   deep-links back into the app?
-4. Are openid, email, and profile approved scopes for this APICenter client?
+2. Is the OAuth client type correct for mobile/native callback flows?
+3. Is the Google OAuth consent screen verified or production-ready?
+4. If APICenter requires HTTPS callbacks only, what exact HTTPS callback URL
+   should ServEase send?
+5. Are openid, email, and profile approved scopes for this APICenter client?
 ```
 
 Required production configuration:
 
+- Google OAuth app verified or otherwise compliant.
 - Redirect URI strategy agreed with APICenter:
   - native custom scheme: `servease://auth/google/callback`, or
   - HTTPS callback controlled by ServEase and then deep-linked to the app.
 - Approved scopes: `openid`, `email`, `profile`.
-- Real-device OAuth QA must launch from the installed native app or a dev build,
-  not from an embedded web preview or WebView shell.
+- Clear test-user policy if the OAuth app remains in testing mode.
 
 ### Payments
 
@@ -304,12 +296,8 @@ Provider checks:
 
 Auth/provider checks:
 
-- Try Google sign-in from the installed native app or dev build. Confirm it
-  opens the returned APICenter `authorizationUrl` in the system browser, not a
-  WebView or embedded preview.
-- Confirm the `servease://auth/google/callback` callback returns to the app and
-  triggers `gAuthExchangeCode`.
-- Capture the exact Google error if the system-browser flow still fails.
+- Try Google sign-in and capture the exact Google error if APICenter still
+  fails.
 - Try phone OTP only after APICenter confirms SMS is no longer `mock_sent`.
 - Confirm `servease://auth/google/callback` returns to the app on installed
   builds.

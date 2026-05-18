@@ -17,6 +17,10 @@ export interface PaymentSummary {
   retryCount: number;
   lastRetryAt: string | null;
   disputeId: string | null;
+  apicenterCheckoutId: string | null;
+  apicenterCheckoutStatus: string | null;
+  apicenterProvider: string | null;
+  apicenterProviderMode: string | null;
 }
 
 export interface RecordPaymentFailureInput {

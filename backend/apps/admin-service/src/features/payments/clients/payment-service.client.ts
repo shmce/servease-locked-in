@@ -2,13 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   PaymentSummary,
+  CreatePricingFuelIndexRequest,
   CommissionRuleSummary,
   PayoutEventSummary,
+  PricingCategoryRuleSummary,
+  PricingFuelIndexSummary,
+  PricingQuoteAuditSummary,
   PromotionSummary,
   PayoutSummary,
   RecordPayoutEventRequest,
   RefundSummary,
   UpsertPromotionRequest,
+  UpsertPricingCategoryRuleRequest,
   UpdateCommissionRuleRequest,
 } from '../admin-payment.types';
 
@@ -67,6 +72,13 @@ export class PaymentServiceClient {
   retryPayment(paymentId: string): Promise<PaymentSummary> {
     return this.request<PaymentSummary>(
       `/internal/admin/payments/${paymentId}/retry`,
+      'POST',
+    );
+  }
+
+  syncPaymentWithApicenter(paymentId: string): Promise<PaymentSummary> {
+    return this.request<PaymentSummary>(
+      `/internal/admin/payments/${paymentId}/apicenter-sync`,
       'POST',
     );
   }
@@ -209,9 +221,50 @@ export class PaymentServiceClient {
     );
   }
 
+  listPricingRules(): Promise<PricingCategoryRuleSummary[]> {
+    return this.request<PricingCategoryRuleSummary[]>(
+      '/internal/pricing/admin/rules',
+      'GET',
+    );
+  }
+
+  upsertPricingRule(
+    input: UpsertPricingCategoryRuleRequest,
+  ): Promise<PricingCategoryRuleSummary> {
+    return this.request<PricingCategoryRuleSummary>(
+      '/internal/pricing/admin/rules',
+      'PUT',
+      input,
+    );
+  }
+
+  listPricingFuelIndex(): Promise<PricingFuelIndexSummary[]> {
+    return this.request<PricingFuelIndexSummary[]>(
+      '/internal/pricing/admin/fuel-index',
+      'GET',
+    );
+  }
+
+  createPricingFuelIndex(
+    input: CreatePricingFuelIndexRequest,
+  ): Promise<PricingFuelIndexSummary> {
+    return this.request<PricingFuelIndexSummary>(
+      '/internal/pricing/admin/fuel-index',
+      'POST',
+      input,
+    );
+  }
+
+  listPricingQuoteAudits(): Promise<PricingQuoteAuditSummary[]> {
+    return this.request<PricingQuoteAuditSummary[]>(
+      '/internal/pricing/admin/quote-audits',
+      'GET',
+    );
+  }
+
   private async request<T>(
     path: string,
-    method: 'DELETE' | 'GET' | 'PATCH' | 'POST',
+    method: 'DELETE' | 'GET' | 'PATCH' | 'POST' | 'PUT',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(
