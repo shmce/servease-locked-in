@@ -30,7 +30,10 @@ jobs:
           cache: "npm"
           cache-dependency-path: backend/package-lock.json
 
-      - run: npm ci
+      - name: Install backend dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+        run: npm ci
 
       - name: Check migration drift
         env:

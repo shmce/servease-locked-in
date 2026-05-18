@@ -54,6 +54,19 @@ npm install
 
 Do not commit a real token into `.npmrc`, `.env`, shell history snippets, or documentation.
 
+## GitHub Actions
+
+Backend CI jobs install `@implementsprint/sdk` with the repository secret
+`GH_PACKAGES_TOKEN`. The token must have `read:packages` and access to the
+`ImplementSprint` organization/package. The default repository `GITHUB_TOKEN`
+is not enough when the package is owned outside this repository.
+
+Set the secret in GitHub:
+
+```sh
+gh secret set GH_PACKAGES_TOKEN --body "<token-with-read:packages>"
+```
+
 ## Troubleshooting
 
 `403 You need at least read:packages scope` means the GitHub token does not include `read:packages`.

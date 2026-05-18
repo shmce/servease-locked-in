@@ -38,6 +38,11 @@ jobs:
   quality-gates:
     name: Production quality gates
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+      SERVEASE_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,6 +50,8 @@ jobs:
           node-version: "20"
       - name: Install backend dependencies
         working-directory: backend
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
         run: npm ci
       - name: Install mobile dependencies
         working-directory: mobile
@@ -77,6 +84,8 @@ jobs:
           node-version: "20"
       - name: Install backend dependencies
         working-directory: backend
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
         run: npm ci
 
       - name: Backend production env

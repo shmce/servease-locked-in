@@ -10,7 +10,7 @@
     "smoke:demo-api": "tsx scripts/smoke-demo-api.ts",
     "env:prod": "node scripts/check-production-env.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test \"services/**/*.test.ts\" \"src/**/*.test.ts\"",
+    "test": "tsx --test services/**/*.test.ts src/**/*.test.ts",
     "lint": "expo lint"
   },
   "dependencies": {
