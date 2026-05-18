@@ -31,7 +31,7 @@ import {
   User,
   Wallet,
 } from 'lucide-react-native';
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { createElement, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -45,6 +45,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import Svg, {
   Circle as SvgCircle,
   Defs as SvgDefs,
@@ -7959,6 +7960,14 @@ type TrackingMapLocation = {
   longitude: number;
 };
 
+const OPENFREEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
+const MAPLIBRE_CDN_BASE = 'https://unpkg.com/maplibre-gl@5.24.0/dist';
+const trackingMapIframeStyle = {
+  border: 0,
+  height: '100%',
+  width: '100%',
+};
+
 function TrackingMapPreview({
   tracking,
   title,
@@ -7978,90 +7987,111 @@ function TrackingMapPreview({
 
   return (
     <View style={styles.trackingMapCard}>
-      <Svg viewBox="0 0 320 260" style={styles.trackingMapSvg}>
-        <SvgDefs>
-          <SvgLinearGradient id="mapBg" x1="0" y1="0" x2="1" y2="1">
-            <SvgStop offset="0" stopColor="#E4F4EA" />
-            <SvgStop offset="1" stopColor="#D7E9F8" />
-          </SvgLinearGradient>
-        </SvgDefs>
-        <SvgRect x="0" y="0" width="320" height="260" rx="22" fill="url(#mapBg)" />
-        {[44, 100, 156, 212].map((x) => (
-          <SvgLine
-            key={`v-${x}`}
-            x1={x}
-            y1="0"
-            x2={x + 28}
-            y2="260"
-            stroke="#FFFFFF"
-            strokeOpacity="0.48"
-            strokeWidth="3"
-          />
-        ))}
-        {[46, 104, 164, 222].map((y) => (
-          <SvgLine
-            key={`h-${y}`}
-            x1="0"
-            y1={y}
-            x2="320"
-            y2={y - 22}
-            stroke="#FFFFFF"
-            strokeOpacity="0.42"
-            strokeWidth="3"
-          />
-        ))}
-        {routePath ? (
-          <SvgPath
-            d={routePath}
-            fill="none"
-            stroke="#0B7A44"
-            strokeLinecap="round"
-            strokeWidth="8"
-          />
-        ) : null}
-        {routePath ? (
-          <SvgPath
-            d={routePath}
-            fill="none"
-            stroke="#FFFFFF"
-            strokeDasharray="10 12"
-            strokeLinecap="round"
-            strokeWidth="3"
-          />
-        ) : null}
-        {points.provider ? (
-          <SvgG>
-            <SvgCircle
-              cx={points.provider.x}
-              cy={points.provider.y}
-              r="15"
-              fill="#FFFFFF"
+      {destination ? (
+        <View style={styles.trackingMapWebViewFrame}>
+          {Platform.OS === 'web' ? (
+            createElement('iframe', {
+              srcDoc: buildTrackingMapHtml(provider, destination),
+              style: trackingMapIframeStyle,
+              title: 'Service tracking map',
+            })
+          ) : (
+            <WebView
+              originWhitelist={['*']}
+              javaScriptEnabled
+              domStorageEnabled
+              scrollEnabled={false}
+              source={{ html: buildTrackingMapHtml(provider, destination) }}
+              style={styles.trackingMapWebView}
             />
-            <SvgCircle
-              cx={points.provider.x}
-              cy={points.provider.y}
-              r="9"
-              fill="#2F6FED"
+          )}
+        </View>
+      ) : (
+        <Svg viewBox="0 0 320 260" style={styles.trackingMapSvg}>
+          <SvgDefs>
+            <SvgLinearGradient id="mapBg" x1="0" y1="0" x2="1" y2="1">
+              <SvgStop offset="0" stopColor="#E4F4EA" />
+              <SvgStop offset="1" stopColor="#D7E9F8" />
+            </SvgLinearGradient>
+          </SvgDefs>
+          <SvgRect x="0" y="0" width="320" height="260" rx="22" fill="url(#mapBg)" />
+          {[44, 100, 156, 212].map((x) => (
+            <SvgLine
+              key={`v-${x}`}
+              x1={x}
+              y1="0"
+              x2={x + 28}
+              y2="260"
+              stroke="#FFFFFF"
+              strokeOpacity="0.48"
+              strokeWidth="3"
             />
-          </SvgG>
-        ) : null}
-        {points.destination ? (
-          <SvgG>
-            <SvgCircle
-              cx={points.destination.x}
-              cy={points.destination.y}
-              r="18"
-              fill="#FFFFFF"
+          ))}
+          {[46, 104, 164, 222].map((y) => (
+            <SvgLine
+              key={`h-${y}`}
+              x1="0"
+              y1={y}
+              x2="320"
+              y2={y - 22}
+              stroke="#FFFFFF"
+              strokeOpacity="0.42"
+              strokeWidth="3"
             />
-            <SvgCircle
-              cx={points.destination.x}
-              cy={points.destination.y}
-              r="11"
-              fill="#00BF63"
+          ))}
+          {routePath ? (
+            <SvgPath
+              d={routePath}
+              fill="none"
+              stroke="#0B7A44"
+              strokeLinecap="round"
+              strokeWidth="8"
             />
-          </SvgG>
-        ) : null}
-      </Svg>
+          ) : null}
+          {routePath ? (
+            <SvgPath
+              d={routePath}
+              fill="none"
+              stroke="#FFFFFF"
+              strokeDasharray="10 12"
+              strokeLinecap="round"
+              strokeWidth="3"
+            />
+          ) : null}
+          {points.provider ? (
+            <SvgG>
+              <SvgCircle
+                cx={points.provider.x}
+                cy={points.provider.y}
+                r="15"
+                fill="#FFFFFF"
+              />
+              <SvgCircle
+                cx={points.provider.x}
+                cy={points.provider.y}
+                r="9"
+                fill="#2F6FED"
+              />
+            </SvgG>
+          ) : null}
+          {points.destination ? (
+            <SvgG>
+              <SvgCircle
+                cx={points.destination.x}
+                cy={points.destination.y}
+                r="18"
+                fill="#FFFFFF"
+              />
+              <SvgCircle
+                cx={points.destination.x}
+                cy={points.destination.y}
+                r="11"
+                fill="#00BF63"
+              />
+            </SvgG>
+          ) : null}
+        </Svg>
+      )}
       <View style={styles.trackingMapOverlay}>
         <View style={styles.providerSummaryRow}>
           <View style={styles.quickIcon}>
@@ -8087,6 +8117,117 @@ function TrackingMapPreview({
       </View>
     </View>
   );
+}
+
+function buildTrackingMapHtml(
+  provider: TrackingMapLocation | null,
+  destination: TrackingMapLocation,
+): string {
+  const providerCoordinate = provider
+    ? [provider.longitude, provider.latitude]
+    : null;
+  const destinationCoordinate = [destination.longitude, destination.latitude];
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <link rel="stylesheet" href="${MAPLIBRE_CDN_BASE}/maplibre-gl.css" />
+  <style>
+    html, body, #map { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+    body { background: #E5E7EB; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    #fallback {
+      align-items: center;
+      background: linear-gradient(135deg, #E8F8EF 0%, #E6F0FF 100%);
+      color: #6B7280;
+      display: flex;
+      font-size: 13px;
+      font-weight: 700;
+      inset: 0;
+      justify-content: center;
+      padding: 18px;
+      position: fixed;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="fallback">Loading map tiles...</div>
+  <script src="${MAPLIBRE_CDN_BASE}/maplibre-gl.js"></script>
+  <script>
+    const styleUrl = ${JSON.stringify(OPENFREEMAP_STYLE_URL)};
+    const provider = ${JSON.stringify(providerCoordinate)};
+    const destination = ${JSON.stringify(destinationCoordinate)};
+    const fallback = document.getElementById('fallback');
+    const marker = (kind) => {
+      const element = document.createElement('div');
+      element.style.width = kind === 'provider' ? '24px' : '28px';
+      element.style.height = kind === 'provider' ? '24px' : '28px';
+      element.style.borderRadius = '999px';
+      element.style.backgroundColor = kind === 'provider' ? '#2F6FED' : '#00BF63';
+      element.style.border = '5px solid #FFFFFF';
+      element.style.boxShadow = kind === 'provider'
+        ? '0 8px 18px rgba(47,111,237,0.28)'
+        : '0 8px 18px rgba(0,191,99,0.28)';
+      return element;
+    };
+
+    try {
+      const map = new maplibregl.Map({
+        attributionControl: false,
+        center: destination,
+        container: 'map',
+        interactive: false,
+        pitchWithRotate: false,
+        style: styleUrl,
+        zoom: provider ? 12 : 14
+      });
+      map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+      if (provider) {
+        new maplibregl.Marker({ element: marker('provider') }).setLngLat(provider).addTo(map);
+      }
+      new maplibregl.Marker({ element: marker('destination') }).setLngLat(destination).addTo(map);
+
+      map.on('load', () => {
+        fallback.style.display = 'none';
+        if (!provider) {
+          return;
+        }
+        map.addSource('tracking-route', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'LineString', coordinates: [provider, destination] }
+          }
+        });
+        map.addLayer({
+          id: 'tracking-route-casing',
+          type: 'line',
+          source: 'tracking-route',
+          paint: { 'line-color': '#FFFFFF', 'line-width': 8, 'line-opacity': 0.92 }
+        });
+        map.addLayer({
+          id: 'tracking-route-line',
+          type: 'line',
+          source: 'tracking-route',
+          paint: { 'line-color': '#0B7A44', 'line-width': 4, 'line-opacity': 0.95 }
+        });
+        const bounds = new maplibregl.LngLatBounds(provider, provider).extend(destination);
+        map.fitBounds(bounds, { duration: 0, maxZoom: 14, padding: 42 });
+      });
+      map.on('error', () => {
+        if (!map.loaded()) {
+          fallback.textContent = 'Map tiles are temporarily unavailable.';
+        }
+      });
+    } catch (error) {
+      fallback.textContent = 'Map tiles are temporarily unavailable.';
+    }
+  </script>
+</body>
+</html>`;
 }
 
 function derivePreviewProviderLocation(
@@ -9392,6 +9533,17 @@ const styles = StyleSheet.create({
   trackingMapSvg: {
     height: 260,
     width: '100%',
+  },
+  trackingMapWebViewFrame: {
+    backgroundColor: '#E5E7EB',
+    borderRadius: radius.lg,
+    height: 260,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  trackingMapWebView: {
+    backgroundColor: 'transparent',
+    flex: 1,
   },
   trackingMapOverlay: {
     gap: spacing.base,

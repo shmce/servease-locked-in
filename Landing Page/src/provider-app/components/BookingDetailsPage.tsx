@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router";
+import type { Map as MapLibreMap, Marker as MapLibreMarker } from "maplibre-gl";
 import {
   ArrowLeft,
   Phone,
@@ -388,51 +389,29 @@ const styles = {
     gap: "10px",
   },
   routePreviewCard: {
-    background: "linear-gradient(135deg, #E8F8EF 0%, #E6F0FF 100%)",
+    backgroundColor: "#F8FAFC",
     border: "1px solid #D1FAE5",
     borderRadius: "16px",
     marginTop: "18px",
     overflow: "hidden",
   },
   routePreviewMap: {
-    height: "180px",
+    backgroundColor: "#E5E7EB",
+    height: "220px",
     position: "relative" as const,
-    backgroundImage:
-      "linear-gradient(110deg, rgba(255,255,255,0.55) 1px, transparent 1px), linear-gradient(20deg, rgba(255,255,255,0.45) 1px, transparent 1px)",
-    backgroundSize: "58px 58px",
   },
-  routePreviewRoad: {
+  routePreviewFallback: {
     position: "absolute" as const,
-    left: "18%",
-    right: "18%",
-    top: "50%",
-    height: "10px",
-    borderRadius: "999px",
-    backgroundColor: "#0B7A44",
-    transform: "rotate(-18deg)",
-    boxShadow: "0 0 0 3px rgba(255,255,255,0.62)",
-  },
-  routePreviewProviderMarker: {
-    position: "absolute" as const,
-    left: "20%",
-    top: "34%",
-    width: "28px",
-    height: "28px",
-    borderRadius: "999px",
-    backgroundColor: "#2F6FED",
-    border: "6px solid white",
-    boxShadow: "0 8px 18px rgba(47,111,237,0.25)",
-  },
-  routePreviewDestinationMarker: {
-    position: "absolute" as const,
-    right: "22%",
-    bottom: "30%",
-    width: "32px",
-    height: "32px",
-    borderRadius: "999px",
-    backgroundColor: "#00BF63",
-    border: "6px solid white",
-    boxShadow: "0 8px 18px rgba(0,191,99,0.25)",
+    inset: 0,
+    alignItems: "center",
+    background: "linear-gradient(135deg, #E8F8EF 0%, #E6F0FF 100%)",
+    color: "#6B7280",
+    display: "flex",
+    fontSize: "13px",
+    fontWeight: "600",
+    justifyContent: "center",
+    padding: "18px",
+    textAlign: "center" as const,
   },
   routePreviewMeta: {
     backgroundColor: "rgba(255,255,255,0.86)",
@@ -441,6 +420,10 @@ const styles = {
     padding: "14px",
   },
 };
+
+const OPENFREEMAP_STYLE_URL =
+  process.env.NEXT_PUBLIC_MAP_STYLE_URL?.trim() ||
+  "https://tiles.openfreemap.org/styles/liberty";
 
 function toUiStatus(status: BookingStatus): string {
   switch (status) {
@@ -572,6 +555,30 @@ function buildDirectionsUrl(
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
+function isTrackingLocation(
+  location: BookingTrackingSnapshot["destinationLocation"] | undefined,
+): location is NonNullable<BookingTrackingSnapshot["destinationLocation"]> {
+  return (
+    Boolean(location) &&
+    Number.isFinite(location?.latitude) &&
+    Number.isFinite(location?.longitude)
+  );
+}
+
+function createRouteMarker(kind: "provider" | "destination"): HTMLElement {
+  const marker = document.createElement("div");
+  marker.style.width = kind === "provider" ? "24px" : "28px";
+  marker.style.height = kind === "provider" ? "24px" : "28px";
+  marker.style.borderRadius = "999px";
+  marker.style.backgroundColor = kind === "provider" ? "#2F6FED" : "#00BF63";
+  marker.style.border = "5px solid #FFFFFF";
+  marker.style.boxShadow =
+    kind === "provider"
+      ? "0 8px 18px rgba(47,111,237,0.28)"
+      : "0 8px 18px rgba(0,191,99,0.28)";
+  return marker;
+}
+
 function RoutePreview({
   tracking,
   address,
@@ -579,12 +586,138 @@ function RoutePreview({
   tracking: BookingTrackingSnapshot | null;
   address: string;
 }) {
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const [mapUnavailable, setMapUnavailable] = useState(false);
+  const destination = isTrackingLocation(tracking?.destinationLocation)
+    ? tracking.destinationLocation
+    : null;
+  const provider = isTrackingLocation(tracking?.providerLocation)
+    ? tracking.providerLocation
+    : null;
+
+  useEffect(() => {
+    if (!mapContainerRef.current || !destination) {
+      return;
+    }
+
+    let cancelled = false;
+    let map: MapLibreMap | null = null;
+    const markers: MapLibreMarker[] = [];
+
+    setMapUnavailable(false);
+
+    void import("maplibre-gl")
+      .then((maplibregl) => {
+        if (cancelled || !mapContainerRef.current) {
+          return;
+        }
+
+        map = new maplibregl.Map({
+          attributionControl: false,
+          center: [destination.longitude, destination.latitude],
+          container: mapContainerRef.current,
+          cooperativeGestures: true,
+          interactive: true,
+          pitchWithRotate: false,
+          scrollZoom: false,
+          style: OPENFREEMAP_STYLE_URL,
+          zoom: provider ? 12 : 14,
+        });
+        map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+
+        if (provider) {
+          markers.push(
+            new maplibregl.Marker({ element: createRouteMarker("provider") })
+              .setLngLat([provider.longitude, provider.latitude])
+              .addTo(map),
+          );
+        }
+
+        markers.push(
+          new maplibregl.Marker({ element: createRouteMarker("destination") })
+            .setLngLat([destination.longitude, destination.latitude])
+            .addTo(map),
+        );
+
+        map.on("load", () => {
+          if (!map || !provider) {
+            return;
+          }
+
+          map.addSource("tracking-route", {
+            type: "geojson",
+            data: {
+              type: "Feature",
+              properties: {},
+              geometry: {
+                type: "LineString",
+                coordinates: [
+                  [provider.longitude, provider.latitude],
+                  [destination.longitude, destination.latitude],
+                ],
+              },
+            },
+          });
+          map.addLayer({
+            id: "tracking-route-casing",
+            type: "line",
+            source: "tracking-route",
+            paint: {
+              "line-color": "#FFFFFF",
+              "line-width": 8,
+              "line-opacity": 0.92,
+            },
+          });
+          map.addLayer({
+            id: "tracking-route-line",
+            type: "line",
+            source: "tracking-route",
+            paint: {
+              "line-color": "#0B7A44",
+              "line-width": 4,
+              "line-opacity": 0.95,
+            },
+          });
+
+          const bounds = new maplibregl.LngLatBounds(
+            [provider.longitude, provider.latitude],
+            [provider.longitude, provider.latitude],
+          ).extend([destination.longitude, destination.latitude]);
+          map.fitBounds(bounds, { duration: 0, maxZoom: 14, padding: 46 });
+        });
+
+        map.on("error", () => {
+          if (!map?.loaded()) {
+            setMapUnavailable(true);
+          }
+        });
+      })
+      .catch(() => {
+        setMapUnavailable(true);
+      });
+
+    return () => {
+      cancelled = true;
+      markers.forEach((marker) => marker.remove());
+      map?.remove();
+    };
+  }, [
+    destination?.latitude,
+    destination?.longitude,
+    provider?.latitude,
+    provider?.longitude,
+  ]);
+
   return (
     <div style={styles.routePreviewCard}>
-      <div style={styles.routePreviewMap}>
-        <div style={styles.routePreviewRoad} />
-        <div style={styles.routePreviewProviderMarker} />
-        <div style={styles.routePreviewDestinationMarker} />
+      <div ref={mapContainerRef} style={styles.routePreviewMap}>
+        {(!destination || mapUnavailable) && (
+          <div style={styles.routePreviewFallback}>
+            {destination
+              ? "Map tiles are temporarily unavailable."
+              : "Service coordinates are not available yet."}
+          </div>
+        )}
       </div>
       <div style={styles.routePreviewMeta}>
         <div style={styles.detailLabel}>Route preview</div>

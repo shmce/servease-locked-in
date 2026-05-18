@@ -1,6 +1,7 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+@import 'maplibre-gl/dist/maplibre-gl.css';
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
