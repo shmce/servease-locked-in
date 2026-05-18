@@ -48,6 +48,7 @@ import {
   reverseGeocode,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
+  updateBookingLiveLocation,
   updateProviderPortfolioMedia,
   upsertCustomerPaymentMethod,
   updateUserPreferences,
@@ -268,6 +269,56 @@ describe('serveaseApi', () => {
     assert.equal(authorization, 'Bearer access-token');
     assert.equal(tracking.phase, 'on_the_way');
     assert.equal(tracking.etaMinutes, 18);
+  });
+
+  it('publishes booking live location with authentication', async () => {
+    let authorization: string | null = null;
+    let requestBody: unknown = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(
+        url,
+        'http://gateway.test/v1/bookings/booking-1/tracking/location',
+      );
+      assert.equal(init?.method, 'PATCH');
+      authorization = new Headers(init?.headers).get('authorization');
+      requestBody = JSON.parse(String(init?.body));
+      return jsonResponse({
+        data: {
+          latitude: 14.5995,
+          longitude: 120.9842,
+          accuracyMeters: 8,
+          headingDegrees: 90,
+          speedMps: 4,
+          updatedAt: '2026-05-16T00:00:05.000Z',
+        },
+      });
+    };
+
+    const location = await updateBookingLiveLocation(
+      'booking-1',
+      {
+        latitude: 14.5995,
+        longitude: 120.9842,
+        accuracyMeters: 8,
+        headingDegrees: 90,
+        speedMps: 4,
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.equal(authorization, 'Bearer access-token');
+    assert.deepEqual(requestBody, {
+      latitude: 14.5995,
+      longitude: 120.9842,
+      accuracyMeters: 8,
+      headingDegrees: 90,
+      speedMps: 4,
+    });
+    assert.equal(location.updatedAt, '2026-05-16T00:00:05.000Z');
   });
 
   it('returns useful gateway error messages', async () => {

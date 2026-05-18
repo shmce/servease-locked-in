@@ -6,6 +6,7 @@ import {
   BookingDependencyUnavailableError,
   BookingNotFoundError,
   DisputeForbiddenError,
+  InvalidBookingRequestError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
 } from '../booking.errors';
@@ -17,10 +18,12 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingLocation,
   BookingTrackingSnapshot,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
   RaiseBookingDisputeRequest,
+  UpdateBookingLiveLocationRequest,
 } from '../booking.types';
 
 @Injectable()
@@ -87,6 +90,21 @@ export class BookingServiceClient {
     return this.request<BookingTrackingSnapshot>(
       `/internal/bookings/${bookingId}/tracking?${searchParams.toString()}`,
       'GET',
+    );
+  }
+
+  async updateLiveLocation(
+    bookingId: string,
+    providerId: string,
+    input: UpdateBookingLiveLocationRequest,
+  ): Promise<BookingTrackingLocation> {
+    return this.request<BookingTrackingLocation>(
+      `/internal/bookings/${bookingId}/tracking/location`,
+      'PATCH',
+      {
+        providerId,
+        ...input,
+      },
     );
   }
 
@@ -220,6 +238,9 @@ export class BookingServiceClient {
       const code = await this.readErrorCode(response);
       if (code === 'invalid_booking_transition') {
         throw new InvalidBookingTransitionError();
+      }
+      if (code === 'invalid_booking_request') {
+        throw new InvalidBookingRequestError();
       }
       if (code === 'booking_not_found') {
         throw new BookingNotFoundError();

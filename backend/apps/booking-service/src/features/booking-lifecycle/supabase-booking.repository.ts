@@ -21,9 +21,11 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingLocation,
   CreateBookingServiceUpdateInput,
   CreateBookingInput,
   RaiseBookingDisputeInput,
+  UpdateBookingLiveLocationInput,
 } from './booking.types';
 
 interface SupabaseRpcClient {
@@ -31,11 +33,11 @@ interface SupabaseRpcClient {
     functionName: string,
     args: Record<string, unknown>,
   ): PromiseLike<{
-    data: BookingRow[] | null;
+    data: unknown[] | null;
     error: { message: string; code?: string } | null;
   }> & {
     maybeSingle(): PromiseLike<{
-      data: BookingRow | null;
+      data: unknown | null;
       error: { message: string; code?: string } | null;
     }>;
   };
@@ -116,6 +118,17 @@ interface BookingTimelineEventRow {
   created_at: string | null;
 }
 
+interface BookingLiveLocationRow {
+  booking_id: string;
+  provider_id: string;
+  latitude: string | number;
+  longitude: string | number;
+  accuracy_meters?: string | number | null;
+  heading_degrees?: string | number | null;
+  speed_mps?: string | number | null;
+  updated_at?: string | null;
+}
+
 @Injectable()
 export class SupabaseBookingRepository {
   private readonly client: SupabaseRpcClient;
@@ -155,7 +168,7 @@ export class SupabaseBookingRepository {
       throw new Error('Failed to create booking: missing booking row');
     }
 
-    const booking = this.mapBooking(data);
+    const booking = this.mapBooking(data as BookingRow);
     const attachments = await Promise.all(
       (input.attachments ?? []).map((attachment) =>
         this.addAttachment({
@@ -399,7 +412,7 @@ export class SupabaseBookingRepository {
       throw new Error(`Failed to list bookings: ${error.message}`);
     }
 
-    return (data ?? []).map((row) => this.mapBooking(row));
+    return (data ?? []).map((row) => this.mapBooking(row as BookingRow));
   }
 
   async findVisibleBooking(
@@ -423,7 +436,65 @@ export class SupabaseBookingRepository {
       throw new BookingNotFoundError();
     }
 
-    return this.mapBooking(data);
+    return this.mapBooking(data as BookingRow);
+  }
+
+  async getLiveLocation(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+  ): Promise<BookingTrackingLocation | null> {
+    const { data, error } = await this.client
+      .rpc('servease_get_booking_live_location', {
+        p_booking_id: bookingId,
+        p_customer_id: customerId,
+        p_provider_id: providerId,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('booking_not_found')) {
+        throw new BookingNotFoundError();
+      }
+      if (error.message.includes('invalid_booking_live_location_request')) {
+        throw new InvalidBookingRequestError();
+      }
+      throw new Error(`Failed to load booking live location: ${error.message}`);
+    }
+
+    return data ? this.mapLiveLocation(data as BookingLiveLocationRow) : null;
+  }
+
+  async upsertLiveLocation(
+    input: UpdateBookingLiveLocationInput,
+  ): Promise<BookingTrackingLocation> {
+    const { data, error } = await this.client
+      .rpc('servease_upsert_booking_live_location', {
+        p_booking_id: input.bookingId,
+        p_provider_id: input.providerId,
+        p_latitude: input.latitude,
+        p_longitude: input.longitude,
+        p_accuracy_meters: input.accuracyMeters ?? null,
+        p_heading_degrees: input.headingDegrees ?? null,
+        p_speed_mps: input.speedMps ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('booking_not_found')) {
+        throw new BookingNotFoundError();
+      }
+      if (error.message.includes('invalid_booking_live_location_request')) {
+        throw new InvalidBookingRequestError();
+      }
+      throw new Error(`Failed to update booking live location: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new BookingNotFoundError();
+    }
+
+    return this.mapLiveLocation(data as BookingLiveLocationRow);
   }
 
   async transitionStatus(
@@ -457,7 +528,7 @@ export class SupabaseBookingRepository {
       throw new BookingNotFoundError();
     }
 
-    return this.mapBooking(data);
+    return this.mapBooking(data as BookingRow);
   }
 
   private mapBooking(row: BookingRow): BookingSummary {
@@ -540,6 +611,26 @@ export class SupabaseBookingRepository {
       label: row.label,
       icon: row.icon,
       createdAt: row.created_at,
+    };
+  }
+
+  private mapLiveLocation(row: BookingLiveLocationRow): BookingTrackingLocation {
+    return {
+      latitude: Number(row.latitude),
+      longitude: Number(row.longitude),
+      accuracyMeters:
+        row.accuracy_meters === null || row.accuracy_meters === undefined
+          ? null
+          : Number(row.accuracy_meters),
+      headingDegrees:
+        row.heading_degrees === null || row.heading_degrees === undefined
+          ? null
+          : Number(row.heading_degrees),
+      speedMps:
+        row.speed_mps === null || row.speed_mps === undefined
+          ? null
+          : Number(row.speed_mps),
+      updatedAt: row.updated_at ?? null,
     };
   }
 }

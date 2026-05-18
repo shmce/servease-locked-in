@@ -16,7 +16,6 @@ import {
   Image as ImageIcon,
   Lock,
   Mail,
-  MapPin,
   Moon,
   Navigation,
   Home,
@@ -32,7 +31,7 @@ import {
   User,
   Wallet,
 } from 'lucide-react-native';
-import { createElement, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -46,16 +45,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import Svg, {
-  Circle as SvgCircle,
-  Defs as SvgDefs,
-  G as SvgG,
-  Line as SvgLine,
-  LinearGradient as SvgLinearGradient,
-  Path as SvgPath,
-  Rect as SvgRect,
-  Stop as SvgStop,
-} from 'react-native-svg';
 import {
   Badge,
   BottomNavigation,
@@ -131,6 +120,11 @@ import { resolveNotificationRoute } from './src/navigation/notificationRouting';
 import { AuthScreens } from './src/screens/AuthScreens';
 import { CustomerMoreScreen } from './src/screens/CustomerMoreScreen';
 import { ProviderBookingsScreen } from './src/screens/ProviderBookingsScreen';
+import {
+  AddressVerificationPreview,
+  TrackingMapPreview,
+} from './src/tracking/TrackingMapPreview';
+import { useProviderLiveLocation } from './src/tracking/useProviderLiveLocation';
 import { AppRole, AppScreen, RouteState } from './src/navigation/types';
 import { palette, radius, spacing, type } from './src/theme/serveaseDesign';
 import {
@@ -139,6 +133,7 @@ import {
   BookingSummary,
   BookingServiceUpdateSummary,
   BookingTimelineEventSummary,
+  BookingTrackingLocation,
   BookingTrackingSnapshot,
   CatalogCategory,
   CatalogServiceItem,
@@ -251,6 +246,7 @@ import {
   validatePromotion,
   type GeoAddressResult,
   type GeoDirectionsRoute,
+  type GeoDirectionsStep,
   type GeoRouteLocation,
   type SharedPaymentMethod,
 } from './services/serveaseApi';
@@ -298,6 +294,13 @@ function completedRebookOptions(bookings: BookingSummary[]): BookingSummary[] {
 type NavigationSheetLevel = 'peek' | 'half' | 'expanded';
 
 const navigationSheetLevels: NavigationSheetLevel[] = ['peek', 'half', 'expanded'];
+
+interface ProviderNavigationGuidance {
+  instruction: string;
+  nextInstruction: string | null;
+  distanceLabel: string;
+  maneuverSymbol: string;
+}
 
 export default function App() {
   const [route, setRoute] = useState<RouteState>({ role: null, screen: 'authGate' });
@@ -541,6 +544,15 @@ export default function App() {
     }),
     [apiBaseUrl, session?.accessToken],
   );
+  const providerLiveLocation = useProviderLiveLocation({
+    enabled: Boolean(
+      session?.accessToken &&
+        selectedBookingId &&
+        route.screen === 'providerNavigationMode',
+    ),
+    bookingId: selectedBookingId,
+    apiOptions,
+  });
 
   useEffect(() => {
     void loadCatalog();
@@ -550,6 +562,27 @@ export default function App() {
     setPromoCode('');
     setPromotionValidation(null);
   }, [selectedBookingId]);
+
+  useEffect(() => {
+    const liveLocation = providerLiveLocation.location;
+    if (!selectedBookingId || !liveLocation) {
+      return;
+    }
+
+    setSelectedNavigationOrigin({
+      latitude: liveLocation.latitude,
+      longitude: liveLocation.longitude,
+    });
+    setSelectedBookingTracking((current) =>
+      current?.bookingId === selectedBookingId
+        ? {
+            ...current,
+            providerLocation: liveLocation,
+            lastUpdatedAt: liveLocation.updatedAt ?? current.lastUpdatedAt,
+          }
+        : current,
+    );
+  }, [selectedBookingId, providerLiveLocation.location]);
 
   useEffect(() => {
     payoutIdempotencyKeyRef.current = null;
@@ -795,7 +828,7 @@ export default function App() {
       return undefined;
     }
     const tick = () => void refreshBookingTracking(selectedBookingId);
-    const interval = setInterval(tick, 15000);
+    const interval = setInterval(tick, 5000);
     return () => clearInterval(interval);
   }, [session?.accessToken, selectedBookingId, route.screen]);
 
@@ -2973,7 +3006,10 @@ export default function App() {
         throw new Error('destination_unavailable');
       }
 
-      const origin = await getCurrentNavigationLocation();
+      const origin =
+        providerLiveLocation.location ??
+        tracking.providerLocation ??
+        (await getCurrentNavigationLocation());
       setSelectedNavigationOrigin(origin);
       setSelectedBookingDirections(
         await getDirections(
@@ -4568,6 +4604,7 @@ export default function App() {
           <TrackingMapPreview
             tracking={tracking}
             title={trackingPhaseTitle(tracking)}
+            subtitle={trackingRouteLabel(tracking)}
           />
         </View>
         <View style={[styles.navBottomSheet, navigationSheetStyle(customerTrackingSheetLevel)]}>
@@ -6246,6 +6283,18 @@ export default function App() {
       navigationRouteLoading,
       navigationRouteError,
     );
+    const navigationOrigin =
+      providerLiveLocation.location ??
+      selectedNavigationOrigin ??
+      tracking?.providerLocation ??
+      null;
+    const guidance = providerNavigationGuidance(
+      selectedBookingDirections,
+      navigationOrigin,
+      navigationRouteLoading,
+      navigationRouteError,
+    );
+    const liveLocationLabel = providerLiveLocationStatusLabel(providerLiveLocation);
     return (
       <View style={styles.navigationScreen}>
         <View
@@ -6263,10 +6312,13 @@ export default function App() {
           </Pressable>
           <TrackingMapPreview
             tracking={tracking}
+            mode="navigation"
             title="Head to the service location"
+            subtitle={routeLabel}
             directions={selectedBookingDirections}
-            navigationOrigin={selectedNavigationOrigin}
+            navigationOrigin={navigationOrigin}
           />
+          <ProviderNavigationGuidanceBanner guidance={guidance} />
         </View>
         <View style={[styles.navBottomSheet, navigationSheetStyle(providerNavigationSheetLevel)]}>
           <NavigationSheetHeader
@@ -6275,12 +6327,17 @@ export default function App() {
             title="Head to the service location"
             subtitle={routeLabel}
           />
+          <ProviderNavigationDriveStats
+            directions={selectedBookingDirections}
+            liveLocationLabel={liveLocationLabel}
+          />
           {isHalfSheet ? (
             <>
               <Text style={styles.cardBody} numberOfLines={isExpandedSheet ? 4 : 2}>
                 {selectedBooking.serviceAddress ?? 'Address unavailable'}
               </Text>
               <InfoRow label="Route" value={routeLabel} />
+              <InfoRow label="Live location" value={liveLocationLabel} />
             </>
           ) : null}
           {isExpandedSheet && selectedBookingDirections?.steps.length ? (
@@ -8195,6 +8252,62 @@ function NavigationSheetHeader({
   );
 }
 
+function ProviderNavigationGuidanceBanner({
+  guidance,
+}: {
+  guidance: ProviderNavigationGuidance;
+}) {
+  return (
+    <View style={styles.providerGuidanceBanner}>
+      <View style={styles.providerGuidanceIcon}>
+        <Text style={styles.providerGuidanceIconText}>{guidance.maneuverSymbol}</Text>
+      </View>
+      <View style={styles.flex}>
+        <Text style={styles.providerGuidanceDistance}>{guidance.distanceLabel}</Text>
+        <Text style={styles.providerGuidanceInstruction} numberOfLines={1}>
+          {guidance.instruction}
+        </Text>
+        {guidance.nextInstruction ? (
+          <Text style={styles.providerGuidanceNext} numberOfLines={1}>
+            Then {guidance.nextInstruction}
+          </Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+function ProviderNavigationDriveStats({
+  directions,
+  liveLocationLabel,
+}: {
+  directions: GeoDirectionsRoute | null;
+  liveLocationLabel: string;
+}) {
+  return (
+    <View style={styles.providerDriveStats}>
+      <View style={styles.providerDriveStat}>
+        <Text style={styles.providerDriveStatValue}>
+          {directions ? formatRouteDuration(directions.durationSeconds) : '--'}
+        </Text>
+        <Text style={styles.providerDriveStatLabel}>ETA</Text>
+      </View>
+      <View style={styles.providerDriveStat}>
+        <Text style={styles.providerDriveStatValue}>
+          {directions ? formatRouteDistance(directions.distanceMeters) : '--'}
+        </Text>
+        <Text style={styles.providerDriveStatLabel}>Remaining</Text>
+      </View>
+      <View style={styles.providerDriveStat}>
+        <Text style={styles.providerDriveStatValue} numberOfLines={1}>
+          {liveLocationLabel}
+        </Text>
+        <Text style={styles.providerDriveStatLabel}>Live GPS</Text>
+      </View>
+    </View>
+  );
+}
+
 function navigationSheetStyle(level: NavigationSheetLevel) {
   if (level === 'expanded') {
     return styles.navBottomSheetExpanded;
@@ -8237,627 +8350,6 @@ function navigationSheetShortLabel(level: NavigationSheetLevel): string {
     return 'Half';
   }
   return 'Peek';
-}
-
-type TrackingMapLocation = {
-  latitude: number;
-  longitude: number;
-};
-
-type MapLibreModule = typeof import('@maplibre/maplibre-react-native');
-type MapLibreCoordinate = [longitude: number, latitude: number];
-
-const OPENFREEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
-const MAPLIBRE_CDN_BASE = 'https://unpkg.com/maplibre-gl@5.24.0/dist';
-const trackingMapIframeStyle = {
-  border: 0,
-  height: '100%',
-  width: '100%',
-};
-let cachedMapLibreModule: MapLibreModule | null | false = null;
-
-function hasMapLibreNativeModules(): boolean {
-  try {
-    const { TurboModuleRegistry } = require('react-native') as typeof import('react-native');
-
-    return Boolean(
-      TurboModuleRegistry.get('MLRNCameraModule') &&
-        TurboModuleRegistry.get('MLRNMapViewModule'),
-    );
-  } catch {
-    return false;
-  }
-}
-
-function getMapLibreModule(): MapLibreModule | null {
-  if (Platform.OS === 'web') {
-    return null;
-  }
-
-  if (cachedMapLibreModule === false) {
-    return null;
-  }
-
-  if (!hasMapLibreNativeModules()) {
-    cachedMapLibreModule = false;
-    return null;
-  }
-
-  if (!cachedMapLibreModule) {
-    try {
-      cachedMapLibreModule = require('@maplibre/maplibre-react-native') as MapLibreModule;
-    } catch {
-      cachedMapLibreModule = false;
-      return null;
-    }
-  }
-
-  return cachedMapLibreModule;
-}
-
-function TrackingMapPreview({
-  tracking,
-  title,
-  directions,
-  navigationOrigin,
-}: {
-  tracking: BookingTrackingSnapshot | null;
-  title: string;
-  directions?: GeoDirectionsRoute | null;
-  navigationOrigin?: GeoRouteLocation | null;
-}) {
-  const destination = tracking?.destinationLocation ?? null;
-  const routeGeometry = directions?.geometry?.length ? directions.geometry : null;
-  const actualProvider =
-    navigationOrigin ??
-    routeGeometry?.[0] ??
-    tracking?.providerLocation ??
-    null;
-  const previewProvider =
-    actualProvider ??
-    derivePreviewProviderLocation(destination, tracking?.distanceKm ?? null);
-  const points = projectTrackingPoints(previewProvider, destination);
-  const routePath =
-    points.provider && points.destination
-      ? `M ${points.provider.x} ${points.provider.y} C 108 42, 184 230, ${points.destination.x} ${points.destination.y}`
-      : null;
-
-  return (
-    <View style={styles.trackingMapCard}>
-      {destination ? (
-        <View style={styles.trackingMapWebViewFrame}>
-          {Platform.OS === 'web' ? (
-            createElement('iframe', {
-              srcDoc: buildTrackingMapHtml(actualProvider, destination, routeGeometry),
-              style: trackingMapIframeStyle,
-              title: 'Service tracking map',
-            })
-          ) : (
-            <TrackingMapNativeView
-              destination={destination}
-              points={points}
-              provider={actualProvider}
-              routeGeometry={routeGeometry}
-              routePath={routePath}
-            />
-          )}
-        </View>
-      ) : (
-        <TrackingMapSvgPreview routePath={routePath} points={points} />
-      )}
-      <View style={styles.trackingMapOverlay}>
-        <View style={styles.providerSummaryRow}>
-          <View style={styles.quickIcon}>
-            <Navigation color={palette.mint} size={20} strokeWidth={2.6} />
-          </View>
-          <View style={styles.flex}>
-            <Text style={styles.cardTitle}>{title}</Text>
-            <Text style={styles.cardMeta}>{trackingRouteLabel(tracking, directions)}</Text>
-          </View>
-        </View>
-        <View style={styles.trackingMapLegend}>
-          <View style={styles.trackingLegendItem}>
-            <View style={[styles.trackingLegendDot, styles.trackingLegendDotProvider]} />
-            <Text style={styles.cardMeta}>
-              {navigationOrigin ? 'Your location' : 'Route preview'}
-            </Text>
-          </View>
-          <View style={styles.trackingLegendItem}>
-            <View style={[styles.trackingLegendDot, styles.trackingLegendDotDestination]} />
-            <Text style={styles.cardMeta}>Service address</Text>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function TrackingMapNativeView({
-  destination,
-  points,
-  provider,
-  routeGeometry,
-  routePath,
-}: {
-  destination: TrackingMapLocation;
-  points: {
-    provider: { x: number; y: number } | null;
-    destination: { x: number; y: number } | null;
-  };
-  provider: TrackingMapLocation | null;
-  routeGeometry: TrackingMapLocation[] | null;
-  routePath: string | null;
-}) {
-  const [mapFailed, setMapFailed] = useState(false);
-  const mapLibre = getMapLibreModule();
-
-  useEffect(() => {
-    setMapFailed(false);
-  }, [
-    destination.latitude,
-    destination.longitude,
-    provider?.latitude,
-    provider?.longitude,
-    routeGeometry?.length,
-  ]);
-
-  if (!mapLibre || mapFailed) {
-    return <TrackingMapSvgPreview routePath={routePath} points={points} />;
-  }
-
-  const routeCoordinates = buildTrackingRouteCoordinates(
-    provider,
-    destination,
-    routeGeometry,
-  );
-  const mapBounds = buildTrackingMapBounds([
-    ...routeCoordinates,
-    toMapLibreCoordinate(destination),
-    ...(provider ? [toMapLibreCoordinate(provider)] : []),
-  ]);
-  const routeFeature: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: routeCoordinates.length
-      ? [
-          {
-            type: 'Feature',
-            properties: {},
-            geometry: {
-              type: 'LineString',
-              coordinates: routeCoordinates,
-            },
-          },
-        ]
-      : [],
-  };
-  const { Camera, GeoJSONSource, Layer, Map, Marker } = mapLibre;
-
-  return (
-    <Map
-      attribution
-      attributionPosition={{ bottom: 116, right: 8 }}
-      compass={false}
-      dragPan
-      doubleTapZoom
-      logo={false}
-      mapStyle={OPENFREEMAP_STYLE_URL}
-      onDidFailLoadingMap={() => setMapFailed(true)}
-      scaleBar={false}
-      style={styles.trackingMapNativeMap}
-      touchPitch={false}
-      touchRotate={false}
-      touchZoom
-    >
-      <Camera
-        initialViewState={{
-          bounds: mapBounds,
-          padding: { bottom: 136, left: 48, right: 48, top: 82 },
-        }}
-      />
-      {routeCoordinates.length ? (
-        <GeoJSONSource id="tracking-route-source" data={routeFeature}>
-          <Layer
-            id="tracking-route-casing"
-            type="line"
-            paint={{
-              'line-color': '#FFFFFF',
-              'line-opacity': 0.95,
-              'line-width': 9,
-            }}
-          />
-          <Layer
-            id="tracking-route-line"
-            type="line"
-            paint={{
-              'line-color': '#0B7A44',
-              'line-opacity': 0.96,
-              'line-width': 5,
-            }}
-          />
-        </GeoJSONSource>
-      ) : null}
-      {provider ? (
-        <Marker
-          id="tracking-provider-marker"
-          anchor="center"
-          lngLat={toMapLibreCoordinate(provider)}
-        >
-          <View style={styles.trackingMapNativeProviderMarker}>
-            <View style={styles.trackingMapNativeProviderDot} />
-          </View>
-        </Marker>
-      ) : null}
-      <Marker
-        id="tracking-destination-marker"
-        anchor="center"
-        lngLat={toMapLibreCoordinate(destination)}
-      >
-        <View style={styles.trackingMapNativeDestinationMarker}>
-          <View style={styles.trackingMapNativeDestinationDot} />
-        </View>
-      </Marker>
-    </Map>
-  );
-}
-
-function TrackingMapSvgPreview({
-  routePath,
-  points,
-}: {
-  routePath: string | null;
-  points: {
-    provider: { x: number; y: number } | null;
-    destination: { x: number; y: number } | null;
-  };
-}) {
-  return (
-    <Svg viewBox="0 0 320 260" style={styles.trackingMapSvg}>
-      <SvgDefs>
-        <SvgLinearGradient id="mapBg" x1="0" y1="0" x2="1" y2="1">
-          <SvgStop offset="0" stopColor="#DDEFE4" />
-          <SvgStop offset="0.52" stopColor="#E8F3EC" />
-          <SvgStop offset="1" stopColor="#D7E9F8" />
-        </SvgLinearGradient>
-      </SvgDefs>
-      <SvgRect x="0" y="0" width="320" height="260" fill="url(#mapBg)" />
-      {[28, 84, 140, 196, 252].map((x) => (
-        <SvgLine
-          key={`v-${x}`}
-          x1={x}
-          y1="-20"
-          x2={x + 34}
-          y2="280"
-          stroke="#FFFFFF"
-          strokeOpacity="0.48"
-          strokeWidth="3"
-        />
-      ))}
-      {[36, 92, 148, 204].map((y) => (
-        <SvgLine
-          key={`h-${y}`}
-          x1="-20"
-          y1={y}
-          x2="340"
-          y2={y - 24}
-          stroke="#FFFFFF"
-          strokeOpacity="0.42"
-          strokeWidth="3"
-        />
-      ))}
-      {routePath ? (
-        <SvgPath
-          d={routePath}
-          fill="none"
-          stroke="#0B7A44"
-          strokeLinecap="round"
-          strokeWidth="8"
-        />
-      ) : null}
-      {routePath ? (
-        <SvgPath
-          d={routePath}
-          fill="none"
-          stroke="#FFFFFF"
-          strokeDasharray="10 12"
-          strokeLinecap="round"
-          strokeWidth="3"
-        />
-      ) : null}
-      {points.provider ? (
-        <SvgG>
-          <SvgCircle
-            cx={points.provider.x}
-            cy={points.provider.y}
-            r="15"
-            fill="#FFFFFF"
-          />
-          <SvgCircle
-            cx={points.provider.x}
-            cy={points.provider.y}
-            r="9"
-            fill="#2F6FED"
-          />
-        </SvgG>
-      ) : null}
-      {points.destination ? (
-        <SvgG>
-          <SvgCircle
-            cx={points.destination.x}
-            cy={points.destination.y}
-            r="18"
-            fill="#FFFFFF"
-          />
-          <SvgCircle
-            cx={points.destination.x}
-            cy={points.destination.y}
-            r="11"
-            fill="#00BF63"
-          />
-        </SvgG>
-      ) : null}
-    </Svg>
-  );
-}
-
-function AddressVerificationPreview({ result }: { result: GeoAddressResult }) {
-  const destination = {
-    latitude: result.latitude,
-    longitude: result.longitude,
-  };
-  const points = projectTrackingPoints(null, destination);
-
-  return (
-    <View style={styles.addressVerificationCard}>
-      <View style={styles.addressMiniMapFrame}>
-        {Platform.OS === 'web' ? (
-          createElement('iframe', {
-            srcDoc: buildTrackingMapHtml(null, destination),
-            style: trackingMapIframeStyle,
-            title: 'Verified service address map',
-          })
-        ) : (
-          <TrackingMapNativeView
-            destination={destination}
-            points={points}
-            provider={null}
-            routeGeometry={null}
-            routePath={null}
-          />
-        )}
-      </View>
-      <View style={styles.addressVerificationBody}>
-        <View style={styles.addressVerificationIcon}>
-          <MapPin color={palette.white} size={17} strokeWidth={2.6} />
-        </View>
-        <View style={styles.flex}>
-          <Text style={styles.addressVerificationTitle}>Verified service pin</Text>
-          <Text style={styles.cardBody}>{result.formattedAddress}</Text>
-          <Text style={styles.cardMeta}>
-            {result.provider === 'google-maps' ? 'Google Maps' : 'Geo provider'} ·{' '}
-            {result.latitude.toFixed(5)}, {result.longitude.toFixed(5)}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function buildTrackingMapHtml(
-  provider: TrackingMapLocation | null,
-  destination: TrackingMapLocation,
-  routeGeometry: TrackingMapLocation[] | null = null,
-): string {
-  const providerCoordinate = provider
-    ? [provider.longitude, provider.latitude]
-    : null;
-  const destinationCoordinate = [destination.longitude, destination.latitude];
-  const routeCoordinates =
-    routeGeometry?.map((point) => [point.longitude, point.latitude]) ?? null;
-
-  return `<!doctype html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <link rel="stylesheet" href="${MAPLIBRE_CDN_BASE}/maplibre-gl.css" />
-  <style>
-    html, body, #map { margin: 0; width: 100%; height: 100%; overflow: hidden; }
-    body { background: #E5E7EB; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    #fallback {
-      align-items: center;
-      background: linear-gradient(135deg, #E8F8EF 0%, #E6F0FF 100%);
-      color: #6B7280;
-      display: flex;
-      font-size: 13px;
-      font-weight: 700;
-      inset: 0;
-      justify-content: center;
-      padding: 18px;
-      position: fixed;
-      text-align: center;
-    }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <div id="fallback">Loading map tiles...</div>
-  <script src="${MAPLIBRE_CDN_BASE}/maplibre-gl.js"></script>
-  <script>
-    const styleUrl = ${JSON.stringify(OPENFREEMAP_STYLE_URL)};
-    const provider = ${JSON.stringify(providerCoordinate)};
-    const destination = ${JSON.stringify(destinationCoordinate)};
-    const route = ${JSON.stringify(routeCoordinates)};
-    const fallback = document.getElementById('fallback');
-    const marker = (kind) => {
-      const element = document.createElement('div');
-      element.style.width = kind === 'provider' ? '24px' : '28px';
-      element.style.height = kind === 'provider' ? '24px' : '28px';
-      element.style.borderRadius = '999px';
-      element.style.backgroundColor = kind === 'provider' ? '#2F6FED' : '#00BF63';
-      element.style.border = '5px solid #FFFFFF';
-      element.style.boxShadow = kind === 'provider'
-        ? '0 8px 18px rgba(47,111,237,0.28)'
-        : '0 8px 18px rgba(0,191,99,0.28)';
-      return element;
-    };
-
-    try {
-      const map = new maplibregl.Map({
-        attributionControl: false,
-        center: destination,
-        container: 'map',
-        interactive: false,
-        pitchWithRotate: false,
-        style: styleUrl,
-        zoom: provider ? 12 : 14
-      });
-      map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
-      if (provider) {
-        new maplibregl.Marker({ element: marker('provider') }).setLngLat(provider).addTo(map);
-      }
-      new maplibregl.Marker({ element: marker('destination') }).setLngLat(destination).addTo(map);
-
-      map.on('load', () => {
-        fallback.style.display = 'none';
-        const routeLine = route || (provider ? [provider, destination] : null);
-        if (!routeLine) {
-          return;
-        }
-        map.addSource('tracking-route', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: { type: 'LineString', coordinates: routeLine }
-          }
-        });
-        map.addLayer({
-          id: 'tracking-route-casing',
-          type: 'line',
-          source: 'tracking-route',
-          paint: { 'line-color': '#FFFFFF', 'line-width': 8, 'line-opacity': 0.92 }
-        });
-        map.addLayer({
-          id: 'tracking-route-line',
-          type: 'line',
-          source: 'tracking-route',
-          paint: { 'line-color': '#0B7A44', 'line-width': 4, 'line-opacity': 0.95 }
-        });
-        const bounds = routeLine.reduce(
-          (nextBounds, coordinate) => nextBounds.extend(coordinate),
-          new maplibregl.LngLatBounds(routeLine[0], routeLine[0])
-        ).extend(destination);
-        map.fitBounds(bounds, { duration: 0, maxZoom: 14, padding: 42 });
-      });
-      map.on('error', () => {
-        if (!map.loaded()) {
-          fallback.textContent = 'Map tiles are temporarily unavailable.';
-        }
-      });
-    } catch (error) {
-      fallback.textContent = 'Map tiles are temporarily unavailable.';
-    }
-  </script>
-</body>
-</html>`;
-}
-
-function toMapLibreCoordinate(location: TrackingMapLocation): MapLibreCoordinate {
-  return [location.longitude, location.latitude];
-}
-
-function buildTrackingRouteCoordinates(
-  provider: TrackingMapLocation | null,
-  destination: TrackingMapLocation,
-  routeGeometry: TrackingMapLocation[] | null,
-): MapLibreCoordinate[] {
-  if (routeGeometry?.length) {
-    return routeGeometry.map(toMapLibreCoordinate);
-  }
-
-  if (provider) {
-    return [toMapLibreCoordinate(provider), toMapLibreCoordinate(destination)];
-  }
-
-  return [];
-}
-
-function buildTrackingMapBounds(coordinates: MapLibreCoordinate[]): [
-  west: number,
-  south: number,
-  east: number,
-  north: number,
-] {
-  const longitudes = coordinates.map(([longitude]) => longitude);
-  const latitudes = coordinates.map(([, latitude]) => latitude);
-  const west = Math.min(...longitudes);
-  const east = Math.max(...longitudes);
-  const south = Math.min(...latitudes);
-  const north = Math.max(...latitudes);
-  const longitudePadding = Math.max((east - west) * 0.18, 0.012);
-  const latitudePadding = Math.max((north - south) * 0.18, 0.012);
-
-  return [
-    west - longitudePadding,
-    south - latitudePadding,
-    east + longitudePadding,
-    north + latitudePadding,
-  ];
-}
-
-function derivePreviewProviderLocation(
-  destination: TrackingMapLocation | null,
-  distanceKm: number | null,
-): TrackingMapLocation | null {
-  if (!destination || distanceKm === null) {
-    return null;
-  }
-
-  const offset = Math.min(Math.max(distanceKm, 1.4), 8) * 0.006;
-  return {
-    latitude: destination.latitude + offset,
-    longitude: destination.longitude - offset * 0.75,
-  };
-}
-
-function projectTrackingPoints(
-  provider: TrackingMapLocation | null,
-  destination: TrackingMapLocation | null,
-): {
-  provider: { x: number; y: number } | null;
-  destination: { x: number; y: number } | null;
-} {
-  const locations = [provider, destination].filter(
-    Boolean,
-  ) as TrackingMapLocation[];
-
-  if (!locations.length) {
-    return { provider: null, destination: null };
-  }
-
-  const latitudes = locations.map((location) => location.latitude);
-  const longitudes = locations.map((location) => location.longitude);
-  const minLat = Math.min(...latitudes);
-  const maxLat = Math.max(...latitudes);
-  const minLng = Math.min(...longitudes);
-  const maxLng = Math.max(...longitudes);
-  const latRange = Math.max(maxLat - minLat, 0.01);
-  const lngRange = Math.max(maxLng - minLng, 0.01);
-
-  const project = (location: TrackingMapLocation | null) => {
-    if (!location) {
-      return null;
-    }
-
-    return {
-      x: 48 + ((location.longitude - minLng) / lngRange) * 224,
-      y: 212 - ((location.latitude - minLat) / latRange) * 164,
-    };
-  };
-
-  return {
-    provider: project(provider),
-    destination: project(destination),
-  };
 }
 
 function trackingPhaseTitle(tracking: BookingTrackingSnapshot | null): string {
@@ -8915,6 +8407,170 @@ function providerDirectionsLabel(
     )}`;
   }
   return error ?? 'Route unavailable';
+}
+
+function providerNavigationGuidance(
+  directions: GeoDirectionsRoute | null,
+  origin: BookingTrackingLocation | GeoRouteLocation | null,
+  loading: boolean,
+  error: string | null,
+): ProviderNavigationGuidance {
+  if (loading) {
+    return {
+      instruction: 'Finding the best route',
+      nextInstruction: null,
+      distanceLabel: '...',
+      maneuverSymbol: '↑',
+    };
+  }
+
+  if (!directions?.steps.length) {
+    return {
+      instruction: error ?? 'Directions unavailable',
+      nextInstruction: null,
+      distanceLabel: '--',
+      maneuverSymbol: '◎',
+    };
+  }
+
+  const { step, index } = activeDirectionsStep(directions, origin);
+  const nextStep = directions.steps[index + 1] ?? null;
+  const distanceMeters = distanceToStepManeuver(directions, step, origin);
+
+  return {
+    instruction: cleanNavigationInstruction(step.instruction),
+    nextInstruction: nextStep ? cleanNavigationInstruction(nextStep.instruction) : null,
+    distanceLabel: formatRouteDistance(distanceMeters),
+    maneuverSymbol: navigationManeuverSymbol(step),
+  };
+}
+
+function activeDirectionsStep(
+  directions: GeoDirectionsRoute,
+  origin: BookingTrackingLocation | GeoRouteLocation | null,
+): { step: GeoDirectionsStep; index: number } {
+  if (!origin || !directions.geometry.length) {
+    return { step: directions.steps[0], index: 0 };
+  }
+
+  const nearestIndex = nearestGeometryIndex(directions.geometry, origin);
+  const stepIndex = directions.steps.findIndex((step) => {
+    const endIndex = step.wayPoints?.[1];
+    return typeof endIndex === 'number' && endIndex >= nearestIndex;
+  });
+
+  const index = stepIndex >= 0 ? stepIndex : directions.steps.length - 1;
+  return { step: directions.steps[index], index };
+}
+
+function distanceToStepManeuver(
+  directions: GeoDirectionsRoute,
+  step: GeoDirectionsStep,
+  origin: BookingTrackingLocation | GeoRouteLocation | null,
+): number {
+  const endIndex = step.wayPoints?.[1];
+  const endPoint =
+    typeof endIndex === 'number' ? directions.geometry[endIndex] : null;
+
+  if (!origin || !endPoint) {
+    return step.distanceMeters;
+  }
+
+  return Math.max(0, Math.round(distanceBetweenMeters(origin, endPoint)));
+}
+
+function nearestGeometryIndex(
+  geometry: GeoRouteLocation[],
+  origin: BookingTrackingLocation | GeoRouteLocation,
+): number {
+  let nearestIndex = 0;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  geometry.forEach((point, index) => {
+    const distance =
+      (point.latitude - origin.latitude) ** 2 +
+      (point.longitude - origin.longitude) ** 2;
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+
+  return nearestIndex;
+}
+
+function distanceBetweenMeters(
+  start: GeoRouteLocation,
+  end: GeoRouteLocation,
+): number {
+  const earthRadiusMeters = 6371000;
+  const startLatitude = toRadians(start.latitude);
+  const endLatitude = toRadians(end.latitude);
+  const latitudeDelta = toRadians(end.latitude - start.latitude);
+  const longitudeDelta = toRadians(end.longitude - start.longitude);
+  const a =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(startLatitude) *
+      Math.cos(endLatitude) *
+      Math.sin(longitudeDelta / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return earthRadiusMeters * c;
+}
+
+function toRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
+function cleanNavigationInstruction(instruction: string): string {
+  return instruction.replace(/\s+/g, ' ').trim() || 'Continue on route';
+}
+
+function navigationManeuverSymbol(step: GeoDirectionsStep): string {
+  const instruction = step.instruction.toLowerCase();
+  if (instruction.includes('left')) {
+    return '↰';
+  }
+  if (instruction.includes('right')) {
+    return '↱';
+  }
+  if (instruction.includes('roundabout')) {
+    return '⟳';
+  }
+  if (instruction.includes('u-turn') || instruction.includes('uturn')) {
+    return '⤴';
+  }
+  if (instruction.includes('arrive') || instruction.includes('destination')) {
+    return '◎';
+  }
+  return '↑';
+}
+
+function providerLiveLocationStatusLabel({
+  error,
+  isPublishing,
+  location,
+}: {
+  error: string | null;
+  isPublishing: boolean;
+  location: BookingTrackingLocation | null;
+}): string {
+  if (error) {
+    return 'Needs permission';
+  }
+  if (isPublishing) {
+    return 'Updating';
+  }
+  if (!location) {
+    return 'Starting';
+  }
+  if (
+    typeof location.accuracyMeters === 'number' &&
+    location.accuracyMeters > 50
+  ) {
+    return 'Improving GPS';
+  }
+  return 'Sharing';
 }
 
 function formatRouteDistance(distanceMeters: number): string {
@@ -9949,43 +9605,6 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginTop: -spacing.xs,
   },
-  addressVerificationCard: {
-    backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    gap: spacing.base,
-    overflow: 'hidden',
-    padding: spacing.sm,
-    boxShadow: '0 12px 26px rgba(17,24,39,0.08)',
-  },
-  addressMiniMapFrame: {
-    backgroundColor: '#E5E7EB',
-    borderRadius: radius.md,
-    height: 154,
-    overflow: 'hidden',
-    width: '100%',
-  },
-  addressVerificationBody: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: spacing.md,
-    paddingBottom: spacing.xs,
-    paddingHorizontal: spacing.xs,
-  },
-  addressVerificationIcon: {
-    alignItems: 'center',
-    backgroundColor: palette.mint,
-    borderRadius: radius.pill,
-    height: 34,
-    justifyContent: 'center',
-    width: 34,
-  },
-  addressVerificationTitle: {
-    color: palette.ink,
-    fontSize: 14,
-    fontWeight: '900',
-  },
   iconAction: {
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
@@ -10177,86 +9796,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#DDEFE4',
   },
-  trackingMapCard: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#DDEFE4',
-    overflow: 'hidden',
-  },
-  trackingMapSvg: {
-    height: '100%',
-    width: '100%',
-  },
-  trackingMapNativeMap: {
-    flex: 1,
-  },
-  trackingMapNativeProviderMarker: {
-    alignItems: 'center',
-    backgroundColor: palette.white,
-    borderRadius: radius.pill,
-    height: 30,
-    justifyContent: 'center',
-    width: 30,
-    boxShadow: '0 8px 18px rgba(47,111,237,0.28)',
-  },
-  trackingMapNativeProviderDot: {
-    backgroundColor: '#2F6FED',
-    borderRadius: radius.pill,
-    height: 16,
-    width: 16,
-  },
-  trackingMapNativeDestinationMarker: {
-    alignItems: 'center',
-    backgroundColor: palette.white,
-    borderRadius: radius.pill,
-    height: 34,
-    justifyContent: 'center',
-    width: 34,
-    boxShadow: '0 8px 18px rgba(0,191,99,0.28)',
-  },
-  trackingMapNativeDestinationDot: {
-    backgroundColor: palette.mint,
-    borderRadius: radius.pill,
-    height: 19,
-    width: 19,
-  },
-  trackingMapWebViewFrame: {
-    backgroundColor: '#E5E7EB',
-    height: '100%',
-    overflow: 'hidden',
-    width: '100%',
-  },
-  trackingMapOverlay: {
-    backgroundColor: 'rgba(255,255,255,0.94)',
-    borderRadius: radius.lg,
-    gap: spacing.base,
-    left: spacing.xl,
-    padding: spacing.base,
-    position: 'absolute',
-    right: spacing.xl,
-    top: 86,
-    boxShadow: '0 12px 28px rgba(17,24,39,0.16)',
-  },
-  trackingMapLegend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  trackingLegendItem: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  trackingLegendDot: {
-    borderRadius: radius.pill,
-    height: 10,
-    width: 10,
-  },
-  trackingLegendDotProvider: {
-    backgroundColor: '#2F6FED',
-  },
-  trackingLegendDotDestination: {
-    backgroundColor: palette.mint,
-  },
   mapCloseButton: {
     alignSelf: 'flex-end',
     backgroundColor: palette.white,
@@ -10279,26 +9818,50 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
   },
-  mapRouteLine: {
-    alignSelf: 'center',
-    backgroundColor: palette.mint,
-    borderRadius: radius.pill,
-    height: 210,
-    marginTop: spacing.lg,
-    opacity: 0.85,
-    transform: [{ rotate: '24deg' }],
-    width: 8,
+  providerGuidanceBanner: {
+    alignItems: 'center',
+    backgroundColor: '#102A5C',
+    borderRadius: radius.lg,
+    boxShadow: '0 14px 30px rgba(15,23,42,0.24)',
+    flexDirection: 'row',
+    gap: spacing.md,
+    left: spacing.base,
+    padding: spacing.md,
+    position: 'absolute',
+    right: 100,
+    top: spacing.xl,
+    zIndex: 4,
   },
-  mapPin: {
+  providerGuidanceIcon: {
     alignItems: 'center',
     backgroundColor: palette.mint,
-    borderRadius: radius.pill,
-    bottom: 148,
-    height: 54,
+    borderRadius: radius.md,
+    height: 48,
     justifyContent: 'center',
-    position: 'absolute',
-    right: 88,
-    width: 54,
+    width: 48,
+  },
+  providerGuidanceIconText: {
+    color: palette.white,
+    fontSize: 28,
+    fontWeight: '900',
+    lineHeight: 32,
+  },
+  providerGuidanceDistance: {
+    color: palette.white,
+    fontSize: 24,
+    fontWeight: '900',
+    lineHeight: 28,
+  },
+  providerGuidanceInstruction: {
+    color: palette.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  providerGuidanceNext: {
+    color: 'rgba(255,255,255,0.76)',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: spacing.xxs,
   },
   navBottomSheet: {
     backgroundColor: palette.white,
@@ -10378,6 +9941,32 @@ const styles = StyleSheet.create({
     color: palette.mintDark,
     fontSize: 12,
     fontWeight: '900',
+  },
+  providerDriveStats: {
+    backgroundColor: palette.surface,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  providerDriveStat: {
+    backgroundColor: palette.white,
+    borderRadius: radius.sm,
+    flex: 1,
+    minHeight: 56,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  providerDriveStatValue: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  providerDriveStatLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: spacing.xxs,
   },
   dragHandle: {
     alignSelf: 'center',

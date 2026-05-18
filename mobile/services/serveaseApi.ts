@@ -137,6 +137,10 @@ export type BookingTrackingTrafficLevel = 'light' | 'moderate' | 'heavy';
 export interface BookingTrackingLocation {
   latitude: number;
   longitude: number;
+  accuracyMeters?: number | null;
+  headingDegrees?: number | null;
+  speedMps?: number | null;
+  updatedAt?: string | null;
 }
 
 export interface BookingTrackingSnapshot {
@@ -152,6 +156,14 @@ export interface BookingTrackingSnapshot {
   providerLocation: BookingTrackingLocation | null;
   scheduledAt: string;
   lastUpdatedAt: string;
+}
+
+export interface UpdateBookingLiveLocationRequest {
+  latitude: number;
+  longitude: number;
+  accuracyMeters?: number | null;
+  headingDegrees?: number | null;
+  speedMps?: number | null;
 }
 
 export interface ConversationSummary {
@@ -1224,6 +1236,22 @@ export function getBookingTrackingSnapshot(
     {
       ...options,
       method: 'GET',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function updateBookingLiveLocation(
+  bookingId: string,
+  body: UpdateBookingLiveLocationRequest,
+  options: ApiOptions = {},
+): Promise<BookingTrackingLocation> {
+  return request<BookingTrackingLocation>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}/tracking/location`,
+    {
+      ...options,
+      method: 'PATCH',
+      body,
       requiresAuth: true,
     },
   );

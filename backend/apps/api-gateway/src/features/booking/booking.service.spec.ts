@@ -369,6 +369,42 @@ describe('BookingGatewayService', () => {
     expect(snapshot.destinationAddress).toBe('123 Test St, Manila, Philippines');
   });
 
+  it('forwards provider live location updates to booking-service', async () => {
+    const client = {
+      updateLiveLocation: jest.fn().mockResolvedValue({
+        latitude: 14.5995,
+        longitude: 120.9842,
+        updatedAt: '2026-05-16T00:00:05.000Z',
+      }),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.updateLiveLocation(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        {
+          latitude: 14.5995,
+          longitude: 120.9842,
+          accuracyMeters: 8,
+        },
+      ),
+    ).resolves.toEqual({
+      latitude: 14.5995,
+      longitude: 120.9842,
+      updatedAt: '2026-05-16T00:00:05.000Z',
+    });
+    expect(client.updateLiveLocation).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      {
+        latitude: 14.5995,
+        longitude: 120.9842,
+        accuracyMeters: 8,
+      },
+    );
+  });
+
   it('rejects provider-only transitions from the booking customer', async () => {
     const client = {
       findBooking: jest.fn().mockResolvedValue(createBookingSummary()),

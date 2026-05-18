@@ -10,12 +10,14 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingLocation,
   BookingTrackingPhase,
   BookingTrackingSnapshot,
   BookingTrackingTrafficLevel,
   CreateBookingServiceUpdateInput,
   CreateBookingInput,
   RaiseBookingDisputeInput,
+  UpdateBookingLiveLocationInput,
 } from './booking.types';
 
 @Injectable()
@@ -163,6 +165,11 @@ export class BookingLifecycleService {
       distanceKm,
       seed,
     );
+    const providerLocation = await this.bookingRepository.getLiveLocation(
+      bookingId,
+      customerId,
+      providerId,
+    );
 
     return {
       bookingId: booking.id,
@@ -175,10 +182,33 @@ export class BookingLifecycleService {
         distanceKm === null ? null : this.trackingTrafficForSeed(seed),
       destinationAddress: booking.serviceAddress,
       destinationLocation: null,
-      providerLocation: null,
+      providerLocation,
       scheduledAt: booking.scheduledAt,
-      lastUpdatedAt: new Date().toISOString(),
+      lastUpdatedAt: providerLocation?.updatedAt ?? new Date().toISOString(),
     };
+  }
+
+  updateLiveLocation(
+    input: UpdateBookingLiveLocationInput,
+  ): Promise<BookingTrackingLocation> {
+    if (
+      !input.bookingId ||
+      !input.providerId ||
+      !this.isCoordinate(input.latitude, 90) ||
+      !this.isCoordinate(input.longitude, 180) ||
+      !this.isOptionalNonNegative(input.accuracyMeters) ||
+      !this.isOptionalHeading(input.headingDegrees) ||
+      !this.isOptionalNonNegative(input.speedMps)
+    ) {
+      throw new InvalidBookingRequestError();
+    }
+
+    return this.bookingRepository.upsertLiveLocation({
+      ...input,
+      accuracyMeters: input.accuracyMeters ?? null,
+      headingDegrees: input.headingDegrees ?? null,
+      speedMps: input.speedMps ?? null,
+    });
   }
 
   async transitionStatus(
@@ -260,5 +290,29 @@ export class BookingLifecycleService {
     }
 
     return Math.min(Math.max(value, minimum), maximum);
+  }
+
+  private isCoordinate(value: number | undefined, maxAbsolute: number): boolean {
+    return (
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      Math.abs(value) <= maxAbsolute
+    );
+  }
+
+  private isOptionalNonNegative(value: number | null | undefined): boolean {
+    return (
+      value === null ||
+      value === undefined ||
+      (Number.isFinite(value) && value >= 0)
+    );
+  }
+
+  private isOptionalHeading(value: number | null | undefined): boolean {
+    return (
+      value === null ||
+      value === undefined ||
+      (Number.isFinite(value) && value >= 0 && value < 360)
+    );
   }
 }

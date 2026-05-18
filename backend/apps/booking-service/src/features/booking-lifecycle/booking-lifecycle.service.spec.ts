@@ -17,6 +17,14 @@ describe('BookingLifecycleService', () => {
         totalAmount: 1200,
         attachments: [],
       }),
+      getLiveLocation: jest.fn().mockResolvedValue({
+        latitude: 14.5995,
+        longitude: 120.9842,
+        accuracyMeters: 8,
+        headingDegrees: 90,
+        speedMps: 4,
+        updatedAt: '2026-05-16T00:00:05.000Z',
+      }),
     } as unknown as SupabaseBookingRepository;
     const service = new BookingLifecycleService(repository);
 
@@ -39,10 +47,59 @@ describe('BookingLifecycleService', () => {
         phase: 'on_the_way',
         destinationAddress: '123 Test St',
         scheduledAt: '2026-05-20T08:00:00.000Z',
-        providerLocation: null,
+        providerLocation: {
+          latitude: 14.5995,
+          longitude: 120.9842,
+          accuracyMeters: 8,
+          headingDegrees: 90,
+          speedMps: 4,
+          updatedAt: '2026-05-16T00:00:05.000Z',
+        },
+        lastUpdatedAt: '2026-05-16T00:00:05.000Z',
       }),
+    );
+    expect(repository.getLiveLocation).toHaveBeenCalledWith(
+      'booking-1',
+      'customer-1',
+      null,
     );
     expect(snapshot.etaMinutes).toBeGreaterThanOrEqual(8);
     expect(snapshot.distanceKm).toBeGreaterThanOrEqual(2.5);
+  });
+
+  it('validates and forwards provider live location updates', async () => {
+    const repository = {
+      upsertLiveLocation: jest.fn().mockResolvedValue({
+        latitude: 14.5995,
+        longitude: 120.9842,
+        updatedAt: '2026-05-16T00:00:05.000Z',
+      }),
+    } as unknown as SupabaseBookingRepository;
+    const service = new BookingLifecycleService(repository);
+
+    await expect(
+      service.updateLiveLocation({
+        bookingId: 'booking-1',
+        providerId: 'provider-1',
+        latitude: 14.5995,
+        longitude: 120.9842,
+        accuracyMeters: 8,
+        headingDegrees: 90,
+        speedMps: 4,
+      }),
+    ).resolves.toEqual({
+      latitude: 14.5995,
+      longitude: 120.9842,
+      updatedAt: '2026-05-16T00:00:05.000Z',
+    });
+    expect(repository.upsertLiveLocation).toHaveBeenCalledWith({
+      bookingId: 'booking-1',
+      providerId: 'provider-1',
+      latitude: 14.5995,
+      longitude: 120.9842,
+      accuracyMeters: 8,
+      headingDegrees: 90,
+      speedMps: 4,
+    });
   });
 });

@@ -133,6 +133,10 @@ export type BookingTrackingTrafficLevel = 'light' | 'moderate' | 'heavy';
 export interface BookingTrackingLocation {
   latitude: number;
   longitude: number;
+  accuracyMeters?: number | null;
+  headingDegrees?: number | null;
+  speedMps?: number | null;
+  updatedAt?: string | null;
 }
 
 export interface BookingTrackingSnapshot {
@@ -148,6 +152,16 @@ export interface BookingTrackingSnapshot {
   providerLocation: BookingTrackingLocation | null;
   scheduledAt: string;
   lastUpdatedAt: string;
+}
+
+export interface UpdateBookingLiveLocationInput {
+  bookingId: string;
+  providerId: string;
+  latitude: number;
+  longitude: number;
+  accuracyMeters?: number | null;
+  headingDegrees?: number | null;
+  speedMps?: number | null;
 }
 
 export interface BookingSummary {

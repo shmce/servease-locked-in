@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import {
   BookingNotFoundError,
+  InvalidBookingRequestError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
 } from '../booking.errors';
@@ -51,6 +52,32 @@ describe('BookingServiceClient', () => {
             'confirmed',
           ),
         ).rejects.toBeInstanceOf(BookingNotFoundError);
+      },
+    );
+  });
+
+  it('maps booking service invalid request responses to the gateway domain error', async () => {
+    await withFetchResponse(
+      {
+        error: {
+          code: 'invalid_booking_request',
+          message: 'Booking request is invalid.',
+          details: {},
+        },
+      },
+      async () => {
+        const client = new BookingServiceClient(configService());
+
+        await expect(
+          client.updateLiveLocation(
+            '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+            'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+            {
+              latitude: 999,
+              longitude: 120.9842,
+            },
+          ),
+        ).rejects.toBeInstanceOf(InvalidBookingRequestError);
       },
     );
   });
@@ -231,6 +258,61 @@ describe('BookingServiceClient', () => {
             actorId: 'provider-user-1',
             category: 'damage',
             reason: 'Incorrect work',
+          }),
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      jest.restoreAllMocks();
+    }
+  });
+
+  it('sends provider live location updates to the booking service', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          latitude: 14.5995,
+          longitude: 120.9842,
+          accuracyMeters: 8,
+          updatedAt: '2026-05-16T00:00:05.000Z',
+        },
+      }),
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const client = new BookingServiceClient(configService());
+      await expect(
+        client.updateLiveLocation(
+          '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+          {
+            latitude: 14.5995,
+            longitude: 120.9842,
+            accuracyMeters: 8,
+          },
+        ),
+      ).resolves.toEqual({
+        latitude: 14.5995,
+        longitude: 120.9842,
+        accuracyMeters: 8,
+        updatedAt: '2026-05-16T00:00:05.000Z',
+      });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://booking-service.test/internal/bookings/0ec2c525-63e0-4a39-9f81-60b8585f45dc/tracking/location',
+        {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+            latitude: 14.5995,
+            longitude: 120.9842,
+            accuracyMeters: 8,
           }),
         },
       );

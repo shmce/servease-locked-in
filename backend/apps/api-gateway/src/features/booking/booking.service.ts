@@ -13,10 +13,12 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingLocation,
   BookingTrackingSnapshot,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
   RaiseBookingDisputeRequest,
+  UpdateBookingLiveLocationRequest,
 } from './booking.types';
 import { InvalidBookingTransitionError } from './booking.errors';
 
@@ -76,6 +78,18 @@ export class BookingGatewayService {
       customerId,
       providerId,
     ));
+  }
+
+  updateLiveLocation(
+    bookingId: string,
+    providerId: string,
+    input: UpdateBookingLiveLocationRequest,
+  ): Promise<BookingTrackingLocation> {
+    return this.bookingServiceClient.updateLiveLocation(
+      bookingId,
+      providerId,
+      input,
+    );
   }
 
   async transitionStatus(

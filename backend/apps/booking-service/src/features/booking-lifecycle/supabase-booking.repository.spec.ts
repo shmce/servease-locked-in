@@ -187,6 +187,92 @@ describe('SupabaseBookingRepository', () => {
     ).rejects.toBeInstanceOf(BookingNotFoundError);
   });
 
+  it('loads a visible booking live location through the tracking RPC', async () => {
+    const rpc = jest.fn().mockReturnValue({
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: {
+          booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+          latitude: 14.5995,
+          longitude: 120.9842,
+          accuracy_meters: 8,
+          heading_degrees: 90,
+          speed_mps: 4,
+          updated_at: '2026-05-16T00:00:05.000Z',
+        },
+        error: null,
+      }),
+    });
+    const repository = new SupabaseBookingRepository({ rpc });
+
+    await expect(
+      repository.getLiveLocation(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        null,
+      ),
+    ).resolves.toEqual({
+      latitude: 14.5995,
+      longitude: 120.9842,
+      accuracyMeters: 8,
+      headingDegrees: 90,
+      speedMps: 4,
+      updatedAt: '2026-05-16T00:00:05.000Z',
+    });
+    expect(rpc).toHaveBeenCalledWith('servease_get_booking_live_location', {
+      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      p_customer_id: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      p_provider_id: null,
+    });
+  });
+
+  it('upserts a provider live location through the tracking RPC', async () => {
+    const rpc = jest.fn().mockReturnValue({
+      maybeSingle: jest.fn().mockResolvedValue({
+        data: {
+          booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+          latitude: 14.5995,
+          longitude: 120.9842,
+          accuracy_meters: 8,
+          heading_degrees: 90,
+          speed_mps: 4,
+          updated_at: '2026-05-16T00:00:05.000Z',
+        },
+        error: null,
+      }),
+    });
+    const repository = new SupabaseBookingRepository({ rpc });
+
+    await expect(
+      repository.upsertLiveLocation({
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        latitude: 14.5995,
+        longitude: 120.9842,
+        accuracyMeters: 8,
+        headingDegrees: 90,
+        speedMps: 4,
+      }),
+    ).resolves.toEqual({
+      latitude: 14.5995,
+      longitude: 120.9842,
+      accuracyMeters: 8,
+      headingDegrees: 90,
+      speedMps: 4,
+      updatedAt: '2026-05-16T00:00:05.000Z',
+    });
+    expect(rpc).toHaveBeenCalledWith('servease_upsert_booking_live_location', {
+      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      p_latitude: 14.5995,
+      p_longitude: 120.9842,
+      p_accuracy_meters: 8,
+      p_heading_degrees: 90,
+      p_speed_mps: 4,
+    });
+  });
+
   it('adds booking attachments with booking visibility ids', async () => {
     const rpc = jest.fn().mockReturnValue({
       maybeSingle: jest.fn().mockResolvedValue({

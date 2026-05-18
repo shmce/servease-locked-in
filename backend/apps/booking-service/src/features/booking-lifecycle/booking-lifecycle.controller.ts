@@ -27,9 +27,11 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingLocation,
   BookingTrackingSnapshot,
   CreateBookingServiceUpdateInput,
   CreateBookingInput,
+  UpdateBookingLiveLocationInput,
 } from './booking.types';
 
 @Controller('internal/bookings')
@@ -77,6 +79,24 @@ export class BookingLifecycleController {
           customerId ?? null,
           providerId ?? null,
         ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':bookingId/tracking/location')
+  async updateTrackingLocation(
+    @Param('bookingId') bookingId: string,
+    @Body()
+    body: Omit<UpdateBookingLiveLocationInput, 'bookingId'>,
+  ): Promise<{ data: BookingTrackingLocation }> {
+    try {
+      return {
+        data: await this.bookingLifecycleService.updateLiveLocation({
+          ...body,
+          bookingId,
+        }),
       };
     } catch (error) {
       throw this.toHttpException(error);

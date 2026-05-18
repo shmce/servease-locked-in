@@ -2,11 +2,14 @@ const app = require('./app.json');
 
 module.exports = ({ config }) => {
   const easProjectId = process.env.EAS_PROJECT_ID?.trim();
+  const expoConfig = app.expo;
+
   return {
     ...config,
-    ...app.expo,
+    ...expoConfig,
+    plugins: expoConfig.plugins ?? [],
     extra: {
-      ...app.expo.extra,
+      ...expoConfig.extra,
       ...(easProjectId ? { eas: { projectId: easProjectId } } : {}),
     },
   };

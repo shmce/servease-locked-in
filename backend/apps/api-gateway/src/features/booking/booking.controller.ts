@@ -36,10 +36,12 @@ import {
   BookingStatus,
   BookingSummary,
   BookingTimelineEventSummary,
+  BookingTrackingLocation,
   BookingTrackingSnapshot,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
   RaiseBookingDisputeRequest,
+  UpdateBookingLiveLocationRequest,
 } from './booking.types';
 
 @Controller('v1/bookings')
@@ -83,6 +85,28 @@ export class BookingController {
           bookingId,
           userId,
           providerId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':bookingId/tracking/location')
+  async updateTrackingLocation(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+    @Body() body: UpdateBookingLiveLocationRequest,
+  ): Promise<{ data: BookingTrackingLocation }> {
+    try {
+      this.validateLiveLocationRequest(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      const providerId = await this.resolveRequiredProviderId(userId);
+      return {
+        data: await this.bookingGatewayService.updateLiveLocation(
+          bookingId,
+          providerId,
+          body,
         ),
       };
     } catch (error) {
@@ -329,6 +353,44 @@ export class BookingController {
     if (!body.category?.trim() || !body.reason?.trim()) {
       throw new InvalidBookingRequestError();
     }
+  }
+
+  private validateLiveLocationRequest(
+    body: UpdateBookingLiveLocationRequest,
+  ): void {
+    if (
+      !this.isCoordinate(body.latitude, 90) ||
+      !this.isCoordinate(body.longitude, 180) ||
+      !this.isOptionalNonNegative(body.accuracyMeters) ||
+      !this.isOptionalHeading(body.headingDegrees) ||
+      !this.isOptionalNonNegative(body.speedMps)
+    ) {
+      throw new InvalidBookingRequestError();
+    }
+  }
+
+  private isCoordinate(value: number | undefined, maxAbsolute: number): boolean {
+    return (
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      Math.abs(value) <= maxAbsolute
+    );
+  }
+
+  private isOptionalNonNegative(value: number | null | undefined): boolean {
+    return (
+      value === null ||
+      value === undefined ||
+      (Number.isFinite(value) && value >= 0)
+    );
+  }
+
+  private isOptionalHeading(value: number | null | undefined): boolean {
+    return (
+      value === null ||
+      value === undefined ||
+      (Number.isFinite(value) && value >= 0 && value < 360)
+    );
   }
 
   private async resolveRequiredProviderId(userId: string): Promise<string> {
