@@ -158,6 +158,60 @@ describe('PaymentController', () => {
     });
   });
 
+  it('keeps payment creation successful when provider notification dispatch fails', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('customer-1'),
+    } as unknown as AuthTokenService;
+    const catalogServiceClient = {
+      findProviderProfileByUserId: jest.fn().mockResolvedValue(null),
+      findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
+        userId: 'provider-user-1',
+        businessName: 'Provider Co.',
+      }),
+    } as unknown as CatalogServiceClient;
+    const bookingGatewayService = {
+      findBooking: jest.fn().mockResolvedValue({
+        id: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        serviceTitle: 'Home cleaning',
+        totalAmount: 1200,
+      }),
+    } as unknown as BookingGatewayService;
+    const paymentGatewayService = {
+      createPayment: jest.fn().mockResolvedValue({
+        id: 'payment-1',
+        bookingId: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        amount: 1200,
+        status: 'paid',
+      }),
+    } as unknown as PaymentGatewayService;
+    const notificationServiceClient = {
+      createNotification: jest.fn().mockRejectedValue(new Error('notification down')),
+    } as unknown as NotificationServiceClient;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      bookingGatewayService,
+      authTokenService,
+      catalogServiceClient,
+      notificationServiceClient,
+    );
+
+    await expect(
+      controller.create('Bearer token', {
+        bookingId: 'booking-1',
+        paymentMethod: 'cash_on_service',
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        id: 'payment-1',
+        bookingId: 'booking-1',
+      },
+    });
+  });
+
   it('revalidates promo codes against the visible booking before payment creation', async () => {
     const authTokenService = {
       authenticate: jest.fn().mockResolvedValue('customer-1'),

@@ -147,4 +147,54 @@ describe('ReviewController', () => {
       },
     });
   });
+
+  it('keeps review creation successful when provider notification dispatch fails', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('customer-1'),
+    } as unknown as AuthTokenService;
+    const bookingGatewayService = {
+      findBooking: jest.fn().mockResolvedValue({
+        id: 'booking-1',
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        status: 'completed',
+      }),
+    } as unknown as BookingGatewayService;
+    const catalogServiceClient = {
+      findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
+        userId: 'provider-user-1',
+      }),
+    } as unknown as CatalogServiceClient;
+    const reviewGatewayService = {
+      createReview: jest.fn().mockResolvedValue({
+        id: 'review-1',
+        bookingId: 'booking-1',
+        providerId: 'provider-1',
+        reviewerId: 'customer-1',
+        rating: 5,
+      }),
+    } as unknown as ReviewGatewayService;
+    const notificationServiceClient = {
+      createNotification: jest.fn().mockRejectedValue(new Error('notification down')),
+    } as unknown as NotificationServiceClient;
+    const controller = new ReviewController(
+      reviewGatewayService,
+      bookingGatewayService,
+      authTokenService,
+      catalogServiceClient,
+      notificationServiceClient,
+    );
+
+    await expect(
+      controller.create('Bearer token', {
+        bookingId: 'booking-1',
+        rating: 5,
+        reviewText: 'Great service',
+      }),
+    ).resolves.toMatchObject({
+      data: {
+        id: 'review-1',
+      },
+    });
+  });
 });

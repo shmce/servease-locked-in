@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { createApicenterClient } from '@servease/common';
+import { createApicenterClient } from '../../../../../libs/common/src';
 import { InvalidPaymentRequestError, PaymentNotFoundError } from './payment.errors';
 import { SupabasePaymentRepository } from './supabase-payment.repository';
 import {

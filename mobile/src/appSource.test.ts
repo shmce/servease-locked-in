@@ -19,6 +19,14 @@ test('Google auth callback exchanges the APICenter code before returning to pass
   assert.match(source, /Google account verified through APICenter/);
 });
 
+test('mobile manifest registers the Google auth callback scheme', () => {
+  const manifest = JSON.parse(
+    readFileSync(join(process.cwd(), 'app.json'), 'utf8'),
+  ) as { expo?: { scheme?: string } };
+
+  assert.equal(manifest.expo?.scheme, 'servease');
+});
+
 test('provider navigation keeps directions inside the app through the geo gateway', () => {
   const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
   const navigationStart = source.indexOf('async function refreshProviderDirections');

@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createApicenterClient } from '@servease/common';
+import { createApicenterClient } from '../../../../../libs/common/src';
 import {
   AdminReportDeliverySummary,
   AdminReportScheduleSummary,

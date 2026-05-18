@@ -42,6 +42,7 @@ const authClient = createClient(
 const processes = [];
 const cleanupState = {
   userId: null,
+  providerUserId: null,
   bookingId: null,
   categoryId: null,
   serviceId: null,
@@ -50,9 +51,12 @@ const cleanupState = {
 
 async function main() {
   const email = `servease-booking-smoke-${randomUUID()}@example.test`;
+  const providerEmail = `servease-booking-provider-smoke-${randomUUID()}@example.test`;
   const password = `Smoke-${randomUUID()}-A1!`;
   const user = await createAuthUser(email, password);
+  const providerUser = await createAuthUser(providerEmail, password);
   cleanupState.userId = user.id;
+  cleanupState.providerUserId = providerUser.id;
 
   const { error: customerSeedError } = await serviceClient.rpc('servease_smoke_seed_customer', {
     p_user_id: user.id,
@@ -62,10 +66,12 @@ async function main() {
     throw new Error(`Failed to seed smoke customer: ${customerSeedError.message}`);
   }
   const catalogSeed = await seedCatalog();
+  await bindProviderUser(catalogSeed.providerId, providerUser.id, providerEmail);
   const scheduledAt = nextManilaSlotIso(10);
   const outsideWindowAt = nextManilaSlotIso(20);
   await seedAvailability(catalogSeed.providerId, scheduledAt);
   const accessToken = await signIn(email, password);
+  const providerToken = await signIn(providerEmail, password);
 
   await startService('auth-service', 8501);
   await startService('catalog-service', 8503);
@@ -143,7 +149,7 @@ async function main() {
 
   const confirmed = await patchJson(
     `http://localhost:5001/v1/bookings/${created.id}/status`,
-    accessToken,
+    providerToken,
     {
       currentStatus: 'pending',
       nextStatus: 'confirmed',
@@ -152,7 +158,7 @@ async function main() {
 
   const inProgress = await patchJson(
     `http://localhost:5001/v1/bookings/${created.id}/status`,
-    accessToken,
+    providerToken,
     {
       currentStatus: 'confirmed',
       nextStatus: 'in_progress',
@@ -161,7 +167,7 @@ async function main() {
 
   const completed = await patchJson(
     `http://localhost:5001/v1/bookings/${created.id}/status`,
-    accessToken,
+    providerToken,
     {
       currentStatus: 'in_progress',
       nextStatus: 'completed',
@@ -214,6 +220,17 @@ async function seedCatalog() {
   cleanupState.providerId = data.providerId;
 
   return data;
+}
+
+async function bindProviderUser(providerId, userId, email) {
+  const { error } = await serviceClient.rpc('servease_smoke_bind_provider_user', {
+    p_provider_id: providerId,
+    p_user_id: userId,
+    p_email: email,
+  });
+  if (error) {
+    throw new Error(`Failed to bind smoke provider user: ${error.message}`);
+  }
 }
 
 async function seedAvailability(providerId, scheduledAt) {
@@ -374,6 +391,13 @@ async function cleanup() {
       p_user_id: cleanupState.userId,
     });
     await serviceClient.auth.admin.deleteUser(cleanupState.userId);
+  }
+
+  if (cleanupState.providerUserId) {
+    await serviceClient.rpc('servease_smoke_cleanup_customer', {
+      p_user_id: cleanupState.providerUserId,
+    });
+    await serviceClient.auth.admin.deleteUser(cleanupState.providerUserId);
   }
 }
 

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createApicenterClient } from '@servease/common';
+import { createApicenterClient } from '../../../../../libs/common/src';
 import {
   InvalidSharedAuthRequestError,
   SharedAuthDependencyUnavailableError,
@@ -187,4 +187,3 @@ export class SharedAuthService {
     }
   }
 }
-

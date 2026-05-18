@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Post,
   Put,
@@ -58,6 +59,8 @@ const APICENTER_PAYMENT_PROVIDERS = new Set(['paymongo', 'mock']);
 
 @Controller('v1/payments')
 export class PaymentController {
+  private readonly logger = new Logger(PaymentController.name);
+
   constructor(
     private readonly paymentGatewayService: PaymentGatewayService,
     private readonly bookingGatewayService: BookingGatewayService,
@@ -567,24 +570,32 @@ export class PaymentController {
       return;
     }
 
-    const providerOwner =
-      await this.catalogServiceClient.findProviderOwnerByProviderId(
-        payment.providerId,
-      );
+    try {
+      const providerOwner =
+        await this.catalogServiceClient.findProviderOwnerByProviderId(
+          payment.providerId,
+        );
 
-    await this.notificationServiceClient.createNotification({
-      userId: providerOwner.userId,
-      type: 'payment_reserved',
-      title: 'Payment reserved',
-      body: `A customer reserved payment for ${
-        serviceTitle ?? 'a service booking'
-      }.`,
-      metadata: {
-        bookingId: payment.bookingId,
-        paymentId: payment.id,
-        status: payment.status,
-      },
-    });
+      await this.notificationServiceClient.createNotification({
+        userId: providerOwner.userId,
+        type: 'payment_reserved',
+        title: 'Payment reserved',
+        body: `A customer reserved payment for ${
+          serviceTitle ?? 'a service booking'
+        }.`,
+        metadata: {
+          bookingId: payment.bookingId,
+          paymentId: payment.id,
+          status: payment.status,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Payment notification dispatch failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
   }
 
   private toHttpException(error: unknown): HttpException {

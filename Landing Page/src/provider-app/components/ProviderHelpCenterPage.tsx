@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import { 
   Search, 
@@ -327,7 +327,7 @@ export function ProviderHelpCenterPage() {
   const tabs = ["All", "Payments", "Bookings", "Verification"];
   const selectedTicket = tickets.find((ticket) => ticket.id === selectedTicketId) ?? null;
 
-  const loadTickets = async () => {
+  const loadTickets = useCallback(async () => {
     const token = getStoredProviderAccessToken();
 
     if (!token) {
@@ -356,11 +356,11 @@ export function ProviderHelpCenterPage() {
     } finally {
       setIsLoadingTickets(false);
     }
-  };
+  }, [location.search]);
 
   useEffect(() => {
     void loadTickets();
-  }, [location.search]);
+  }, [loadTickets]);
 
   useEffect(() => {
     const loadReplies = async () => {

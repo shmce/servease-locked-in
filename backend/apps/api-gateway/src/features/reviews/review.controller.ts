@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Post,
   Query,
@@ -27,6 +28,8 @@ import { ReviewResponseSummary, ReviewSummary } from './review.types';
 
 @Controller('v1/reviews')
 export class ReviewController {
+  private readonly logger = new Logger(ReviewController.name);
+
   constructor(
     private readonly reviewGatewayService: ReviewGatewayService,
     private readonly bookingGatewayService: BookingGatewayService,
@@ -191,22 +194,30 @@ export class ReviewController {
       return;
     }
 
-    const providerOwner =
-      await this.catalogServiceClient.findProviderOwnerByProviderId(
-        review.providerId,
-      );
+    try {
+      const providerOwner =
+        await this.catalogServiceClient.findProviderOwnerByProviderId(
+          review.providerId,
+        );
 
-    await this.notificationServiceClient.createNotification({
-      userId: providerOwner.userId,
-      type: 'review_created',
-      title: 'New customer review',
-      body: `A customer left a ${review.rating}-star review.`,
-      metadata: {
-        bookingId: review.bookingId,
-        providerId: review.providerId,
-        reviewId: review.id,
-        rating: String(review.rating),
-      },
-    });
+      await this.notificationServiceClient.createNotification({
+        userId: providerOwner.userId,
+        type: 'review_created',
+        title: 'New customer review',
+        body: `A customer left a ${review.rating}-star review.`,
+        metadata: {
+          bookingId: review.bookingId,
+          providerId: review.providerId,
+          reviewId: review.id,
+          rating: String(review.rating),
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Review notification dispatch failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
   }
 }

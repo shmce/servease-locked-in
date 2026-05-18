@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BookingServiceClient } from './clients/booking-service.client';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { CurrentUserIdentity } from '../current-user/current-user.types';
@@ -22,6 +22,8 @@ import { InvalidBookingTransitionError } from './booking.errors';
 
 @Injectable()
 export class BookingGatewayService {
+  private readonly logger = new Logger(BookingGatewayService.name);
+
   constructor(
     private readonly bookingServiceClient: BookingServiceClient,
     private readonly authServiceClient: AuthServiceClient,
@@ -113,19 +115,25 @@ export class BookingGatewayService {
       return;
     }
 
-    const providerOwner =
-      await this.catalogServiceClient.findProviderOwnerByProviderId(
-        booking.providerId,
-      );
+    await this.dispatchNotificationSideEffect(async () => {
+      const providerOwner =
+        await this.catalogServiceClient?.findProviderOwnerByProviderId(
+          booking.providerId,
+        );
 
-    await this.notificationServiceClient.createNotification({
-      userId: providerOwner.userId,
-      type: 'booking_created',
-      title: 'New booking request',
-      body: `${booking.customerFullName ?? 'A customer'} requested ${
-        booking.serviceTitle ?? 'a service booking'
-      }.`,
-      metadata: this.bookingNotificationMetadata(booking),
+      if (!providerOwner) {
+        return;
+      }
+
+      await this.notificationServiceClient?.createNotification({
+        userId: providerOwner.userId,
+        type: 'booking_created',
+        title: 'New booking request',
+        body: `${booking.customerFullName ?? 'A customer'} requested ${
+          booking.serviceTitle ?? 'a service booking'
+        }.`,
+        metadata: this.bookingNotificationMetadata(booking),
+      });
     });
   }
 
@@ -139,32 +147,55 @@ export class BookingGatewayService {
     }
 
     if (providerId && booking.providerId === providerId) {
-      await this.notificationServiceClient.createNotification({
-        userId: booking.customerId,
-        type: 'booking_status_updated',
-        title: `Booking ${this.statusLabel(booking.status)}`,
-        body: `Your ${booking.serviceTitle ?? 'service'} booking was ${this.statusLabel(
-          booking.status,
-        )}.`,
-        metadata: this.bookingNotificationMetadata(booking),
+      await this.dispatchNotificationSideEffect(async () => {
+        await this.notificationServiceClient?.createNotification({
+          userId: booking.customerId,
+          type: 'booking_status_updated',
+          title: `Booking ${this.statusLabel(booking.status)}`,
+          body: `Your ${booking.serviceTitle ?? 'service'} booking was ${this.statusLabel(
+            booking.status,
+          )}.`,
+          metadata: this.bookingNotificationMetadata(booking),
+        });
       });
       return;
     }
 
     if (booking.customerId === actorId && this.catalogServiceClient) {
-      const providerOwner =
-        await this.catalogServiceClient.findProviderOwnerByProviderId(
-          booking.providerId,
-        );
-      await this.notificationServiceClient.createNotification({
-        userId: providerOwner.userId,
-        type: 'booking_status_updated',
-        title: `Booking ${this.statusLabel(booking.status)}`,
-        body: `${booking.customerFullName ?? 'A customer'} ${this.statusLabel(
-          booking.status,
-        )} ${booking.serviceTitle ?? 'a service'} booking.`,
-        metadata: this.bookingNotificationMetadata(booking),
+      await this.dispatchNotificationSideEffect(async () => {
+        const providerOwner =
+          await this.catalogServiceClient?.findProviderOwnerByProviderId(
+            booking.providerId,
+          );
+
+        if (!providerOwner) {
+          return;
+        }
+
+        await this.notificationServiceClient?.createNotification({
+          userId: providerOwner.userId,
+          type: 'booking_status_updated',
+          title: `Booking ${this.statusLabel(booking.status)}`,
+          body: `${booking.customerFullName ?? 'A customer'} ${this.statusLabel(
+            booking.status,
+          )} ${booking.serviceTitle ?? 'a service'} booking.`,
+          metadata: this.bookingNotificationMetadata(booking),
+        });
       });
+    }
+  }
+
+  private async dispatchNotificationSideEffect(
+    action: () => Promise<void>,
+  ): Promise<void> {
+    try {
+      await action();
+    } catch (error) {
+      this.logger.warn(
+        `Booking notification dispatch failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
     }
   }
 

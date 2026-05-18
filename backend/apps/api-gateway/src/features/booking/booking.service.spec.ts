@@ -96,6 +96,41 @@ describe('BookingGatewayService', () => {
     });
   });
 
+  it('keeps booking creation successful when provider notification dispatch fails', async () => {
+    const client = {
+      createBooking: jest.fn().mockResolvedValue(createBookingSummary()),
+    } as unknown as BookingServiceClient;
+    const notificationClient = {
+      createNotification: jest.fn().mockRejectedValue(new Error('notification down')),
+    };
+    const catalogClient = {
+      findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
+        'GreenFix Home Services',
+      ),
+      findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
+        userId: 'provider-user-1',
+        businessName: 'GreenFix Home Services',
+      }),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      notificationClient as unknown as NotificationServiceClient,
+      catalogClient as unknown as CatalogServiceClient,
+    );
+
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-05-20T08:00:00.000Z',
+      }),
+    ).resolves.toMatchObject({
+      id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      providerBusinessName: 'GreenFix Home Services',
+    });
+  });
+
   it('forwards booking list visibility ids and enriches customer contact once per customer', async () => {
     const client = {
       listBookings: jest.fn().mockResolvedValue([
