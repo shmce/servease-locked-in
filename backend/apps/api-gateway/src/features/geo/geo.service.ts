@@ -3,6 +3,8 @@ import { GeoServiceClient } from './clients/geo-service.client';
 import { InvalidGeoRequestError } from './geo.errors';
 import {
   GeoAddressResult,
+  GeoDirectionsRequest,
+  GeoDirectionsRoute,
   GeoFenceCheckRequest,
   GeoFenceCheckResponse,
   GeoGeocodeAddressRequest,
@@ -59,8 +61,29 @@ export class GeoGatewayService {
     });
   }
 
-  private isCoordinate(value: number, maxAbsolute: number): boolean {
-    return Number.isFinite(value) && Math.abs(value) <= maxAbsolute;
+  directions(input: GeoDirectionsRequest): Promise<GeoDirectionsRoute> {
+    if (
+      !this.isCoordinate(input.origin?.latitude, 90) ||
+      !this.isCoordinate(input.origin?.longitude, 180) ||
+      !this.isCoordinate(input.destination?.latitude, 90) ||
+      !this.isCoordinate(input.destination?.longitude, 180)
+    ) {
+      throw new InvalidGeoRequestError();
+    }
+
+    return this.geoServiceClient.directions({
+      origin: input.origin,
+      destination: input.destination,
+      profile: input.profile?.trim() as GeoDirectionsRequest['profile'],
+      language: input.language?.trim() || undefined,
+    });
+  }
+
+  private isCoordinate(value: number | undefined, maxAbsolute: number): boolean {
+    return (
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      Math.abs(value) <= maxAbsolute
+    );
   }
 }
-

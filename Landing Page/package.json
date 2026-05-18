@@ -7,7 +7,10 @@
     "build": "next build",
     "dev": "next dev",
     "e2e": "npm run build && playwright test",
-    "start": "next start"
+    "lint": "eslint \"src/**/*.{ts,tsx}\" \"scripts/**/*.ts\" \"e2e/**/*.ts\"",
+    "start": "next start",
+    "test": "for file in scripts/*.test.ts; do tsx \"$file\" || exit 1; done",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -80,7 +83,12 @@
     "@types/node": "22.15.3",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
+    "eslint": "^10.4.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
     "tailwindcss": "4.1.12",
-    "typescript": "5.8.3"
+    "tsx": "^4.22.1",
+    "typescript": "5.8.3",
+    "typescript-eslint": "^8.59.3"
   }
 }

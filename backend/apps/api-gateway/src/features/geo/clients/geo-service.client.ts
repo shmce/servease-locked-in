@@ -6,6 +6,8 @@ import {
 } from '../geo.errors';
 import {
   GeoAddressResult,
+  GeoDirectionsRequest,
+  GeoDirectionsRoute,
   GeoFenceCheckRequest,
   GeoFenceCheckResponse,
   GeoGeocodeAddressRequest,
@@ -35,6 +37,14 @@ export class GeoServiceClient {
   checkFence(input: GeoFenceCheckRequest): Promise<GeoFenceCheckResponse> {
     return this.request<GeoFenceCheckResponse>(
       '/internal/shared-geo/geofence/check',
+      'POST',
+      input,
+    );
+  }
+
+  directions(input: GeoDirectionsRequest): Promise<GeoDirectionsRoute> {
+    return this.request<GeoDirectionsRoute>(
+      '/internal/shared-geo/directions',
       'POST',
       input,
     );
@@ -85,4 +95,3 @@ export class GeoServiceClient {
     }
   }
 }
-

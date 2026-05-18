@@ -1,20 +1,18 @@
 name: Migration drift
 
 on:
-  workflow_dispatch:
   pull_request:
     paths:
-      - 'backend/database/**'
-      - 'backend/scripts/check-migration-drift.mjs'
-      - 'backend/scripts/smoke-messaging.mjs'
-      - '.github/workflows/migration-drift.yml'
+      - "backend/database/**"
+      - "backend/scripts/check-migration-drift.mjs"
+      - "backend/scripts/smoke-messaging.mjs"
+      - ".github/workflows/migration-drift.yml"
   push:
     branches: [main]
     paths:
-      - 'backend/database/**'
-      - 'backend/scripts/check-migration-drift.mjs'
-      - 'backend/scripts/smoke-messaging.mjs'
-      - '.github/workflows/migration-drift.yml'
+      - "backend/database/**"
+      - "backend/scripts/check-migration-drift.mjs"
+      - "backend/scripts/smoke-messaging.mjs"
 
 jobs:
   drift:
@@ -28,8 +26,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: backend/package-lock.json
 
       - run: npm ci

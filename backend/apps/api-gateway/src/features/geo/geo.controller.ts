@@ -11,6 +11,8 @@ import {
 import { GeoGatewayService } from './geo.service';
 import {
   GeoAddressResult,
+  GeoDirectionsRequest,
+  GeoDirectionsRoute,
   GeoFenceCheckRequest,
   GeoFenceCheckResponse,
   GeoGeocodeAddressRequest,
@@ -63,6 +65,19 @@ export class GeoController {
     }
   }
 
+  @Post('directions')
+  async directions(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: GeoDirectionsRequest,
+  ): Promise<{ data: GeoDirectionsRoute }> {
+    try {
+      await this.authTokenService.authenticate(authorization);
+      return { data: await this.geoGatewayService.directions(body) };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private toHttpException(error: unknown): HttpException {
     if (error instanceof AuthRequiredError) {
       return this.error('auth_required', 'Authentication is required.', 401);
@@ -91,4 +106,3 @@ export class GeoController {
     return new HttpException({ error: { code, message, details: {} } }, status);
   }
 }
-

@@ -19,6 +19,7 @@ import {
   generateOtp,
   geocodeAddress,
   getCheckoutStatus,
+  getDirections,
   getGoogleAuthorizationUrl,
   getPublicProviderAvailability,
   getProviderAvailability,
@@ -912,6 +913,13 @@ describe('serveaseApi', () => {
       { latitude: 14.5995, longitude: 120.9842, fenceId: 'metro-manila' },
       { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
     );
+    await getDirections(
+      {
+        origin: { latitude: 14.5995, longitude: 120.9842 },
+        destination: { latitude: 14.61, longitude: 121.001 },
+      },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
 
     assert.deepEqual(calls, [
       {
@@ -937,6 +945,14 @@ describe('serveaseApi', () => {
           latitude: 14.5995,
           longitude: 120.9842,
           fenceId: 'metro-manila',
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/geo/directions',
+        method: 'POST',
+        body: {
+          origin: { latitude: 14.5995, longitude: 120.9842 },
+          destination: { latitude: 14.61, longitude: 121.001 },
         },
       },
     ]);

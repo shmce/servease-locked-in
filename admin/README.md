@@ -32,6 +32,8 @@ Create `.env.local` in this folder with:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5001
 NEXT_PUBLIC_SUPABASE_URL=https://bwubdvjyjssywfjyhrxj.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key from Supabase project>
+ADMIN_SMOKE_EMAIL=admin.demo@servease.test
+ADMIN_SMOKE_PASSWORD=<demo admin password>
 ```
 
 ## Demo admin account

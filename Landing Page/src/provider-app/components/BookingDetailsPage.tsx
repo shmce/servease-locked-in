@@ -23,6 +23,7 @@ import {
   createProviderBookingDispute,
   createProviderBookingServiceUpdate,
   deleteProviderBookingAttachment,
+  getProviderDirections,
   getProviderBooking,
   getProviderBookingTrackingSnapshot,
   getStoredProviderAccessToken,
@@ -38,6 +39,8 @@ import {
   type BookingServiceUpdateSummary,
   type BookingSummary,
   type BookingTrackingSnapshot,
+  type GeoDirectionsRoute,
+  type GeoRouteLocation,
 } from "../../services/serveaseProviderApi";
 
 type TimelineStepStatus = "completed" | "current" | "pending";
@@ -419,6 +422,29 @@ const styles = {
     gap: "6px",
     padding: "14px",
   },
+  routeInstructionList: {
+    display: "grid",
+    gap: "8px",
+    marginTop: "12px",
+  },
+  routeInstructionRow: {
+    alignItems: "flex-start",
+    display: "flex",
+    gap: "8px",
+  },
+  routeInstructionNumber: {
+    alignItems: "center",
+    backgroundColor: "#DCFCE7",
+    borderRadius: "999px",
+    color: "#15803D",
+    display: "flex",
+    flexShrink: 0,
+    fontSize: "12px",
+    fontWeight: "700",
+    height: "24px",
+    justifyContent: "center",
+    width: "24px",
+  },
 };
 
 const OPENFREEMAP_STYLE_URL =
@@ -467,6 +493,49 @@ function formatTime(value: string): string {
   return date.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
+  });
+}
+
+function formatRouteDistance(distanceMeters: number): string {
+  if (distanceMeters >= 1000) {
+    return `${(distanceMeters / 1000).toFixed(1)} km`;
+  }
+
+  return `${Math.round(distanceMeters)} m`;
+}
+
+function formatRouteDuration(durationSeconds: number): string {
+  const minutes = Math.max(1, Math.round(durationSeconds / 60));
+
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes ? `${hours} hr ${remainingMinutes} min` : `${hours} hr`;
+}
+
+function getBrowserRouteOrigin(): Promise<GeoRouteLocation> {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    return Promise.reject(new Error("geolocation_unavailable"));
+  }
+
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        resolve({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+      },
+      () => reject(new Error("geolocation_unavailable")),
+      {
+        enableHighAccuracy: false,
+        maximumAge: 60_000,
+        timeout: 12_000,
+      },
+    );
   });
 }
 
@@ -520,7 +589,16 @@ function formatMessageTime(value: string | null): string {
   });
 }
 
-function trackingSummary(tracking: BookingTrackingSnapshot | null): string {
+function trackingSummary(
+  tracking: BookingTrackingSnapshot | null,
+  directions: GeoDirectionsRoute | null,
+): string {
+  if (directions) {
+    return `${formatRouteDistance(directions.distanceMeters)} · ${formatRouteDuration(
+      directions.durationSeconds,
+    )}`;
+  }
+
   if (!tracking) {
     return "Route preview loading";
   }
@@ -531,28 +609,6 @@ function trackingSummary(tracking: BookingTrackingSnapshot | null): string {
   ].filter(Boolean);
 
   return parts.length ? parts.join(" · ") : tracking.status.replace("_", " ");
-}
-
-function buildDirectionsUrl(
-  booking: BookingSummary,
-  tracking: BookingTrackingSnapshot | null,
-): string | null {
-  const coordinateDestination = tracking?.destinationLocation
-    ? `${tracking.destinationLocation.latitude},${tracking.destinationLocation.longitude}`
-    : null;
-  const destination = coordinateDestination || booking.serviceAddress?.trim();
-
-  if (!destination) {
-    return null;
-  }
-
-  const params = new URLSearchParams({
-    api: "1",
-    destination,
-    travelmode: "driving",
-  });
-
-  return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
 function isTrackingLocation(
@@ -581,9 +637,13 @@ function createRouteMarker(kind: "provider" | "destination"): HTMLElement {
 
 function RoutePreview({
   tracking,
+  directions,
+  routeOrigin,
   address,
 }: {
   tracking: BookingTrackingSnapshot | null;
+  directions: GeoDirectionsRoute | null;
+  routeOrigin: GeoRouteLocation | null;
   address: string;
 }) {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
@@ -591,9 +651,11 @@ function RoutePreview({
   const destination = isTrackingLocation(tracking?.destinationLocation)
     ? tracking.destinationLocation
     : null;
-  const provider = isTrackingLocation(tracking?.providerLocation)
-    ? tracking.providerLocation
-    : null;
+  const routeGeometry = directions?.geometry?.length ? directions.geometry : null;
+  const provider =
+    routeOrigin ??
+    (routeGeometry?.[0] ?? null) ??
+    (isTrackingLocation(tracking?.providerLocation) ? tracking.providerLocation : null);
 
   useEffect(() => {
     if (!mapContainerRef.current || !destination) {
@@ -640,9 +702,20 @@ function RoutePreview({
         );
 
         map.on("load", () => {
-          if (!map || !provider) {
+          const routeLine: [number, number][] | null =
+            routeGeometry?.map((point) => [point.longitude, point.latitude]) ??
+            (provider
+              ? [
+                  [provider.longitude, provider.latitude],
+                  [destination.longitude, destination.latitude],
+                ]
+              : null);
+
+          if (!map || !routeLine?.length) {
             return;
           }
+
+          const firstCoordinate = routeLine[0];
 
           map.addSource("tracking-route", {
             type: "geojson",
@@ -651,10 +724,7 @@ function RoutePreview({
               properties: {},
               geometry: {
                 type: "LineString",
-                coordinates: [
-                  [provider.longitude, provider.latitude],
-                  [destination.longitude, destination.latitude],
-                ],
+                coordinates: routeLine,
               },
             },
           });
@@ -679,9 +749,9 @@ function RoutePreview({
             },
           });
 
-          const bounds = new maplibregl.LngLatBounds(
-            [provider.longitude, provider.latitude],
-            [provider.longitude, provider.latitude],
+          const bounds = routeLine.reduce(
+            (nextBounds, coordinate) => nextBounds.extend(coordinate),
+            new maplibregl.LngLatBounds(firstCoordinate, firstCoordinate),
           ).extend([destination.longitude, destination.latitude]);
           map.fitBounds(bounds, { duration: 0, maxZoom: 14, padding: 46 });
         });
@@ -702,10 +772,13 @@ function RoutePreview({
       map?.remove();
     };
   }, [
+    destination,
     destination?.latitude,
     destination?.longitude,
+    provider,
     provider?.latitude,
     provider?.longitude,
+    routeGeometry,
   ]);
 
   return (
@@ -721,12 +794,22 @@ function RoutePreview({
       </div>
       <div style={styles.routePreviewMeta}>
         <div style={styles.detailLabel}>Route preview</div>
-        <div style={styles.detailValue}>{trackingSummary(tracking)}</div>
+        <div style={styles.detailValue}>{trackingSummary(tracking, directions)}</div>
         <div style={styles.detailLabel}>
           {tracking?.destinationLocation
             ? `${tracking.destinationLocation.latitude.toFixed(5)}, ${tracking.destinationLocation.longitude.toFixed(5)}`
             : address}
         </div>
+        {directions?.steps.length ? (
+          <div style={styles.routeInstructionList}>
+            {directions.steps.slice(0, 3).map((step, index) => (
+              <div key={`${index}-${step.instruction}`} style={styles.routeInstructionRow}>
+                <div style={styles.routeInstructionNumber}>{index + 1}</div>
+                <div style={styles.detailValue}>{step.instruction}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -749,6 +832,10 @@ export function BookingDetailsPage() {
   const [progressPhoto, setProgressPhoto] = useState<File | null>(null);
   const [disputeReason, setDisputeReason] = useState("");
   const [disputeDetails, setDisputeDetails] = useState("");
+  const [directions, setDirections] = useState<GeoDirectionsRoute | null>(null);
+  const [routeOrigin, setRouteOrigin] = useState<GeoRouteLocation | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
 
   useEffect(() => {
     const loadBooking = async () => {
@@ -857,10 +944,39 @@ export function BookingDetailsPage() {
     },
   };
 
-  const openDirections = () => {
-    const url = buildDirectionsUrl(apiBooking, tracking);
-    if (url) {
-      window.open(url, "_blank", "noopener,noreferrer");
+  const loadDirections = async () => {
+    const token = getStoredProviderAccessToken();
+    const destination = isTrackingLocation(tracking?.destinationLocation)
+      ? tracking.destinationLocation
+      : null;
+
+    if (!token || !destination) {
+      setRouteError("Service coordinates are not available yet.");
+      return;
+    }
+
+    setIsLoadingRoute(true);
+    setRouteError(null);
+
+    try {
+      let origin: GeoRouteLocation;
+
+      try {
+        origin = await getBrowserRouteOrigin();
+      } catch {
+        if (!isTrackingLocation(tracking?.providerLocation)) {
+          throw new Error("location_unavailable");
+        }
+
+        origin = tracking.providerLocation;
+      }
+
+      setRouteOrigin(origin);
+      setDirections(await getProviderDirections(token, origin, destination));
+    } catch {
+      setRouteError("Allow browser location access to load in-app directions.");
+    } finally {
+      setIsLoadingRoute(false);
     }
   };
 
@@ -1233,7 +1349,12 @@ export function BookingDetailsPage() {
                 <div style={styles.detailContent}>
                   <div style={styles.detailLabel}>Location</div>
                   <div style={styles.detailValue}>{booking.service.location}</div>
-                  <RoutePreview tracking={tracking} address={booking.service.location} />
+                  <RoutePreview
+                    tracking={tracking}
+                    directions={directions}
+                    routeOrigin={routeOrigin}
+                    address={booking.service.location}
+                  />
                 </div>
               </div>
 
@@ -1372,12 +1493,19 @@ export function BookingDetailsPage() {
 
                   <div style={styles.actionButtons}>
                     <button
+                      disabled={isLoadingRoute || !tracking?.destinationLocation}
                       style={{ ...styles.button, ...styles.primaryButton }}
-                      onClick={openDirections}
+                      onClick={() => void loadDirections()}
                     >
                       <Navigation size={16} />
-                      Get Directions
+                      {isLoadingRoute ? "Loading route..." : directions ? "Refresh Route" : "Load Route"}
                     </button>
+                    {routeError ? (
+                      <div style={{ ...styles.infoBox, gridColumn: "1 / -1" }}>
+                        <AlertCircle size={18} style={{ marginTop: "2px", flexShrink: 0 }} />
+                        <div>{routeError}</div>
+                      </div>
+                    ) : null}
                     <button
                       disabled={isUpdating}
                       style={{ ...styles.button, ...styles.outlinedButton, opacity: isUpdating ? 0.7 : 1 }}

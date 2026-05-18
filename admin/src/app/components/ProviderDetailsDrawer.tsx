@@ -29,6 +29,30 @@ interface ProviderDetailsDrawerProps {
   onToggleStatus: (providerId: string, newStatus: ProviderStatus) => void;
 }
 
+const providerMapPoints = [
+  { key: "makati", left: "55%", top: "58%" },
+  { key: "quezon", left: "72%", top: "22%" },
+  { key: "taguig", left: "76%", top: "64%" },
+  { key: "pasig", left: "82%", top: "48%" },
+  { key: "manila", left: "30%", top: "52%" },
+  { key: "pasay", left: "35%", top: "72%" },
+  { key: "mandaluyong", left: "62%", top: "48%" },
+  { key: "paranaque", left: "45%", top: "82%" },
+  { key: "malabon", left: "38%", top: "18%" },
+  { key: "valenzuela", left: "52%", top: "10%" },
+];
+
+function getProviderMapPoint(location: string) {
+  const normalizedLocation = location.toLowerCase();
+
+  return (
+    providerMapPoints.find((point) => normalizedLocation.includes(point.key)) ?? {
+      left: "50%",
+      top: "50%",
+    }
+  );
+}
+
 export function ProviderDetailsDrawer({
   provider,
   isOpen,
@@ -88,6 +112,7 @@ export function ProviderDetailsDrawer({
     const newStatus: ProviderStatus = provider.status === "Active" ? "Suspended" : "Active";
     onToggleStatus(provider.id, newStatus);
   };
+  const providerMapPoint = getProviderMapPoint(provider.location);
 
   return (
     <Sheet open={isOpen} onOpenChange={onClose}>
@@ -208,13 +233,28 @@ export function ProviderDetailsDrawer({
                   <p className="text-sm text-gray-500">Service Area</p>
                   <p className="text-gray-900 mt-1">{provider.location}</p>
                 </div>
-                {/* Map Placeholder */}
-                <div className="bg-gray-100 rounded-lg p-8 text-center border border-gray-200">
-                  <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-500">Map view placeholder</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Integration available in production
-                  </p>
+                <div className="relative h-44 overflow-hidden rounded-lg border border-gray-200 bg-gradient-to-br from-sky-50 via-emerald-50 to-slate-100">
+                  <div className="absolute inset-x-0 top-1/3 h-px bg-white/80" />
+                  <div className="absolute inset-x-0 top-2/3 h-px bg-white/80" />
+                  <div className="absolute inset-y-0 left-1/3 w-px bg-white/80" />
+                  <div className="absolute inset-y-0 left-2/3 w-px bg-white/80" />
+                  <div
+                    className="absolute -translate-x-1/2 -translate-y-1/2"
+                    style={providerMapPoint}
+                  >
+                    <div className="relative">
+                      <div className="absolute inset-0 h-12 w-12 -translate-x-3 -translate-y-3 rounded-full bg-[#00BF63]/15" />
+                      <div className="relative flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#00BF63] shadow-md">
+                        <MapPin className="h-3.5 w-3.5 text-white" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="absolute bottom-3 left-3 right-3 rounded-md bg-white/90 px-3 py-2 shadow-sm">
+                    <p className="text-xs font-medium text-gray-900">
+                      Approximate service area
+                    </p>
+                    <p className="text-xs text-gray-500">{provider.location}</p>
+                  </div>
                 </div>
               </div>
             </div>

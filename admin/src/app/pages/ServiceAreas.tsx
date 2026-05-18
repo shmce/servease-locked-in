@@ -51,18 +51,49 @@ import {
 } from "lucide-react";
 import { notifyBackendRequired } from "../utils/backendRequired";
 
+interface ServiceArea {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  status: "Active" | "Inactive";
+  providersAvailable: number;
+  coverage: string;
+  latitude: number;
+  longitude: number;
+}
+
+const mapBounds = {
+  north: 14.67,
+  south: 14.52,
+  east: 121.08,
+  west: 120.96,
+};
+
 // Mock Service Areas Data
-const serviceAreasData = [
-  { id: "AREA-001", name: "Manila - Ermita", city: "Manila", region: "NCR", status: "Active", providersAvailable: 145, coverage: "Full coverage" },
-  { id: "AREA-002", name: "Manila - Malate", city: "Manila", region: "NCR", status: "Active", providersAvailable: 132, coverage: "Full coverage" },
-  { id: "AREA-003", name: "Quezon City - Diliman", city: "Quezon City", region: "NCR", status: "Active", providersAvailable: 198, coverage: "Full coverage" },
-  { id: "AREA-004", name: "Quezon City - Cubao", city: "Quezon City", region: "NCR", status: "Active", providersAvailable: 176, coverage: "Full coverage" },
-  { id: "AREA-005", name: "Makati - Poblacion", city: "Makati", region: "NCR", status: "Active", providersAvailable: 211, coverage: "Full coverage" },
-  { id: "AREA-006", name: "Makati - Salcedo Village", city: "Makati", region: "NCR", status: "Active", providersAvailable: 189, coverage: "Full coverage" },
-  { id: "AREA-007", name: "Pasig - Kapitolyo", city: "Pasig", region: "NCR", status: "Active", providersAvailable: 154, coverage: "Full coverage" },
-  { id: "AREA-008", name: "Taguig - BGC", city: "Taguig", region: "NCR", status: "Active", providersAvailable: 223, coverage: "Full coverage" },
-  { id: "AREA-009", name: "Pasay - Mall of Asia Area", city: "Pasay", region: "NCR", status: "Active", providersAvailable: 167, coverage: "Full coverage" },
+const serviceAreasData: ServiceArea[] = [
+  { id: "AREA-001", name: "Manila - Ermita", city: "Manila", region: "NCR", status: "Active", providersAvailable: 145, coverage: "Full coverage", latitude: 14.5826, longitude: 120.9847 },
+  { id: "AREA-002", name: "Manila - Malate", city: "Manila", region: "NCR", status: "Active", providersAvailable: 132, coverage: "Full coverage", latitude: 14.5714, longitude: 120.9932 },
+  { id: "AREA-003", name: "Quezon City - Diliman", city: "Quezon City", region: "NCR", status: "Active", providersAvailable: 198, coverage: "Full coverage", latitude: 14.6537, longitude: 121.0685 },
+  { id: "AREA-004", name: "Quezon City - Cubao", city: "Quezon City", region: "NCR", status: "Active", providersAvailable: 176, coverage: "Full coverage", latitude: 14.6196, longitude: 121.051 },
+  { id: "AREA-005", name: "Makati - Poblacion", city: "Makati", region: "NCR", status: "Active", providersAvailable: 211, coverage: "Full coverage", latitude: 14.5654, longitude: 121.0292 },
+  { id: "AREA-006", name: "Makati - Salcedo Village", city: "Makati", region: "NCR", status: "Active", providersAvailable: 189, coverage: "Full coverage", latitude: 14.5547, longitude: 121.0244 },
+  { id: "AREA-007", name: "Pasig - Kapitolyo", city: "Pasig", region: "NCR", status: "Active", providersAvailable: 154, coverage: "Full coverage", latitude: 14.5718, longitude: 121.0597 },
+  { id: "AREA-008", name: "Taguig - BGC", city: "Taguig", region: "NCR", status: "Active", providersAvailable: 223, coverage: "Full coverage", latitude: 14.5507, longitude: 121.0507 },
+  { id: "AREA-009", name: "Pasay - Mall of Asia Area", city: "Pasay", region: "NCR", status: "Active", providersAvailable: 167, coverage: "Full coverage", latitude: 14.5352, longitude: 120.9822 },
 ];
+
+function getCoveragePoint(area: ServiceArea) {
+  const left =
+    ((area.longitude - mapBounds.west) / (mapBounds.east - mapBounds.west)) * 100;
+  const top =
+    ((mapBounds.north - area.latitude) / (mapBounds.north - mapBounds.south)) * 100;
+
+  return {
+    left: `${Math.min(94, Math.max(6, left))}%`,
+    top: `${Math.min(90, Math.max(10, top))}%`,
+  };
+}
 
 export function ServiceAreas() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -216,19 +247,52 @@ export function ServiceAreas() {
         </Card>
       </div>
 
-      {/* Map Placeholder */}
       <Card>
         <CardHeader>
           <CardTitle>Coverage Map</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
-            <div className="text-center">
-              <MapPin className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-500 font-medium">Interactive Map Coming Soon</p>
-              <p className="text-sm text-gray-400 mt-1">
-                Visual representation of service coverage areas
+          <div className="relative h-80 overflow-hidden rounded-lg border border-gray-200 bg-gradient-to-br from-sky-50 via-emerald-50 to-slate-100">
+            <div className="absolute inset-x-0 top-1/4 h-px bg-white/80" />
+            <div className="absolute inset-x-0 top-1/2 h-px bg-white/80" />
+            <div className="absolute inset-x-0 top-3/4 h-px bg-white/80" />
+            <div className="absolute inset-y-0 left-1/4 w-px bg-white/80" />
+            <div className="absolute inset-y-0 left-1/2 w-px bg-white/80" />
+            <div className="absolute inset-y-0 left-3/4 w-px bg-white/80" />
+            <div className="absolute left-4 top-4 rounded-md bg-white/90 px-3 py-2 shadow-sm">
+              <p className="text-sm font-semibold text-gray-900">Metro Manila coverage</p>
+              <p className="text-xs text-gray-500">
+                {filteredAreas.length} visible areas, {stats.totalProviders} providers
               </p>
+            </div>
+            {filteredAreas.map((area) => {
+              const point = getCoveragePoint(area);
+
+              return (
+                <div
+                  key={area.id}
+                  className="absolute -translate-x-1/2 -translate-y-1/2"
+                  style={point}
+                  title={`${area.name} - ${area.providersAvailable} providers`}
+                >
+                  <div className="relative">
+                    <div className="absolute inset-0 h-10 w-10 -translate-x-2 -translate-y-2 rounded-full bg-[#00BF63]/15" />
+                    <div className="relative flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#00BF63] shadow-md">
+                      <MapPin className="h-3.5 w-3.5 text-white" />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div className="absolute bottom-4 left-4 right-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+              {cities.slice(0, 4).map((city) => (
+                <div key={city} className="rounded-md bg-white/90 px-3 py-2 shadow-sm">
+                  <p className="text-xs font-medium text-gray-900">{city}</p>
+                  <p className="text-xs text-gray-500">
+                    {serviceAreasData.filter((area) => area.city === city).length} areas
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </CardContent>

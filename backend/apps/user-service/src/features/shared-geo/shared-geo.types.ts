@@ -27,6 +27,43 @@ export interface GeoFenceCheckRequest {
   fences?: GeoFence[];
 }
 
+export interface GeoRouteLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export type GeoDirectionsProfile =
+  | 'driving-car'
+  | 'driving-hgv'
+  | 'cycling-regular'
+  | 'foot-walking';
+
+export interface GeoDirectionsRequest {
+  origin: GeoRouteLocation;
+  destination: GeoRouteLocation;
+  profile?: GeoDirectionsProfile;
+  language?: string;
+}
+
+export interface GeoDirectionsStep {
+  instruction: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  name?: string;
+  type?: number;
+  wayPoints?: [number, number];
+}
+
+export interface GeoDirectionsRoute {
+  provider: 'openrouteservice';
+  distanceMeters: number;
+  durationSeconds: number;
+  geometry: GeoRouteLocation[];
+  steps: GeoDirectionsStep[];
+  bbox?: [number, number, number, number];
+  raw?: unknown;
+}
+
 export interface GeoAddressResult {
   formattedAddress: string;
   latitude: number;
@@ -50,4 +87,3 @@ export interface GeoFenceCheckResponse {
   distanceDetails: GeoFenceDistanceDetail[];
   provider: 'local';
 }
-

@@ -604,6 +604,30 @@ export interface GeoFenceCheckResponse {
   provider: 'local';
 }
 
+export interface GeoRouteLocation {
+  latitude: number;
+  longitude: number;
+}
+
+export interface GeoDirectionsStep {
+  instruction: string;
+  distanceMeters: number;
+  durationSeconds: number;
+  name?: string;
+  type?: number;
+  wayPoints?: [number, number];
+}
+
+export interface GeoDirectionsRoute {
+  provider: 'openrouteservice';
+  distanceMeters: number;
+  durationSeconds: number;
+  geometry: GeoRouteLocation[];
+  steps: GeoDirectionsStep[];
+  bbox?: [number, number, number, number];
+  raw?: unknown;
+}
+
 export interface UpdateCurrentUserProfileRequest {
   fullName: string;
   contactNumber?: string | null;
@@ -1404,6 +1428,23 @@ export function checkGeoFence(
   options: ApiOptions = {},
 ): Promise<GeoFenceCheckResponse> {
   return request<GeoFenceCheckResponse>('/v1/geo/geofence/check', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function getDirections(
+  body: {
+    origin: GeoRouteLocation;
+    destination: GeoRouteLocation;
+    profile?: 'driving-car' | 'driving-hgv' | 'cycling-regular' | 'foot-walking';
+    language?: string;
+  },
+  options: ApiOptions = {},
+): Promise<GeoDirectionsRoute> {
+  return request<GeoDirectionsRoute>('/v1/geo/directions', {
     ...options,
     method: 'POST',
     body,

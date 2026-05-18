@@ -38,7 +38,9 @@ const password = process.env.ADMIN_SMOKE_PASSWORD;
 
 function requireEnv(name, value) {
   if (!value) {
-    throw new Error(`Missing ${name}`);
+    throw new Error(
+      `Missing ${name}. Add it to admin/.env.local before running npm run smoke:integration.`,
+    );
   }
 }
 

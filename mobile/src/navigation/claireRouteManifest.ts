@@ -63,7 +63,7 @@ export const claireRouteManifest: ClaireRouteManifestItem[] = [
   { key: 'providerPortfolio', sourcePath: '/provider/portfolio', group: 'provider', backendMode: 'connected' },
   { key: 'providerPayoutManagement', sourcePath: '/provider/payout-management', group: 'provider', backendMode: 'connected' },
   { key: 'providerRequestPayout', sourcePath: '/provider/request-payout', group: 'provider', backendMode: 'connected' },
-  { key: 'providerNavigationMode', sourcePath: '/provider/navigation-mode/:id', group: 'provider', backendMode: 'connected', notes: 'Uses booking tracking snapshot and opens external map directions through Linking.' },
+  { key: 'providerNavigationMode', sourcePath: '/provider/navigation-mode/:id', group: 'provider', backendMode: 'connected', notes: 'Uses booking tracking, device location, and OpenRouteService directions through the gateway for in-app route preview.' },
   { key: 'providerStartService', sourcePath: '/provider/start-service/:id', group: 'provider', backendMode: 'connected' },
   { key: 'providerServiceInProgress', sourcePath: '/provider/service-in-progress/:id', group: 'provider', backendMode: 'connected' },
   { key: 'providerCompleteService', sourcePath: '/provider/complete-service/:id', group: 'provider', backendMode: 'connected' },

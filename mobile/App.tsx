@@ -1,5 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import {
   Bell,
   BriefcaseBusiness,
@@ -88,7 +89,6 @@ import {
   activeBookingCount,
   bookingStatusChip,
   buildCalendarExportUrl,
-  buildMapsDirectionsUrl,
   buildBookingTransitionRequest,
   buildProviderBookingSlots,
   completedBookingCount,
@@ -192,6 +192,7 @@ import {
   getMyProviderApplication,
   getProviderDashboard,
   getCheckoutStatus,
+  getDirections,
   getGoogleAuthorizationUrl,
   geocodeAddress,
   generateOtp,
@@ -248,6 +249,8 @@ import {
   uploadMedia,
   validatePromotion,
   type GeoAddressResult,
+  type GeoDirectionsRoute,
+  type GeoRouteLocation,
   type SharedPaymentMethod,
 } from './services/serveaseApi';
 import { AuthSession, signInWithPassword } from './services/supabaseAuth';
@@ -360,6 +363,12 @@ export default function App() {
   >([]);
   const [selectedBookingTracking, setSelectedBookingTracking] =
     useState<BookingTrackingSnapshot | null>(null);
+  const [selectedBookingDirections, setSelectedBookingDirections] =
+    useState<GeoDirectionsRoute | null>(null);
+  const [selectedNavigationOrigin, setSelectedNavigationOrigin] =
+    useState<GeoRouteLocation | null>(null);
+  const [navigationRouteError, setNavigationRouteError] = useState<string | null>(null);
+  const [navigationRouteLoading, setNavigationRouteLoading] = useState(false);
   const [selectedProviderPortfolioMedia, setSelectedProviderPortfolioMedia] = useState<
     ProviderPortfolioMediaSummary[]
   >([]);
@@ -775,6 +784,21 @@ export default function App() {
     const tick = () => void refreshBookingTracking(selectedBookingId);
     const interval = setInterval(tick, 15000);
     return () => clearInterval(interval);
+  }, [session?.accessToken, selectedBookingId, route.screen]);
+
+  useEffect(() => {
+    if (
+      !session?.accessToken ||
+      !selectedBookingId ||
+      route.screen !== 'providerNavigationMode'
+    ) {
+      setSelectedBookingDirections(null);
+      setSelectedNavigationOrigin(null);
+      setNavigationRouteError(null);
+      return;
+    }
+
+    void refreshProviderDirections(selectedBookingId);
   }, [session?.accessToken, selectedBookingId, route.screen]);
 
   async function loadCatalog() {
@@ -1906,22 +1930,6 @@ export default function App() {
     await Linking.openURL(calendarUrl);
   }
 
-  async function openSelectedBookingInMaps() {
-    const mapsUrl = buildMapsDirectionsUrl(selectedBooking?.serviceAddress);
-    if (!mapsUrl) {
-      setNotice('This booking does not include a service address yet.');
-      return;
-    }
-
-    const canOpen = await Linking.canOpenURL(mapsUrl);
-    if (!canOpen) {
-      setNotice('No maps app or browser is available for this address.');
-      return;
-    }
-
-    await Linking.openURL(mapsUrl);
-  }
-
   async function sendMessage(attachment?: ConversationMessageAttachment | null) {
     const trimmed = messageDraft.trim();
     if (!trimmed && !attachment) {
@@ -2882,6 +2890,59 @@ export default function App() {
       );
     } catch {
       setSelectedBookingTracking(null);
+    }
+  }
+
+  async function getCurrentNavigationLocation(): Promise<GeoRouteLocation> {
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (permission.status !== Location.PermissionStatus.GRANTED) {
+      throw new Error('location_permission_denied');
+    }
+
+    const position = await Location.getCurrentPositionAsync({
+      accuracy: Location.Accuracy.Balanced,
+    });
+
+    return {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+    };
+  }
+
+  async function refreshProviderDirections(bookingId: string) {
+    setNavigationRouteLoading(true);
+    setNavigationRouteError(null);
+
+    try {
+      const tracking = await getBookingTrackingSnapshot(bookingId, apiOptions);
+      setSelectedBookingTracking(tracking);
+
+      if (!tracking.destinationLocation) {
+        throw new Error('destination_unavailable');
+      }
+
+      const origin = await getCurrentNavigationLocation();
+      setSelectedNavigationOrigin(origin);
+      setSelectedBookingDirections(
+        await getDirections(
+          {
+            origin,
+            destination: tracking.destinationLocation,
+            profile: 'driving-car',
+            language: 'en',
+          },
+          apiOptions,
+        ),
+      );
+    } catch (error) {
+      setSelectedBookingDirections(null);
+      setNavigationRouteError(
+        error instanceof Error && error.message === 'location_permission_denied'
+          ? 'Location permission is required for in-app directions.'
+          : 'Directions are temporarily unavailable.',
+      );
+    } finally {
+      setNavigationRouteLoading(false);
     }
   }
 
@@ -6106,7 +6167,7 @@ export default function App() {
         <View
           style={styles.mapCanvas}
           accessible
-          accessibilityLabel="Route placeholder"
+          accessibilityLabel="Provider route map"
         >
           <Pressable
             style={styles.mapCloseButton}
@@ -6119,6 +6180,8 @@ export default function App() {
           <TrackingMapPreview
             tracking={tracking}
             title="Head to the service location"
+            directions={selectedBookingDirections}
+            navigationOrigin={selectedNavigationOrigin}
           />
         </View>
         <View style={styles.navBottomSheet}>
@@ -6127,10 +6190,36 @@ export default function App() {
           <Text style={styles.cardBody}>
             {selectedBooking.serviceAddress ?? 'Address unavailable'}
           </Text>
+          <InfoRow
+            label="Route"
+            value={providerDirectionsLabel(
+              selectedBookingDirections,
+              navigationRouteLoading,
+              navigationRouteError,
+            )}
+          />
+          {selectedBookingDirections?.steps.length ? (
+            <View style={styles.routeInstructionList}>
+              {selectedBookingDirections.steps.slice(0, 3).map((step, index) => (
+                <View
+                  key={`${index}-${step.instruction}`}
+                  style={styles.routeInstructionRow}
+                >
+                  <View style={styles.routeInstructionNumber}>
+                    <Text style={styles.routeInstructionNumberText}>{index + 1}</Text>
+                  </View>
+                  <Text style={styles.cardMeta} numberOfLines={2}>
+                    {step.instruction}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
           <PrimaryButton
-            label="Open Maps"
+            label={navigationRouteLoading ? 'Loading route...' : 'Refresh route'}
             variant="secondary"
-            onPress={() => void openSelectedBookingInMaps()}
+            onPress={() => void refreshProviderDirections(selectedBooking.id)}
+            disabled={navigationRouteLoading}
           />
           <PrimaryButton
             label="I've Arrived"
@@ -7971,12 +8060,19 @@ const trackingMapIframeStyle = {
 function TrackingMapPreview({
   tracking,
   title,
+  directions,
+  navigationOrigin,
 }: {
   tracking: BookingTrackingSnapshot | null;
   title: string;
+  directions?: GeoDirectionsRoute | null;
+  navigationOrigin?: GeoRouteLocation | null;
 }) {
   const destination = tracking?.destinationLocation ?? null;
+  const routeGeometry = directions?.geometry?.length ? directions.geometry : null;
   const provider =
+    navigationOrigin ??
+    routeGeometry?.[0] ??
     tracking?.providerLocation ??
     derivePreviewProviderLocation(destination, tracking?.distanceKm ?? null);
   const points = projectTrackingPoints(provider, destination);
@@ -7991,7 +8087,7 @@ function TrackingMapPreview({
         <View style={styles.trackingMapWebViewFrame}>
           {Platform.OS === 'web' ? (
             createElement('iframe', {
-              srcDoc: buildTrackingMapHtml(provider, destination),
+              srcDoc: buildTrackingMapHtml(provider, destination, routeGeometry),
               style: trackingMapIframeStyle,
               title: 'Service tracking map',
             })
@@ -8001,7 +8097,7 @@ function TrackingMapPreview({
               javaScriptEnabled
               domStorageEnabled
               scrollEnabled={false}
-              source={{ html: buildTrackingMapHtml(provider, destination) }}
+              source={{ html: buildTrackingMapHtml(provider, destination, routeGeometry) }}
               style={styles.trackingMapWebView}
             />
           )}
@@ -8099,14 +8195,14 @@ function TrackingMapPreview({
           </View>
           <View style={styles.flex}>
             <Text style={styles.cardTitle}>{title}</Text>
-            <Text style={styles.cardMeta}>{trackingRouteLabel(tracking)}</Text>
+            <Text style={styles.cardMeta}>{trackingRouteLabel(tracking, directions)}</Text>
           </View>
         </View>
         <View style={styles.trackingMapLegend}>
           <View style={styles.trackingLegendItem}>
             <View style={[styles.trackingLegendDot, styles.trackingLegendDotProvider]} />
             <Text style={styles.cardMeta}>
-              {tracking?.providerLocation ? 'Provider location' : 'Route preview'}
+              {navigationOrigin ? 'Your location' : 'Route preview'}
             </Text>
           </View>
           <View style={styles.trackingLegendItem}>
@@ -8122,11 +8218,14 @@ function TrackingMapPreview({
 function buildTrackingMapHtml(
   provider: TrackingMapLocation | null,
   destination: TrackingMapLocation,
+  routeGeometry: TrackingMapLocation[] | null = null,
 ): string {
   const providerCoordinate = provider
     ? [provider.longitude, provider.latitude]
     : null;
   const destinationCoordinate = [destination.longitude, destination.latitude];
+  const routeCoordinates =
+    routeGeometry?.map((point) => [point.longitude, point.latitude]) ?? null;
 
   return `<!doctype html>
 <html>
@@ -8159,6 +8258,7 @@ function buildTrackingMapHtml(
     const styleUrl = ${JSON.stringify(OPENFREEMAP_STYLE_URL)};
     const provider = ${JSON.stringify(providerCoordinate)};
     const destination = ${JSON.stringify(destinationCoordinate)};
+    const route = ${JSON.stringify(routeCoordinates)};
     const fallback = document.getElementById('fallback');
     const marker = (kind) => {
       const element = document.createElement('div');
@@ -8191,7 +8291,8 @@ function buildTrackingMapHtml(
 
       map.on('load', () => {
         fallback.style.display = 'none';
-        if (!provider) {
+        const routeLine = route || (provider ? [provider, destination] : null);
+        if (!routeLine) {
           return;
         }
         map.addSource('tracking-route', {
@@ -8199,7 +8300,7 @@ function buildTrackingMapHtml(
           data: {
             type: 'Feature',
             properties: {},
-            geometry: { type: 'LineString', coordinates: [provider, destination] }
+            geometry: { type: 'LineString', coordinates: routeLine }
           }
         });
         map.addLayer({
@@ -8214,7 +8315,10 @@ function buildTrackingMapHtml(
           source: 'tracking-route',
           paint: { 'line-color': '#0B7A44', 'line-width': 4, 'line-opacity': 0.95 }
         });
-        const bounds = new maplibregl.LngLatBounds(provider, provider).extend(destination);
+        const bounds = routeLine.reduce(
+          (nextBounds, coordinate) => nextBounds.extend(coordinate),
+          new maplibregl.LngLatBounds(routeLine[0], routeLine[0])
+        ).extend(destination);
         map.fitBounds(bounds, { duration: 0, maxZoom: 14, padding: 42 });
       });
       map.on('error', () => {
@@ -8305,7 +8409,16 @@ function trackingPhaseTitle(tracking: BookingTrackingSnapshot | null): string {
   }
 }
 
-function trackingRouteLabel(tracking: BookingTrackingSnapshot | null): string {
+function trackingRouteLabel(
+  tracking: BookingTrackingSnapshot | null,
+  directions?: GeoDirectionsRoute | null,
+): string {
+  if (directions) {
+    return `${formatRouteDistance(directions.distanceMeters)} - ${formatRouteDuration(
+      directions.durationSeconds,
+    )}`;
+  }
+
   if (!tracking) {
     return 'Route preview loading';
   }
@@ -8316,6 +8429,40 @@ function trackingRouteLabel(tracking: BookingTrackingSnapshot | null): string {
   ].filter(Boolean);
 
   return routeParts.length ? routeParts.join(' - ') : statusLabel(tracking.status);
+}
+
+function providerDirectionsLabel(
+  directions: GeoDirectionsRoute | null,
+  loading: boolean,
+  error: string | null,
+): string {
+  if (loading) {
+    return 'Loading route';
+  }
+  if (directions) {
+    return `${formatRouteDistance(directions.distanceMeters)} - ${formatRouteDuration(
+      directions.durationSeconds,
+    )}`;
+  }
+  return error ?? 'Route unavailable';
+}
+
+function formatRouteDistance(distanceMeters: number): string {
+  if (distanceMeters >= 1000) {
+    return `${(distanceMeters / 1000).toFixed(1)} km`;
+  }
+  return `${Math.round(distanceMeters)} m`;
+}
+
+function formatRouteDuration(durationSeconds: number): string {
+  const minutes = Math.max(1, Math.round(durationSeconds / 60));
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return remainingMinutes ? `${hours} hr ${remainingMinutes} min` : `${hours} hr`;
 }
 
 function serviceStartedAt(
@@ -9614,6 +9761,27 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.xl,
     boxShadow: '0 8px 18px rgba(0,0,0,0.14)',
+  },
+  routeInstructionList: {
+    gap: spacing.sm,
+  },
+  routeInstructionRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  routeInstructionNumber: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    height: 26,
+    justifyContent: 'center',
+    width: 26,
+  },
+  routeInstructionNumberText: {
+    color: palette.mintDark,
+    fontSize: 12,
+    fontWeight: '900',
   },
   dragHandle: {
     alignSelf: 'center',

@@ -46,6 +46,10 @@ Optional APICenter integration probing uses:
 - `APICENTER_TRIBE_SECRET`
 - `APICENTER_WEBHOOK_SECRET` for the public APICenter payment webhook.
 
+Optional provider navigation directions use:
+
+- `OPENROUTESERVICE_API_KEY`
+
 APICenter-backed shared services are routed through the owning HTTP services:
 
 - auth-service: OTP generation/verification and Google authorization helpers.

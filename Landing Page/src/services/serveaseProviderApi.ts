@@ -112,6 +112,30 @@ export interface BookingTrackingSnapshot {
   lastUpdatedAt: string
 }
 
+export interface GeoRouteLocation {
+  latitude: number
+  longitude: number
+}
+
+export interface GeoDirectionsStep {
+  instruction: string
+  distanceMeters: number
+  durationSeconds: number
+  name?: string
+  type?: number
+  wayPoints?: [number, number]
+}
+
+export interface GeoDirectionsRoute {
+  provider: 'openrouteservice'
+  distanceMeters: number
+  durationSeconds: number
+  geometry: GeoRouteLocation[]
+  steps: GeoDirectionsStep[]
+  bbox?: [number, number, number, number]
+  raw?: unknown
+}
+
 export interface BookingSummary {
   id: string
   bookingReference: string
@@ -744,6 +768,23 @@ export function getProviderBookingTrackingSnapshot(
       token,
     },
   )
+}
+
+export function getProviderDirections(
+  token: string,
+  origin: GeoRouteLocation,
+  destination: GeoRouteLocation,
+): Promise<GeoDirectionsRoute> {
+  return request<GeoDirectionsRoute>('/v1/geo/directions', {
+    method: 'POST',
+    token,
+    body: {
+      origin,
+      destination,
+      profile: 'driving-car',
+      language: 'en',
+    },
+  })
 }
 
 export function updateProviderBookingStatus(

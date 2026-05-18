@@ -6,6 +6,8 @@ import {
 import { SharedGeoService } from './shared-geo.service';
 import {
   GeoAddressResult,
+  GeoDirectionsRequest,
+  GeoDirectionsRoute,
   GeoFenceCheckRequest,
   GeoFenceCheckResponse,
   GeoGeocodeAddressRequest,
@@ -49,6 +51,17 @@ export class SharedGeoController {
     }
   }
 
+  @Post('directions')
+  async directions(
+    @Body() body: GeoDirectionsRequest,
+  ): Promise<{ data: GeoDirectionsRoute }> {
+    try {
+      return { data: await this.sharedGeoService.directions(body) };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private toHttpException(error: unknown): HttpException {
     if (error instanceof InvalidSharedGeoRequestError) {
       return this.error(
@@ -77,4 +90,3 @@ export class SharedGeoController {
     return new HttpException({ error: { code, message, details: {} } }, status);
   }
 }
-
