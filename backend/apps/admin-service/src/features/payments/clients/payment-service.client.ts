@@ -17,6 +17,16 @@ import {
   UpdateCommissionRuleRequest,
 } from '../admin-payment.types';
 
+export class PaymentServiceRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 @Injectable()
 export class PaymentServiceClient {
   constructor(private readonly configService: ConfigService) {}
@@ -271,15 +281,30 @@ export class PaymentServiceClient {
       'PAYMENT_SERVICE_URL',
       'http://localhost:8507',
     );
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        'content-type': 'application/json',
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch {
+      throw new Error('payment_dependency_unavailable');
+    }
 
     if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: { code?: string; message?: string };
+      };
+      if (payload.error?.code || payload.error?.message || response.status < 500) {
+        throw new PaymentServiceRequestError(
+          response.status,
+          payload.error?.code ?? 'payment_request_failed',
+          payload.error?.message ?? 'Payment service request failed.',
+        );
+      }
       throw new Error('payment_dependency_unavailable');
     }
 

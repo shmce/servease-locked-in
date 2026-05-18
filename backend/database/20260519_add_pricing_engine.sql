@@ -232,10 +232,10 @@ begin
     raise exception 'invalid_pricing_rule_request';
   end if;
 
-  select id into v_rule_set_id
+  select pricing_rule_sets.id into v_rule_set_id
   from payment.pricing_rule_sets
-  where is_active = true
-  order by created_at desc
+  where pricing_rule_sets.is_active = true
+  order by pricing_rule_sets.created_at desc
   limit 1;
 
   if v_rule_set_id is null then
@@ -284,7 +284,7 @@ begin
     p_admin_user_id,
     now()
   )
-  on conflict (id) do update set
+  on conflict on constraint pricing_category_rules_pkey do update set
     category_id = excluded.category_id,
     category_name = excluded.category_name,
     pricing_mode = excluded.pricing_mode,
@@ -304,8 +304,8 @@ begin
 
   return query
   select *
-  from public.servease_admin_list_pricing_rules()
-  where public.servease_admin_list_pricing_rules.id = v_rule_id;
+  from public.servease_admin_list_pricing_rules() as pricing_rule_row
+  where pricing_rule_row.id = v_rule_id;
 end;
 $$;
 
@@ -381,8 +381,8 @@ begin
 
   return query
   select *
-  from public.servease_admin_list_pricing_fuel_index()
-  where public.servease_admin_list_pricing_fuel_index.id = v_id;
+  from public.servease_admin_list_pricing_fuel_index() as fuel_index_row
+  where fuel_index_row.id = v_id;
 end;
 $$;
 

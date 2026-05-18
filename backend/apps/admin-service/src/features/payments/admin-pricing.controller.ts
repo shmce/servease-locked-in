@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpException, Post, Put } from '@nestjs/common';
 import { AdminPricingService } from './admin-pricing.service';
+import { PaymentServiceRequestError } from './clients/payment-service.client';
 import {
   CreatePricingFuelIndexRequest,
   PricingCategoryRuleSummary,
@@ -62,6 +63,9 @@ export class AdminPricingController {
   }
 
   private toHttpException(error: unknown): HttpException {
+    if (error instanceof PaymentServiceRequestError) {
+      return this.error(error.code, error.message, error.status);
+    }
     const code = error instanceof Error ? error.message : 'admin_dependency_unavailable';
     if (code === 'invalid_pricing_rule_request') {
       return this.error('invalid_pricing_rule_request', 'Pricing rule is invalid.', 400);
