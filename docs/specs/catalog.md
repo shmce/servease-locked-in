@@ -3,8 +3,10 @@
 ## Status
 
 - Owner: backend
+- Owning service: Catalog Service
+- Owning schema: `provider_catalog`
 - Created: 2026-05-15
-- Implementation status: proposed
+- Implementation status: implemented
 
 ## Problem
 
@@ -97,8 +99,8 @@ Required states:
 ### List Provider Listings
 
 - Method: `GET`
-- Public route: `/v1/catalog/providers?serviceId=<uuid>`
-- Internal route: `/internal/catalog/providers?serviceId=<uuid>`
+- Public route: `/v1/catalog/providers?serviceId=<uuid>&providerId=<uuid>`
+- Internal route: `/internal/catalog/providers?serviceId=<uuid>&providerId=<uuid>`
 - Auth: none
 
 ## Business Rules

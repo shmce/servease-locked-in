@@ -3,6 +3,8 @@
 ## Status
 
 - Owner: backend
+- Owning service: Booking Service
+- Owning schema: `booking`
 - Created: 2026-05-15
 - Implementation status: implemented
 
@@ -26,7 +28,6 @@ Customers and providers also need durable booking evidence: uploaded media, prov
 - Payment capture.
 - Provider notifications.
 - Native push notifications.
-- Payment capture.
 
 ## Users And Roles
 
@@ -129,6 +130,19 @@ Allowed transitions:
 - Auth: required
 - Visibility: booking customer and assigned provider only.
 - Events are ordered oldest first and sourced from `booking.booking_timeline_events`.
+
+## Error States
+
+- `401 auth_required`
+- `401 invalid_auth_token`
+- `400 invalid_booking_request`
+- `403 attachment_forbidden`
+- `403 dispute_forbidden`
+- `404 booking_not_found`
+- `404 attachment_not_found`
+- `409 invalid_booking_transition`
+- `409 provider_unavailable`
+- `503 booking_dependency_unavailable`
 
 ## Data Ownership
 

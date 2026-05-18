@@ -1,0 +1,207 @@
+[
+  {
+    "name": "servease-api-gateway",
+    "project": "api-gateway",
+    "image": "ghcr.io/implementsprint/servease-api-gateway",
+    "backend_stack": "nestjs",
+    "version_stream": "api-gateway",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/api-gateway/src/main.js"
+    },
+    "port": 5001,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:health"
+  },
+  {
+    "name": "servease-auth-service",
+    "project": "auth-service",
+    "image": "ghcr.io/implementsprint/servease-auth-service",
+    "backend_stack": "nestjs",
+    "version_stream": "auth-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/auth-service/src/main.js"
+    },
+    "port": 8501,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:health"
+  },
+  {
+    "name": "servease-user-service",
+    "project": "user-service",
+    "image": "ghcr.io/implementsprint/servease-user-service",
+    "backend_stack": "nestjs",
+    "version_stream": "user-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/user-service/src/main.js"
+    },
+    "port": 8502,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:health"
+  },
+  {
+    "name": "servease-catalog-service",
+    "project": "catalog-service",
+    "image": "ghcr.io/implementsprint/servease-catalog-service",
+    "backend_stack": "nestjs",
+    "version_stream": "catalog-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/catalog-service/src/main.js"
+    },
+    "port": 8503,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:catalog"
+  },
+  {
+    "name": "servease-booking-service",
+    "project": "booking-service",
+    "image": "ghcr.io/implementsprint/servease-booking-service",
+    "backend_stack": "nestjs",
+    "version_stream": "booking-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/booking-service/src/main.js"
+    },
+    "port": 8504,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:booking"
+  },
+  {
+    "name": "servease-availability-service",
+    "project": "availability-service",
+    "image": "ghcr.io/implementsprint/servease-availability-service",
+    "backend_stack": "nestjs",
+    "version_stream": "availability-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/availability-service/src/main.js"
+    },
+    "port": 8505,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:availability"
+  },
+  {
+    "name": "servease-messaging-service",
+    "project": "messaging-service",
+    "image": "ghcr.io/implementsprint/servease-messaging-service",
+    "backend_stack": "nestjs",
+    "version_stream": "messaging-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/messaging-service/src/main.js"
+    },
+    "port": 8506,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:messaging"
+  },
+  {
+    "name": "servease-payment-service",
+    "project": "payment-service",
+    "image": "ghcr.io/implementsprint/servease-payment-service",
+    "backend_stack": "nestjs",
+    "version_stream": "payment-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/payment-service/src/main.js"
+    },
+    "port": 8507,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:apicenter-webhook"
+  },
+  {
+    "name": "servease-review-service",
+    "project": "review-service",
+    "image": "ghcr.io/implementsprint/servease-review-service",
+    "backend_stack": "nestjs",
+    "version_stream": "review-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/review-service/src/main.js"
+    },
+    "port": 8508,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:health"
+  },
+  {
+    "name": "servease-notification-service",
+    "project": "notification-service",
+    "image": "ghcr.io/implementsprint/servease-notification-service",
+    "backend_stack": "nestjs",
+    "version_stream": "notification-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/notification-service/src/main.js"
+    },
+    "port": 8509,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:health"
+  },
+  {
+    "name": "servease-support-service",
+    "project": "support-service",
+    "image": "ghcr.io/implementsprint/servease-support-service",
+    "backend_stack": "nestjs",
+    "version_stream": "support-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/support-service/src/main.js"
+    },
+    "port": 8510,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:health"
+  },
+  {
+    "name": "servease-admin-service",
+    "project": "admin-service",
+    "image": "ghcr.io/implementsprint/servease-admin-service",
+    "backend_stack": "nestjs",
+    "version_stream": "admin-service",
+    "context": "backend",
+    "dockerfile_path": "backend/Dockerfile",
+    "build_args": {
+      "SERVICE_MAIN": "dist/apps/admin-service/src/main.js"
+    },
+    "port": 8511,
+    "health_check": "/health/ready",
+    "test_command": "npm run test -- --runInBand",
+    "build_command": "npm run build",
+    "smoke_command": "npm run smoke:health"
+  }
+]
+

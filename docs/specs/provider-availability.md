@@ -3,8 +3,10 @@
 ## Status
 
 - Owner: backend
+- Owning service: Availability Service
+- Owning schema: `booking`
 - Created: 2026-05-15
-- Implementation status: proposed
+- Implementation status: implemented
 
 ## Problem
 
@@ -22,7 +24,7 @@ Providers need a gateway-backed API to manage weekly availability windows and da
 
 - Mobile UI.
 - Travel-time buffers.
-- Public customer calendar reads.
+- Rich customer calendar search or slot recommendation.
 - Recurring exception rules beyond full days off.
 - Admin override flows.
 
@@ -33,6 +35,14 @@ Providers need a gateway-backed API to manage weekly availability windows and da
 - Public route: `GET /v1/provider/availability`
 - Internal route: `GET /internal/providers/:providerId/availability`
 - Auth: provider profile required
+
+### Get Provider Availability
+
+- Public route: `GET /v1/provider/availability/:providerId`
+- Internal route: `GET /internal/providers/:providerId/availability`
+- Auth: none
+
+Returns one provider's published availability schedule for customer booking flows.
 
 ### Replace Weekly Windows
 

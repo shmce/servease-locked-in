@@ -3,6 +3,8 @@
 ## Status
 
 - Owner: backend
+- Owning service: Booking Service
+- Owning schema: `booking`
 - Created: 2026-05-15
 - Implementation status: proposed
 
@@ -37,9 +39,12 @@ Booking creation must not accept requests when the provider cannot service the r
 
 ## API Contract
 
-No new public route is added.
+No new public route is added by this guard. Provider-facing schedule management is defined in [Provider Availability Management](provider-availability.md).
 
-- Existing route: `POST /v1/bookings`
+- Public route: `POST /v1/bookings`
+- Gateway handler: `api-gateway -> booking-service`
+- Internal route: `POST /internal/bookings`
+- Auth: customer context required
 - New conflict response:
 
 ```json

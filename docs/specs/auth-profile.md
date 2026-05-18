@@ -3,8 +3,10 @@
 ## Status
 
 - Owner: backend
+- Owning services: Auth Service, User Service, Catalog Service
+- Owning schemas: `identity_and_user`, `provider_catalog`
 - Created: 2026-05-15
-- Implementation status: proposed
+- Implementation status: implemented
 
 ## Problem
 
@@ -69,6 +71,8 @@ Required states:
 - RPC required: service-role-only functions are used because custom schemas are not exposed directly through Supabase REST.
 
 ## API Contracts
+
+The broader identity, registration, preferences, referrals, and geo route set is tracked in [Identity And Shared Service Contracts](identity-shared-service-contracts.md).
 
 ### Public Gateway Route
 

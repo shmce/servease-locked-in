@@ -1,5 +1,12 @@
 # Messaging Slice
 
+## Status
+
+- Owner: backend
+- Owning service: Messaging Service
+- Owning schema: `messages`
+- Implementation status: implemented
+
 ## Problem
 
 Customers and providers need a booking-scoped conversation after a booking exists. The backend must expose this through the API Gateway while keeping the Messaging Service as the only owner of the `messages` schema.
@@ -15,7 +22,6 @@ Customers and providers need a booking-scoped conversation after a booking exist
 ## Non-Goals
 
 - WebSockets or realtime subscriptions.
-- Message attachments.
 - Read receipts.
 - Push notifications.
 - Cross-booking conversations.
@@ -31,9 +37,17 @@ Customers and providers need a booking-scoped conversation after a booking exist
 
 ### `GET /v1/conversations`
 
+- Public route: `GET /v1/conversations`
+- Internal route: `GET /internal/conversations`
+- Auth: required
+
 Lists conversations visible to the authenticated user. Customers match `customer_id`; providers match their provider profile ID.
 
 ### `POST /v1/conversations`
+
+- Public route: `POST /v1/conversations`
+- Internal route: `POST /internal/conversations`
+- Auth: required
 
 Body:
 
@@ -47,9 +61,17 @@ The gateway first verifies the booking is visible to the authenticated user. The
 
 ### `GET /v1/conversations/:conversationId/messages`
 
+- Public route: `GET /v1/conversations/:conversationId/messages`
+- Internal route: `GET /internal/conversations/:conversationId/messages`
+- Auth: required
+
 Lists messages for a visible conversation.
 
 ### `POST /v1/conversations/:conversationId/messages`
+
+- Public route: `POST /v1/conversations/:conversationId/messages`
+- Internal route: `POST /internal/conversations/:conversationId/messages`
+- Auth: required
 
 Body:
 
@@ -79,3 +101,12 @@ The gateway sends the authenticated user ID as `senderId` and derives `senderRol
 - Providers can access conversations through their provider profile ID.
 - Messaging Service uses service-role-only RPC functions in `public`.
 - Gateway and service tests cover create/list/send failure and success paths.
+
+## Verification Commands
+
+```sh
+cd backend
+npm run test
+npm run smoke:messaging
+npm run build
+```

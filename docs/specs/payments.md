@@ -1,5 +1,12 @@
 # Payments Slice
 
+## Status
+
+- Owner: backend
+- Owning service: Payment Service
+- Owning schema: `payment`
+- Implementation status: implemented
+
 ## Problem
 
 Bookings need a server-owned payment record so customers, providers, and future admin workflows can track amount, method, platform fee, payout, and payment status.
@@ -18,7 +25,7 @@ Bookings need a server-owned payment record so customers, providers, and future 
 - Wallet integrations.
 - Provider payout execution.
 - Refund processing beyond persisted status support.
-- Webhooks.
+- New webhook provider integrations beyond the existing API Center checkout webhook.
 
 ## Data Ownership
 
@@ -31,9 +38,18 @@ Bookings need a server-owned payment record so customers, providers, and future 
 
 ### `GET /v1/payments`
 
+- Public route: `GET /v1/payments`
+- Internal route: `GET /internal/payments`
+- Auth: required
+
 Lists payment records visible to the authenticated customer or provider.
 
 ### `POST /v1/payments`
+
+- Public route: `POST /v1/payments`
+- Internal route: `POST /internal/payments`
+- Auth: required
+- Idempotency: duplicate create for the same booking returns the existing payment record.
 
 Body:
 
@@ -46,6 +62,15 @@ Body:
 
 The gateway verifies booking visibility, then forwards booking IDs and amount to the Payment Service.
 
+## Error States
+
+- `401 auth_required`
+- `401 invalid_auth_token`
+- `400 invalid_payment_request`
+- `404 booking_not_found`
+- `404 payment_not_found`
+- `503 payment_dependency_unavailable`
+
 ## Acceptance Criteria
 
 - Customers can create a payment record for their visible booking.
@@ -54,3 +79,11 @@ The gateway verifies booking visibility, then forwards booking IDs and amount to
 - Missing booking ID, missing method, or invalid amount is rejected.
 - Payment Service stores platform fee and provider payout.
 - No gateway database access is introduced.
+
+## Verification Commands
+
+```sh
+cd backend
+npm run test
+npm run build
+```
