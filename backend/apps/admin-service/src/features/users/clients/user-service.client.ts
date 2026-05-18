@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AdminUserSummary, AdminUsersSummaryStats } from '../admin-users.types';
+import { AdminUserRequestError } from '../admin-user.errors';
 
 @Injectable()
 export class UserServiceClient {
@@ -43,6 +44,16 @@ export class UserServiceClient {
     });
 
     if (!response.ok) {
+      if (response.status < 500) {
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: { code?: string; message?: string };
+        };
+        throw new AdminUserRequestError(
+          response.status,
+          payload.error?.code ?? 'admin_user_request_failed',
+          payload.error?.message ?? 'Admin user request failed.',
+        );
+      }
       throw new Error('user_dependency_unavailable');
     }
 

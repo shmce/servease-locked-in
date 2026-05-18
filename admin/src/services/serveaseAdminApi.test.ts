@@ -1264,6 +1264,33 @@ describe("serveaseAdminApi", () => {
     expect(user.role).toBe("admin");
   });
 
+  it("deletes admin users through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "admin-2",
+          email: "ops@example.com",
+          fullName: "Ops Admin",
+          contactNumber: null,
+          role: "admin",
+          accessRole: "operations-manager",
+          status: "active",
+          createdAt: "2026-05-17T00:00:00.000Z",
+        },
+      }),
+    });
+
+    const { deleteAdminUser } = await import("./serveaseAdminApi");
+    const user = await deleteAdminUser("admin-token", "admin-2");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/users/admin-2",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(user.id).toBe("admin-2");
+  });
+
   it("approves settlement payouts through the gateway", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AdminUserSummary, CreateAdminUserRequest } from '../admin-users.types';
+import { AdminUserRequestError } from '../admin-user.errors';
 
 @Injectable()
 export class AuthServiceClient {
@@ -15,9 +16,16 @@ export class AuthServiceClient {
     });
   }
 
+  deleteAdminUser(userId: string): Promise<void> {
+    return this.request<void>(
+      `/internal/auth/registrations/${encodeURIComponent(userId)}`,
+      'DELETE',
+    );
+  }
+
   private async request<T>(
     path: string,
-    method: 'POST',
+    method: 'DELETE' | 'POST',
     body?: unknown,
   ): Promise<T> {
     const baseUrl = this.configService.get<string>(
@@ -31,6 +39,16 @@ export class AuthServiceClient {
     });
 
     if (!response.ok) {
+      if (response.status < 500) {
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: { code?: string; message?: string };
+        };
+        throw new AdminUserRequestError(
+          response.status,
+          payload.error?.code ?? 'admin_user_request_failed',
+          payload.error?.message ?? 'Admin user request failed.',
+        );
+      }
       throw new Error('auth_dependency_unavailable');
     }
 

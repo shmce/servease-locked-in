@@ -32,7 +32,10 @@ import {
   AdminProviderApplicationSummary,
   ListProviderApplicationsFilter,
 } from '../admin-provider-application.types';
-import { AdminDependencyUnavailableError } from '../admin-support.errors';
+import {
+  AdminDependencyUnavailableError,
+  AdminServiceRequestError,
+} from '../admin-support.errors';
 import {
   PaymentSummary,
   CommissionRuleSummary,
@@ -49,6 +52,7 @@ import {
   AdminUserSummary,
   AdminUsersSummaryStats,
   CreateAdminUserRequest,
+  UpdateAdminUserAccessRequest,
 } from '../admin-users.types';
 import {
   AdminIntegrationSummary,
@@ -136,6 +140,24 @@ export class AdminServiceClient {
 
   createAdminUser(input: CreateAdminUserRequest): Promise<AdminUserSummary> {
     return this.request<AdminUserSummary>('/internal/admin/users', 'POST', input);
+  }
+
+  updateAdminUserAccess(
+    userId: string,
+    input: UpdateAdminUserAccessRequest,
+  ): Promise<AdminUserSummary> {
+    return this.request<AdminUserSummary>(
+      `/internal/admin/users/${encodeURIComponent(userId)}/access`,
+      'PATCH',
+      input,
+    );
+  }
+
+  deleteAdminUser(userId: string): Promise<AdminUserSummary> {
+    return this.request<AdminUserSummary>(
+      `/internal/admin/users/${encodeURIComponent(userId)}`,
+      'DELETE',
+    );
   }
 
   listAdminCategories(): Promise<AdminCategoryItem[]> {
@@ -712,6 +734,16 @@ export class AdminServiceClient {
     });
 
     if (!response.ok) {
+      if (response.status < 500) {
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: { code?: string; message?: string };
+        };
+        throw new AdminServiceRequestError(
+          response.status,
+          payload.error?.code ?? 'admin_request_failed',
+          payload.error?.message ?? 'Admin request failed.',
+        );
+      }
       throw new AdminDependencyUnavailableError();
     }
 

@@ -267,6 +267,12 @@ export interface UpsertAdminPromotionRequest {
 
 export type AdminUserRole = 'customer' | 'provider' | 'admin'
 export type AdminUserStatus = 'active' | 'suspended' | 'inactive'
+export type AdminAccessRoleId =
+  | 'super-admin'
+  | 'finance-manager'
+  | 'operations-manager'
+  | 'customer-support'
+  | 'content-moderator'
 export type AdminProviderStatus = 'active' | 'suspended' | 'verified' | 'unverified' | 'rejected'
 export type AdminCatalogPricingMode = 'flat' | 'hourly'
 
@@ -276,6 +282,11 @@ export interface AdminUserSummary {
   fullName: string | null
   contactNumber: string | null
   role: AdminUserRole
+  accessRole?: AdminAccessRoleId | null
+  accessRoleLabel?: string | null
+  permissions?: string[]
+  requireTwoFactor?: boolean
+  invitationSent?: boolean
   status: AdminUserStatus
   createdAt: string | null
 }
@@ -285,8 +296,13 @@ export interface CreateAdminUserRequest {
   password: string
   fullName: string
   contactNumber?: string | null
-  accessRole?: string | null
+  accessRole?: AdminAccessRoleId | null
   sendInvitation?: boolean | null
+  requireTwoFactor?: boolean | null
+}
+
+export interface UpdateAdminUserAccessRequest {
+  accessRole: AdminAccessRoleId
   requireTwoFactor?: boolean | null
 }
 
@@ -1616,6 +1632,27 @@ export function updateAdminUserStatus(
   return request<AdminUserSummary>(
     `/v1/admin/users/${encodeURIComponent(userId)}/status`,
     { method: 'PATCH', token, body: { status } },
+  )
+}
+
+export function updateAdminUserAccess(
+  token: string,
+  userId: string,
+  body: UpdateAdminUserAccessRequest,
+): Promise<AdminUserSummary> {
+  return request<AdminUserSummary>(
+    `/v1/admin/users/${encodeURIComponent(userId)}/access`,
+    { method: 'PATCH', token, body },
+  )
+}
+
+export function deleteAdminUser(
+  token: string,
+  userId: string,
+): Promise<AdminUserSummary> {
+  return request<AdminUserSummary>(
+    `/v1/admin/users/${encodeURIComponent(userId)}`,
+    { method: 'DELETE', token },
   )
 }
 

@@ -15,3 +15,13 @@ export class AdminDependencyUnavailableError extends Error {
     super('admin_dependency_unavailable');
   }
 }
+
+export class AdminServiceRequestError extends Error {
+  constructor(
+    readonly status: number,
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}

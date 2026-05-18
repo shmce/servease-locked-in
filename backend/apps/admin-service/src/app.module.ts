@@ -30,9 +30,11 @@ import { AdminSupportController } from './features/support/admin-support.control
 import { AdminSupportService } from './features/support/admin-support.service';
 import { SupportServiceClient } from './features/support/clients/support-service.client';
 import { AdminUsersController } from './features/users/admin-users.controller';
+import { AdminInvitationDeliveryService } from './features/users/admin-invitation-delivery.service';
 import { AdminUsersGatewayService } from './features/users/admin-users.service';
 import { AuthServiceClient } from './features/users/clients/auth-service.client';
 import { UserServiceClient } from './features/users/clients/user-service.client';
+import { SupabaseAdminUserAccessRepository } from './features/users/supabase-admin-user-access.repository';
 import { AdminIntegrationController } from './features/integrations/admin-integration.controller';
 import { AdminIntegrationService } from './features/integrations/admin-integration.service';
 import { ApicenterIntegrationProbe } from './features/integrations/apicenter-integration-probe';
@@ -60,8 +62,10 @@ import { HealthController } from './features/health/health.controller';
     AdminCatalogGatewayService,
     CatalogAdminServiceClient,
     AdminUsersGatewayService,
+    AdminInvitationDeliveryService,
     AuthServiceClient,
     UserServiceClient,
+    SupabaseAdminUserAccessRepository,
     AdminSupportService,
     SupportServiceClient,
     AdminPaymentService,

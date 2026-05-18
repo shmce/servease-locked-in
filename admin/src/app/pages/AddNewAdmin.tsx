@@ -15,7 +15,10 @@ import {
 import { Badge } from "../components/ui/badge";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
-import { createAdminUser } from "../../services/serveaseAdminApi";
+import {
+  createAdminUser,
+  type AdminAccessRoleId,
+} from "../../services/serveaseAdminApi";
 import {
   ArrowLeft,
   UserPlus,
@@ -30,7 +33,13 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-const roles = [
+type AdminRoleOption = {
+  id: AdminAccessRoleId;
+  name: string;
+  permissions: string[];
+};
+
+const roles: AdminRoleOption[] = [
   {
     id: "super-admin",
     name: "Super Admin",
@@ -100,7 +109,7 @@ export function AddNewAdmin() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [selectedRole, setSelectedRole] = useState("");
+  const [selectedRole, setSelectedRole] = useState<AdminAccessRoleId | "">("");
   const [password, setPassword] = useState(generatePassword());
   const [sendInvitation, setSendInvitation] = useState(true);
   const [require2FA, setRequire2FA] = useState(false);
@@ -162,7 +171,7 @@ export function AddNewAdmin() {
 
     setIsSubmitting(true);
     try {
-      await createAdminUser(accessToken, {
+      const createdAdmin = await createAdminUser(accessToken, {
         email: email.trim().toLowerCase(),
         password,
         fullName: `${firstName.trim()} ${lastName.trim()}`.trim(),
@@ -171,7 +180,15 @@ export function AddNewAdmin() {
         sendInvitation,
         requireTwoFactor: require2FA,
       });
-      toast.success("Admin user created");
+      if (sendInvitation && !createdAdmin.invitationSent) {
+        toast.warning("Admin user created, but invitation email was not sent");
+      } else {
+        toast.success(
+          sendInvitation
+            ? "Admin user created and invitation sent"
+            : "Admin user created",
+        );
+      }
       navigate("/admin-roles");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to create admin user");
@@ -291,7 +308,12 @@ export function AddNewAdmin() {
                 <Label htmlFor="role">
                   Role <span className="text-red-500">*</span>
                 </Label>
-                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <Select
+                  value={selectedRole}
+                  onValueChange={(value) =>
+                    setSelectedRole(value as AdminAccessRoleId)
+                  }
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a role" />
                   </SelectTrigger>

@@ -55,48 +55,79 @@ import {
   Key,
   Edit2,
   UserCheck,
+  Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  deleteAdminUser,
+  listAdminUsers,
+  updateAdminUserAccess,
+  updateAdminUserStatus,
+  type AdminAccessRoleId,
+  type AdminUserSummary,
+} from "../../services/serveaseAdminApi";
 
 // Role permissions mapping
 const rolePermissions = {
   "Super Admin": [
-    "Full access to all modules",
-    "User management (customers & providers)",
-    "Operations (bookings & disputes)",
-    "Finance (transactions, payouts, refunds)",
-    "Marketplace (categories, services, areas)",
-    "Reports (revenue & booking analytics)",
-    "Platform settings",
+    "admin.full_access",
+    "users.manage",
+    "roles.manage",
+    "bookings.manage",
+    "disputes.manage",
+    "finance.manage",
+    "marketplace.manage",
+    "reports.view",
+    "settings.manage",
+    "audit_logs.view",
   ],
-  "Operations Admin": [
-    "All Bookings - View & manage",
-    "Disputes - View & resolve",
-    "Service Providers - View only",
-    "Customers - View only",
+  "Finance Manager": [
+    "finance.manage",
+    "transactions.view",
+    "payouts.manage",
+    "refunds.manage",
+    "reports.financial",
   ],
-  "Finance Admin": [
-    "Transactions - View & manage",
-    "Payouts - Approve & process",
-    "Refunds - Approve & process",
-    "Revenue Reports - View only",
+  "Operations Manager": [
+    "bookings.manage",
+    "disputes.manage",
+    "providers.view",
+    "customers.view",
+    "marketplace.manage",
   ],
-  "Marketplace Admin": [
-    "Categories - Create, edit, delete",
-    "Services - Create, edit, delete",
-    "Service Areas - Manage coverage",
-    "Promotions - Create & manage",
+  "Customer Support": [
+    "support.manage",
+    "bookings.view",
+    "customers.view",
+    "disputes.basic",
+    "notifications.send",
+    "transactions.view_limited",
   ],
-  "Support Admin": [
-    "Provider Applications - Review & approve",
-    "Disputes - View & resolve",
-    "Service Providers - View only",
-    "Customers - View only",
+  "Content Moderator": [
+    "provider_applications.manage",
+    "kyc.review",
+    "marketplace.moderate",
+    "categories.manage",
+    "promotions.manage",
   ],
 };
 
 type RoleType = keyof typeof rolePermissions;
+
+const roleAccessIds: Record<RoleType, AdminAccessRoleId> = {
+  "Super Admin": "super-admin",
+  "Finance Manager": "finance-manager",
+  "Operations Manager": "operations-manager",
+  "Customer Support": "customer-support",
+  "Content Moderator": "content-moderator",
+};
+
+const roleLabelsByAccessId = Object.fromEntries(
+  Object.entries(roleAccessIds).map(([label, id]) => [id, label]),
+) as Record<AdminAccessRoleId, RoleType>;
 
 type AdminType = {
   id: string;
@@ -108,39 +139,67 @@ type AdminType = {
   status: "Active" | "Inactive";
 };
 
+function toRoleLabel(user: AdminUserSummary): RoleType {
+  if (user.accessRole && roleLabelsByAccessId[user.accessRole]) {
+    return roleLabelsByAccessId[user.accessRole];
+  }
+
+  if (user.accessRoleLabel && user.accessRoleLabel in rolePermissions) {
+    return user.accessRoleLabel as RoleType;
+  }
+
+  return "Super Admin";
+}
+
+function toAdminRow(user: AdminUserSummary): AdminType {
+  const role = toRoleLabel(user);
+  const permissions = user.permissions?.length
+    ? user.permissions.join(", ")
+    : rolePermissions[role].join(", ");
+
+  return {
+    id: user.id,
+    name: user.fullName || user.email,
+    email: user.email,
+    role,
+    permissions,
+    lastLogin: user.createdAt ?? new Date(0).toISOString(),
+    status: user.status === "active" ? "Active" : "Inactive",
+  };
+}
+
 export function AdminRolesComponent() {
   const navigate = useNavigate();
-  
-  // Admin data state (would normally come from API)
-  const [admins, setAdmins] = useState<AdminType[]>([
-    {
-      id: "ADM-001",
-      name: "Juan Dela Cruz",
-      email: "juan@servease.ph",
-      role: "Super Admin",
-      permissions: "Full Access",
-      lastLogin: "2026-03-04T14:30:00",
-      status: "Active",
-    },
-    {
-      id: "ADM-002",
-      name: "Maria Santos",
-      email: "maria@servease.ph",
-      role: "Finance Admin",
-      permissions: "Finance Only",
-      lastLogin: "2026-03-04T10:15:00",
-      status: "Active",
-    },
-    {
-      id: "ADM-003",
-      name: "Roberto Garcia",
-      email: "roberto@servease.ph",
-      role: "Support Admin",
-      permissions: "Support Only",
-      lastLogin: "2026-03-03T16:45:00",
-      status: "Inactive",
-    },
-  ]);
+  const { accessToken, admin: currentAdmin } = useAuth();
+  const [admins, setAdmins] = useState<AdminType[]>([]);
+  const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
+  const [adminLoadError, setAdminLoadError] = useState<string | null>(null);
+
+  const loadAdmins = useCallback(async () => {
+    if (!accessToken) {
+      setAdminLoadError("Admin session is required.");
+      setAdmins([]);
+      return;
+    }
+
+    setIsLoadingAdmins(true);
+    setAdminLoadError(null);
+    try {
+      const users = await listAdminUsers(accessToken, { role: "admin" });
+      setAdmins(users.map(toAdminRow));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to load admin users.";
+      setAdminLoadError(message);
+      toast.error(message);
+    } finally {
+      setIsLoadingAdmins(false);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    void loadAdmins();
+  }, [loadAdmins]);
 
   // Add New Admin modal state
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -173,6 +232,7 @@ export function AdminRolesComponent() {
   // Deactivate/Activate modal
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
   const [isActivateOpen, setIsActivateOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [actionAdmin, setActionAdmin] = useState<AdminType | null>(null);
 
   // Form validation errors
@@ -261,14 +321,29 @@ export function AdminRolesComponent() {
     setIsEditRoleOpen(true);
   };
 
-  const handleSaveEditRole = () => {
-    if (editingAdmin && editRole) {
+  const handleSaveEditRole = async () => {
+    if (!editingAdmin || !editRole || !accessToken) {
+      return;
+    }
+
+    try {
+      const updated = await updateAdminUserAccess(accessToken, editingAdmin.id, {
+        accessRole: roleAccessIds[editRole],
+      });
+      const updatedRow = toAdminRow(updated);
       setAdmins((prev) =>
-        prev.map((a) => (a.id === editingAdmin.id ? { ...a, role: editRole } : a))
+        prev.map((admin) => (admin.id === updatedRow.id ? updatedRow : admin)),
       );
       setIsEditRoleOpen(false);
       setEditingAdmin(null);
       setEditRole("");
+      toast.success("Admin permissions updated");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to update admin permissions",
+      );
     }
   };
 
@@ -288,13 +363,26 @@ export function AdminRolesComponent() {
     setIsDeactivateOpen(true);
   };
 
-  const handleConfirmDeactivate = () => {
-    if (actionAdmin) {
+  const handleConfirmDeactivate = async () => {
+    if (!actionAdmin || !accessToken) return;
+
+    try {
+      const updated = await updateAdminUserStatus(
+        accessToken,
+        actionAdmin.id,
+        "inactive",
+      );
+      const updatedRow = toAdminRow(updated);
       setAdmins((prev) =>
-        prev.map((a) => (a.id === actionAdmin.id ? { ...a, status: "Inactive" } : a))
+        prev.map((admin) => (admin.id === updatedRow.id ? updatedRow : admin)),
       );
       setIsDeactivateOpen(false);
       setActionAdmin(null);
+      toast.success("Admin deactivated");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to deactivate admin",
+      );
     }
   };
 
@@ -303,13 +391,26 @@ export function AdminRolesComponent() {
     setIsActivateOpen(true);
   };
 
-  const handleConfirmActivate = () => {
-    if (actionAdmin) {
+  const handleConfirmActivate = async () => {
+    if (!actionAdmin || !accessToken) return;
+
+    try {
+      const updated = await updateAdminUserStatus(
+        accessToken,
+        actionAdmin.id,
+        "active",
+      );
+      const updatedRow = toAdminRow(updated);
       setAdmins((prev) =>
-        prev.map((a) => (a.id === actionAdmin.id ? { ...a, status: "Active" } : a))
+        prev.map((admin) => (admin.id === updatedRow.id ? updatedRow : admin)),
       );
       setIsActivateOpen(false);
       setActionAdmin(null);
+      toast.success("Admin activated");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to activate admin",
+      );
     }
   };
 
@@ -318,6 +419,34 @@ export function AdminRolesComponent() {
       return false;
     }
     return true;
+  };
+
+  const canDelete = (admin: AdminType) => {
+    if (currentAdmin?.id === admin.id) {
+      return false;
+    }
+    return canDeactivate(admin);
+  };
+
+  const handleDelete = (admin: AdminType) => {
+    setActionAdmin(admin);
+    setIsDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!actionAdmin || !accessToken) return;
+
+    try {
+      const deleted = await deleteAdminUser(accessToken, actionAdmin.id);
+      setAdmins((prev) => prev.filter((admin) => admin.id !== deleted.id));
+      setIsDeleteOpen(false);
+      setActionAdmin(null);
+      toast.success("Admin deleted");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Unable to delete admin",
+      );
+    }
   };
 
   return (
@@ -338,6 +467,18 @@ export function AdminRolesComponent() {
           Add New Admin
         </Button>
       </div>
+
+      {adminLoadError && (
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <p className="text-sm text-red-700">{adminLoadError}</p>
+            <Button variant="outline" size="sm" onClick={() => void loadAdmins()}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Retry
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -397,6 +538,15 @@ export function AdminRolesComponent() {
           <CardTitle>Admin Users</CardTitle>
         </CardHeader>
         <CardContent>
+          {isLoadingAdmins ? (
+            <div className="py-10 text-center text-sm text-gray-500">
+              Loading admin users...
+            </div>
+          ) : admins.length === 0 ? (
+            <div className="py-10 text-center text-sm text-gray-500">
+              No admin users found.
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -504,6 +654,23 @@ export function AdminRolesComponent() {
                             Activate Admin
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem
+                          onClick={() => handleDelete(admin)}
+                          disabled={!canDelete(admin)}
+                          className="text-red-700 focus:text-red-700"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          <div className="flex flex-col">
+                            <span>Delete Admin</span>
+                            {!canDelete(admin) && (
+                              <span className="text-xs text-gray-500 font-normal mt-0.5">
+                                {currentAdmin?.id === admin.id
+                                  ? "You can't delete your own account"
+                                  : "Can't delete the last Super Admin"}
+                              </span>
+                            )}
+                          </div>
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -511,6 +678,7 @@ export function AdminRolesComponent() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -573,6 +741,23 @@ export function AdminRolesComponent() {
                           Activate Admin
                         </DropdownMenuItem>
                       )}
+                      <DropdownMenuItem
+                        onClick={() => handleDelete(admin)}
+                        disabled={!canDelete(admin)}
+                        className="text-red-700 focus:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        <div className="flex flex-col">
+                          <span>Delete Admin</span>
+                          {!canDelete(admin) && (
+                            <span className="text-xs text-gray-500 font-normal mt-0.5">
+                              {currentAdmin?.id === admin.id
+                                ? "You can't delete your own account"
+                                : "Can't delete the last Super Admin"}
+                            </span>
+                          )}
+                        </div>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </Sheet>
@@ -673,17 +858,17 @@ export function AdminRolesComponent() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Super Admin">Super Admin (full access)</SelectItem>
-                      <SelectItem value="Operations Admin">
-                        Operations Admin (bookings + disputes)
+                      <SelectItem value="Finance Manager">
+                        Finance Manager (transactions + payouts + refunds)
                       </SelectItem>
-                      <SelectItem value="Finance Admin">
-                        Finance Admin (transactions + payouts + refunds)
+                      <SelectItem value="Operations Manager">
+                        Operations Manager (bookings + disputes)
                       </SelectItem>
-                      <SelectItem value="Marketplace Admin">
-                        Marketplace Admin (categories + services + areas)
+                      <SelectItem value="Customer Support">
+                        Customer Support (tickets + customer workflows)
                       </SelectItem>
-                      <SelectItem value="Support Admin">
-                        Support Admin (provider applications + disputes)
+                      <SelectItem value="Content Moderator">
+                        Content Moderator (applications + marketplace)
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -974,17 +1159,17 @@ export function AdminRolesComponent() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Super Admin">Super Admin (full access)</SelectItem>
-                  <SelectItem value="Operations Admin">
-                    Operations Admin (bookings + disputes)
+                  <SelectItem value="Finance Manager">
+                    Finance Manager (transactions + payouts + refunds)
                   </SelectItem>
-                  <SelectItem value="Finance Admin">
-                    Finance Admin (transactions + payouts + refunds)
+                  <SelectItem value="Operations Manager">
+                    Operations Manager (bookings + disputes)
                   </SelectItem>
-                  <SelectItem value="Marketplace Admin">
-                    Marketplace Admin (categories + services + areas)
+                  <SelectItem value="Customer Support">
+                    Customer Support (tickets + customer workflows)
                   </SelectItem>
-                  <SelectItem value="Support Admin">
-                    Support Admin (provider applications + disputes)
+                  <SelectItem value="Content Moderator">
+                    Content Moderator (applications + marketplace)
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -1125,6 +1310,40 @@ export function AdminRolesComponent() {
             </Button>
             <Button className="bg-[#00BF63] hover:bg-[#00A055]" onClick={handleConfirmActivate}>
               Activate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Admin Modal */}
+      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-red-700">Delete Admin</DialogTitle>
+            <DialogDescription>
+              Permanently remove this admin account
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-2">
+            <p className="text-sm text-gray-700">
+              Delete <span className="font-medium">{actionAdmin?.name}</span>? This removes their
+              admin account and cannot be undone.
+            </p>
+            <p className="text-sm text-gray-500">
+              Use deactivate instead when you only need to temporarily block access.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-700 hover:bg-red-800 text-white"
+              onClick={handleConfirmDelete}
+            >
+              Delete
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -30,8 +30,7 @@ export class SupabaseAdminUserRepository {
   }
 
   async getSummary(): Promise<AdminUsersSummaryStats> {
-    const supabase = createSupabaseServiceClient();
-    const { data, error } = await supabase.rpc('servease_admin_users_summary');
+    const { data, error } = await this.client.rpc('servease_admin_users_summary');
 
     if (error) {
       throw new Error(`Failed to get users summary: ${error.message}`);

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpException,
@@ -20,18 +21,23 @@ import {
 } from '../current-user/current-user.errors';
 import {
   AdminDependencyUnavailableError,
+  AdminServiceRequestError,
   AdminRequiredError,
   InvalidAdminRequestError,
 } from './admin-support.errors';
 import { AdminUsersGatewayService } from './admin-users.service';
 import {
+  AdminAccessRoleId,
   AdminUserSummary,
   AdminUsersSummaryStats,
   CreateAdminUserRequest,
+  UpdateAdminUserAccessRequest,
+  adminAccessRoleIds,
 } from './admin-users.types';
 
 const validUserStatuses = new Set(['active', 'suspended', 'inactive']);
 const validUserRoles = new Set(['customer', 'provider', 'admin']);
+const validAdminAccessRoles = new Set<AdminAccessRoleId>(adminAccessRoleIds);
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type AuditRequest = { headers?: Record<string, string | string[] | undefined>; socket?: { remoteAddress?: string } };
@@ -137,6 +143,75 @@ export class AdminUsersController {
     }
   }
 
+  @Patch(':userId/access')
+  async updateAccess(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: AuditRequest,
+    @Param('userId') userId: string,
+    @Body() body: UpdateAdminUserAccessRequest,
+  ): Promise<{ data: AdminUserSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const input = this.normalizeAccessInput(body);
+      const user = await this.adminUsersGatewayService.updateUserAccess(userId, input);
+      void this.adminAuditGatewayService.createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: 'Updated admin role permissions',
+        actionType: 'update',
+        entityType: 'User',
+        entityId: user.id,
+        details: `Admin user ${user.email} access role updated to ${input.accessRole}.`,
+        ipAddress: this.getClientIp(request),
+        metadata: {
+          userId: user.id,
+          email: user.email,
+          accessRole: input.accessRole,
+          requireTwoFactor: input.requireTwoFactor,
+        },
+      }).catch(() => undefined);
+      return { data: user };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete(':userId')
+  async delete(
+    @Headers('authorization') authorization: string | undefined,
+    @Req() request: AuditRequest,
+    @Param('userId') userId: string,
+  ): Promise<{ data: AdminUserSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      if (admin.user.id === userId) {
+        throw new InvalidAdminRequestError();
+      }
+
+      const user = await this.adminUsersGatewayService.deleteUser(userId);
+      void this.adminAuditGatewayService.createAuditLog({
+        adminUserId: admin.user.id,
+        adminEmail: admin.user.email,
+        adminName: admin.user.fullName,
+        action: 'Deleted admin user',
+        actionType: 'delete',
+        entityType: 'User',
+        entityId: user.id,
+        details: `Admin user ${user.email} was deleted.`,
+        ipAddress: this.getClientIp(request),
+        metadata: {
+          userId: user.id,
+          email: user.email,
+          accessRole: user.accessRole ?? null,
+        },
+      }).catch(() => undefined);
+      return { data: user };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private async requireAdmin(authorization: string | undefined): Promise<CurrentUserProfile> {
     const userId = await this.authTokenService.authenticate(authorization);
     const currentUser = await this.currentUserService.getCurrentUser(userId);
@@ -168,10 +243,42 @@ export class AdminUsersController {
       password: body.password,
       fullName,
       contactNumber: body.contactNumber?.trim() || null,
-      accessRole: body.accessRole?.trim() || null,
+      accessRole: this.normalizeOptionalAccessRole(body.accessRole),
       sendInvitation: Boolean(body.sendInvitation),
       requireTwoFactor: Boolean(body.requireTwoFactor),
     };
+  }
+
+  private normalizeAccessInput(
+    body?: Partial<UpdateAdminUserAccessRequest>,
+  ): UpdateAdminUserAccessRequest {
+    const accessRole = body?.accessRole?.trim() ?? '';
+    if (!this.isAdminAccessRoleId(accessRole)) {
+      throw new InvalidAdminRequestError();
+    }
+
+    return {
+      accessRole,
+      requireTwoFactor:
+        body?.requireTwoFactor === undefined
+          ? undefined
+          : Boolean(body.requireTwoFactor),
+    };
+  }
+
+  private normalizeOptionalAccessRole(
+    accessRole?: string | null,
+  ): AdminAccessRoleId | null {
+    const normalized = accessRole?.trim() ?? '';
+    if (!normalized) return null;
+    if (!this.isAdminAccessRoleId(normalized)) {
+      throw new InvalidAdminRequestError();
+    }
+    return normalized;
+  }
+
+  private isAdminAccessRoleId(role: string): role is AdminAccessRoleId {
+    return validAdminAccessRoles.has(role as AdminAccessRoleId);
   }
 
   private toHttpException(error: unknown): HttpException {
@@ -183,6 +290,8 @@ export class AdminUsersController {
       return this.error('admin_required', 'An admin account is required.', 403);
     if (error instanceof InvalidAdminRequestError)
       return this.error('invalid_admin_request', 'Admin request is invalid.', 400);
+    if (error instanceof AdminServiceRequestError)
+      return this.error(error.code, error.message, error.status);
     if (error instanceof AdminDependencyUnavailableError)
       return this.error('admin_dependency_unavailable', 'Admin service is unavailable.', 503);
     return this.error('admin_dependency_unavailable', 'Admin request failed.', 503);
