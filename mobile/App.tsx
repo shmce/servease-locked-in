@@ -46,7 +46,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
 import Svg, {
   Circle as SvgCircle,
   Defs as SvgDefs,
@@ -237,6 +236,7 @@ import {
   reorderProviderPortfolio,
   requestPasswordReset,
   requestProviderPayout,
+  reverseGeocode,
   updateProviderPortfolioMedia,
   upsertProviderPayoutMethod,
   transitionBookingStatus,
@@ -253,6 +253,7 @@ import {
   type GeoRouteLocation,
   type SharedPaymentMethod,
 } from './services/serveaseApi';
+import { resolveGatewayBaseUrl } from './services/gatewayConfig';
 import { AuthSession, signInWithPassword } from './services/supabaseAuth';
 import { syncExpoPushRegistration } from './services/pushRegistration';
 
@@ -293,11 +294,13 @@ function completedRebookOptions(bookings: BookingSummary[]): BookingSummary[] {
   });
 }
 
+type NavigationSheetLevel = 'peek' | 'half' | 'expanded';
+
+const navigationSheetLevels: NavigationSheetLevel[] = ['peek', 'half', 'expanded'];
+
 export default function App() {
   const [route, setRoute] = useState<RouteState>({ role: null, screen: 'authGate' });
-  const [apiBaseUrl, setApiBaseUrl] = useState(
-    process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:5001',
-  );
+  const [apiBaseUrl, setApiBaseUrl] = useState(resolveGatewayBaseUrl());
   const [supabaseUrl, setSupabaseUrl] = useState(
     process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
   );
@@ -369,6 +372,10 @@ export default function App() {
     useState<GeoRouteLocation | null>(null);
   const [navigationRouteError, setNavigationRouteError] = useState<string | null>(null);
   const [navigationRouteLoading, setNavigationRouteLoading] = useState(false);
+  const [customerTrackingSheetLevel, setCustomerTrackingSheetLevel] =
+    useState<NavigationSheetLevel>('peek');
+  const [providerNavigationSheetLevel, setProviderNavigationSheetLevel] =
+    useState<NavigationSheetLevel>('peek');
   const [selectedProviderPortfolioMedia, setSelectedProviderPortfolioMedia] = useState<
     ProviderPortfolioMediaSummary[]
   >([]);
@@ -2030,6 +2037,38 @@ export default function App() {
       setNotice(
         `Address verified near ${result.latitude.toFixed(4)}, ${result.longitude.toFixed(4)}.`,
       );
+    } catch (error) {
+      setAddressGeoResult(null);
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function useCurrentServiceLocation(): Promise<void> {
+    setBusyAction('geo-current-location');
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== Location.PermissionStatus.GRANTED) {
+        setNotice('Location permission is required to use your current address.');
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const result = await reverseGeocode(
+        position.coords.latitude,
+        position.coords.longitude,
+        {
+          ...apiOptions,
+          language: 'en',
+        },
+      );
+
+      setAddress(result.formattedAddress);
+      setAddressGeoResult(result);
+      setNotice('Current location added as your service address.');
     } catch (error) {
       setAddressGeoResult(null);
       setNotice(readError(error));
@@ -3971,19 +4010,37 @@ export default function App() {
             <Section
               title="Where do you need it?"
               action={
-                <Pressable
-                  style={[
-                    styles.smallAction,
-                    (!address.trim() || busyAction === 'geo-address') && styles.faded,
-                  ]}
-                  onPress={() => void verifyServiceAddress()}
-                  disabled={!address.trim() || busyAction === 'geo-address'}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.smallActionText}>
-                    {busyAction === 'geo-address' ? 'Checking...' : 'Verify address'}
-                  </Text>
-                </Pressable>
+                <View style={styles.inlineActions}>
+                  <Pressable
+                    style={[
+                      styles.smallAction,
+                      busyAction === 'geo-current-location' && styles.faded,
+                    ]}
+                    onPress={() => void useCurrentServiceLocation()}
+                    disabled={busyAction === 'geo-current-location'}
+                    accessibilityRole="button"
+                    accessibilityLabel="Use current location as service address"
+                  >
+                    <Navigation color={palette.mint} size={14} strokeWidth={2.5} />
+                    <Text style={styles.smallActionText}>
+                      {busyAction === 'geo-current-location' ? 'Locating...' : 'Use current'}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.smallAction,
+                      (!address.trim() || busyAction === 'geo-address') && styles.faded,
+                    ]}
+                    onPress={() => void verifyServiceAddress()}
+                    disabled={!address.trim() || busyAction === 'geo-address'}
+                    accessibilityRole="button"
+                    accessibilityLabel="Verify service address"
+                  >
+                    <Text style={styles.smallActionText}>
+                      {busyAction === 'geo-address' ? 'Checking...' : 'Verify address'}
+                    </Text>
+                  </Pressable>
+                </View>
               }
             >
               <Field
@@ -3997,12 +4054,7 @@ export default function App() {
                 multiline
               />
               {addressGeoResult ? (
-                <View style={styles.geoResult}>
-                  <MapPin color={palette.mint} size={16} strokeWidth={2.4} />
-                  <Text style={styles.cardMeta}>
-                    {addressGeoResult.latitude.toFixed(5)}, {addressGeoResult.longitude.toFixed(5)}
-                  </Text>
-                </View>
+                <AddressVerificationPreview result={addressGeoResult} />
               ) : null}
               <Field
                 label="Duration (hours)"
@@ -4487,6 +4539,8 @@ export default function App() {
       selectedBookingTracking?.bookingId === selectedBooking.id
         ? selectedBookingTracking
         : null;
+    const isHalfSheet = customerTrackingSheetLevel !== 'peek';
+    const isExpandedSheet = customerTrackingSheetLevel === 'expanded';
 
     return (
       <View style={styles.navigationScreen}>
@@ -4503,19 +4557,29 @@ export default function App() {
             title={trackingPhaseTitle(tracking)}
           />
         </View>
-        <View style={styles.navBottomSheet}>
-          <View style={styles.dragHandle} />
-          <Text style={styles.cardTitle}>Service location</Text>
-          <Text style={styles.cardBody}>
-            {tracking?.destinationAddress ??
-              selectedBooking.serviceAddress ??
-              'Address unavailable'}
-          </Text>
-          <InfoRow label="Schedule" value={formatDateTime(selectedBooking.scheduledAt)} />
-          <InfoRow
-            label="Last update"
-            value={tracking?.lastUpdatedAt ? formatDateTime(tracking.lastUpdatedAt) : 'Loading'}
+        <View style={[styles.navBottomSheet, navigationSheetStyle(customerTrackingSheetLevel)]}>
+          <NavigationSheetHeader
+            level={customerTrackingSheetLevel}
+            setLevel={setCustomerTrackingSheetLevel}
+            title={trackingPhaseTitle(tracking)}
+            subtitle={trackingRouteLabel(tracking)}
           />
+          {isHalfSheet ? (
+            <>
+              <Text style={styles.cardBody} numberOfLines={isExpandedSheet ? 4 : 2}>
+                {tracking?.destinationAddress ??
+                  selectedBooking.serviceAddress ??
+                  'Address unavailable'}
+              </Text>
+              <InfoRow label="Schedule" value={formatDateTime(selectedBooking.scheduledAt)} />
+              <InfoRow
+                label="Last update"
+                value={
+                  tracking?.lastUpdatedAt ? formatDateTime(tracking.lastUpdatedAt) : 'Loading'
+                }
+              />
+            </>
+          ) : null}
           <View style={styles.twoButtons}>
             <View style={styles.flex}>
               <PrimaryButton
@@ -6162,6 +6226,13 @@ export default function App() {
       selectedBookingTracking?.bookingId === selectedBooking.id
         ? selectedBookingTracking
         : null;
+    const isHalfSheet = providerNavigationSheetLevel !== 'peek';
+    const isExpandedSheet = providerNavigationSheetLevel === 'expanded';
+    const routeLabel = providerDirectionsLabel(
+      selectedBookingDirections,
+      navigationRouteLoading,
+      navigationRouteError,
+    );
     return (
       <View style={styles.navigationScreen}>
         <View
@@ -6184,21 +6255,22 @@ export default function App() {
             navigationOrigin={selectedNavigationOrigin}
           />
         </View>
-        <View style={styles.navBottomSheet}>
-          <View style={styles.dragHandle} />
-          <Text style={styles.cardTitle}>Destination</Text>
-          <Text style={styles.cardBody}>
-            {selectedBooking.serviceAddress ?? 'Address unavailable'}
-          </Text>
-          <InfoRow
-            label="Route"
-            value={providerDirectionsLabel(
-              selectedBookingDirections,
-              navigationRouteLoading,
-              navigationRouteError,
-            )}
+        <View style={[styles.navBottomSheet, navigationSheetStyle(providerNavigationSheetLevel)]}>
+          <NavigationSheetHeader
+            level={providerNavigationSheetLevel}
+            setLevel={setProviderNavigationSheetLevel}
+            title="Head to the service location"
+            subtitle={routeLabel}
           />
-          {selectedBookingDirections?.steps.length ? (
+          {isHalfSheet ? (
+            <>
+              <Text style={styles.cardBody} numberOfLines={isExpandedSheet ? 4 : 2}>
+                {selectedBooking.serviceAddress ?? 'Address unavailable'}
+              </Text>
+              <InfoRow label="Route" value={routeLabel} />
+            </>
+          ) : null}
+          {isExpandedSheet && selectedBookingDirections?.steps.length ? (
             <View style={styles.routeInstructionList}>
               {selectedBookingDirections.steps.slice(0, 3).map((step, index) => (
                 <View
@@ -6215,12 +6287,6 @@ export default function App() {
               ))}
             </View>
           ) : null}
-          <PrimaryButton
-            label={navigationRouteLoading ? 'Loading route...' : 'Refresh route'}
-            variant="secondary"
-            onPress={() => void refreshProviderDirections(selectedBooking.id)}
-            disabled={navigationRouteLoading}
-          />
           <PrimaryButton
             label="I've Arrived"
             onPress={() => navigate('providerStartService', 'provider')}
@@ -6241,11 +6307,25 @@ export default function App() {
               />
             </View>
           </View>
-          <PrimaryButton
-            label="End Navigation"
-            variant="danger"
-            onPress={() => navigate('providerBookingDetail', 'provider')}
-          />
+          {isHalfSheet ? (
+            <View style={styles.twoButtons}>
+              <View style={styles.flex}>
+                <PrimaryButton
+                  label={navigationRouteLoading ? 'Loading...' : 'Refresh route'}
+                  variant="secondary"
+                  onPress={() => void refreshProviderDirections(selectedBooking.id)}
+                  disabled={navigationRouteLoading}
+                />
+              </View>
+              <View style={styles.flex}>
+                <PrimaryButton
+                  label="End"
+                  variant="danger"
+                  onPress={() => navigate('providerBookingDetail', 'provider')}
+                />
+              </View>
+            </View>
+          ) : null}
         </View>
       </View>
     );
@@ -8044,10 +8124,115 @@ export default function App() {
   );
 }
 
+function NavigationSheetHeader({
+  level,
+  setLevel,
+  title,
+  subtitle,
+}: {
+  level: NavigationSheetLevel;
+  setLevel: (level: NavigationSheetLevel) => void;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <View style={styles.navigationSheetHeader}>
+      <Pressable
+        style={styles.dragHandleButton}
+        onPress={() => setLevel(nextNavigationSheetLevel(level))}
+        accessibilityRole="button"
+        accessibilityLabel={`Show ${nextNavigationSheetLabel(level)} navigation details`}
+      >
+        <View style={styles.dragHandle} />
+      </Pressable>
+      <View style={styles.rowBetween}>
+        <View style={styles.flex}>
+          <Text style={styles.cardTitle} numberOfLines={1}>
+            {title}
+          </Text>
+          <Text style={styles.cardMeta} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        </View>
+        <View style={styles.sheetLevelControls}>
+          {navigationSheetLevels.map((item) => (
+            <Pressable
+              key={item}
+              style={[
+                styles.sheetLevelButton,
+                item === level && styles.sheetLevelButtonActive,
+              ]}
+              onPress={() => setLevel(item)}
+              accessibilityRole="button"
+              accessibilityLabel={`Set navigation sheet to ${navigationSheetLabel(item)}`}
+            >
+              <Text
+                style={[
+                  styles.sheetLevelButtonText,
+                  item === level && styles.sheetLevelButtonTextActive,
+                ]}
+              >
+                {navigationSheetShortLabel(item)}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function navigationSheetStyle(level: NavigationSheetLevel) {
+  if (level === 'expanded') {
+    return styles.navBottomSheetExpanded;
+  }
+  if (level === 'half') {
+    return styles.navBottomSheetHalf;
+  }
+  return styles.navBottomSheetPeek;
+}
+
+function nextNavigationSheetLevel(level: NavigationSheetLevel): NavigationSheetLevel {
+  if (level === 'peek') {
+    return 'half';
+  }
+  if (level === 'half') {
+    return 'expanded';
+  }
+  return 'peek';
+}
+
+function nextNavigationSheetLabel(level: NavigationSheetLevel): string {
+  return navigationSheetLabel(nextNavigationSheetLevel(level));
+}
+
+function navigationSheetLabel(level: NavigationSheetLevel): string {
+  if (level === 'expanded') {
+    return 'expanded';
+  }
+  if (level === 'half') {
+    return 'half';
+  }
+  return 'compact';
+}
+
+function navigationSheetShortLabel(level: NavigationSheetLevel): string {
+  if (level === 'expanded') {
+    return 'Full';
+  }
+  if (level === 'half') {
+    return 'Half';
+  }
+  return 'Peek';
+}
+
 type TrackingMapLocation = {
   latitude: number;
   longitude: number;
 };
+
+type MapLibreModule = typeof import('@maplibre/maplibre-react-native');
+type MapLibreCoordinate = [longitude: number, latitude: number];
 
 const OPENFREEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const MAPLIBRE_CDN_BASE = 'https://unpkg.com/maplibre-gl@5.24.0/dist';
@@ -8056,6 +8241,46 @@ const trackingMapIframeStyle = {
   height: '100%',
   width: '100%',
 };
+let cachedMapLibreModule: MapLibreModule | null | false = null;
+
+function hasMapLibreNativeModules(): boolean {
+  try {
+    const { TurboModuleRegistry } = require('react-native') as typeof import('react-native');
+
+    return Boolean(
+      TurboModuleRegistry.get('MLRNCameraModule') &&
+        TurboModuleRegistry.get('MLRNMapViewModule'),
+    );
+  } catch {
+    return false;
+  }
+}
+
+function getMapLibreModule(): MapLibreModule | null {
+  if (Platform.OS === 'web') {
+    return null;
+  }
+
+  if (cachedMapLibreModule === false) {
+    return null;
+  }
+
+  if (!hasMapLibreNativeModules()) {
+    cachedMapLibreModule = false;
+    return null;
+  }
+
+  if (!cachedMapLibreModule) {
+    try {
+      cachedMapLibreModule = require('@maplibre/maplibre-react-native') as MapLibreModule;
+    } catch {
+      cachedMapLibreModule = false;
+      return null;
+    }
+  }
+
+  return cachedMapLibreModule;
+}
 
 function TrackingMapPreview({
   tracking,
@@ -8070,12 +8295,15 @@ function TrackingMapPreview({
 }) {
   const destination = tracking?.destinationLocation ?? null;
   const routeGeometry = directions?.geometry?.length ? directions.geometry : null;
-  const provider =
+  const actualProvider =
     navigationOrigin ??
     routeGeometry?.[0] ??
     tracking?.providerLocation ??
+    null;
+  const previewProvider =
+    actualProvider ??
     derivePreviewProviderLocation(destination, tracking?.distanceKm ?? null);
-  const points = projectTrackingPoints(provider, destination);
+  const points = projectTrackingPoints(previewProvider, destination);
   const routePath =
     points.provider && points.destination
       ? `M ${points.provider.x} ${points.provider.y} C 108 42, 184 230, ${points.destination.x} ${points.destination.y}`
@@ -8087,106 +8315,22 @@ function TrackingMapPreview({
         <View style={styles.trackingMapWebViewFrame}>
           {Platform.OS === 'web' ? (
             createElement('iframe', {
-              srcDoc: buildTrackingMapHtml(provider, destination, routeGeometry),
+              srcDoc: buildTrackingMapHtml(actualProvider, destination, routeGeometry),
               style: trackingMapIframeStyle,
               title: 'Service tracking map',
             })
           ) : (
-            <WebView
-              originWhitelist={['*']}
-              javaScriptEnabled
-              domStorageEnabled
-              scrollEnabled={false}
-              source={{ html: buildTrackingMapHtml(provider, destination, routeGeometry) }}
-              style={styles.trackingMapWebView}
+            <TrackingMapNativeView
+              destination={destination}
+              points={points}
+              provider={actualProvider}
+              routeGeometry={routeGeometry}
+              routePath={routePath}
             />
           )}
         </View>
       ) : (
-        <Svg viewBox="0 0 320 260" style={styles.trackingMapSvg}>
-          <SvgDefs>
-            <SvgLinearGradient id="mapBg" x1="0" y1="0" x2="1" y2="1">
-              <SvgStop offset="0" stopColor="#E4F4EA" />
-              <SvgStop offset="1" stopColor="#D7E9F8" />
-            </SvgLinearGradient>
-          </SvgDefs>
-          <SvgRect x="0" y="0" width="320" height="260" rx="22" fill="url(#mapBg)" />
-          {[44, 100, 156, 212].map((x) => (
-            <SvgLine
-              key={`v-${x}`}
-              x1={x}
-              y1="0"
-              x2={x + 28}
-              y2="260"
-              stroke="#FFFFFF"
-              strokeOpacity="0.48"
-              strokeWidth="3"
-            />
-          ))}
-          {[46, 104, 164, 222].map((y) => (
-            <SvgLine
-              key={`h-${y}`}
-              x1="0"
-              y1={y}
-              x2="320"
-              y2={y - 22}
-              stroke="#FFFFFF"
-              strokeOpacity="0.42"
-              strokeWidth="3"
-            />
-          ))}
-          {routePath ? (
-            <SvgPath
-              d={routePath}
-              fill="none"
-              stroke="#0B7A44"
-              strokeLinecap="round"
-              strokeWidth="8"
-            />
-          ) : null}
-          {routePath ? (
-            <SvgPath
-              d={routePath}
-              fill="none"
-              stroke="#FFFFFF"
-              strokeDasharray="10 12"
-              strokeLinecap="round"
-              strokeWidth="3"
-            />
-          ) : null}
-          {points.provider ? (
-            <SvgG>
-              <SvgCircle
-                cx={points.provider.x}
-                cy={points.provider.y}
-                r="15"
-                fill="#FFFFFF"
-              />
-              <SvgCircle
-                cx={points.provider.x}
-                cy={points.provider.y}
-                r="9"
-                fill="#2F6FED"
-              />
-            </SvgG>
-          ) : null}
-          {points.destination ? (
-            <SvgG>
-              <SvgCircle
-                cx={points.destination.x}
-                cy={points.destination.y}
-                r="18"
-                fill="#FFFFFF"
-              />
-              <SvgCircle
-                cx={points.destination.x}
-                cy={points.destination.y}
-                r="11"
-                fill="#00BF63"
-              />
-            </SvgG>
-          ) : null}
-        </Svg>
+        <TrackingMapSvgPreview routePath={routePath} points={points} />
       )}
       <View style={styles.trackingMapOverlay}>
         <View style={styles.providerSummaryRow}>
@@ -8209,6 +8353,276 @@ function TrackingMapPreview({
             <View style={[styles.trackingLegendDot, styles.trackingLegendDotDestination]} />
             <Text style={styles.cardMeta}>Service address</Text>
           </View>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function TrackingMapNativeView({
+  destination,
+  points,
+  provider,
+  routeGeometry,
+  routePath,
+}: {
+  destination: TrackingMapLocation;
+  points: {
+    provider: { x: number; y: number } | null;
+    destination: { x: number; y: number } | null;
+  };
+  provider: TrackingMapLocation | null;
+  routeGeometry: TrackingMapLocation[] | null;
+  routePath: string | null;
+}) {
+  const [mapFailed, setMapFailed] = useState(false);
+  const mapLibre = getMapLibreModule();
+
+  useEffect(() => {
+    setMapFailed(false);
+  }, [
+    destination.latitude,
+    destination.longitude,
+    provider?.latitude,
+    provider?.longitude,
+    routeGeometry?.length,
+  ]);
+
+  if (!mapLibre || mapFailed) {
+    return <TrackingMapSvgPreview routePath={routePath} points={points} />;
+  }
+
+  const routeCoordinates = buildTrackingRouteCoordinates(
+    provider,
+    destination,
+    routeGeometry,
+  );
+  const mapBounds = buildTrackingMapBounds([
+    ...routeCoordinates,
+    toMapLibreCoordinate(destination),
+    ...(provider ? [toMapLibreCoordinate(provider)] : []),
+  ]);
+  const routeFeature: GeoJSON.FeatureCollection = {
+    type: 'FeatureCollection',
+    features: routeCoordinates.length
+      ? [
+          {
+            type: 'Feature',
+            properties: {},
+            geometry: {
+              type: 'LineString',
+              coordinates: routeCoordinates,
+            },
+          },
+        ]
+      : [],
+  };
+  const { Camera, GeoJSONSource, Layer, Map, Marker } = mapLibre;
+
+  return (
+    <Map
+      attribution
+      attributionPosition={{ bottom: 116, right: 8 }}
+      compass={false}
+      dragPan
+      doubleTapZoom
+      logo={false}
+      mapStyle={OPENFREEMAP_STYLE_URL}
+      onDidFailLoadingMap={() => setMapFailed(true)}
+      scaleBar={false}
+      style={styles.trackingMapNativeMap}
+      touchPitch={false}
+      touchRotate={false}
+      touchZoom
+    >
+      <Camera
+        initialViewState={{
+          bounds: mapBounds,
+          padding: { bottom: 136, left: 48, right: 48, top: 82 },
+        }}
+      />
+      {routeCoordinates.length ? (
+        <GeoJSONSource id="tracking-route-source" data={routeFeature}>
+          <Layer
+            id="tracking-route-casing"
+            type="line"
+            paint={{
+              'line-color': '#FFFFFF',
+              'line-opacity': 0.95,
+              'line-width': 9,
+            }}
+          />
+          <Layer
+            id="tracking-route-line"
+            type="line"
+            paint={{
+              'line-color': '#0B7A44',
+              'line-opacity': 0.96,
+              'line-width': 5,
+            }}
+          />
+        </GeoJSONSource>
+      ) : null}
+      {provider ? (
+        <Marker
+          id="tracking-provider-marker"
+          anchor="center"
+          lngLat={toMapLibreCoordinate(provider)}
+        >
+          <View style={styles.trackingMapNativeProviderMarker}>
+            <View style={styles.trackingMapNativeProviderDot} />
+          </View>
+        </Marker>
+      ) : null}
+      <Marker
+        id="tracking-destination-marker"
+        anchor="center"
+        lngLat={toMapLibreCoordinate(destination)}
+      >
+        <View style={styles.trackingMapNativeDestinationMarker}>
+          <View style={styles.trackingMapNativeDestinationDot} />
+        </View>
+      </Marker>
+    </Map>
+  );
+}
+
+function TrackingMapSvgPreview({
+  routePath,
+  points,
+}: {
+  routePath: string | null;
+  points: {
+    provider: { x: number; y: number } | null;
+    destination: { x: number; y: number } | null;
+  };
+}) {
+  return (
+    <Svg viewBox="0 0 320 260" style={styles.trackingMapSvg}>
+      <SvgDefs>
+        <SvgLinearGradient id="mapBg" x1="0" y1="0" x2="1" y2="1">
+          <SvgStop offset="0" stopColor="#DDEFE4" />
+          <SvgStop offset="0.52" stopColor="#E8F3EC" />
+          <SvgStop offset="1" stopColor="#D7E9F8" />
+        </SvgLinearGradient>
+      </SvgDefs>
+      <SvgRect x="0" y="0" width="320" height="260" fill="url(#mapBg)" />
+      {[28, 84, 140, 196, 252].map((x) => (
+        <SvgLine
+          key={`v-${x}`}
+          x1={x}
+          y1="-20"
+          x2={x + 34}
+          y2="280"
+          stroke="#FFFFFF"
+          strokeOpacity="0.48"
+          strokeWidth="3"
+        />
+      ))}
+      {[36, 92, 148, 204].map((y) => (
+        <SvgLine
+          key={`h-${y}`}
+          x1="-20"
+          y1={y}
+          x2="340"
+          y2={y - 24}
+          stroke="#FFFFFF"
+          strokeOpacity="0.42"
+          strokeWidth="3"
+        />
+      ))}
+      {routePath ? (
+        <SvgPath
+          d={routePath}
+          fill="none"
+          stroke="#0B7A44"
+          strokeLinecap="round"
+          strokeWidth="8"
+        />
+      ) : null}
+      {routePath ? (
+        <SvgPath
+          d={routePath}
+          fill="none"
+          stroke="#FFFFFF"
+          strokeDasharray="10 12"
+          strokeLinecap="round"
+          strokeWidth="3"
+        />
+      ) : null}
+      {points.provider ? (
+        <SvgG>
+          <SvgCircle
+            cx={points.provider.x}
+            cy={points.provider.y}
+            r="15"
+            fill="#FFFFFF"
+          />
+          <SvgCircle
+            cx={points.provider.x}
+            cy={points.provider.y}
+            r="9"
+            fill="#2F6FED"
+          />
+        </SvgG>
+      ) : null}
+      {points.destination ? (
+        <SvgG>
+          <SvgCircle
+            cx={points.destination.x}
+            cy={points.destination.y}
+            r="18"
+            fill="#FFFFFF"
+          />
+          <SvgCircle
+            cx={points.destination.x}
+            cy={points.destination.y}
+            r="11"
+            fill="#00BF63"
+          />
+        </SvgG>
+      ) : null}
+    </Svg>
+  );
+}
+
+function AddressVerificationPreview({ result }: { result: GeoAddressResult }) {
+  const destination = {
+    latitude: result.latitude,
+    longitude: result.longitude,
+  };
+  const points = projectTrackingPoints(null, destination);
+
+  return (
+    <View style={styles.addressVerificationCard}>
+      <View style={styles.addressMiniMapFrame}>
+        {Platform.OS === 'web' ? (
+          createElement('iframe', {
+            srcDoc: buildTrackingMapHtml(null, destination),
+            style: trackingMapIframeStyle,
+            title: 'Verified service address map',
+          })
+        ) : (
+          <TrackingMapNativeView
+            destination={destination}
+            points={points}
+            provider={null}
+            routeGeometry={null}
+            routePath={null}
+          />
+        )}
+      </View>
+      <View style={styles.addressVerificationBody}>
+        <View style={styles.addressVerificationIcon}>
+          <MapPin color={palette.white} size={17} strokeWidth={2.6} />
+        </View>
+        <View style={styles.flex}>
+          <Text style={styles.addressVerificationTitle}>Verified service pin</Text>
+          <Text style={styles.cardBody}>{result.formattedAddress}</Text>
+          <Text style={styles.cardMeta}>
+            {result.provider === 'google-maps' ? 'Google Maps' : 'Geo provider'} ·{' '}
+            {result.latitude.toFixed(5)}, {result.longitude.toFixed(5)}
+          </Text>
         </View>
       </View>
     </View>
@@ -8332,6 +8746,49 @@ function buildTrackingMapHtml(
   </script>
 </body>
 </html>`;
+}
+
+function toMapLibreCoordinate(location: TrackingMapLocation): MapLibreCoordinate {
+  return [location.longitude, location.latitude];
+}
+
+function buildTrackingRouteCoordinates(
+  provider: TrackingMapLocation | null,
+  destination: TrackingMapLocation,
+  routeGeometry: TrackingMapLocation[] | null,
+): MapLibreCoordinate[] {
+  if (routeGeometry?.length) {
+    return routeGeometry.map(toMapLibreCoordinate);
+  }
+
+  if (provider) {
+    return [toMapLibreCoordinate(provider), toMapLibreCoordinate(destination)];
+  }
+
+  return [];
+}
+
+function buildTrackingMapBounds(coordinates: MapLibreCoordinate[]): [
+  west: number,
+  south: number,
+  east: number,
+  north: number,
+] {
+  const longitudes = coordinates.map(([longitude]) => longitude);
+  const latitudes = coordinates.map(([, latitude]) => latitude);
+  const west = Math.min(...longitudes);
+  const east = Math.max(...longitudes);
+  const south = Math.min(...latitudes);
+  const north = Math.max(...latitudes);
+  const longitudePadding = Math.max((east - west) * 0.18, 0.012);
+  const latitudePadding = Math.max((north - south) * 0.18, 0.012);
+
+  return [
+    west - longitudePadding,
+    south - latitudePadding,
+    east + longitudePadding,
+    north + latitudePadding,
+  ];
 }
 
 function derivePreviewProviderLocation(
@@ -9458,6 +9915,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: palette.mintSoft,
     borderRadius: radius.pill,
+    flexDirection: 'row',
+    gap: spacing.xxs,
     justifyContent: 'center',
     minHeight: 36,
     paddingHorizontal: spacing.sm,
@@ -9476,6 +9935,43 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs,
     marginTop: -spacing.xs,
+  },
+  addressVerificationCard: {
+    backgroundColor: palette.white,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    gap: spacing.base,
+    overflow: 'hidden',
+    padding: spacing.sm,
+    boxShadow: '0 12px 26px rgba(17,24,39,0.08)',
+  },
+  addressMiniMapFrame: {
+    backgroundColor: '#E5E7EB',
+    borderRadius: radius.md,
+    height: 154,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  addressVerificationBody: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingBottom: spacing.xs,
+    paddingHorizontal: spacing.xs,
+  },
+  addressVerificationIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.mint,
+    borderRadius: radius.pill,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+  },
+  addressVerificationTitle: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '900',
   },
   iconAction: {
     alignItems: 'center',
@@ -9661,41 +10157,71 @@ const styles = StyleSheet.create({
   navigationScreen: {
     backgroundColor: palette.white,
     flex: 1,
-  },
-  mapCanvas: {
-    backgroundColor: '#DDEFE4',
-    flex: 1,
-    gap: spacing.base,
-    padding: spacing.xl,
+    overflow: 'hidden',
     position: 'relative',
   },
+  mapCanvas: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#DDEFE4',
+  },
   trackingMapCard: {
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
-    gap: spacing.base,
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#DDEFE4',
     overflow: 'hidden',
-    padding: spacing.sm,
-    boxShadow: '0 10px 24px rgba(44,90,60,0.14)',
   },
   trackingMapSvg: {
-    height: 260,
+    height: '100%',
     width: '100%',
+  },
+  trackingMapNativeMap: {
+    flex: 1,
+  },
+  trackingMapNativeProviderMarker: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderRadius: radius.pill,
+    height: 30,
+    justifyContent: 'center',
+    width: 30,
+    boxShadow: '0 8px 18px rgba(47,111,237,0.28)',
+  },
+  trackingMapNativeProviderDot: {
+    backgroundColor: '#2F6FED',
+    borderRadius: radius.pill,
+    height: 16,
+    width: 16,
+  },
+  trackingMapNativeDestinationMarker: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderRadius: radius.pill,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+    boxShadow: '0 8px 18px rgba(0,191,99,0.28)',
+  },
+  trackingMapNativeDestinationDot: {
+    backgroundColor: palette.mint,
+    borderRadius: radius.pill,
+    height: 19,
+    width: 19,
   },
   trackingMapWebViewFrame: {
     backgroundColor: '#E5E7EB',
-    borderRadius: radius.lg,
-    height: 260,
+    height: '100%',
     overflow: 'hidden',
     width: '100%',
   },
-  trackingMapWebView: {
-    backgroundColor: 'transparent',
-    flex: 1,
-  },
   trackingMapOverlay: {
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: radius.lg,
     gap: spacing.base,
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
+    left: spacing.xl,
+    padding: spacing.base,
+    position: 'absolute',
+    right: spacing.xl,
+    top: 86,
+    boxShadow: '0 12px 28px rgba(17,24,39,0.16)',
   },
   trackingMapLegend: {
     flexDirection: 'row',
@@ -9722,11 +10248,18 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     backgroundColor: palette.white,
     borderRadius: radius.pill,
+    marginRight: spacing.xl,
+    marginTop: spacing.xl,
     minHeight: 44,
     minWidth: 64,
     justifyContent: 'center',
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 5,
+    boxShadow: '0 8px 18px rgba(17,24,39,0.14)',
   },
   mapCloseText: {
     color: palette.ink,
@@ -9759,8 +10292,58 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
     gap: spacing.md,
-    padding: spacing.xl,
-    boxShadow: '0 8px 18px rgba(0,0,0,0.14)',
+    bottom: 0,
+    left: 0,
+    overflow: 'hidden',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.xl,
+    position: 'absolute',
+    right: 0,
+    zIndex: 4,
+    boxShadow: '0 -12px 28px rgba(17,24,39,0.14)',
+  },
+  navBottomSheetPeek: {
+    maxHeight: '34%',
+  },
+  navBottomSheetHalf: {
+    maxHeight: '43%',
+  },
+  navBottomSheetExpanded: {
+    maxHeight: '49%',
+  },
+  navigationSheetHeader: {
+    gap: spacing.sm,
+  },
+  dragHandleButton: {
+    alignItems: 'center',
+    minHeight: 20,
+    justifyContent: 'center',
+  },
+  sheetLevelControls: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    gap: spacing.xxs,
+    padding: 3,
+  },
+  sheetLevelButton: {
+    borderRadius: radius.pill,
+    minHeight: 28,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  sheetLevelButtonActive: {
+    backgroundColor: palette.mint,
+  },
+  sheetLevelButtonText: {
+    color: palette.mint,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  sheetLevelButtonTextActive: {
+    color: palette.white,
   },
   routeInstructionList: {
     gap: spacing.sm,

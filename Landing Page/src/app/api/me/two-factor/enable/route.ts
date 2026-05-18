@@ -1,6 +1,5 @@
+import { getServerGatewayBaseUrl } from '@/app/lib/gateway-base-url';
 import { NextResponse } from 'next/server';
-
-const DEFAULT_GATEWAY_BASE_URL = 'http://localhost:5001';
 
 export async function POST(request: Request) {
   return proxyTwoFactor(request, '/v1/me/two-factor/enable', 'two_factor_enable_failed');
@@ -16,7 +15,7 @@ async function proxyTwoFactor(request: Request, path: string, fallbackCode: stri
   }
 
   const gatewayBaseUrl =
-    process.env.SERVEASE_API_BASE_URL ?? DEFAULT_GATEWAY_BASE_URL;
+    getServerGatewayBaseUrl();
   try {
     const response = await fetch(`${gatewayBaseUrl}${path}`, {
       method: 'POST',

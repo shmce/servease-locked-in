@@ -1,11 +1,10 @@
+import { getServerGatewayBaseUrl } from '@/app/lib/gateway-base-url';
 import { NextResponse } from 'next/server';
 import {
   GatewayProviderRegistrationRequest,
   buildGatewayProviderRegistrationPayload,
   ProviderRegistrationDraft,
 } from '../../lib/provider-registration';
-
-const DEFAULT_GATEWAY_BASE_URL = 'http://localhost:5001';
 
 interface GatewayErrorResponse {
   error?: {
@@ -38,7 +37,7 @@ export async function POST(request: Request) {
   }
 
   const gatewayBaseUrl =
-    process.env.SERVEASE_API_BASE_URL ?? DEFAULT_GATEWAY_BASE_URL;
+    getServerGatewayBaseUrl();
 
   try {
     const response = await fetch(`${gatewayBaseUrl}/v1/auth/register`, {

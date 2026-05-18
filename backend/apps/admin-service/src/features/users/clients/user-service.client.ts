@@ -32,7 +32,10 @@ export class UserServiceClient {
     method: 'GET' | 'PATCH',
     body?: unknown,
   ): Promise<T> {
-    const baseUrl = this.configService.get<string>('USER_SERVICE_URL', 'http://localhost:8506');
+    const baseUrl = this.configService.get<string>(
+      'USER_SERVICE_URL',
+      'http://localhost:8502',
+    );
     const response = await fetch(`${baseUrl}${path}`, {
       method,
       headers: { 'content-type': 'application/json' },

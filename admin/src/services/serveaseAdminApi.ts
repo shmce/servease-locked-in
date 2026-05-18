@@ -1,3 +1,5 @@
+import { resolveGatewayBaseUrl } from "./gatewayConfig"
+
 export type AdminPaymentStatus = 'pending' | 'paid' | 'cancelled' | 'refunded'
 export type AdminPayoutStatus = 'requested' | 'processing' | 'paid' | 'cancelled'
 export type AdminRefundStatus = 'requested' | 'approved' | 'processed' | 'rejected'
@@ -585,16 +587,13 @@ interface RequestOptions {
   query?: Record<string, string | null | undefined>
 }
 
-const DEFAULT_API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5001'
-
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_PUBLISHABLE_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 export function getAdminApiBaseUrl(): string {
-  return DEFAULT_API_BASE_URL.replace(/\/$/, '')
+  return resolveGatewayBaseUrl()
 }
 
 export async function signInWithPassword(

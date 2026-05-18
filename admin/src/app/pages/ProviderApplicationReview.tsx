@@ -489,15 +489,8 @@ export function ProviderApplicationReview() {
   const businessCheckedCount  = businessChecklist.filter(c => c.checked).length;
 
   /* ── Handlers ── */
-  const simulateVerify = (type: "nbi" | "prc", setter: (v: VerifStatus) => void) => {
-    setter("loading");
-    setTimeout(() => {
-      const result: VerifStatus = Math.random() > 0.3 ? "verified" : "no-match";
-      setter(result);
-      if (result === "verified") {
-        setChecklist(prev => prev.map(c => c.id === type ? { ...c, checked: true } : c));
-      }
-    }, 1800);
+  const markVerificationUnavailable = (setter: (v: VerifStatus) => void) => {
+    setter("error");
   };
 
   const handleAddNote = () => {
@@ -1073,7 +1066,7 @@ export function ProviderApplicationReview() {
                       size="sm"
                       variant="outline"
                       className="gap-2 text-xs"
-                      onClick={() => simulateVerify("nbi", setNbiResult)}
+                      onClick={() => markVerificationUnavailable(setNbiResult)}
                       disabled={nbiResult === "loading"}
                     >
                       <Shield className="w-3 h-3" />Verify with NBI Online
@@ -1098,7 +1091,7 @@ export function ProviderApplicationReview() {
                       size="sm"
                       variant="outline"
                       className="gap-2 text-xs"
-                      onClick={() => simulateVerify("prc", setPrcResult)}
+                      onClick={() => markVerificationUnavailable(setPrcResult)}
                       disabled={prcResult === "loading"}
                     >
                       <Shield className="w-3 h-3" />Verify with PRC Online

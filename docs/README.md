@@ -19,6 +19,7 @@ This directory contains the source-of-truth documentation for the active ServEas
 - [Audits](audits/): dated findings and verification records.
 - [Runbooks](runbooks/): operational setup, smoke checks, rollback, and troubleshooting notes.
   - [APICenter Owner Handoff](runbooks/apicenter-owner-handoff.md): copy-ready webhook registration request.
+  - [Real-Device QA And Provider Handoff](runbooks/real-device-qa-provider-handoff.md): iOS/Android/Admin/Landing QA checklist, APICenter blockers, and production provider configuration.
 - [Superpowers Specs](superpowers/specs/): agent-created design specs for scoped changes.
 - [Supabase Baseline](supabase-baseline.md): observed live database state and advisor findings.
 - [Media Upload Spec](media-upload-spec.md): upload ownership, validation, and storage behavior.

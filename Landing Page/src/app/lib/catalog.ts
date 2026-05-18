@@ -1,3 +1,5 @@
+import { getServerGatewayBaseUrl } from './gateway-base-url';
+
 export interface CatalogCategory {
   id: string;
   name: string;
@@ -79,8 +81,6 @@ export interface LandingCatalogData {
   unavailable: boolean;
 }
 
-const DEFAULT_GATEWAY_BASE_URL = 'http://localhost:5001';
-
 export async function fetchLandingCatalog(): Promise<LandingCatalogData> {
   try {
     const [categories, services, providers] = await Promise.all([
@@ -130,7 +130,7 @@ export async function fetchProviderAvailability(
 }
 
 export async function fetchGatewayData<T>(path: string): Promise<T> {
-  const baseUrl = process.env.SERVEASE_API_BASE_URL ?? DEFAULT_GATEWAY_BASE_URL;
+  const baseUrl = getServerGatewayBaseUrl();
   const response = await fetch(`${baseUrl}${path}`, {
     cache: 'no-store',
     headers: {

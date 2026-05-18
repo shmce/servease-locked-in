@@ -27,7 +27,7 @@ export function CSVUploadModal({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const validateFile = (file: File): boolean => {
+  const validateFile = useCallback((file: File): boolean => {
     // Check file type
     if (!file.name.toLowerCase().endsWith(".csv")) {
       setError("Only .csv files are allowed");
@@ -42,13 +42,13 @@ export function CSVUploadModal({
 
     setError(null);
     return true;
-  };
+  }, []);
 
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = useCallback((file: File) => {
     if (validateFile(file)) {
       setSelectedFile(file);
     }
-  };
+  }, [validateFile]);
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -75,7 +75,7 @@ export function CSVUploadModal({
     if (file) {
       handleFileSelect(file);
     }
-  }, []);
+  }, [handleFileSelect]);
 
   const handleUpload = async () => {
     if (!selectedFile) {

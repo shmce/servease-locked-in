@@ -1,6 +1,5 @@
+import { getServerGatewayBaseUrl } from '@/app/lib/gateway-base-url';
 import { NextResponse } from 'next/server';
-
-const DEFAULT_GATEWAY_BASE_URL = 'http://localhost:5001';
 
 interface GatewayErrorResponse {
   error?: {
@@ -24,7 +23,7 @@ export async function GET(request: Request) {
   }
 
   const gatewayBaseUrl =
-    process.env.SERVEASE_API_BASE_URL ?? DEFAULT_GATEWAY_BASE_URL;
+    getServerGatewayBaseUrl();
 
   try {
     const response = await fetch(`${gatewayBaseUrl}/v1/me`, {
@@ -92,7 +91,7 @@ export async function PATCH(request: Request) {
   }
 
   const gatewayBaseUrl =
-    process.env.SERVEASE_API_BASE_URL ?? DEFAULT_GATEWAY_BASE_URL;
+    getServerGatewayBaseUrl();
 
   try {
     const response = await fetch(`${gatewayBaseUrl}/v1/me`, {
@@ -152,7 +151,7 @@ export async function DELETE(request: Request) {
   }
 
   const gatewayBaseUrl =
-    process.env.SERVEASE_API_BASE_URL ?? DEFAULT_GATEWAY_BASE_URL;
+    getServerGatewayBaseUrl();
 
   try {
     const response = await fetch(`${gatewayBaseUrl}/v1/me`, {

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
-import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { Broadcasts } from "./PlaceholderPages";
 import { sendAdminBroadcast } from "../../services/serveaseAdminApi";
@@ -45,14 +44,17 @@ vi.mock("../../services/serveaseAdminApi", () => ({
 
 describe("Broadcasts", () => {
   it("submits the selected APICenter broadcast channels", async () => {
-    const user = userEvent.setup();
     render(<Broadcasts />);
 
-    await user.type(screen.getByLabelText("Title"), "Maintenance window");
-    await user.type(screen.getByLabelText("Message"), "Service updates tonight.");
-    await user.click(screen.getByRole("checkbox", { name: "Email" }));
-    await user.click(screen.getByRole("checkbox", { name: "SMS" }));
-    await user.click(screen.getByRole("button", { name: "Send Broadcast" }));
+    fireEvent.change(screen.getByLabelText("Title"), {
+      target: { value: "Maintenance window" },
+    });
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Service updates tonight." },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Email" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "SMS" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send Broadcast" }));
 
     await waitFor(() => {
       expect(sendAdminBroadcast).toHaveBeenCalledWith(

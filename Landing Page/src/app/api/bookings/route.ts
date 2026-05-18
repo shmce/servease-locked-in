@@ -1,7 +1,6 @@
+import { getServerGatewayBaseUrl } from '@/app/lib/gateway-base-url';
 import { NextResponse } from 'next/server';
 import type { CreateBookingInput } from '../../lib/bookings';
-
-const DEFAULT_GATEWAY_BASE_URL = 'http://localhost:5001';
 
 interface GatewayErrorResponse {
   error?: {
@@ -20,7 +19,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const scope = searchParams.get('scope');
   const gatewayBaseUrl =
-    process.env.SERVEASE_API_BASE_URL ?? DEFAULT_GATEWAY_BASE_URL;
+    getServerGatewayBaseUrl();
   const gatewayPath =
     scope === 'provider' ? '/v1/bookings?scope=provider' : '/v1/bookings';
 
@@ -89,7 +88,7 @@ export async function POST(request: Request) {
   }
 
   const gatewayBaseUrl =
-    process.env.SERVEASE_API_BASE_URL ?? DEFAULT_GATEWAY_BASE_URL;
+    getServerGatewayBaseUrl();
 
   try {
     const response = await fetch(`${gatewayBaseUrl}/v1/bookings`, {

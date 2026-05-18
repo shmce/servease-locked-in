@@ -1,3 +1,5 @@
+import { resolveGatewayBaseUrl } from './gatewayConfig';
+
 export type BookingStatus =
   | 'pending'
   | 'confirmed'
@@ -824,9 +826,6 @@ export interface ApiOptions {
   token?: string;
   fetcher?: (url: string, init?: RequestInit) => Promise<Response>;
 }
-
-const DEFAULT_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'http://localhost:5001';
 
 export function listCatalogCategories(
   options: ApiOptions = {},
@@ -1863,7 +1862,7 @@ export function removeProviderDayOff(
 export async function uploadMedia(
   body: UploadMediaRequest,
   {
-    baseUrl = DEFAULT_BASE_URL,
+    baseUrl,
     token,
     fetcher = fetch,
   }: ApiOptions = {},
@@ -1883,7 +1882,8 @@ export async function uploadMedia(
     } as unknown as Blob,
   );
 
-  const response = await fetcher(`${baseUrl.replace(/\/$/, '')}/v1/uploads`, {
+  const resolvedBaseUrl = baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
+  const response = await fetcher(`${resolvedBaseUrl}/v1/uploads`, {
     method: 'POST',
     headers: {
       accept: 'application/json',
@@ -1905,7 +1905,7 @@ interface RequestOptions extends ApiOptions {
 async function request<T>(
   path: string,
   {
-    baseUrl = DEFAULT_BASE_URL,
+    baseUrl,
     token,
     fetcher = fetch,
     method,
@@ -1918,7 +1918,8 @@ async function request<T>(
     throw new Error('Paste an access token before using booking routes.');
   }
 
-  const response = await fetcher(`${baseUrl.replace(/\/$/, '')}${path}`, {
+  const resolvedBaseUrl = baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
+  const response = await fetcher(`${resolvedBaseUrl}${path}`, {
     method,
     headers: {
       accept: 'application/json',

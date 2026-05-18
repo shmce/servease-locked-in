@@ -1,3 +1,4 @@
+import { getServerGatewayBaseUrl } from '@/app/lib/gateway-base-url';
 import { NextResponse } from 'next/server';
 import {
   buildGatewayCustomerRegistrationPayload,
@@ -5,7 +6,6 @@ import {
   GatewayCustomerRegistrationRequest,
 } from '../../lib/customer-auth';
 
-const DEFAULT_GATEWAY_BASE_URL = 'http://localhost:5001';
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface GatewayErrorResponse {
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
   }
 
   const gatewayBaseUrl =
-    process.env.SERVEASE_API_BASE_URL ?? DEFAULT_GATEWAY_BASE_URL;
+    getServerGatewayBaseUrl();
 
   try {
     const response = await fetch(`${gatewayBaseUrl}/v1/auth/register`, {

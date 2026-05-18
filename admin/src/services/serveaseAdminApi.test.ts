@@ -51,6 +51,17 @@ describe("serveaseAdminApi", () => {
     });
   });
 
+  it("fails fast when the production gateway URL is missing", async () => {
+    const { resolveGatewayBaseUrl } = await import("./gatewayConfig");
+
+    expect(() => resolveGatewayBaseUrl("", "production")).toThrow(
+      /NEXT_PUBLIC_API_BASE_URL is required in production/,
+    );
+    expect(resolveGatewayBaseUrl("", "development")).toBe(
+      "http://localhost:5001",
+    );
+  });
+
   it("sends gateway bearer tokens and unwraps data payloads", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

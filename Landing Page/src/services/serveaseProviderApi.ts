@@ -1,3 +1,5 @@
+import { resolvePublicGatewayBaseUrl } from '@/app/lib/gateway-base-url'
+
 export type DayOfWeek =
   | 'monday'
   | 'tuesday'
@@ -550,9 +552,6 @@ interface RequestOptions {
   idempotencyKey?: string | null
 }
 
-const DEFAULT_API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5001'
-
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SUPABASE_PUBLISHABLE_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
@@ -562,7 +561,7 @@ export const PROVIDER_STORAGE_KEY = 'servease_provider'
 export const PROVIDER_TOKEN_STORAGE_KEY = 'servease_provider_access_token'
 
 export function getProviderApiBaseUrl(): string {
-  return DEFAULT_API_BASE_URL.replace(/\/$/, '')
+  return resolvePublicGatewayBaseUrl()
 }
 
 export function getStoredProviderAccessToken(): string | null {
