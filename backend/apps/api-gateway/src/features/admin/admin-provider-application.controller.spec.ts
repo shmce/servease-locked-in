@@ -258,11 +258,11 @@ describe('AdminProviderApplicationController documents', () => {
             applicationId: '11111111-1111-4111-8111-111111111111',
             userId: '22222222-2222-4222-8222-222222222222',
             documentType: 'government_id',
-            fileUrl: null,
-            storagePath: 'provider_document/user-1/PSN-2026-9999-NBI-ABC123.jpg',
+            fileUrl: 'https://storage.example.test/provider-id.png',
+            storagePath: 'provider_document/user-1/government-id.png',
             status: 'pending',
             createdAt: null,
-            previewUrl: null,
+            previewUrl: 'https://storage.example.test/provider-id.png',
             downloadUrl: null,
           },
         ],
@@ -277,7 +277,7 @@ describe('AdminProviderApplicationController documents', () => {
       updateProviderApplicationReview: jest.fn().mockResolvedValue({
         applicationId: '11111111-1111-4111-8111-111111111111',
         ocrData: {
-          governmentIdNumber: '2026-9999',
+          governmentIdNumber: 'PSN-2026-9999',
           nbiNumber: 'ABC123',
         },
       }),
@@ -289,6 +289,18 @@ describe('AdminProviderApplicationController documents', () => {
       currentUserService(),
       { createNotification: jest.fn() } as unknown as NotificationServiceClient,
     );
+    jest
+      .spyOn(
+        controller as unknown as {
+          extractTextWithLocalOcr: (
+            documentUrl: string | null | undefined,
+          ) => Promise<string>;
+        },
+        'extractTextWithLocalOcr',
+      )
+      .mockResolvedValue(
+        'SERVEASE TEST GOVERNMENT ID\nNAME: GREEN FIX PROVIDER\nPSN-2026-9999\nNBI-ABC123',
+      );
 
     await controller.runOcr(
       'Bearer token',
@@ -303,7 +315,7 @@ describe('AdminProviderApplicationController documents', () => {
         adminUserId: adminUser.id,
         ocrData: expect.objectContaining({
           governmentIdType: 'Government Id',
-          governmentIdNumber: '2026-9999',
+          governmentIdNumber: 'PSN-2026-9999',
           nbiNumber: 'ABC123',
         }),
       }),

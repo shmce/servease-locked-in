@@ -495,10 +495,7 @@ export class AdminProviderApplicationController {
         : application.documents[0]
           ? this.humanizeDocumentType(application.documents[0].documentType)
           : null,
-      governmentIdNumber: this.firstMatch(
-        text,
-        /\b(?:PSN|ID|DL|PASS(?:PORT)?)[-_\s:]*([A-Z0-9-]{4,32})\b/i,
-      ),
+      governmentIdNumber: this.extractGovernmentIdNumber(text),
       tinNumber: this.firstMatch(
         text,
         /\b(?:TIN)[-_\s:]*([0-9]{3}[-\s]?[0-9]{3}[-\s]?[0-9]{3}(?:[-\s]?[0-9]{3})?)\b/i,
@@ -512,6 +509,27 @@ export class AdminProviderApplicationController {
         /\b(?:PRC)[-_\s:]*([A-Z0-9-]{4,32})\b/i,
       ),
     };
+  }
+
+  private extractGovernmentIdNumber(text: string): string | null {
+    return (
+      this.firstMatch(
+        text,
+        /\b(PSN[-_\s:]*[A-Z0-9][A-Z0-9-]{3,31})\b/i,
+      ) ??
+      this.firstMatch(
+        text,
+        /\b(DL[-_\s:]*[A-Z0-9][A-Z0-9-]{3,31})\b/i,
+      ) ??
+      this.firstMatch(
+        text,
+        /\b(PASS(?:PORT)?[-_\s:]*[A-Z0-9][A-Z0-9-]{3,31})\b/i,
+      ) ??
+      this.firstMatch(
+        text,
+        /\b(?:ID\s*(?:NO|NUMBER|#)|IDNO)[-_\s:]*([A-Z0-9][A-Z0-9-]{3,31})\b/i,
+      )
+    );
   }
 
   private mergeOcrVerificationRecords(

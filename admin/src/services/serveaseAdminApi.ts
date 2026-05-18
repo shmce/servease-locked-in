@@ -2110,6 +2110,10 @@ export function saveAdminPricingRule(
     fairBandPercent?: number | null
     travelFeeMin?: number | null
     travelFeeMax?: number | null
+    travelMultiplier?: number | null
+    travelTimeFeePerMinute?: number | null
+    urgencyPriorityMultiplier?: number | null
+    urgencyEmergencyMultiplier?: number | null
     outlierWarnPercent?: number | null
     isActive?: boolean | null
   },
