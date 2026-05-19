@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Badge,
   Card,
@@ -9,6 +8,11 @@ import {
   Section,
   TopBar,
 } from '../components/DesignKit';
+import {
+  MonthCalendar,
+  MonthCalendarMarkers,
+  formatApiDate,
+} from '../components/MonthCalendar';
 import { formatDateTime } from '../domain/booking';
 import { palette, radius, spacing } from '../theme/serveaseDesign';
 import {
@@ -33,7 +37,6 @@ const activeBookingStatuses: BookingStatus[] = [
   'confirmed',
   'in_progress',
 ];
-const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function ProviderCalendarScreen({
   availability,
@@ -43,7 +46,6 @@ export function ProviderCalendarScreen({
   onSelectDate,
   openBooking,
 }: ProviderCalendarScreenProps) {
-  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(new Date()));
   const [isLoading, setIsLoading] = useState(false);
 
   const loadSchedule = useCallback(async () => {
@@ -59,10 +61,14 @@ export function ProviderCalendarScreen({
     void loadSchedule();
   }, [loadSchedule]);
 
-  const monthDays = useMemo(() => buildMonthDays(visibleMonth), [visibleMonth]);
-  const dayOffDates = new Set(availability?.daysOff.map((day) => day.offDate) ?? []);
-  const timeOffDates = new Set(
-    (availability?.timeOffWindows ?? []).map((window) => window.offDate),
+  const dayOffDates = useMemo(
+    () => new Set(availability?.daysOff.map((day) => day.offDate) ?? []),
+    [availability],
+  );
+  const timeOffDates = useMemo(
+    () =>
+      new Set((availability?.timeOffWindows ?? []).map((window) => window.offDate)),
+    [availability],
   );
   const activeBookingsByDate = useMemo(() => {
     const dates = new Set<string>();
@@ -73,6 +79,21 @@ export function ProviderCalendarScreen({
     });
     return dates;
   }, [bookings]);
+  const calendarMarkers = useMemo<MonthCalendarMarkers>(() => {
+    const markers: MonthCalendarMarkers = {};
+    dayOffDates.forEach((date) => {
+      markers[date] = appendMarker(markers[date], 'full');
+    });
+    timeOffDates.forEach((date) => {
+      if (!dayOffDates.has(date)) {
+        markers[date] = appendMarker(markers[date], 'partial');
+      }
+    });
+    activeBookingsByDate.forEach((date) => {
+      markers[date] = appendMarker(markers[date], 'booking');
+    });
+    return markers;
+  }, [activeBookingsByDate, dayOffDates, timeOffDates]);
   const upcoming = bookings
     .filter((booking) => activeBookingStatuses.includes(booking.status))
     .slice()
@@ -98,67 +119,12 @@ export function ProviderCalendarScreen({
       />
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.content}>
-          <Section
-            title={visibleMonth.toLocaleDateString('en-PH', {
-              month: 'long',
-              year: 'numeric',
-            })}
-            action={
-              <View style={styles.monthActions}>
-                <Pressable
-                  style={styles.iconButton}
-                  onPress={() => setVisibleMonth(addMonths(visibleMonth, -1))}
-                  accessibilityRole="button"
-                  accessibilityLabel="Previous month"
-                >
-                  <ChevronLeft color={palette.ink} size={18} />
-                </Pressable>
-                <Pressable
-                  style={styles.iconButton}
-                  onPress={() => setVisibleMonth(addMonths(visibleMonth, 1))}
-                  accessibilityRole="button"
-                  accessibilityLabel="Next month"
-                >
-                  <ChevronRight color={palette.ink} size={18} />
-                </Pressable>
-              </View>
-            }
-          >
-            <View style={styles.calendarShell}>
-              <View style={styles.weekHeader}>
-                {weekdayLabels.map((day) => (
-                  <Text key={day} style={styles.weekday}>
-                    {day}
-                  </Text>
-                ))}
-              </View>
-              <View style={styles.monthGrid}>
-                {monthDays.map((day, index) =>
-                  day ? (
-                    <Pressable
-                      key={day}
-                      style={styles.dayCell}
-                      onPress={() => onSelectDate(day)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Open ${day}`}
-                    >
-                      <Text style={styles.dayNumber}>{Number(day.slice(-2))}</Text>
-                      <View style={styles.dotRow}>
-                        {dayOffDates.has(day) ? <View style={styles.redDot} /> : null}
-                        {!dayOffDates.has(day) && timeOffDates.has(day) ? (
-                          <View style={styles.yellowDot} />
-                        ) : null}
-                        {activeBookingsByDate.has(day) ? (
-                          <View style={styles.blueDot} />
-                        ) : null}
-                      </View>
-                    </Pressable>
-                  ) : (
-                    <View key={`empty-${index}`} style={styles.emptyDayCell} />
-                  ),
-                )}
-              </View>
-            </View>
+          <Section>
+            <MonthCalendar
+              selectedDate={null}
+              onSelectDate={onSelectDate}
+              markers={calendarMarkers}
+            />
             <View style={styles.legendRow}>
               <LegendDot color={palette.red} label="Whole day off" />
               <LegendDot color={palette.amber} label="Partial block" />
@@ -196,6 +162,17 @@ export function ProviderCalendarScreen({
   );
 }
 
+function appendMarker(
+  marker: MonthCalendarMarkers[string],
+  next: 'full' | 'partial' | 'booking',
+): MonthCalendarMarkers[string] {
+  if (!marker) {
+    return next;
+  }
+
+  return Array.isArray(marker) ? [...marker, next] : [marker, next];
+}
+
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
     <View style={styles.legendItem}>
@@ -203,41 +180,6 @@ function LegendDot({ color, label }: { color: string; label: string }) {
       <Text style={styles.legendLabel}>{label}</Text>
     </View>
   );
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function addMonths(date: Date, amount: number): Date {
-  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
-}
-
-function buildMonthDays(month: Date): (string | null)[] {
-  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
-  const daysInMonth = new Date(
-    month.getFullYear(),
-    month.getMonth() + 1,
-    0,
-  ).getDate();
-  const days: (string | null)[] = Array.from(
-    { length: firstDay.getDay() },
-    () => null,
-  );
-
-  for (let day = 1; day <= daysInMonth; day += 1) {
-    days.push(formatApiDate(new Date(month.getFullYear(), month.getMonth(), day)));
-  }
-
-  return days;
-}
-
-function formatApiDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, '0');
-  const day = `${date.getDate()}`.padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
 }
 
 const styles = StyleSheet.create({
@@ -249,78 +191,6 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
     padding: spacing.xl,
-  },
-  monthActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  iconButton: {
-    alignItems: 'center',
-    backgroundColor: palette.surface,
-    borderRadius: radius.md,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  calendarShell: {
-    backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    padding: spacing.sm,
-  },
-  weekHeader: {
-    flexDirection: 'row',
-  },
-  weekday: {
-    color: palette.faint,
-    flex: 1,
-    fontSize: 11,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  monthGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  dayCell: {
-    alignItems: 'center',
-    aspectRatio: 1,
-    justifyContent: 'center',
-    width: `${100 / 7}%`,
-  },
-  emptyDayCell: {
-    aspectRatio: 1,
-    width: `${100 / 7}%`,
-  },
-  dayNumber: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  dotRow: {
-    flexDirection: 'row',
-    gap: 3,
-    height: 8,
-    marginTop: 4,
-  },
-  redDot: {
-    backgroundColor: palette.red,
-    borderRadius: radius.pill,
-    height: 6,
-    width: 6,
-  },
-  yellowDot: {
-    backgroundColor: palette.amber,
-    borderRadius: radius.pill,
-    height: 6,
-    width: 6,
-  },
-  blueDot: {
-    backgroundColor: palette.blue,
-    borderRadius: radius.pill,
-    height: 6,
-    width: 6,
   },
   legendRow: {
     flexDirection: 'row',

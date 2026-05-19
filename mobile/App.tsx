@@ -60,6 +60,7 @@ import {
   StatusTimeline,
   TopBar,
 } from './src/components/DesignKit';
+import { MonthCalendar, MonthCalendarMarkers } from './src/components/MonthCalendar';
 import { ScreenTransition } from './src/components/Motion';
 import {
   CategoryTile,
@@ -79,10 +80,12 @@ import {
   bookingStatusChip,
   buildCalendarExportUrl,
   buildBookingTransitionRequest,
-  buildProviderBookingSlots,
+  buildCustomerBookingCalendarState,
+  buildCustomerBookingAvailability,
   completedBookingCount,
   formatBookingDuration,
   formatDateTime,
+  formatManilaDateInput,
   formatMoney,
   nextActionLabel,
   nextBookingStatuses,
@@ -95,6 +98,7 @@ import {
   summarizeMonthlyEarnings,
   timelineEventLabel,
   toManilaBookingIso,
+  providerUnavailableSlotPickerMessage,
 } from './src/domain/booking';
 import {
   bookingTimeSlots,
@@ -265,6 +269,17 @@ import { syncExpoPushRegistration } from './services/pushRegistration';
 const TRACKING_STREAM_FALLBACK_DELAY_MS = 4000;
 const TRACKING_FALLBACK_POLL_INTERVAL_MS = 3000;
 
+function addMonthsToInputMonth(month: string, offset: number): string {
+  const [rawYear, rawMonth] = month.split('-');
+  const year = Number(rawYear);
+  const monthIndex = Number(rawMonth) - 1;
+  const date = new Date(year, monthIndex + offset, 1);
+  const nextYear = date.getFullYear();
+  const nextMonth = `${date.getMonth() + 1}`.padStart(2, '0');
+
+  return `${nextYear}-${nextMonth}`;
+}
+
 function isInternalTestNotification(notification: NotificationSummary): boolean {
   const text = `${notification.title ?? ''} ${notification.body ?? ''}`.toLowerCase();
   const metadata = notification.metadata;
@@ -411,6 +426,7 @@ export default function App() {
     null,
   );
   const [bookingFilter, setBookingFilter] = useState<'active' | 'completed'>('active');
+  const [bookingSlotError, setBookingSlotError] = useState('');
   const [customerGuideStep, setCustomerGuideStep] = useState(0);
   const [customerGuideDismissed, setCustomerGuideDismissed] = useState(false);
   const [address, setAddress] = useState('Unit 12B Greenfield Residences');
@@ -543,16 +559,6 @@ export default function App() {
     payoutAccount?.availableBalance ?? providerPayoutTotal(payments);
   const canConfirmAccountDeletion =
     Boolean(profile?.user.email) && deleteConfirmText.trim() === profile?.user.email;
-  const providerBookingSlots = useMemo(
-    () =>
-      buildProviderBookingSlots(
-        selectedProviderAvailability,
-        Number(hoursRequired) || 1,
-        bookingTimeSlots,
-      ),
-    [hoursRequired, selectedProviderAvailability],
-  );
-
   const apiOptions = useMemo(
     () => ({
       baseUrl: apiBaseUrl,
@@ -1665,7 +1671,16 @@ export default function App() {
       setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
       setNotice(`Booking ${booking.bookingReference} created.`);
     } catch (error) {
-      setNotice(readError(error));
+      const message = readError(error);
+      const slotMessage = providerUnavailableSlotPickerMessage(error, message);
+      if (slotMessage) {
+        setBookingSlotError(slotMessage);
+        setNotice(slotMessage);
+        void refreshSelectedProviderAvailability(selectedProvider.providerId);
+        navigate('customerBookingForm', 'customer');
+      } else {
+        setNotice(message);
+      }
     } finally {
       setBusyAction(null);
     }
@@ -4152,36 +4167,52 @@ export default function App() {
 
     const dateOnly = scheduledAt.slice(0, 10);
     const timeOnly = scheduledAt.slice(11, 16);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const upcomingDates = Array.from({ length: 14 }, (_, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      const yyyy = d.getFullYear();
-      const mm = `${d.getMonth() + 1}`.padStart(2, '0');
-      const dd = `${d.getDate()}`.padStart(2, '0');
-      return {
-        value: `${yyyy}-${mm}-${dd}`,
-        weekday: d.toLocaleDateString('en-PH', { weekday: 'short' }),
-        day: d.getDate(),
-        month: d.toLocaleDateString('en-PH', { month: 'short' }),
-        isToday: i === 0,
-        isTomorrow: i === 1,
-      };
-    });
-    const availableTimesForDate = providerBookingSlots
-      .filter((slot) => slot.value.startsWith(`${dateOnly}T`))
-      .map((slot) => slot.value.slice(11, 16));
-    const timeOptions = bookingTimeSlots.map((time) => ({
-      time,
-      isAvailable:
-        availableTimesForDate.length === 0 || availableTimesForDate.includes(time),
-    }));
+    const customerCalendarMinDate = formatManilaDateInput();
+    const today = new Date(`${customerCalendarMinDate}T00:00:00`);
+    const duration = Number(hoursRequired) || 1;
+    const customerAvailability = buildCustomerBookingAvailability(
+      selectedProviderAvailability,
+      duration,
+      bookingTimeSlots,
+      today,
+      dateOnly,
+    );
+    const selectedDateOption = customerAvailability.dateOptions.find(
+      (date) => date.value === dateOnly,
+    );
+    const selectedTimeOption = customerAvailability.timeOptions.find(
+      (slot) => slot.time === timeOnly,
+    );
+    const selectedSlotAvailable =
+      selectedDateOption?.isAvailable === true && selectedTimeOption?.isAvailable === true;
+    const slotPickerMessage =
+      bookingSlotError ||
+      (!selectedProviderAvailability
+        ? 'Provider availability is loading.'
+        : !selectedSlotAvailable
+          ? selectedTimeOption?.unavailableLabel ?? selectedDateOption?.unavailableLabel
+          : null);
+    const calendarDisabledDates = new Set<string>();
+    const calendarMarkers: MonthCalendarMarkers = {};
+    const calendarStartMonth = customerCalendarMinDate.slice(0, 7);
+    for (let offset = 0; offset < 12; offset += 1) {
+      const calendarMonth = addMonthsToInputMonth(calendarStartMonth, offset);
+      const calendarState = buildCustomerBookingCalendarState(
+        selectedProviderAvailability,
+        duration,
+        bookingTimeSlots,
+        calendarMonth,
+      );
+      calendarState.disabledDates.forEach((date) => calendarDisabledDates.add(date));
+      Object.assign(calendarMarkers, calendarState.markers);
+    }
     const missingFields: string[] = [];
     if (!dateOnly) missingFields.push('a date');
     if (!timeOnly) missingFields.push('a time');
+    if (dateOnly && timeOnly && !selectedSlotAvailable) {
+      missingFields.push('an available date and time');
+    }
     if (!address.trim()) missingFields.push('the service address');
-    const duration = Number(hoursRequired) || 1;
     const baseRate = selectedProvider.price ?? 0;
     const estimatedTotal =
       selectedProvider.pricingMode === 'hourly' ? baseRate * duration : baseRate;
@@ -4219,61 +4250,31 @@ export default function App() {
             </Card>
 
             <Section title="Pick a date">
-              <View style={styles.dateRailWrap}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator
-                  contentContainerStyle={styles.horizontalRail}
-                >
-                  {upcomingDates.map((d) => {
-                    const isSelected = dateOnly === d.value;
-                    return (
-                      <Pressable
-                        key={d.value}
-                        style={[styles.dateChip, isSelected && styles.dateChipSelected]}
-                        onPress={() =>
-                          setScheduledAt(`${d.value}T${timeOnly || '09:00'}`)
-                        }
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: isSelected }}
-                      >
-                        <Text
-                          style={[
-                            styles.dateChipDow,
-                            isSelected && styles.dateChipDowSelected,
-                          ]}
-                        >
-                          {d.isToday ? 'Today' : d.isTomorrow ? 'Tomorrow' : d.weekday}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.dateChipDay,
-                            isSelected && styles.dateChipDaySelected,
-                          ]}
-                        >
-                          {d.day}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.dateChipMonth,
-                            isSelected && styles.dateChipDowSelected,
-                          ]}
-                        >
-                          {d.month}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-                <View pointerEvents="none" style={styles.dateRailCue}>
-                  <ChevronRight color={palette.mint} size={20} strokeWidth={2.6} />
+              <MonthCalendar
+                selectedDate={dateOnly}
+                onSelectDate={(date) => {
+                  setBookingSlotError('');
+                  setScheduledAt(`${date}T${timeOnly || '09:00'}`);
+                }}
+                minDate={customerCalendarMinDate}
+                disabledDates={calendarDisabledDates}
+                markers={calendarMarkers}
+                initialMonth={dateOnly}
+              />
+              <View style={styles.calendarLegendRow}>
+                <View style={styles.calendarLegendItem}>
+                  <View style={styles.calendarPartialDot} />
+                  <Text style={styles.calendarLegendLabel}>Partial availability</Text>
                 </View>
+                <Text style={styles.cardMeta}>
+                  Grey dates are unavailable for this provider.
+                </Text>
               </View>
             </Section>
 
             <Section title="Pick a time">
               <View style={styles.timeGrid}>
-                {timeOptions.map(({ time, isAvailable }) => {
+                {customerAvailability.timeOptions.map(({ time, isAvailable, unavailableLabel }) => {
                   const isSelected = timeOnly === time;
                   return (
                     <Pressable
@@ -4288,12 +4289,14 @@ export default function App() {
                           setNotice('That time is outside the provider schedule.');
                           return;
                         }
+                        setBookingSlotError('');
                         setScheduledAt(
                           `${dateOnly || defaultScheduledAt.slice(0, 10)}T${time}`,
                         );
                       }}
                       accessibilityRole="button"
                       accessibilityState={{ selected: isSelected, disabled: !isAvailable }}
+                      disabled={!isAvailable}
                     >
                       <Text
                         style={[
@@ -4304,14 +4307,20 @@ export default function App() {
                       >
                         {time}
                       </Text>
+                      {!isAvailable ? (
+                        <Text style={styles.timeTileUnavailableText}>
+                          {unavailableLabel ?? 'Provider unavailable'}
+                        </Text>
+                      ) : null}
                     </Pressable>
                   );
                 })}
               </View>
+              {slotPickerMessage ? (
+                <Text style={styles.noticeText}>{slotPickerMessage}</Text>
+              ) : null}
               <Text style={styles.cardMeta}>
-                {providerBookingSlots.length
-                  ? 'Greyed times fall outside this provider\'s posted availability.'
-                  : 'Provider availability still loading — you can still pick a tentative slot.'}
+                Greyed times are blocked or outside this provider's posted availability.
               </Text>
             </Section>
 
@@ -9226,6 +9235,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.mint,
     borderColor: palette.mint,
   },
+  dateChipDisabled: {
+    backgroundColor: palette.lineSoft,
+    borderColor: palette.lineSoft,
+  },
   dateChipDow: {
     color: palette.muted,
     fontSize: 12,
@@ -9251,6 +9264,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 2,
     textTransform: 'uppercase',
+  },
+  dateChipTextDisabled: {
+    color: palette.faint,
+  },
+  calendarLegendRow: {
+    gap: spacing.xs,
+    marginTop: spacing.md,
+  },
+  calendarLegendItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  calendarPartialDot: {
+    backgroundColor: palette.amber,
+    borderRadius: radius.pill,
+    height: 6,
+    width: 6,
+  },
+  calendarLegendLabel: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '700',
   },
   timeGrid: {
     flexDirection: 'row',
@@ -9286,6 +9322,13 @@ const styles = StyleSheet.create({
   },
   timeTileTextDisabled: {
     color: palette.faint,
+  },
+  timeTileUnavailableText: {
+    color: palette.faint,
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 4,
+    textAlign: 'center',
   },
   weekdayChip: {
     alignItems: 'center',

@@ -3,10 +3,13 @@ import { describe, it } from 'node:test';
 import {
   activeBookingCount,
   bookingStatusChip,
+  buildCustomerBookingAvailability,
   buildCalendarExportUrl,
   buildBookingTransitionRequest,
+  buildCustomerBookingCalendarState,
   buildMapsDirectionsUrl,
   buildProviderBookingSlots,
+  providerUnavailableSlotPickerMessage,
   formatBookingDuration,
   nextBookingStatuses,
   pricingConfidenceLabel,
@@ -281,6 +284,186 @@ describe('booking domain helpers', () => {
       '2026-05-27T08:00',
       '2026-05-27T10:00',
     ]);
+  });
+
+  it('builds customer availability with whole-day off and partial time-off states', () => {
+    const schedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'tuesday' as const,
+          startTime: '09:00',
+          endTime: '18:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+      ],
+      daysOff: [{ id: 'day-off-1', offDate: '2026-05-27', reason: null }],
+      timeOffWindows: [
+        {
+          id: 'time-off-1',
+          offDate: '2026-05-26',
+          startTime: '14:00',
+          endTime: '17:00',
+          reason: null,
+        },
+      ],
+    };
+
+    const availability = buildCustomerBookingAvailability(
+      schedule,
+      1,
+      ['13:00', '14:00', '15:00', '16:00', '17:00'],
+      new Date('2026-05-26T00:00:00'),
+      '2026-05-26',
+    );
+
+    assert.equal(
+      availability.dateOptions.find((date) => date.value === '2026-05-26')?.isAvailable,
+      true,
+    );
+    assert.equal(
+      availability.dateOptions.find((date) => date.value === '2026-05-27')?.isAvailable,
+      false,
+    );
+    assert.equal(
+      availability.dateOptions.find((date) => date.value === '2026-05-27')?.unavailableLabel,
+      'Provider unavailable',
+    );
+    assert.deepEqual(
+      availability.timeOptions.map((slot) => ({
+        time: slot.time,
+        isAvailable: slot.isAvailable,
+        unavailableLabel: slot.unavailableLabel,
+      })),
+      [
+        { time: '13:00', isAvailable: true, unavailableLabel: undefined },
+        { time: '14:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+        { time: '15:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+        { time: '16:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+        { time: '17:00', isAvailable: true, unavailableLabel: undefined },
+      ],
+    );
+  });
+
+  it('keeps weekly window edge slots available only when the full duration fits', () => {
+    const schedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'tuesday' as const,
+          startTime: '09:00',
+          endTime: '17:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+      ],
+      daysOff: [],
+      timeOffWindows: [],
+    };
+
+    const availability = buildCustomerBookingAvailability(
+      schedule,
+      2,
+      ['08:00', '09:00', '15:00', '16:00'],
+      new Date('2026-05-26T00:00:00'),
+      '2026-05-26',
+    );
+
+    assert.deepEqual(
+      availability.timeOptions.map((slot) => ({
+        time: slot.time,
+        isAvailable: slot.isAvailable,
+        unavailableLabel: slot.unavailableLabel,
+      })),
+      [
+        { time: '08:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+        { time: '09:00', isAvailable: true, unavailableLabel: undefined },
+        { time: '15:00', isAvailable: true, unavailableLabel: undefined },
+        { time: '16:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+      ],
+    );
+  });
+
+  it('maps provider unavailable booking errors to the slot picker message', () => {
+    assert.equal(
+      providerUnavailableSlotPickerMessage(
+        { code: 'provider_unavailable' },
+        'Provider is unavailable for the requested time.',
+      ),
+      'This slot was just taken or blocked. Please pick another.',
+    );
+    assert.equal(
+      providerUnavailableSlotPickerMessage(
+        new Error('Provider is unavailable for the requested time.'),
+        'Provider is unavailable for the requested time.',
+      ),
+      'This slot was just taken or blocked. Please pick another.',
+    );
+    assert.equal(
+      providerUnavailableSlotPickerMessage(
+        new Error('Payment method required.'),
+        'Payment method required.',
+      ),
+      null,
+    );
+  });
+
+  it('builds customer calendar disabled dates and partial markers', () => {
+    const schedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'tuesday' as const,
+          startTime: '09:00',
+          endTime: '17:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+        {
+          id: 'window-2',
+          dayOfWeek: 'wednesday' as const,
+          startTime: '09:00',
+          endTime: '17:00',
+          isActive: true,
+          sortOrder: 2,
+        },
+      ],
+      daysOff: [{ id: 'day-off-1', offDate: '2026-05-28', reason: null }],
+      timeOffWindows: [
+        {
+          id: 'partial-1',
+          offDate: '2026-05-26',
+          startTime: '14:00',
+          endTime: '17:00',
+          reason: null,
+        },
+        {
+          id: 'full-1',
+          offDate: '2026-05-27',
+          startTime: '09:00',
+          endTime: '17:00',
+          reason: null,
+        },
+      ],
+    };
+
+    const state = buildCustomerBookingCalendarState(
+      schedule,
+      1,
+      ['09:00', '13:00', '14:00', '15:00', '16:00'],
+      '2026-05',
+    );
+
+    assert.equal(state.disabledDates.has('2026-05-26'), false);
+    assert.equal(state.markers['2026-05-26'], 'partial');
+    assert.equal(state.disabledDates.has('2026-05-27'), true);
+    assert.equal(state.markers['2026-05-27'], undefined);
+    assert.equal(state.disabledDates.has('2026-05-28'), true);
+    assert.equal(state.disabledDates.has('2026-05-29'), true);
   });
 
   it('excludes bookable slots that overlap provider time-off windows', () => {

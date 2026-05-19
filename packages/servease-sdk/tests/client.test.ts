@@ -249,6 +249,62 @@ describe('createServEaseClient', () => {
     assert.equal(requests[0]?.headers.get('authorization'), 'Bearer provider-token');
   });
 
+  it('exposes provider partial time-off availability helpers', async () => {
+    const requests: Request[] = [];
+    const fetcher: FetchLike = async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      return jsonResponse({
+        data: {
+          providerId: 'provider-1',
+          windows: [],
+          daysOff: [],
+          timeOffWindows: [
+            {
+              id: 'time-off-1',
+              offDate: '2026-05-26',
+              startTime: '14:00',
+              endTime: '17:00',
+              reason: 'Personal errand',
+            },
+          ],
+        },
+      });
+    };
+
+    const client = createServEaseClient({
+      baseUrl: 'https://api.servease.test',
+      accessToken: 'provider-token',
+      fetch: fetcher,
+    });
+
+    assert.equal(typeof (client.availability as any).addTimeOff, 'function');
+    assert.equal(typeof (client.availability as any).removeTimeOff, 'function');
+
+    const schedule = await (client.availability as any).addTimeOff({
+      offDate: '2026-05-26',
+      startTime: '14:00',
+      endTime: '17:00',
+      reason: 'Personal errand',
+    });
+    await (client.availability as any).removeTimeOff('time-off-1');
+
+    assert.equal(schedule.timeOffWindows[0]?.startTime, '14:00');
+    assert.equal(requests[0]?.method, 'POST');
+    assert.equal(requests[0]?.url, 'https://api.servease.test/v1/provider/availability/time-off');
+    assert.deepEqual(await requests[0]?.json(), {
+      offDate: '2026-05-26',
+      startTime: '14:00',
+      endTime: '17:00',
+      reason: 'Personal errand',
+    });
+    assert.equal(requests[1]?.method, 'DELETE');
+    assert.equal(
+      requests[1]?.url,
+      'https://api.servease.test/v1/provider/availability/time-off/time-off-1',
+    );
+  });
+
   it('exposes payment helpers through public payment routes', async () => {
     const requests: Request[] = [];
     const fetcher: FetchLike = async (input, init) => {

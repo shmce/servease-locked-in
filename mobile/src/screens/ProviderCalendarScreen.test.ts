@@ -14,7 +14,9 @@ test('provider calendar screen renders month grid markers and opens date detail'
   assert.match(source, /daysOff/);
   assert.match(source, /activeBookingsByDate/);
   assert.match(source, /onSelectDate/);
-  assert.match(source, /redDot/);
-  assert.match(source, /yellowDot/);
-  assert.match(source, /blueDot/);
+  assert.match(source, /MonthCalendar/);
+  assert.match(source, /markers=/);
+  assert.match(source, /full/);
+  assert.match(source, /partial/);
+  assert.match(source, /booking/);
 });

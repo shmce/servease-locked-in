@@ -11,6 +11,7 @@
     "env:prod": "node scripts/check-production-env.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test $(find services src -name '*.test.ts' -print)",
+    "lint:check": "expo lint",
     "lint": "expo lint"
   },
   "dependencies": {
