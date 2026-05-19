@@ -164,6 +164,28 @@ test('provider navigation uses first-person WebView drive mode', () => {
   assert.doesNotMatch(providerNavigationSource, /Linking\.openURL/);
 });
 
+test('provider navigation map allows controlled route inspection', () => {
+  const mapSource = readFileSync(
+    join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
+    'utf8',
+  );
+  const htmlStart = mapSource.indexOf('function buildTrackingMapHtml');
+  const previewStart = mapSource.indexOf('function derivePreviewProviderLocation');
+  assert.notEqual(htmlStart, -1);
+  assert.notEqual(previewStart, -1);
+
+  const htmlSource = mapSource.slice(htmlStart, previewStart);
+
+  assert.match(htmlSource, /interactive: isNavigationMode/);
+  assert.match(htmlSource, /id="recenter-control"/);
+  assert.match(htmlSource, /id="overview-control"/);
+  assert.match(htmlSource, /followProvider/);
+  assert.match(htmlSource, /map\.on\('dragstart'/);
+  assert.match(htmlSource, /map\.on\('zoomstart'/);
+  assert.match(htmlSource, /fitRouteBounds/);
+  assert.doesNotMatch(htmlSource, /interactive: true/);
+});
+
 test('native tracking map renders APICenter coordinates through Expo Go WebView without Google map config', () => {
   const source = readFileSync(
     join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),

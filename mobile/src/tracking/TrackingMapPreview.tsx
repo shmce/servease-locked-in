@@ -409,10 +409,43 @@ function buildTrackingMapHtml(
       position: fixed;
       text-align: center;
     }
+    .map-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: fixed;
+      right: 14px;
+      top: 92px;
+      z-index: 3;
+    }
+    .map-control {
+      align-items: center;
+      background: rgba(255,255,255,0.96);
+      border: 0;
+      border-radius: 999px;
+      box-shadow: 0 8px 18px rgba(17,24,39,0.18);
+      color: #111827;
+      display: flex;
+      font-size: 16px;
+      font-weight: 900;
+      height: 44px;
+      justify-content: center;
+      line-height: 1;
+      padding: 0;
+      width: 44px;
+    }
+    .map-control[hidden],
+    .map-controls[hidden] {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
+  <div class="map-controls" ${isNavigationMode ? '' : 'hidden'}>
+    <button id="recenter-control" class="map-control" type="button" aria-label="Recenter on your location" hidden>&#8982;</button>
+    <button id="overview-control" class="map-control" type="button" aria-label="Show full route">&#8599;</button>
+  </div>
   <div id="fallback">Loading map tiles...</div>
   <script src="${MAPLIBRE_CDN_BASE}/maplibre-gl.js"></script>
   <script>
@@ -424,6 +457,10 @@ function buildTrackingMapHtml(
     const cameraBearing = ${JSON.stringify(cameraBearing)};
     const providerHeading = ${JSON.stringify(providerHeading)};
     const fallback = document.getElementById('fallback');
+    const recenterControl = document.getElementById('recenter-control');
+    const overviewControl = document.getElementById('overview-control');
+    let followProvider = true;
+    let isProgrammaticCameraMove = false;
     const marker = (kind) => {
       const element = document.createElement('div');
       element.className = kind === 'provider' ? 'provider-marker' : 'destination-marker';
@@ -438,7 +475,7 @@ function buildTrackingMapHtml(
         attributionControl: false,
         center: provider && isNavigationMode ? provider : destination,
         container: 'map',
-        interactive: false,
+        interactive: isNavigationMode,
         bearing: provider && isNavigationMode ? cameraBearing : 0,
         pitch: provider && isNavigationMode ? 62 : 0,
         pitchWithRotate: false,
@@ -446,6 +483,10 @@ function buildTrackingMapHtml(
         zoom: provider && isNavigationMode ? 16 : provider ? 12 : 14
       });
       map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+      if (isNavigationMode) {
+        map.dragRotate.disable();
+        map.touchZoomRotate.disableRotation();
+      }
       if (provider) {
         new maplibregl.Marker({ element: marker('provider') }).setLngLat(provider).addTo(map);
       }
@@ -454,6 +495,63 @@ function buildTrackingMapHtml(
       map.on('load', () => {
         fallback.style.display = 'none';
         const routeLine = route || (provider ? [provider, destination] : null);
+        const withProgrammaticCameraMove = (move) => {
+          isProgrammaticCameraMove = true;
+          move();
+          window.setTimeout(() => {
+            isProgrammaticCameraMove = false;
+          }, 360);
+        };
+        const fitRouteBounds = () => {
+          if (!routeLine) {
+            return;
+          }
+          const bounds = routeLine.reduce(
+            (nextBounds, coordinate) => nextBounds.extend(coordinate),
+            new maplibregl.LngLatBounds(routeLine[0], routeLine[0])
+          ).extend(destination);
+          withProgrammaticCameraMove(() => {
+            map.fitBounds(bounds, { duration: 280, maxZoom: 14, padding: 42 });
+          });
+        };
+        const followCurrentProvider = () => {
+          if (!provider) {
+            fitRouteBounds();
+            return;
+          }
+          withProgrammaticCameraMove(() => {
+            map.easeTo({
+              bearing: cameraBearing,
+              center: provider,
+              duration: 280,
+              offset: [0, 110],
+              pitch: 62,
+              zoom: 16
+            });
+          });
+        };
+        const pauseFollowForInspection = () => {
+          if (!isNavigationMode || isProgrammaticCameraMove) {
+            return;
+          }
+          followProvider = false;
+          if (recenterControl) {
+            recenterControl.hidden = false;
+          }
+        };
+        if (isNavigationMode) {
+          map.on('dragstart', pauseFollowForInspection);
+          map.on('zoomstart', pauseFollowForInspection);
+          recenterControl?.addEventListener('click', () => {
+            followProvider = true;
+            recenterControl.hidden = true;
+            followCurrentProvider();
+          });
+          overviewControl?.addEventListener('click', () => {
+            pauseFollowForInspection();
+            fitRouteBounds();
+          });
+        }
         if (!routeLine) {
           return;
         }
@@ -478,20 +576,18 @@ function buildTrackingMapHtml(
           paint: { 'line-color': isNavigationMode ? '#16A34A' : '#0B7A44', 'line-width': isNavigationMode ? 8 : 4, 'line-opacity': 0.96 }
         });
         if (isNavigationMode && provider) {
-          map.jumpTo({
-            bearing: cameraBearing,
-            center: provider,
-            offset: [0, 110],
-            pitch: 62,
-            zoom: 16
-          });
+          if (followProvider) {
+            map.jumpTo({
+              bearing: cameraBearing,
+              center: provider,
+              offset: [0, 110],
+              pitch: 62,
+              zoom: 16
+            });
+          }
           return;
         }
-        const bounds = routeLine.reduce(
-          (nextBounds, coordinate) => nextBounds.extend(coordinate),
-          new maplibregl.LngLatBounds(routeLine[0], routeLine[0])
-        ).extend(destination);
-        map.fitBounds(bounds, { duration: 0, maxZoom: 14, padding: 42 });
+        fitRouteBounds();
       });
       map.on('error', () => {
         if (!map.loaded()) {
