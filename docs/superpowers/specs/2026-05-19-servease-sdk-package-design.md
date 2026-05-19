@@ -18,6 +18,10 @@ The first SDK version covers the stable public marketplace surface:
 - catalog browse contracts;
 - booking create, list, detail, and status update contracts;
 - provider availability read/write contracts;
+- pricing quote and provider guidance contracts as gateway-backed service calls;
+- provider application status for the signed-in applicant;
+- payment status, checkout session, promotion validation, customer method, payout status, and payout request contracts;
+- messaging, review, support, notification, current-user profile, preferences, geo, referral, and upload contracts;
 - a small fetch-based client factory for gateway routes.
 
 The first version excludes:
@@ -25,6 +29,8 @@ The first version excludes:
 - admin routes;
 - payment capture and payouts;
 - reports and analytics;
+- OCR trigger/review internals and admin provider-application review actions;
+- APICenter raw email/SMS/geo/Kafka wrappers;
 - Kafka, Databricks, AWS data streaming, or Power BI exports;
 - Supabase clients, service-role credentials, internal service clients, or direct database access.
 
@@ -44,6 +50,17 @@ packages/servease-sdk/
       booking.ts
       catalog.ts
       common.ts
+      geo.ts
+      messaging.ts
+      notifications.ts
+      payments.ts
+      pricing.ts
+      profile.ts
+      provider-applications.ts
+      referrals.ts
+      reviews.ts
+      support.ts
+      uploads.ts
 ```
 
 The package builds TypeScript source to `dist/` and publishes only `dist/` plus `README.md`.
@@ -72,10 +89,22 @@ The client exposes grouped methods:
 - `bookings.list(params?)`
 - `bookings.get(bookingId)`
 - `bookings.updateStatus(bookingId, input, options?)`
+- `pricing.createQuote(input, options?)`
+- `pricing.getProviderGuidance(input, options?)`
 - `availability.getProviderAvailability(providerId?)`
 - `availability.replaceWindows(input)`
 - `availability.addDayOff(input)`
 - `availability.removeDayOff(offDate)`
+- `providerApplications.getMine(options?)`
+- `payments.*` for visible ServEase payment, checkout, promotion, payout, and payment-method workflows
+- `messaging.*` for ServEase booking conversations
+- `reviews.*` for provider reviews, replies, and flags
+- `support.*` for caller-visible support tickets
+- `notifications.*` for the caller's notification inbox and device registration
+- `profile.*` for current user profile and preferences
+- `geo.*` for ServEase gateway-backed geo helpers
+- `referrals.getSummary()`
+- `uploads.create(input)`
 
 Side-effect methods accept an optional `idempotencyKey` option when the underlying contract requires or benefits from idempotent retries.
 
@@ -91,6 +120,10 @@ Other tribe backend or client
 The SDK never calls internal `/internal/...` routes and never calls service ports `8501` through `8511`.
 
 The shared service boundary is the ServEase API Gateway or its APICenter registration. The SDK is only the typed client for that boundary.
+
+Pricing is shared as a service capability through `/v1/pricing/quotes` and `/v1/provider/pricing/guidance`; the package does not contain the pricing formula or rule engine. OCR-backed provider verification is shared only as applicant-facing status. Admin OCR execution and review workflows remain server-side/admin-only.
+
+Geo is shared only as ServEase gateway methods, not as a raw APICenter geo wrapper. Notification methods expose ServEase notification inbox/device workflows, not raw email or SMS sending. Uploads use the gateway upload route and do not expose storage credentials.
 
 ## Auth
 
@@ -171,7 +204,7 @@ Use mocked `fetch` tests. Do not require a live ServEase gateway for SDK unit te
 
 - `packages/servease-sdk` exists and builds with `npm run build`.
 - The package is named `@implementsprint/servease-sdk` and is publishable to GitHub Packages.
-- The SDK exports public contract types for catalog, booking, availability, and common envelopes.
+- The SDK exports public contract types for catalog, booking, availability, pricing, provider applications, and common envelopes.
 - The SDK exposes a fetch-based client that only calls `/v1/...` gateway routes.
 - The package contains no Supabase service-role usage, no internal service URLs, and no direct database code.
 - Tests cover success and error request handling without a live backend.

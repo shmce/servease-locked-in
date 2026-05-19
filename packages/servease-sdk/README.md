@@ -79,12 +79,121 @@ await servease.bookings.create(
 - `bookings.list(params?)`
 - `bookings.get(bookingId)`
 - `bookings.updateStatus(bookingId, input, options?)`
+- `pricing.createQuote(input, options?)`
+- `pricing.getProviderGuidance(input, options?)`
 - `availability.getProviderAvailability(providerId?)`
 - `availability.replaceWindows(input)`
 - `availability.addDayOff(input)`
 - `availability.removeDayOff(offDate)`
+- `providerApplications.getMine(options?)`
+- `payments.list()`
+- `payments.create(input, options?)`
+- `payments.createCheckoutSession(input, options?)`
+- `payments.getCheckoutStatus(checkoutId)`
+- `payments.validatePromotion(input)`
+- `payments.listCustomerMethods()`
+- `payments.upsertCustomerMethod(input)`
+- `payments.deleteCustomerMethod(methodId)`
+- `payments.getPayoutAccount()`
+- `payments.listPayoutMethods()`
+- `payments.upsertPayoutMethod(input)`
+- `payments.listPayouts()`
+- `payments.requestPayout(input, options?)`
+- `messaging.list()`
+- `messaging.open(input)`
+- `messaging.listMessages(conversationId)`
+- `messaging.sendMessage(conversationId, input)`
+- `reviews.listProviderReviews(providerId)`
+- `reviews.create(input)`
+- `reviews.reply(reviewId, input)`
+- `reviews.flag(reviewId, input?)`
+- `support.listTickets()`
+- `support.createTicket(input)`
+- `support.getTicket(ticketId)`
+- `support.listReplies(ticketId)`
+- `support.reply(ticketId, input)`
+- `notifications.list()`
+- `notifications.markRead(notificationId)`
+- `notifications.registerDevice(input)`
+- `notifications.unregisterDevice(token)`
+- `profile.getCurrent()`
+- `profile.update(input)`
+- `profile.getPreferences()`
+- `profile.updatePreferences(input)`
+- `geo.geocode(input)`
+- `geo.reverseGeocode(input)`
+- `geo.directions(input)`
+- `referrals.getSummary()`
+- `uploads.create(input)`
 
-The SDK only calls public `/v1/...` ServEase routes. It does not contain Supabase clients, service-role keys, internal service URLs, or direct database code.
+The pricing methods call ServEase's pricing service through the gateway. They do not export pricing formulas, rule persistence, or audit internals. Provider application status is applicant-facing only; admin OCR review actions stay out of this SDK.
+
+The SDK only calls public `/v1/...` ServEase routes. It does not contain Supabase clients, service-role keys, internal service URLs, direct database code, APICenter raw email/SMS/geo/Kafka wrappers, or OCR execution logic.
+
+## Publishing To GitHub Packages
+
+Before publishing locally, make sure the active GitHub account can write packages for the `ImplementSprint` organization:
+
+```sh
+gh auth status
+gh auth refresh -h github.com -s write:packages -s read:packages
+```
+
+Then publish:
+
+```sh
+export GITHUB_TOKEN="$(gh auth token)"
+npm install
+npm run typecheck
+npm test
+npm run build
+npm pack --dry-run
+npm publish
+```
+
+For GitHub Actions publishing:
+
+```yaml
+name: Publish ServEase SDK
+
+on:
+  push:
+    tags:
+      - "servease-sdk-v*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/servease-sdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@implementsprint"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+After publishing, grant consuming tribe repositories package read access in GitHub Packages. Consumers need:
+
+```yaml
+permissions:
+  contents: read
+  packages: read
+```
 
 ## Publishing
 
