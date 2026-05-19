@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   addProviderPortfolioMedia,
+  addProviderTimeOffWindow,
   checkGeoFence,
   createBooking,
   createBookingServiceUpdate,
@@ -43,6 +44,7 @@ import {
   registerAccount,
   raiseBookingDispute,
   reorderProviderPortfolio,
+  removeProviderTimeOffWindow,
   replaceProviderAvailabilityWindows,
   requestPasswordReset,
   requestProviderPayout,
@@ -1790,6 +1792,7 @@ describe('serveaseApi', () => {
         },
       ],
       daysOff: [],
+      timeOffWindows: [],
     };
     const fetcher = async (url: string, init?: RequestInit) => {
       calls.push({
@@ -1845,6 +1848,65 @@ describe('serveaseApi', () => {
             },
           ],
         },
+      },
+    ]);
+  });
+
+  it('adds and removes provider partial time-off windows through the gateway', async () => {
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const schedule = {
+      providerId: 'provider-1',
+      windows: [],
+      daysOff: [],
+      timeOffWindows: [
+        {
+          id: 'time-off-1',
+          offDate: '2026-05-24',
+          startTime: '14:00',
+          endTime: '17:00',
+          reason: 'Personal errand',
+        },
+      ],
+    };
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: String(init?.method),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+      return jsonResponse({ data: schedule });
+    };
+
+    await addProviderTimeOffWindow(
+      {
+        offDate: '2026-05-24',
+        startTime: '14:00',
+        endTime: '17:00',
+        reason: 'Personal errand',
+      },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
+    await removeProviderTimeOffWindow('time-off-1', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/provider/availability/time-off',
+        method: 'POST',
+        body: {
+          offDate: '2026-05-24',
+          startTime: '14:00',
+          endTime: '17:00',
+          reason: 'Personal errand',
+        },
+      },
+      {
+        url: 'http://gateway.test/v1/provider/availability/time-off/time-off-1',
+        method: 'DELETE',
+        body: null,
       },
     ]);
   });

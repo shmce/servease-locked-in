@@ -90,6 +90,15 @@ Status code conventions:
 | 500 | Unexpected server failure |
 | 503 | Downstream dependency unavailable |
 
+Availability error codes:
+
+| Code | Status | Meaning |
+| --- | ---: | --- |
+| `invalid_availability_request` | 400 | Availability date, day, or time payload is invalid. |
+| `time_off_too_soon` | 422 | Provider tried to block today or tomorrow; blocks require at least 2 calendar days of lead time in `Asia/Manila`. |
+| `time_off_conflicts_booking` | 409 | Provider tried to block a date or time range that overlaps an active booking. |
+| `provider_unavailable` | 422 | Customer booking request is outside provider availability, lands on a day off, or overlaps a provider time-off window. |
+
 ## Published SDK Contract
 
 The SDK in `packages/servease-sdk` is the typed public contract intended for
@@ -114,6 +123,8 @@ Schema source:
 | `availability.replaceWindows(input)` | `PUT /v1/provider/availability/windows` | Bearer | `ReplaceAvailabilityWindowsInput` | `ProviderAvailabilitySchedule` |
 | `availability.addDayOff(input)` | `POST /v1/provider/availability/days-off` | Bearer | `AddProviderDayOffInput` | `ProviderAvailabilitySchedule` |
 | `availability.removeDayOff(offDate)` | `DELETE /v1/provider/availability/days-off/:offDate` | Bearer | Path `offDate` | `ProviderAvailabilitySchedule` |
+| `availability.addTimeOff(input)` | `POST /v1/provider/availability/time-off` | Bearer | `AddProviderTimeOffInput` | `ProviderAvailabilitySchedule` |
+| `availability.removeTimeOff(id)` | `DELETE /v1/provider/availability/time-off/:id` | Bearer | Path `id` | `ProviderAvailabilitySchedule` |
 | `pricing.createQuote(input)` | `POST /v1/pricing/quotes` | Bearer | `CreatePricingQuoteRequest` | `PricingQuoteSummary` |
 | `pricing.getProviderGuidance(input)` | `POST /v1/provider/pricing/guidance` | Bearer | `ProviderPricingGuidanceRequest` | `ProviderPricingGuidanceSummary` |
 | `providerApplications.getMine()` | `GET /v1/auth/provider-application/me` | Bearer | None | `ProviderApplicationStatus` |
@@ -259,8 +270,29 @@ Sources:
 | PUT | `/v1/provider/availability/windows` | Bearer | - | Inline `{ windows: AvailabilityWindowInput[] }` | `ProviderAvailabilitySchedule` |
 | POST | `/v1/provider/availability/days-off` | Bearer | - | Inline `{ offDate: string; reason?: string \| null }` | `ProviderAvailabilitySchedule` |
 | DELETE | `/v1/provider/availability/days-off/:offDate` | Bearer | - | - | `ProviderAvailabilitySchedule` |
+| POST | `/v1/provider/availability/time-off` | Bearer | - | Inline `{ offDate: string; startTime: string; endTime: string; reason?: string \| null }` | `ProviderAvailabilitySchedule` |
+| DELETE | `/v1/provider/availability/time-off/:id` | Bearer | - | - | `ProviderAvailabilitySchedule` |
 | POST | `/v1/pricing/quotes` | Bearer | - | `CreatePricingQuoteRequest` | `PricingQuoteSummary` |
 | POST | `/v1/provider/pricing/guidance` | Bearer | - | Inline provider guidance body | `PricingQuoteSummary` |
+
+Availability response shape:
+
+```ts
+interface ProviderAvailabilitySchedule {
+  providerId: string;
+  windows: AvailabilityWindow[];
+  daysOff: ProviderDayOff[];
+  timeOffWindows: ProviderTimeOffWindow[];
+}
+
+interface ProviderTimeOffWindow {
+  id: string;
+  offDate: string;
+  startTime: string;
+  endTime: string;
+  reason: string | null;
+}
+```
 
 ### Payments
 
@@ -357,7 +389,7 @@ local; callers should use HTTP clients in the gateway or sibling service.
 | `user-service` | 8502 | `/internal/users/:userId/customer-profile`, `/internal/users/:userId/preferences`, `/internal/users/:userId/referral-summary`, `/internal/shared-geo/*`, `/internal/admin/users/*` |
 | `catalog-service` | 8503 | `/internal/catalog/categories`, `/internal/catalog/services`, `/internal/catalog/providers`, `/internal/providers/*`, `/internal/providers/applications/*`, `/internal/admin/catalog/*` |
 | `booking-service` | 8504 | `/internal/bookings/*`, `/internal/admin/bookings/*`, `/internal/admin/disputes/*` |
-| `availability-service` | 8505 | `/internal/providers/:providerId/availability`, `/internal/providers/:providerId/availability/windows`, `/internal/providers/:providerId/availability/days-off` |
+| `availability-service` | 8505 | `/internal/providers/:providerId/availability`, `/internal/providers/:providerId/availability/windows`, `/internal/providers/:providerId/availability/days-off`, `/internal/providers/:providerId/availability/time-off` |
 | `messaging-service` | 8506 | `/internal/conversations`, `/internal/conversations/:conversationId`, `/internal/conversations/:conversationId/messages` |
 | `payment-service` | 8507 | `/internal/payments/*`, `/internal/pricing/*`, `/internal/admin/payments/*`, `/internal/admin/pricing/*` |
 | `review-service` | 8508 | `/internal/reviews`, `/internal/reviews/admin`, `/internal/reviews/:reviewId/reply`, `/internal/reviews/:reviewId/flag`, `/internal/reviews/:reviewId/flagged` |

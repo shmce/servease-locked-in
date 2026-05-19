@@ -40,6 +40,7 @@ export type DetailScreen =
   | 'providerProfileView'
   | 'providerEditProfile'
   | 'providerPortfolio'
+  | 'providerSetAvailability'
   | 'providerNavigationMode'
   | 'providerStartService'
   | 'providerServiceInProgress'

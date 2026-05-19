@@ -1,7 +1,12 @@
 import { Body, Controller, Delete, Get, HttpException, Param, Post, Put } from '@nestjs/common';
-import { InvalidAvailabilityRequestError } from './provider-availability.errors';
+import {
+  InvalidAvailabilityRequestError,
+  TimeOffConflictsBookingError,
+  TimeOffTooSoonError,
+} from './provider-availability.errors';
 import { ProviderAvailabilityService } from './provider-availability.service';
 import {
+  AddProviderTimeOffWindowInput,
   AvailabilityWindowInput,
   ProviderAvailabilitySchedule,
 } from './provider-availability.types';
@@ -72,12 +77,56 @@ export class ProviderAvailabilityController {
     }
   }
 
+  @Post('time-off')
+  async addTimeOff(
+    @Param('providerId') providerId: string,
+    @Body() body: AddProviderTimeOffWindowInput,
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      return {
+        data: await this.availabilityService.addTimeOffWindow(providerId, body),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete('time-off/:id')
+  async removeTimeOff(
+    @Param('providerId') providerId: string,
+    @Param('id') id: string,
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      return {
+        data: await this.availabilityService.removeTimeOffWindow(providerId, id),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private toHttpException(error: unknown): HttpException {
     if (error instanceof InvalidAvailabilityRequestError) {
       return this.error(
         'invalid_availability_request',
         'Availability request is invalid.',
         400,
+      );
+    }
+
+    if (error instanceof TimeOffTooSoonError) {
+      return this.error(
+        'time_off_too_soon',
+        'Provider time off must be at least 2 days from today.',
+        422,
+      );
+    }
+
+    if (error instanceof TimeOffConflictsBookingError) {
+      return this.error(
+        'time_off_conflicts_booking',
+        'Provider time off conflicts with an active booking.',
+        409,
       );
     }
 

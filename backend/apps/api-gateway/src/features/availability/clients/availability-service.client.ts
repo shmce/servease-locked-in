@@ -3,8 +3,11 @@ import { ConfigService } from '@nestjs/config';
 import {
   AvailabilityDependencyUnavailableError,
   InvalidAvailabilityRequestError,
+  TimeOffConflictsBookingError,
+  TimeOffTooSoonError,
 } from '../availability.errors';
 import {
+  AddProviderTimeOffWindowInput,
   AvailabilityWindowInput,
   ProviderAvailabilitySchedule,
 } from '../availability.types';
@@ -53,6 +56,27 @@ export class AvailabilityServiceClient {
     );
   }
 
+  addTimeOffWindow(
+    providerId: string,
+    input: AddProviderTimeOffWindowInput,
+  ): Promise<ProviderAvailabilitySchedule> {
+    return this.request<ProviderAvailabilitySchedule>(
+      `/internal/providers/${providerId}/availability/time-off`,
+      'POST',
+      input,
+    );
+  }
+
+  removeTimeOffWindow(
+    providerId: string,
+    id: string,
+  ): Promise<ProviderAvailabilitySchedule> {
+    return this.request<ProviderAvailabilitySchedule>(
+      `/internal/providers/${providerId}/availability/time-off/${id}`,
+      'DELETE',
+    );
+  }
+
   private async request<T>(
     path: string,
     method: 'GET' | 'PUT' | 'POST' | 'DELETE',
@@ -74,6 +98,12 @@ export class AvailabilityServiceClient {
       const code = await this.readErrorCode(response);
       if (code === 'invalid_availability_request') {
         throw new InvalidAvailabilityRequestError();
+      }
+      if (code === 'time_off_too_soon') {
+        throw new TimeOffTooSoonError();
+      }
+      if (code === 'time_off_conflicts_booking') {
+        throw new TimeOffConflictsBookingError();
       }
       throw new AvailabilityDependencyUnavailableError();
     }

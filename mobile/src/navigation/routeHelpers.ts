@@ -66,7 +66,7 @@ export function getProviderTab(screen: AppScreen): ProviderTab {
   ) {
     return 'bookings';
   }
-  if (screen === 'calendar') {
+  if (screen === 'calendar' || screen === 'providerSetAvailability') {
     return 'calendar';
   }
   if (screen === 'messages') {

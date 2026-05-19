@@ -1,7 +1,12 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { createSupabaseServiceClient } from '../../../../../libs/common/src';
-import { InvalidAvailabilityRequestError } from './provider-availability.errors';
 import {
+  InvalidAvailabilityRequestError,
+  TimeOffConflictsBookingError,
+  TimeOffTooSoonError,
+} from './provider-availability.errors';
+import {
+  AddProviderTimeOffWindowInput,
   AvailabilityWindowInput,
   ProviderAvailabilitySchedule,
 } from './provider-availability.types';
@@ -63,6 +68,29 @@ export class SupabaseProviderAvailabilityRepository {
     });
   }
 
+  addTimeOffWindow(
+    providerId: string,
+    input: AddProviderTimeOffWindowInput,
+  ): Promise<ProviderAvailabilitySchedule> {
+    return this.scheduleRpc('servease_add_provider_time_off_window', {
+      p_provider_id: providerId,
+      p_off_date: input.offDate,
+      p_start_time: input.startTime,
+      p_end_time: input.endTime,
+      p_reason: input.reason ?? null,
+    });
+  }
+
+  removeTimeOffWindow(
+    providerId: string,
+    windowId: string,
+  ): Promise<ProviderAvailabilitySchedule> {
+    return this.scheduleRpc('servease_remove_provider_time_off_window', {
+      p_window_id: windowId,
+      p_provider_id: providerId,
+    });
+  }
+
   private async scheduleRpc(
     functionName: string,
     args: Record<string, unknown>,
@@ -72,6 +100,12 @@ export class SupabaseProviderAvailabilityRepository {
     if (error) {
       if (error.message.includes('invalid_availability_request')) {
         throw new InvalidAvailabilityRequestError();
+      }
+      if (error.message.includes('time_off_too_soon')) {
+        throw new TimeOffTooSoonError();
+      }
+      if (error.message.includes('time_off_conflicts_booking')) {
+        throw new TimeOffConflictsBookingError();
       }
       throw new Error(`Availability RPC failed: ${error.message}`);
     }

@@ -29,8 +29,24 @@ export interface ProviderDayOff {
   reason: string | null;
 }
 
+export interface ProviderTimeOffWindow {
+  id: string;
+  offDate: string;
+  startTime: string;
+  endTime: string;
+  reason: string | null;
+}
+
+export interface AddProviderTimeOffWindowInput {
+  offDate: string;
+  startTime: string;
+  endTime: string;
+  reason?: string | null;
+}
+
 export interface ProviderAvailabilitySchedule {
   providerId: string;
   windows: AvailabilityWindow[];
   daysOff: ProviderDayOff[];
+  timeOffWindows: ProviderTimeOffWindow[];
 }

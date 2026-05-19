@@ -344,6 +344,18 @@ export function buildProviderBookingSlots(
 
   const safeDuration = Math.max(1, Math.floor(durationHours) || 1);
   const offDates = new Set(schedule.daysOff.map((dayOff) => dayOff.offDate));
+  const timeOffWindowsByDate = new Map<
+    string,
+    { startTime: string; endTime: string }[]
+  >();
+  (schedule.timeOffWindows ?? []).forEach((window) => {
+    const windows = timeOffWindowsByDate.get(window.offDate) ?? [];
+    windows.push({
+      startTime: window.startTime,
+      endTime: window.endTime,
+    });
+    timeOffWindowsByDate.set(window.offDate, windows);
+  });
   const slots: BookingSlot[] = [];
 
   for (let offset = 0; offset < 14; offset += 1) {
@@ -365,8 +377,11 @@ export function buildProviderBookingSlots(
       const fitsWindow = windows.some(
         (window) => window.startTime <= time && window.endTime >= endTime,
       );
+      const overlapsTimeOff = (timeOffWindowsByDate.get(dateValue) ?? []).some(
+        (window) => time < window.endTime && endTime > window.startTime,
+      );
 
-      if (fitsWindow) {
+      if (fitsWindow && !overlapsTimeOff) {
         slots.push({
           label: `${date.toLocaleDateString('en-PH', {
             month: 'short',

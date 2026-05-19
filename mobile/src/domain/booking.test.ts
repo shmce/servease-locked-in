@@ -270,6 +270,7 @@ describe('booking domain helpers', () => {
             reason: null,
           },
         ],
+        timeOffWindows: [],
       },
       2,
       ['08:00', '10:00', '11:00'],
@@ -280,5 +281,42 @@ describe('booking domain helpers', () => {
       '2026-05-27T08:00',
       '2026-05-27T10:00',
     ]);
+  });
+
+  it('excludes bookable slots that overlap provider time-off windows', () => {
+    const slots = buildProviderBookingSlots(
+      {
+        providerId: 'provider-1',
+        windows: [
+          {
+            id: 'window-1',
+            dayOfWeek: 'wednesday',
+            startTime: '08:00',
+            endTime: '17:00',
+            isActive: true,
+            sortOrder: 1,
+          },
+        ],
+        daysOff: [],
+        timeOffWindows: [
+          {
+            id: 'time-off-1',
+            offDate: '2026-05-20',
+            startTime: '14:00',
+            endTime: '17:00',
+            reason: null,
+          },
+        ],
+      },
+      1,
+      ['13:00', '14:00', '16:00'],
+      new Date(2026, 4, 20),
+    );
+
+    const values = slots.map((slot) => slot.value);
+
+    assert.ok(values.includes('2026-05-20T13:00'));
+    assert.ok(!values.includes('2026-05-20T14:00'));
+    assert.ok(!values.includes('2026-05-20T16:00'));
   });
 });

@@ -488,10 +488,19 @@ export interface ProviderDayOff {
   reason: string | null;
 }
 
+export interface ProviderTimeOffWindow {
+  id: string;
+  offDate: string;
+  startTime: string;
+  endTime: string;
+  reason: string | null;
+}
+
 export interface ProviderAvailabilitySchedule {
   providerId: string;
   windows: AvailabilityWindow[];
   daysOff: ProviderDayOff[];
+  timeOffWindows: ProviderTimeOffWindow[];
 }
 
 export type UserRole = 'customer' | 'provider' | 'admin';
@@ -2064,6 +2073,37 @@ export function removeProviderDayOff(
 ): Promise<ProviderAvailabilitySchedule> {
   return request<ProviderAvailabilitySchedule>(
     `/v1/provider/availability/days-off/${encodeURIComponent(offDate)}`,
+    {
+      ...options,
+      method: 'DELETE',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function addProviderTimeOffWindow(
+  body: {
+    offDate: string;
+    startTime: string;
+    endTime: string;
+    reason?: string | null;
+  },
+  options: ApiOptions = {},
+): Promise<ProviderAvailabilitySchedule> {
+  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/time-off', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function removeProviderTimeOffWindow(
+  id: string,
+  options: ApiOptions = {},
+): Promise<ProviderAvailabilitySchedule> {
+  return request<ProviderAvailabilitySchedule>(
+    `/v1/provider/availability/time-off/${encodeURIComponent(id)}`,
     {
       ...options,
       method: 'DELETE',

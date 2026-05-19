@@ -123,6 +123,8 @@ import { resolveNotificationRoute } from './src/navigation/notificationRouting';
 import { AuthScreens } from './src/screens/AuthScreens';
 import { CustomerMoreScreen } from './src/screens/CustomerMoreScreen';
 import { ProviderBookingsScreen } from './src/screens/ProviderBookingsScreen';
+import { ProviderCalendarScreen } from './src/screens/ProviderCalendarScreen';
+import { ProviderSetAvailabilityScreen } from './src/screens/ProviderSetAvailabilityScreen';
 import {
   AddressVerificationPreview,
   TrackingMapPreview,
@@ -403,6 +405,8 @@ export default function App() {
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
+  const [selectedProviderCalendarDate, setSelectedProviderCalendarDate] =
+    useState(defaultScheduledAt.slice(0, 10));
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     null,
   );
@@ -3378,6 +3382,7 @@ export default function App() {
         {route.screen === 'providerServices' ? renderProviderServices() : null}
         {route.screen === 'providerSecurity' ? renderProviderSecurity() : null}
         {route.screen === 'providerSettings' ? renderProviderSettings() : null}
+        {route.screen === 'providerSetAvailability' ? renderProviderSetAvailability() : null}
         {activeTab === 'home' && route.screen === 'home' ? renderProviderHome() : null}
         {activeTab === 'bookings' && route.screen === 'bookings' ? renderProviderBookings() : null}
         {activeTab === 'calendar' && route.screen === 'calendar' ? renderProviderCalendar() : null}
@@ -7137,141 +7142,30 @@ export default function App() {
   }
 
   function renderProviderCalendar() {
-    const upcoming = bookings
-      .filter(
-        (booking) =>
-          booking.scheduledAt &&
-          new Date(booking.scheduledAt).getTime() >= Date.now() - 3 * 60 * 60 * 1000 &&
-          booking.status !== 'cancelled' &&
-          booking.status !== 'completed',
-      )
-      .slice()
-      .sort(
-        (a, b) =>
-          new Date(a.scheduledAt ?? 0).getTime() -
-          new Date(b.scheduledAt ?? 0).getTime(),
-      );
     return (
-      <>
-        <TopBar title="Calendar" subtitle="Upcoming jobs, availability, and days off" />
-        <ScrollView contentContainerStyle={styles.withBottomNav}>
-          <View style={styles.content}>
-            <Section title="Upcoming jobs">
-              {upcoming.length ? (
-                upcoming.slice(0, 10).map((booking) => (
-                  <Card
-                    key={booking.id}
-                    onPress={() => openBooking(booking, 'providerBookingDetail')}
-                  >
-                    <View style={styles.rowBetween}>
-                      <View style={styles.flex}>
-                        <Text style={styles.cardTitle}>
-                          {booking.serviceTitle ?? 'Service booking'}
-                        </Text>
-                        <Text style={styles.cardMeta}>
-                          {formatDateTime(booking.scheduledAt)}
-                        </Text>
-                        <Text style={styles.cardBody}>
-                          {booking.serviceAddress ?? 'Address pending'}
-                        </Text>
-                      </View>
-                      <Badge
-                        label={statusLabel(booking.status)}
-                        tone={bookingStatusChip(booking.status).tone}
-                      />
-                    </View>
-                  </Card>
-                ))
-              ) : (
-                <EmptyState
-                  title="No upcoming jobs"
-                  body="Confirmed bookings will appear here, grouped by date."
-                />
-              )}
-            </Section>
-            <Section title="Weekly availability">
-              {dayOrder.map((day) => {
-                const window = availability?.windows.find((item) => item.dayOfWeek === day);
-                return (
-                  <Card key={day}>
-                    <View style={styles.rowBetween}>
-                      <View>
-                        <Text style={styles.cardTitle}>{dayLabels[day]}</Text>
-                        <Text style={styles.cardMeta}>
-                          {window?.isActive ? `${window.startTime} to ${window.endTime}` : 'Unavailable'}
-                        </Text>
-                      </View>
-                      <Badge
-                        label={window?.isActive ? 'available' : 'closed'}
-                        tone={window?.isActive ? 'success' : 'neutral'}
-                      />
-                    </View>
-                  </Card>
-                );
-              })}
-            </Section>
-            <Section title="Edit window">
-              <View style={styles.wrap}>
-                {dayOrder.map((day) => {
-                  const selected = day === windowDay;
-                  return (
-                    <Pressable
-                      key={day}
-                      style={[
-                        styles.weekdayChip,
-                        selected && styles.weekdayChipSelected,
-                      ]}
-                      onPress={() => setWindowDay(day)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      accessibilityLabel={`${dayLabels[day]} availability window`}
-                    >
-                      <Text
-                        style={[
-                          styles.weekdayChipText,
-                          selected && styles.weekdayChipTextSelected,
-                        ]}
-                      >
-                        {dayLabels[day].slice(0, 3)}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Field label="Start" value={windowStart} onChangeText={setWindowStart} />
-              <Field label="End" value={windowEnd} onChangeText={setWindowEnd} />
-              <PrimaryButton
-                label="Save weekly window"
-                onPress={() => void saveAvailabilityWindow()}
-                disabled={busyAction === 'availability-window'}
-              />
-            </Section>
-            <Section title="Days off">
-              <Field label="Day off date" value={dayOffDate} onChangeText={setDayOffDate} />
-              <Field label="Reason" value={dayOffReason} onChangeText={setDayOffReason} />
-              <PrimaryButton
-                label="Add day off"
-                variant="secondary"
-                onPress={() => void addDayOff()}
-                disabled={busyAction === 'day-off'}
-              />
-              {availability?.daysOff.map((dayOff) => (
-                <Card key={dayOff.id}>
-                  <View style={styles.rowBetween}>
-                    <View>
-                      <Text style={styles.cardTitle}>{dayOff.offDate}</Text>
-                      <Text style={styles.cardMeta}>{dayOff.reason ?? 'Day off'}</Text>
-                    </View>
-                    <Text style={styles.linkText} onPress={() => void deleteDayOff(dayOff.offDate)}>
-                      Remove
-                    </Text>
-                  </View>
-                </Card>
-              ))}
-            </Section>
-          </View>
-        </ScrollView>
-      </>
+      <ProviderCalendarScreen
+        availability={availability}
+        bookings={bookings}
+        apiOptions={apiOptions}
+        onScheduleLoaded={setAvailability}
+        onSelectDate={(date) => {
+          setSelectedProviderCalendarDate(date);
+          navigate('providerSetAvailability', 'provider');
+        }}
+        openBooking={(booking) => openBooking(booking, 'providerBookingDetail')}
+      />
+    );
+  }
+
+  function renderProviderSetAvailability() {
+    return (
+      <ProviderSetAvailabilityScreen
+        selectedDate={selectedProviderCalendarDate}
+        availability={availability}
+        apiOptions={apiOptions}
+        onScheduleUpdated={setAvailability}
+        onBack={() => navigate('calendar', 'provider')}
+      />
     );
   }
 

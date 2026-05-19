@@ -9,9 +9,12 @@ import {
   AvailabilityDependencyUnavailableError,
   InvalidAvailabilityRequestError,
   ProviderProfileRequiredError,
+  TimeOffConflictsBookingError,
+  TimeOffTooSoonError,
 } from './availability.errors';
 import { AvailabilityGatewayService } from './availability.service';
 import {
+  AddProviderTimeOffWindowInput,
   AvailabilityWindowInput,
   ProviderAvailabilitySchedule,
 } from './availability.types';
@@ -110,6 +113,42 @@ export class AvailabilityController {
     }
   }
 
+  @Post('time-off')
+  async addTimeOff(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: AddProviderTimeOffWindowInput,
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      const providerId = await this.resolveProviderId(authorization);
+      return {
+        data: await this.availabilityGatewayService.addTimeOffWindow(
+          providerId,
+          body,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete('time-off/:id')
+  async removeTimeOff(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('id') id: string,
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      const providerId = await this.resolveProviderId(authorization);
+      return {
+        data: await this.availabilityGatewayService.removeTimeOffWindow(
+          providerId,
+          id,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private async resolveProviderId(
     authorization: string | undefined,
   ): Promise<string> {
@@ -152,6 +191,22 @@ export class AvailabilityController {
         'invalid_availability_request',
         'Availability request is invalid.',
         400,
+      );
+    }
+
+    if (error instanceof TimeOffTooSoonError) {
+      return this.error(
+        'time_off_too_soon',
+        'Provider time off must be at least 2 days from today.',
+        422,
+      );
+    }
+
+    if (error instanceof TimeOffConflictsBookingError) {
+      return this.error(
+        'time_off_conflicts_booking',
+        'Provider time off conflicts with an active booking.',
+        409,
       );
     }
 
