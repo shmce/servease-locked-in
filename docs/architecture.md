@@ -91,7 +91,7 @@ All service URLs must come from environment variables. Do not hardcode service h
 Browser-accessed mobile builds must configure `API_GATEWAY_CORS_ORIGINS` as a comma-separated list of allowed origins. Local development defaults include Expo web localhost ports; production defaults to no browser origins unless explicitly configured.
 Gateway rate limits default to 120 requests per minute per client address and can be tuned with `API_GATEWAY_RATE_LIMIT_MAX` and `API_GATEWAY_RATE_LIMIT_WINDOW_MS`.
 
-Backend APICenter integration probing uses `@implementsprint/sdk` with optional `APICENTER_URL`, `APICENTER_TRIBE_ID`, and `APICENTER_TRIBE_SECRET` environment variables.
+Backend APICenter integration probing uses `@implementsprint/sdk` with optional `APICENTER_URL`, `APICENTER_TRIBE_ID`, `APICENTER_SERVICE_ID`, and `APICENTER_TRIBE_SECRET` environment variables. With SDK 1.2.x, `APICENTER_TRIBE_ID` is the owning tribe principal and `APICENTER_SERVICE_ID` can identify the registered backend service for event attribution.
 
 ### Migrations
 

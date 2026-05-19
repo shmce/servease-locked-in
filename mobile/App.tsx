@@ -205,6 +205,7 @@ import {
   deleteProviderPortfolioMedia,
   getCurrentUser,
   getBookingTrackingSnapshot,
+  subscribeBookingTrackingSnapshots,
   getProviderPayoutAccount,
   getReferralSummary,
   getUserPreferences,
@@ -258,6 +259,9 @@ import {
 import { resolveGatewayBaseUrl } from './services/gatewayConfig';
 import { AuthSession, signInWithPassword } from './services/supabaseAuth';
 import { syncExpoPushRegistration } from './services/pushRegistration';
+
+const TRACKING_STREAM_FALLBACK_DELAY_MS = 4000;
+const TRACKING_FALLBACK_POLL_INTERVAL_MS = 3000;
 
 function isInternalTestNotification(notification: NotificationSummary): boolean {
   const text = `${notification.title ?? ''} ${notification.body ?? ''}`.toLowerCase();
@@ -835,10 +839,58 @@ export default function App() {
     ) {
       return undefined;
     }
-    const tick = () => void refreshBookingTracking(selectedBookingId);
-    const interval = setInterval(tick, 5000);
-    return () => clearInterval(interval);
-  }, [session?.accessToken, selectedBookingId, route.screen]);
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let receivedStreamSnapshot = false;
+
+    const startPollingFallback = () => {
+      if (pollInterval) {
+        return;
+      }
+
+      void refreshBookingTracking(selectedBookingId);
+      pollInterval = setInterval(
+        () => void refreshBookingTracking(selectedBookingId),
+        TRACKING_FALLBACK_POLL_INTERVAL_MS,
+      );
+    };
+
+    const subscription = subscribeBookingTrackingSnapshots(
+      selectedBookingId,
+      apiOptions,
+      {
+        onSnapshot: (snapshot) => {
+          receivedStreamSnapshot = true;
+          if (fallbackTimer) {
+            clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+          }
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            pollInterval = null;
+          }
+          setSelectedBookingTracking(snapshot);
+        },
+        onError: startPollingFallback,
+      },
+    );
+
+    fallbackTimer = setTimeout(() => {
+      if (!receivedStreamSnapshot) {
+        startPollingFallback();
+      }
+    }, TRACKING_STREAM_FALLBACK_DELAY_MS);
+
+    return () => {
+      subscription.close();
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+      }
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+    };
+  }, [apiOptions, session?.accessToken, selectedBookingId, route.screen]);
 
   useEffect(() => {
     if (

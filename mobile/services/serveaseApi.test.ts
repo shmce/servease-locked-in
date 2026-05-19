@@ -47,6 +47,7 @@ import {
   requestPasswordReset,
   requestProviderPayout,
   reverseGeocode,
+  subscribeBookingTrackingSnapshots,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
   updateBookingLiveLocation,
@@ -322,6 +323,110 @@ describe('serveaseApi', () => {
     assert.equal(authorization, 'Bearer access-token');
     assert.equal(tracking.phase, 'on_the_way');
     assert.equal(tracking.etaMinutes, 18);
+  });
+
+  it('subscribes to booking tracking stream with bearer authentication', () => {
+    class FakeTrackingXhr {
+      responseText = '';
+      status = 200;
+      headers = new Map<string, string>();
+      method: string | null = null;
+      url: string | null = null;
+      async: boolean | null = null;
+      aborted = false;
+      onprogress: (() => void) | null = null;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      open(method: string, url: string, async: boolean) {
+        this.method = method;
+        this.url = url;
+        this.async = async;
+      }
+
+      setRequestHeader(name: string, value: string) {
+        this.headers.set(name.toLowerCase(), value);
+      }
+
+      send() {
+        // The test drives progress manually.
+      }
+
+      abort() {
+        this.aborted = true;
+      }
+
+      push(chunk: string) {
+        this.responseText += chunk;
+        this.onprogress?.();
+      }
+    }
+
+    const xhr = new FakeTrackingXhr();
+    const snapshots: unknown[] = [];
+    const subscription = subscribeBookingTrackingSnapshots(
+      'booking-1',
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        xhrFactory: () => xhr as unknown as XMLHttpRequest,
+      },
+      {
+        onSnapshot: (snapshot) => snapshots.push(snapshot),
+      },
+    );
+
+    assert.equal(xhr.method, 'GET');
+    assert.equal(
+      xhr.url,
+      'http://gateway.test/v1/bookings/booking-1/tracking/stream',
+    );
+    assert.equal(xhr.headers.get('accept'), 'text/event-stream');
+    assert.equal(xhr.headers.get('authorization'), 'Bearer access-token');
+
+    xhr.push(
+      `event: tracking\ndata: ${JSON.stringify({
+        bookingId: 'booking-1',
+        bookingReference: 'SE-123',
+        status: 'in_progress',
+        phase: 'on_the_way',
+        etaMinutes: 18,
+        distanceKm: 5.2,
+        trafficLevel: 'moderate',
+        destinationAddress: '123 Test St',
+        destinationLocation: null,
+        providerLocation: {
+          latitude: 14.5995,
+          longitude: 120.9842,
+          updatedAt: '2026-05-16T00:00:05.000Z',
+        },
+        scheduledAt: '2026-05-20T02:00:00.000Z',
+        lastUpdatedAt: '2026-05-16T00:00:05.000Z',
+      })}\n\n`,
+    );
+
+    assert.equal(snapshots.length, 1);
+    assert.deepEqual(snapshots[0], {
+      bookingId: 'booking-1',
+      bookingReference: 'SE-123',
+      status: 'in_progress',
+      phase: 'on_the_way',
+      etaMinutes: 18,
+      distanceKm: 5.2,
+      trafficLevel: 'moderate',
+      destinationAddress: '123 Test St',
+      destinationLocation: null,
+      providerLocation: {
+        latitude: 14.5995,
+        longitude: 120.9842,
+        updatedAt: '2026-05-16T00:00:05.000Z',
+      },
+      scheduledAt: '2026-05-20T02:00:00.000Z',
+      lastUpdatedAt: '2026-05-16T00:00:05.000Z',
+    });
+
+    subscription.close();
+    assert.equal(xhr.aborted, true);
   });
 
   it('publishes booking live location with authentication', async () => {

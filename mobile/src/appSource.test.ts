@@ -72,6 +72,15 @@ test('provider navigation publishes live location through the booking gateway', 
   assert.doesNotMatch(liveLocationSource, /google/i);
 });
 
+test('tracking screens subscribe to HTTP live tracking before polling fallback', () => {
+  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+
+  assert.match(source, /subscribeBookingTrackingSnapshots/);
+  assert.match(source, /TRACKING_STREAM_FALLBACK_DELAY_MS/);
+  assert.match(source, /TRACKING_FALLBACK_POLL_INTERVAL_MS = 3000/);
+  assert.match(source, /subscription\.close\(\)/);
+});
+
 test('tracking navigation uses compact collapsible sheet states', () => {
   const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
 
@@ -117,7 +126,9 @@ test('tracking map uses MapLibre with OpenFreeMap through WebView and keeps fall
   assert.match(previewSource, /Platform\.OS === 'web'/);
   assert.match(previewSource, /mode = 'tracking'/);
   assert.match(previewSource, /mode === 'tracking'/);
-  assert.match(previewSource, /buildTrackingMapHtml\(actualProvider, destination, routeGeometry, \{/);
+  assert.match(previewSource, /visibleProvider = actualProvider \?\? previewProvider/);
+  assert.match(previewSource, /buildTrackingMapHtml\(visibleProvider, destination, routeGeometry, \{/);
+  assert.match(previewSource, /provider=\{visibleProvider\}/);
   assert.doesNotMatch(source, /@maplibre\/maplibre-react-native/);
   assert.doesNotMatch(source, /TurboModuleRegistry|MLRNCameraModule|MLRNMapViewModule/);
   assert.doesNotMatch(previewSource, /NativeTrackingMap/);
@@ -186,6 +197,28 @@ test('provider navigation map allows controlled route inspection', () => {
   assert.doesNotMatch(htmlSource, /interactive: true/);
 });
 
+test('provider navigation map allows manual rotation with orientation reset', () => {
+  const mapSource = readFileSync(
+    join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
+    'utf8',
+  );
+  const htmlStart = mapSource.indexOf('function buildTrackingMapHtml');
+  const previewStart = mapSource.indexOf('function derivePreviewProviderLocation');
+  assert.notEqual(htmlStart, -1);
+  assert.notEqual(previewStart, -1);
+
+  const htmlSource = mapSource.slice(htmlStart, previewStart);
+
+  assert.match(htmlSource, /id="orientation-control"/);
+  assert.match(htmlSource, /map\.on\('rotatestart'/);
+  assert.match(htmlSource, /resetOrientation/);
+  assert.match(htmlSource, /orientationControl\.hidden = false/);
+  assert.match(htmlSource, /touchZoomRotate\.enable/);
+  assert.match(htmlSource, /bearing: cameraBearing/);
+  assert.match(htmlSource, /pitch: 62/);
+  assert.doesNotMatch(htmlSource, /touchZoomRotate\.disableRotation/);
+});
+
 test('native tracking map renders APICenter coordinates through Expo Go WebView without Google map config', () => {
   const source = readFileSync(
     join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
@@ -217,6 +250,14 @@ test('native tracking map renders APICenter coordinates through Expo Go WebView 
   assert.equal(manifest.expo?.ios?.config?.googleMapsApiKey, undefined);
   assert.match(nativeMapSource, /<WebView/);
   assert.match(nativeMapSource, /source=\{\{ html: mapHtml \}\}/);
+  assert.match(nativeMapSource, /injectJavaScript/);
+  assert.match(source, /pendingTrackingUpdate/);
+  assert.match(source, /applyTrackingUpdate/);
+  assert.match(source, /provider-marker::after/);
+  assert.match(source, /id: 'provider-location-ring'/);
+  assert.match(source, /id: 'provider-location-dot'/);
+  assert.match(source, /id: 'provider-location-arrow'/);
+  assert.match(source, /addOrUpdateProviderIndicator/);
   assert.match(nativeMapSource, /routeGeometry/);
   assert.match(nativeMapSource, /onError=\{\(\) => setMapFailed\(true\)\}/);
   assert.match(nativeMapSource, /onHttpError=\{\(\) => setMapFailed\(true\)\}/);

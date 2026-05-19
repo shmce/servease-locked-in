@@ -19,12 +19,14 @@ describe('createApicenterClient', () => {
     createApicenterClient({
       APICENTER_URL: 'https://api-center.test/',
       APICENTER_TRIBE_ID: ' servease ',
+      APICENTER_SERVICE_ID: ' admin-service ',
       APICENTER_TRIBE_SECRET: ' secret ',
     });
 
     expect(MockTribeClient).toHaveBeenCalledWith({
       gatewayUrl: 'https://api-center.test',
       tribeId: 'servease',
+      sourceServiceId: 'admin-service',
       secret: 'secret',
     });
   });
@@ -39,4 +41,3 @@ describe('createApicenterClient', () => {
     expect(MockTribeClient).not.toHaveBeenCalled();
   });
 });
-

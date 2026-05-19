@@ -55,6 +55,7 @@ if (createPayment && (!targetPhone || !targetEmail)) {
 const client = new TribeClient({
   gatewayUrl: process.env.APICENTER_URL.trim().replace(/\/$/, ''),
   tribeId: process.env.APICENTER_TRIBE_ID.trim(),
+  sourceServiceId: process.env.APICENTER_SERVICE_ID?.trim() || undefined,
   secret: process.env.APICENTER_TRIBE_SECRET.trim(),
   timeout: 15_000,
   maxRetries: 1,

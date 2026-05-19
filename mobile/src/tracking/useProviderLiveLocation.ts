@@ -6,8 +6,8 @@ import {
   updateBookingLiveLocation,
 } from '../../services/serveaseApi';
 
-const MIN_SEND_INTERVAL_MS = 10000;
-const MIN_SEND_DISTANCE_METERS = 15;
+const MIN_SEND_INTERVAL_MS = 3000;
+const MIN_SEND_DISTANCE_METERS = 10;
 
 interface ProviderLiveLocationOptions {
   enabled: boolean;

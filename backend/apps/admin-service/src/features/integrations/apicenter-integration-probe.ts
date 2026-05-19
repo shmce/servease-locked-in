@@ -83,10 +83,15 @@ export class ApicenterIntegrationProbe {
   }
 
   private createClient(): TribeClient {
+    const sourceServiceId = this.configService
+      .get<string>('APICENTER_SERVICE_ID')
+      ?.trim();
+
     return new TribeClient({
       gatewayUrl: this.gatewayUrl(),
       tribeId:
         this.configService.get<string>('APICENTER_TRIBE_ID')?.trim() ?? '',
+      ...(sourceServiceId ? { sourceServiceId } : {}),
       secret:
         this.configService.get<string>('APICENTER_TRIBE_SECRET')?.trim() ?? '',
     });

@@ -5,6 +5,7 @@ import { InvalidBookingTransitionError } from './booking.errors';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import { GeoServiceClient } from '../geo/clients/geo-service.client';
+import { firstValueFrom } from 'rxjs';
 
 describe('BookingGatewayService', () => {
   it('forwards booking creation with the authenticated user id', async () => {
@@ -367,6 +368,52 @@ describe('BookingGatewayService', () => {
       longitude: 120.9842,
     });
     expect(snapshot.destinationAddress).toBe('123 Test St, Manila, Philippines');
+  });
+
+  it('streams booking tracking snapshots over the gateway cadence', async () => {
+    const client = {
+      getTrackingSnapshot: jest.fn().mockResolvedValue({
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        bookingReference: 'SE-ABC123',
+        status: 'in_progress',
+        phase: 'on_the_way',
+        etaMinutes: 18,
+        distanceKm: 5.2,
+        trafficLevel: 'moderate',
+        destinationAddress: '123 Test St',
+        destinationLocation: {
+          latitude: 14.5995,
+          longitude: 120.9842,
+        },
+        providerLocation: {
+          latitude: 14.6,
+          longitude: 120.99,
+          updatedAt: '2026-05-16T00:00:05.000Z',
+        },
+        scheduledAt: '2026-05-20T08:00:00.000Z',
+        lastUpdatedAt: '2026-05-16T00:00:05.000Z',
+      }),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    const snapshot = await firstValueFrom(
+      service.streamTrackingSnapshots(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        null,
+      ),
+    );
+
+    expect(client.getTrackingSnapshot).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      null,
+    );
+    expect(snapshot.providerLocation).toEqual({
+      latitude: 14.6,
+      longitude: 120.99,
+      updatedAt: '2026-05-16T00:00:05.000Z',
+    });
   });
 
   it('forwards provider live location updates to booking-service', async () => {

@@ -9,7 +9,10 @@ import {
   Patch,
   Post,
   Query,
+  Sse,
+  MessageEvent,
 } from '@nestjs/common';
+import { Observable, map } from 'rxjs';
 import { AuthTokenService } from '../current-user/auth-token.service';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import {
@@ -87,6 +90,22 @@ export class BookingController {
           providerId,
         ),
       };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Sse(':bookingId/tracking/stream')
+  async trackingStream(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('bookingId') bookingId: string,
+  ): Promise<Observable<MessageEvent>> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      const providerId = await this.resolveOptionalProviderId(userId);
+      return this.bookingGatewayService
+        .streamTrackingSnapshots(bookingId, userId, providerId)
+        .pipe(map((snapshot) => ({ type: 'tracking', data: snapshot })));
     } catch (error) {
       throw this.toHttpException(error);
     }
