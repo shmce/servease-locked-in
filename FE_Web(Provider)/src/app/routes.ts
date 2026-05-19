@@ -1,31 +1,33 @@
-import { createBrowserRouter } from "react-router";
-import { Layout } from "./components/Layout";
-import { LoginPage } from "./components/LoginPage";
-import { DashboardPage } from "./components/DashboardPage";
-import { ProviderEarningsDashboard } from "./components/ProviderEarningsDashboard";
-import { ProviderEarningsDetails } from "./components/ProviderEarningsDetails";
-import { ProviderReviewsPage } from "./components/ProviderReviewsPage";
-import { CalendarPage } from "./components/CalendarPage";
-import { SetAvailabilityPage } from "./components/SetAvailabilityPage";
-import { BlockTimePage } from "./components/BlockTimePage";
-import { PayoutPage } from "./components/PayoutPage";
-import { RequestPayoutPage } from "./components/RequestPayoutPage";
-import { PayoutConfirmationPage } from "./components/PayoutConfirmationPage";
-import { ProviderProfilePage } from "./components/ProviderProfilePage";
-import { EditProfilePage } from "./components/EditProfilePage";
-import { EditServicesPricingPage } from "./components/EditServicesPricingPage";
-import { PortfolioManagementPage } from "./components/PortfolioManagementPage";
-import { ProviderSettingsPage } from "./components/ProviderSettingsPage";
-import { ProviderHelpCenterPage } from "./components/ProviderHelpCenterPage";
-import { MessagesPage } from "./components/MessagesPage";
-import { NotificationPreferencesPage } from "./components/NotificationPreferencesPage";
-import { ProviderPerformanceInsightsPage } from "./components/ProviderPerformanceInsightsPage";
-import { OnboardingPage } from "./components/OnboardingPage";
-import { UnifiedBookingsPage } from "./components/UnifiedBookingsPage";
-import { BookingDetailsPage } from "./components/BookingDetailsPage";
-import { BookingRequestDetailsPage } from "./components/BookingRequestDetailsPage";
-import { CancelBookingPage } from "./components/CancelBookingPage";
-import { ProviderAnalyticsPage } from "./components/ProviderAnalyticsPage";
+import { lazy } from 'react';
+import { createBrowserRouter } from 'react-router';
+import { Layout } from '@/shared/components/Layout';
+
+const Analytics = lazy(() => import('@/features/analytics/views/Analytics'));
+const Availability = lazy(() => import('@/features/availability/views/Availability'));
+const BlockTime = lazy(() => import('@/features/block-time/views/BlockTime'));
+const BookingDetails = lazy(() => import('@/features/booking-details/views/BookingDetails'));
+const BookingRequestDetails = lazy(() => import('@/features/booking-request-details/views/BookingRequestDetails'));
+const Bookings = lazy(() => import('@/features/bookings/views/Bookings'));
+const Calendar = lazy(() => import('@/features/calendar/views/Calendar'));
+const CancelBooking = lazy(() => import('@/features/cancel-booking/views/CancelBooking'));
+const Dashboard = lazy(() => import('@/features/dashboard/views/Dashboard'));
+const EarningsDashboard = lazy(() => import('@/features/earnings-dashboard/views/EarningsDashboard'));
+const EarningsDetails = lazy(() => import('@/features/earnings-details/views/EarningsDetails'));
+const EditProfile = lazy(() => import('@/features/edit-profile/views/EditProfile'));
+const EditServices = lazy(() => import('@/features/edit-services/views/EditServices'));
+const HelpCenter = lazy(() => import('@/features/help-center/views/HelpCenter'));
+const Login = lazy(() => import('@/features/login/views/Login'));
+const Messages = lazy(() => import('@/features/messages/views/Messages'));
+const NotificationPreferences = lazy(() => import('@/features/notification-preferences/views/NotificationPreferences'));
+const Onboarding = lazy(() => import('@/features/onboarding/views/Onboarding'));
+const Payout = lazy(() => import('@/features/payout/views/Payout'));
+const PayoutConfirmation = lazy(() => import('@/features/payout-confirmation/views/PayoutConfirmation'));
+const PerformanceInsights = lazy(() => import('@/features/performance-insights/views/PerformanceInsights'));
+const Portfolio = lazy(() => import('@/features/portfolio/views/Portfolio'));
+const Profile = lazy(() => import('@/features/profile/views/Profile'));
+const RequestPayout = lazy(() => import('@/features/request-payout/views/RequestPayout'));
+const Reviews = lazy(() => import('@/features/reviews/views/Reviews'));
+const Settings = lazy(() => import('@/features/settings/views/Settings'));
 
 export const router = createBrowserRouter([
   {
@@ -34,112 +36,112 @@ export const router = createBrowserRouter([
     children: [
       {
         path: "provider/dashboard",
-        Component: DashboardPage,
+        Component: Dashboard,
       },
       {
         path: "provider/onboarding",
-        Component: OnboardingPage,
+        Component: Onboarding,
       },
       {
         path: "provider/bookings",
-        Component: UnifiedBookingsPage,
+        Component: Bookings,
       },
       {
         path: "provider/booking-details/:id",
-        Component: BookingDetailsPage,
+        Component: BookingDetails,
       },
       {
         path: "provider/request-details/:id",
-        Component: BookingRequestDetailsPage,
+        Component: BookingRequestDetails,
       },
       {
         path: "provider/cancel-booking/:id",
-        Component: CancelBookingPage,
+        Component: CancelBooking,
       },
       {
         path: "provider/earningsdashboard",
-        Component: ProviderEarningsDashboard,
+        Component: EarningsDashboard,
       },
       {
         path: "provider/earningsdetails",
-        Component: ProviderEarningsDetails,
+        Component: EarningsDetails,
       },
       {
         path: "provider/reviews",
-        Component: ProviderReviewsPage,
+        Component: Reviews,
       },
       {
         path: "provider/performanceinsights",
-        Component: ProviderPerformanceInsightsPage,
+        Component: PerformanceInsights,
       },
       {
         path: "provider/analytics",
-        Component: ProviderAnalyticsPage,
+        Component: Analytics,
       },
       {
         path: "provider/calendar",
-        Component: CalendarPage,
+        Component: Calendar,
       },
       {
         path: "provider/availability",
-        Component: SetAvailabilityPage,
+        Component: Availability,
       },
       {
         path: "provider/block-time",
-        Component: BlockTimePage,
+        Component: BlockTime,
       },
       {
         path: "provider/payout",
-        Component: PayoutPage,
+        Component: Payout,
       },
       {
         path: "provider/request-payout",
-        Component: RequestPayoutPage,
+        Component: RequestPayout,
       },
       {
         path: "provider/payout-confirmation",
-        Component: PayoutConfirmationPage,
+        Component: PayoutConfirmation,
       },
       {
         path: "provider/profile",
-        Component: ProviderProfilePage,
+        Component: Profile,
       },
       {
         path: "provider/edit-profile",
-        Component: EditProfilePage,
+        Component: EditProfile,
       },
       {
         path: "provider/edit-services",
-        Component: EditServicesPricingPage,
+        Component: EditServices,
       },
       {
         path: "provider/portfolio",
-        Component: PortfolioManagementPage,
+        Component: Portfolio,
       },
       {
         path: "provider/settings",
-        Component: ProviderSettingsPage,
+        Component: Settings,
       },
       {
         path: "provider/help-center",
-        Component: ProviderHelpCenterPage,
+        Component: HelpCenter,
       },
       {
         path: "provider/messages",
-        Component: MessagesPage,
+        Component: Messages,
       },
       {
         path: "provider/notification-preferences",
-        Component: NotificationPreferencesPage,
+        Component: NotificationPreferences,
       },
       {
         index: true,
-        Component: DashboardPage, // Default to dashboard
+        Component: Dashboard,
       },
     ],
   },
   {
     path: "/login",
-    Component: LoginPage,
+    Component: Login,
   },
 ]);
