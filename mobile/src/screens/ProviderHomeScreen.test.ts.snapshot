@@ -1,0 +1,48 @@
+exports[`provider home model snapshots cover empty and one-job states 1`] = `
+{
+  "hero": {
+    "kind": "caught-up",
+    "title": "All caught up.",
+    "subtitle": "No jobs or booking requests need action right now.",
+    "meta": "Open schedule",
+    "primaryActionLabel": "Block time off",
+    "secondaryActionLabel": "Share profile",
+    "primaryActionScreen": "calendar",
+    "secondaryActionScreen": "providerProfileView"
+  },
+  "payoutAction": {
+    "disabled": true,
+    "label": "Request Payout",
+    "balanceLabel": "PHP 0",
+    "helperLabel": "Minimum PHP 1",
+    "accessibilityLabel": "Request Payout disabled. Available: PHP 0; minimum PHP 1 to request."
+  },
+  "activeBookings": [],
+  "todayEarnings": 0,
+  "weekEarnings": 0
+}
+`;
+
+exports[`provider home model snapshots cover empty and one-job states 2`] = `
+{
+  "hero": {
+    "kind": "job",
+    "title": "Deep Cleaning",
+    "subtitle": "2:00 PM · Maria",
+    "meta": "123 Mabini Street, Manila",
+    "bookingId": "booking-1",
+    "primaryActionLabel": "Navigate",
+    "primaryActionScreen": "providerNavigationMode"
+  },
+  "payoutAction": {
+    "disabled": false,
+    "label": "Request Payout",
+    "balanceLabel": "PHP 1,200",
+    "helperLabel": "PHP 1,200",
+    "accessibilityLabel": "Request Payout. Available: PHP 1,200."
+  },
+  "activeBookings": [],
+  "todayEarnings": 0,
+  "weekEarnings": 900
+}
+`;

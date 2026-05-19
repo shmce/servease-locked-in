@@ -42,6 +42,7 @@ export function getCustomerTab(screen: AppScreen): CustomerTab {
     screen === 'providerPortfolio' ||
     screen === 'providerPayoutManagement' ||
     screen === 'providerRequestPayout' ||
+    screen === 'providerEarnings' ||
     screen === 'providerServices' ||
     screen === 'providerSecurity' ||
     screen === 'providerSettings'
@@ -79,6 +80,7 @@ export function getProviderTab(screen: AppScreen): ProviderTab {
     screen === 'providerPortfolio' ||
     screen === 'providerPayoutManagement' ||
     screen === 'providerRequestPayout' ||
+    screen === 'providerEarnings' ||
     screen === 'providerNotifications' ||
     screen === 'providerInsights' ||
     screen === 'providerHelp' ||

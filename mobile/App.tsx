@@ -3393,7 +3393,9 @@ export default function App() {
         {route.screen === 'providerPayoutManagement' ? renderProviderPayoutManagement() : null}
         {route.screen === 'providerRequestPayout' ? renderProviderRequestPayout() : null}
         {route.screen === 'providerNotifications' ? renderProviderNotifications() : null}
-        {route.screen === 'providerInsights' ? renderProviderInsights() : null}
+        {route.screen === 'providerInsights' || route.screen === 'providerEarnings'
+          ? renderProviderInsights()
+          : null}
         {route.screen === 'providerHelp' ? renderProviderHelp() : null}
         {route.screen === 'providerServices' ? renderProviderServices() : null}
         {route.screen === 'providerSecurity' ? renderProviderSecurity() : null}
@@ -6099,13 +6101,12 @@ export default function App() {
       <ProviderHomeScreen
         profile={profile}
         bookings={bookings}
+        payments={payments}
         providerDashboard={providerDashboard}
         payoutTotal={payoutTotal}
-        activeCount={activeCount}
         unreadCount={unreadCount}
-        ownedServices={ownedServices}
         navigate={navigate}
-        openBooking={(booking) => openBooking(booking, 'providerBookingDetail')}
+        openBooking={openBooking}
         renderProviderApplicationBanner={renderProviderApplicationBanner}
       />
     );

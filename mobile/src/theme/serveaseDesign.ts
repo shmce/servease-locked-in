@@ -4,10 +4,15 @@ export const palette = {
   mintDeep: '#00A055',
   mintSoft: '#EEF9F3',
   cream: '#FAF8F5',
+  // Legacy. Do not use in new code. Use palette.alert or palette.mint.
   coral: '#FF8C7A',
   red: '#EF4444',
+  alert: '#EF4444',
+  // Legacy. Do not use in new code. Use palette.alert or palette.mint.
   blue: '#5AAFF0',
+  // Legacy. Do not use in new code. Use palette.alert or palette.mint.
   violet: '#7B8FF5',
+  // Legacy. Do not use in new code. Use palette.alert or palette.mint.
   amber: '#F5A83A',
   ink: '#2C2A28',
   body: '#374151',
@@ -37,6 +42,13 @@ export const radius = {
   lg: 16,
   xl: 22,
   pill: 999,
+};
+
+export const homeTokens = {
+  heroPadding: spacing.lg,
+  cardGap: spacing.md,
+  sectionGap: spacing.xl,
+  pillGap: spacing.sm,
 };
 
 export const type = {
