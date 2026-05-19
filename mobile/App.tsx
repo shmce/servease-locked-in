@@ -128,6 +128,7 @@ import { AuthScreens } from './src/screens/AuthScreens';
 import { CustomerMoreScreen } from './src/screens/CustomerMoreScreen';
 import { ProviderBookingsScreen } from './src/screens/ProviderBookingsScreen';
 import { ProviderCalendarScreen } from './src/screens/ProviderCalendarScreen';
+import { ProviderHomeScreen } from './src/screens/ProviderHomeScreen';
 import { ProviderSetAvailabilityScreen } from './src/screens/ProviderSetAvailabilityScreen';
 import {
   AddressVerificationPreview,
@@ -6094,134 +6095,19 @@ export default function App() {
   }
 
   function renderProviderHome() {
-    const pendingCount = bookings.filter((booking) => booking.status === 'pending').length;
-    const todayCompleted = providerDashboard?.summary.todayCompleted ?? 0;
-    const todayEarnings = providerDashboard?.summary.todayEarnings ?? 0;
-    const acceptanceRate = providerDashboard?.performance.acceptanceRate ?? null;
-    const providerHomeActiveBookings = bookings
-      .filter((booking) =>
-        !['cancelled', 'completed', 'rejected'].includes(booking.status),
-      )
-      .slice()
-      .sort(
-        (a, b) =>
-          new Date(a.scheduledAt ?? 0).getTime() -
-          new Date(b.scheduledAt ?? 0).getTime(),
-      )
-      .slice(0, 4);
     return (
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.providerHero}>
-          <View style={styles.heroRow}>
-            <View style={styles.flex}>
-              <Text style={styles.heroMuted}>Welcome back,</Text>
-              <Text style={styles.heroName}>
-                {profile?.providerProfile?.businessName ?? 'Service Provider'}
-              </Text>
-            </View>
-            <Pressable
-              style={styles.notificationButton}
-              onPress={() => navigate('providerNotifications', 'provider')}
-              accessibilityRole="button"
-              accessibilityLabel={
-                unreadCount > 0
-                  ? `Notifications, ${unreadCount} unread`
-                  : 'Notifications'
-              }
-            >
-              <Bell color={palette.white} size={20} strokeWidth={2.2} />
-              {unreadCount > 0 ? <View style={styles.heroUnreadDot} /> : null}
-            </Pressable>
-          </View>
-        </View>
-        <View style={styles.overlapContent}>
-          <MetricCard label="Available Payout" value={formatMoney(payoutTotal)} featured />
-          <View style={styles.metricGrid}>
-            <MetricCard label="New Requests" value={pendingCount} />
-            <MetricCard label="Today" value={activeCount} />
-            <MetricCard label="Rating" value={profile?.providerProfile?.averageRating.toFixed(1) ?? '0.0'} />
-          </View>
-        </View>
-        <View style={styles.content}>
-          {renderProviderApplicationBanner()}
-          {pendingCount > 0 ? (
-            <Pressable
-              style={styles.requestBanner}
-              onPress={() => navigate('bookings', 'provider')}
-            >
-              <View style={styles.flex}>
-                <Text style={styles.bannerTitle}>{pendingCount} New Booking Request{pendingCount === 1 ? '' : 's'}</Text>
-                <Text style={styles.bannerCopy}>Tap to review and accept</Text>
-              </View>
-              <Text style={styles.bannerArrow}>{'>'}</Text>
-            </Pressable>
-          ) : (
-            <View style={[styles.requestBanner, styles.requestBannerMuted]}>
-              <View style={styles.flex}>
-                <Text style={[styles.bannerTitle, styles.bannerTitleMuted]}>You're all caught up</Text>
-                <Text style={[styles.bannerCopy, styles.bannerCopyMuted]}>No new booking requests right now</Text>
-              </View>
-            </View>
-          )}
-          <Section
-            title="Active Bookings"
-            action={<Text style={styles.linkText} onPress={() => navigate('bookings', 'provider')}>View All</Text>}
-          >
-            {providerHomeActiveBookings.map((booking) => (
-              <ProviderBookingRow
-                key={booking.id}
-                booking={booking}
-                onPress={() => openBooking(booking, 'providerBookingDetail')}
-              />
-            ))}
-            {!providerHomeActiveBookings.length ? (
-              <EmptyState
-                title="No active bookings"
-                body="Confirmed and in-progress jobs appear here."
-              />
-            ) : null}
-          </Section>
-          {(todayCompleted > 0 || todayEarnings > 0) ? (
-            <Section title="Today">
-              <View style={styles.metricGrid}>
-                <MetricCard label="Completed" value={todayCompleted} />
-                <MetricCard label="Earned Today" value={formatMoney(todayEarnings)} />
-                {acceptanceRate !== null ? (
-                  <MetricCard label="Accept Rate" value={`${acceptanceRate}%`} />
-                ) : null}
-              </View>
-            </Section>
-          ) : null}
-          {ownedServices.length > 0 ? (
-            <Section
-              title="My Services"
-              action={<Text style={styles.linkText} onPress={() => navigate('more', 'provider')}>Manage</Text>}
-            >
-              {ownedServices.slice(0, 3).map((svc) => (
-                <Card key={svc.id}>
-                  <View style={styles.rowBetween}>
-                    <View style={styles.flex}>
-                      <Text style={styles.cardTitle}>{svc.title}</Text>
-                      <Text style={styles.cardMeta}>{svc.price != null ? formatMoney(svc.price) : 'Price not set'} · {svc.pricingMode ?? 'flat'}</Text>
-                    </View>
-                    <Badge label={svc.isActive ? 'active' : 'inactive'} tone={svc.isActive ? 'success' : 'neutral'} />
-                  </View>
-                </Card>
-              ))}
-            </Section>
-          ) : null}
-          <Section title="Quick Actions">
-            <View style={styles.twoButtons}>
-              <QuickAction label="Set Availability" onPress={() => navigate('calendar', 'provider')} />
-              <QuickAction label="Payouts" onPress={() => navigate('providerPayoutManagement', 'provider')} />
-            </View>
-            <View style={styles.twoButtons}>
-              <QuickAction label="Insights" onPress={() => navigate('providerInsights', 'provider')} />
-              <QuickAction label="Portfolio" onPress={() => navigate('providerPortfolio', 'provider')} />
-            </View>
-          </Section>
-        </View>
-      </ScrollView>
+      <ProviderHomeScreen
+        profile={profile}
+        bookings={bookings}
+        providerDashboard={providerDashboard}
+        payoutTotal={payoutTotal}
+        activeCount={activeCount}
+        unreadCount={unreadCount}
+        ownedServices={ownedServices}
+        navigate={navigate}
+        openBooking={(booking) => openBooking(booking, 'providerBookingDetail')}
+        renderProviderApplicationBanner={renderProviderApplicationBanner}
+      />
     );
   }
 
