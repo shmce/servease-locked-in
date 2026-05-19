@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
 import { ProviderDataProvider } from './context/ProviderDataContext';
@@ -82,7 +83,9 @@ function App() {
           }
           `}
         </style>
-        <RouterProvider router={router} />
+        <Suspense fallback={null}>
+          <RouterProvider router={router} />
+        </Suspense>
       </ProviderDataProvider>
     </ProviderAuthProvider>
   );
