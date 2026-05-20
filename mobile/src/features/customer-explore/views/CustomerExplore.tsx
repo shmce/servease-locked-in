@@ -100,7 +100,7 @@ export function CustomerExploreScreen({
               <User color={palette.white} size={20} strokeWidth={2.4} />
             </View>
             <View>
-              <Text style={styles.heroMuted}>Good Afternoon</Text>
+              <Text style={styles.heroMuted}>Good afternoon</Text>
               <Text style={styles.heroName}>{data.customerName}</Text>
             </View>
           </View>
@@ -125,11 +125,11 @@ export function CustomerExploreScreen({
           <Card>
             <View style={styles.guideHeaderRow}>
               <View style={styles.guideIcon}>
-                <GuideIcon color={palette.mint} size={22} strokeWidth={2.5} />
+                <GuideIcon color={palette.mint} size={20} strokeWidth={2.5} />
               </View>
               <View style={styles.flex}>
-                <Text style={styles.cardMeta}>{data.guide.stepLabel}</Text>
-                <Text style={styles.cardTitle}>{data.guide.title}</Text>
+                <Text style={styles.guideStepLabel}>{data.guide.stepLabel}</Text>
+                <Text style={styles.guideCardTitle}>{data.guide.title}</Text>
               </View>
               <Pressable
                 style={styles.guideDismissButton}
@@ -140,7 +140,7 @@ export function CustomerExploreScreen({
                 <Text style={styles.guideDismissText}>Skip</Text>
               </Pressable>
             </View>
-            <Text style={styles.cardBody}>{data.guide.body}</Text>
+            <Text style={styles.guideBody}>{data.guide.body}</Text>
             <View style={styles.guideFooterRow}>
               <View style={styles.guideDots}>
                 {Array.from({ length: data.guide.totalSteps }).map((_, index) => (
@@ -170,52 +170,43 @@ export function CustomerExploreScreen({
           title="Book it again"
           action={
             <Text style={styles.linkText} onPress={onShowRecentBookings}>
-              Recent
+              See all
             </Text>
           }
         >
-          <View style={styles.bookAgainRailWrap}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalRail}
-            >
-              {data.bookAgainRows.map((booking) => (
-                <Pressable
-                  key={booking.id}
-                  style={styles.bookAgainCard}
-                  onPress={() => onOpenBooking(booking.booking)}
-                  accessibilityRole="button"
-                >
-                  <View style={styles.bookAgainAvatar}>
-                    <Text style={styles.bookAgainInitial}>{booking.initial}</Text>
-                  </View>
-                  <View style={styles.flex}>
-                    <Text style={styles.bookAgainTitle} numberOfLines={1}>
-                      {booking.title}
-                    </Text>
-                    <Text style={styles.cardMeta} numberOfLines={1}>
-                      {booking.subtitle}
-                    </Text>
-                  </View>
-                  <ChevronRight color={palette.faint} size={18} />
-                </Pressable>
-              ))}
-              {!data.hasBookAgainRows ? (
-                <View style={styles.bookAgainCard}>
-                  <View style={styles.bookAgainAvatar}>
-                    <Sparkles color={palette.white} size={18} />
-                  </View>
-                  <View style={styles.flex}>
-                    <Text style={styles.bookAgainTitle}>No completed bookings yet</Text>
-                    <Text style={styles.cardMeta}>Completed services appear here</Text>
-                  </View>
+          <View style={styles.bookAgainList}>
+            {data.bookAgainRows.map((booking) => (
+              <Pressable
+                key={booking.id}
+                style={styles.bookAgainCard}
+                onPress={() => onOpenBooking(booking.booking)}
+                accessibilityRole="button"
+              >
+                <View style={styles.bookAgainAvatar}>
+                  <Text style={styles.bookAgainInitial}>{booking.initial}</Text>
                 </View>
-              ) : null}
-            </ScrollView>
-            {data.hasBookAgainCue ? (
-              <View pointerEvents="none" style={styles.bookAgainRailCue}>
-                <ChevronRight color={palette.mint} size={20} strokeWidth={2.6} />
+                <View style={styles.flex}>
+                  <Text style={styles.itemTitle} numberOfLines={1}>
+                    {booking.title}
+                  </Text>
+                  <Text style={styles.itemMeta} numberOfLines={1}>
+                    {booking.subtitle}
+                  </Text>
+                </View>
+                <View style={styles.rebookPill}>
+                  <Text style={styles.rebookPillText}>Rebook</Text>
+                </View>
+              </Pressable>
+            ))}
+            {!data.hasBookAgainRows ? (
+              <View style={styles.bookAgainEmpty}>
+                <View style={styles.bookAgainEmptyIcon}>
+                  <Sparkles color={palette.mint} size={18} strokeWidth={2.2} />
+                </View>
+                <View style={styles.flex}>
+                  <Text style={styles.itemTitle}>No completed bookings yet</Text>
+                  <Text style={styles.itemMeta}>Completed services appear here</Text>
+                </View>
               </View>
             ) : null}
           </View>
@@ -229,9 +220,9 @@ export function CustomerExploreScreen({
             </Text>
           }
         >
-          <View style={styles.categoryGrid}>
+          <View style={styles.categoryList}>
             {data.categoryRows.map((category) => (
-              <View key={category.id} style={styles.categoryTileWrapper}>
+              <View key={category.id} style={styles.categoryItemWrapper}>
                 <CategoryTile
                   title={category.title}
                   subtitle={category.subtitle}
@@ -248,7 +239,6 @@ export function CustomerExploreScreen({
                       />
                     ))}
                   </View>
-
                 ) : null}
               </View>
             ))}
@@ -265,11 +255,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 96,
   },
+
+  // Hero
   customerHero: {
     backgroundColor: palette.mint,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     gap: spacing.base,
-    paddingBottom: spacing.lg,
-    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
   },
   heroRow: {
@@ -285,10 +279,10 @@ const styles = StyleSheet.create({
   heroAvatar: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 12,
-    height: 36,
+    borderRadius: radius.lg,
+    height: 40,
     justifyContent: 'center',
-    width: 36,
+    width: 40,
   },
   heroMuted: {
     color: 'rgba(255,255,255,0.82)',
@@ -302,8 +296,8 @@ const styles = StyleSheet.create({
   },
   notificationButton: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.24)',
-    borderColor: 'rgba(255,255,255,0.32)',
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    borderColor: 'rgba(255,255,255,0.28)',
     borderRadius: radius.md,
     borderWidth: 1,
     height: 40,
@@ -328,20 +322,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     flexDirection: 'row',
     gap: spacing.sm,
-    minHeight: 46,
-    justifyContent: 'center',
+    minHeight: 48,
     paddingHorizontal: spacing.base,
-    boxShadow: '0 4px 12px rgba(44,90,60,0.08)',
+    boxShadow: '0 4px 14px rgba(44,90,60,0.12)',
   },
   searchText: {
     color: palette.faint,
-    fontSize: 13,
+    flex: 1,
+    fontSize: 14,
     fontWeight: '500',
   },
+
+  // Page content
   content: {
-    gap: spacing.md,
-    padding: spacing.md,
+    gap: spacing.lg,
+    padding: spacing.base,
+    paddingTop: spacing.lg,
   },
+
+  // Guide card internals
   guideHeaderRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -351,20 +350,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: palette.mintSoft,
     borderRadius: radius.sm,
-    height: 38,
+    height: 36,
     justifyContent: 'center',
-    width: 38,
+    width: 36,
+  },
+  guideStepLabel: {
+    color: palette.mint,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  guideCardTitle: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 1,
   },
   guideDismissButton: {
     alignItems: 'center',
-    minHeight: 38,
     justifyContent: 'center',
+    minHeight: 36,
     paddingHorizontal: spacing.xs,
   },
   guideDismissText: {
     color: palette.faint,
     fontSize: 12,
     fontWeight: '700',
+  },
+  guideBody: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 19,
   },
   guideFooterRow: {
     alignItems: 'center',
@@ -383,114 +401,110 @@ const styles = StyleSheet.create({
   },
   guideDotActive: {
     backgroundColor: palette.mint,
-    width: 14,
+    width: 16,
   },
   guideNextButton: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.xxs,
-    minHeight: 38,
+    minHeight: 36,
   },
-  bookAgainRailWrap: {
-    position: 'relative',
-  },
-  bookAgainRailCue: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(240,255,244,0.94)',
-    borderRadius: radius.pill,
-    height: 32,
-    justifyContent: 'center',
-    position: 'absolute',
-    right: spacing.xs,
-    top: 20,
-    width: 32,
-    boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
-  },
-  horizontalRail: {
+
+  // Book again — vertical list
+  bookAgainList: {
     gap: spacing.sm,
-    paddingRight: spacing.md,
   },
   bookAgainCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
     borderColor: palette.line,
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-    minHeight: 72,
-    minWidth: 230,
+    minHeight: 70,
     padding: spacing.sm,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+  },
+  bookAgainEmpty: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 70,
+    padding: spacing.sm,
+  },
+  bookAgainEmptyIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
   },
   bookAgainAvatar: {
     alignItems: 'center',
     backgroundColor: palette.mint,
     borderRadius: radius.pill,
-    height: 36,
+    height: 40,
     justifyContent: 'center',
-    width: 36,
+    width: 40,
   },
   bookAgainInitial: {
     color: palette.white,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
   },
-  bookAgainTitle: {
-    color: palette.ink,
-    fontSize: 13,
+  rebookPill: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  rebookPillText: {
+    color: palette.mintDeep,
+    fontSize: 12,
     fontWeight: '700',
   },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: spacing.sm,
+
+  // Browse categories — single column
+  categoryList: {
+    gap: spacing.sm,
   },
-  categoryTileWrapper: {
+  categoryItemWrapper: {
     position: 'relative',
-    width: '48%',
   },
   categoryBadgeAnchor: {
     gap: spacing.xs,
+    pointerEvents: 'none',
     position: 'absolute',
     right: 16,
     top: 16,
-    pointerEvents: 'none',
     zIndex: 10,
   },
-  rowBetween: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'space-between',
-  },
-  flex: {
-    flex: 1,
-  },
-  cardTitle: {
+
+  // Shared text
+  itemTitle: {
     color: palette.ink,
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '700',
   },
-  cardBody: {
+  itemMeta: {
     color: palette.muted,
     fontSize: 12,
-    fontWeight: '400',
-    lineHeight: 18,
-  },
-  cardMeta: {
-    ...type.caption,
-    fontSize: 11,
-    color: palette.muted,
+    fontWeight: '500',
+    lineHeight: 17,
+    marginTop: 2,
   },
   linkText: {
     color: palette.mint,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  priceText: {
-    color: palette.mint,
     fontSize: 13,
     fontWeight: '700',
+  },
+  flex: {
+    flex: 1,
   },
 });
