@@ -64,8 +64,8 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   totalRow: {
     alignItems: 'center',
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   totalLabel: {

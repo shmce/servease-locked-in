@@ -130,8 +130,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.xl,
-    marginHorizontal: spacing.xl,
+    marginBottom: spacing.md,
+    marginHorizontal: spacing.md,
     paddingLeft: spacing.base,
   },
   withBottomNav: {
@@ -140,12 +140,12 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   horizontalRail: {
     gap: spacing.sm,
-    paddingRight: spacing.xl,
+    paddingRight: spacing.md,
   },
   faqCard: {
     backgroundColor: palette.white,
@@ -190,13 +190,13 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardBody: {
     color: palette.muted,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
 });

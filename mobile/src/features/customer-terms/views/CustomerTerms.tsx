@@ -1,7 +1,11 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { Card, TopBar } from '../../../components/DesignKit';
 import { AppScreen } from '../../../navigation/types';
-import { palette, spacing } from '../../../theme/serveaseDesign';
+import { palette } from '../../../theme/serveaseDesign';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { useCustomerTermsViewModel } from '../viewModels/useCustomerTermsViewModel';
 
 type CustomerTermsScreenProps = {
@@ -14,40 +18,31 @@ export function CustomerTermsScreen({ navigate }: CustomerTermsScreenProps) {
   return (
     <>
       <TopBar title="Terms & Privacy" onBack={() => navigate('more', 'customer')} />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+      <ScreenScroll>
+        <ScreenContent>
           {terms.data.termsSections.map((section) => (
             <Card key={section.title}>
               <Text style={styles.detailTitle}>{section.title}</Text>
               <Text style={styles.cardBody}>{section.body}</Text>
             </Card>
           ))}
-        </View>
-      </ScrollView>
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
   detailTitle: {
     color: palette.ink,
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '900',
-    lineHeight: 28,
+    lineHeight: 24,
   },
   cardBody: {
     color: palette.body,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
-    lineHeight: 21,
+    lineHeight: 18,
   },
 });

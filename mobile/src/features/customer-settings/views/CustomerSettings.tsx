@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import {
   Bell,
   Calendar,
@@ -23,6 +23,10 @@ import {
   UserPreferenceSummary,
 } from '../../../shared/models/types';
 import { TwoFactorSettingsCard } from '../../../shared/components/TwoFactorSettingsCard';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { AppScreen } from '../../../navigation/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import {
@@ -110,8 +114,8 @@ export function CustomerSettingsScreen({
   return (
     <>
       <TopBar title="Settings" onBack={() => navigate('more', 'customer')} />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+      <ScreenScroll>
+        <ScreenContent>
           <SettingsSection title="Notifications">
             <SettingsRow
               icon={Bell}
@@ -218,31 +222,22 @@ export function CustomerSettingsScreen({
               disabled={busyAction === 'delete-account' || !data.canConfirmAccountDeletion}
             />
           </SettingsSection>
-        </View>
-      </ScrollView>
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 19,
   },
   monoText: {

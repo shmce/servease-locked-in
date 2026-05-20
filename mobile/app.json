@@ -33,6 +33,7 @@
       "favicon": "./assets/servease-logo.png"
     },
     "plugins": [
+      "expo-router",
       [
         "expo-image-picker",
         {

@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 
 const MINIMUM_COVERAGE_PERCENT = 80;
 const TEST_ROOTS = ['services', 'src'];
+const TSX_CLI = join(process.cwd(), 'node_modules', 'tsx', 'dist', 'cli.mjs');
 
 function findTestFiles(root) {
   const files = [];
@@ -25,8 +26,8 @@ function findTestFiles(root) {
 
 const testFiles = TEST_ROOTS.flatMap(findTestFiles);
 const result = spawnSync(
-  'tsx',
-  ['--test', '--experimental-test-coverage', ...testFiles],
+  process.execPath,
+  [TSX_CLI, '--test', '--experimental-test-coverage', ...testFiles],
   {
     encoding: 'utf8',
     stdio: ['inherit', 'pipe', 'pipe'],

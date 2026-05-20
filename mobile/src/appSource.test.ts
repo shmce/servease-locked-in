@@ -4,7 +4,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 test('booking form verifies service addresses through the APICenter geo gateway', () => {
-  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const bookingFlowViewModel = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+    ),
+    'utf8',
+  );
   const bookingFormSource = readFileSync(
     join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
     'utf8',
@@ -17,8 +23,8 @@ test('booking form verifies service addresses through the APICenter geo gateway'
     'utf8',
   );
 
-  assert.match(source, /geocodeAddress/);
-  assert.match(source, /verifyServiceAddress/);
+  assert.match(bookingFlowViewModel, /geocodeAddress/);
+  assert.match(bookingFlowViewModel, /verifyServiceAddress/);
   assert.match(bookingFormSource, /verifyAddressLabel/);
   assert.match(bookingFormSource, /AddressVerificationPreview/);
   assert.match(bookingFormViewModel, /Verify address/);

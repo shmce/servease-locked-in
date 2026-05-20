@@ -127,8 +127,8 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   metricGrid: {
     flexDirection: 'row',
@@ -153,14 +153,14 @@ const styles = StyleSheet.create({
   infoValue: {
     color: palette.ink,
     flex: 1.4,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     textAlign: 'right',
   },
   cardBody: {
     color: palette.muted,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
 });

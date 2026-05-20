@@ -14,6 +14,7 @@ import {
   PayoutAccountSummary,
   PayoutMethodSummary,
 } from '../../../shared/models/types';
+import { StickyFooter } from '../../../shared/components/ScreenLayout';
 import { useProviderRequestPayoutViewModel } from '../viewModels/useProviderRequestPayoutViewModel';
 
 type ProviderRequestPayoutScreenProps = {
@@ -112,7 +113,7 @@ export function ProviderRequestPayoutScreen({
           </Section>
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter>
         <PrimaryButton
           label={data.submitLabel}
           onPress={onSubmitPayoutRequest}
@@ -121,8 +122,7 @@ export function ProviderRequestPayoutScreen({
         <Text style={styles.footerLink} onPress={onBack}>
           Back to payouts
         </Text>
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
@@ -134,8 +134,8 @@ const styles = StyleSheet.create({
     paddingBottom: 132,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   infoRow: {
     alignItems: 'center',
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   infoValue: {
     color: palette.ink,
     flex: 1.4,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     textAlign: 'right',
   },
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     color: palette.ink,
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '900',
   },
   totalValue: {
@@ -206,29 +206,10 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: palette.muted,
   },
-  stickyFooter: {
-    backgroundColor: palette.white,
-    borderTopColor: palette.line,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    padding: spacing.xl,
-    position: 'absolute',
-    right: 0,
-  },
   footerLink: {
     color: palette.mint,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     textAlign: 'center',
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.line,
-    borderRadius: radius.pill,
-    height: 4,
-    marginTop: spacing.xs,
-    width: 132,
   },
 });

@@ -91,13 +91,13 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 19,
   },
 });

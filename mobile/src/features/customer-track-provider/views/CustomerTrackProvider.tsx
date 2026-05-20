@@ -7,6 +7,7 @@ import {
 } from '../../../shared/models/types';
 import { TrackingMapPreview } from '../../../tracking/TrackingMapPreview';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
 import {
   CustomerTrackingSheetLevel,
   useCustomerTrackProviderViewModel,
@@ -72,14 +73,14 @@ export function CustomerTrackProviderScreen({
             <InfoRow label="Last update" value={data.lastUpdateLabel} />
           </>
         ) : null}
-        <View style={styles.twoButtons}>
+        <ActionRow>
           <View style={styles.flex}>
             <PrimaryButton label="Refresh" variant="secondary" onPress={onRefresh} />
           </View>
           <View style={styles.flex}>
             <PrimaryButton label="Message" onPress={onMessage} />
           </View>
-        </View>
+        </ActionRow>
       </View>
     </View>
   );
@@ -194,7 +195,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     position: 'absolute',
-    top: spacing.xl,
+    top: spacing.md,
     zIndex: 4,
   },
   mapCloseText: {
@@ -209,7 +210,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     gap: spacing.md,
     left: 0,
-    padding: spacing.lg,
+    padding: spacing.md,
     position: 'absolute',
     right: 0,
   },
@@ -263,16 +264,12 @@ const styles = StyleSheet.create({
   sheetLevelButtonTextActive: {
     color: palette.mint,
   },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
   flex: {
     flex: 1,
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
@@ -282,7 +279,7 @@ const styles = StyleSheet.create({
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontWeight: '500',
+    lineHeight: 18,
   },
 });

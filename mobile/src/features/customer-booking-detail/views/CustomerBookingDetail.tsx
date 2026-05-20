@@ -15,6 +15,7 @@ import {
   ProviderListing,
   ReviewSummary,
 } from '../../../shared/models/types';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
 import { palette, spacing, type } from '../../../theme/serveaseDesign';
 import { useCustomerBookingDetailViewModel } from '../viewModels/useCustomerBookingDetailViewModel';
 import { CustomerBookingReviewPanel } from './CustomerBookingReviewPanel';
@@ -119,10 +120,10 @@ export function CustomerBookingDetailScreen({
           ) : null}
           {bookingMedia}
           {serviceUpdates}
-          <View style={styles.twoButtons}>
+          <ActionRow>
             <PrimaryButton label="Manage booking" onPress={onManageBooking} />
             <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
-          </View>
+          </ActionRow>
           {data.showReservePayment ? (
             <PrimaryButton
               label={data.reservePaymentLabel}
@@ -163,18 +164,14 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   rowBetween: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
     justifyContent: 'space-between',
-  },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
   },
   profileLinkRow: {
     alignItems: 'center',
@@ -202,7 +199,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
@@ -212,8 +209,8 @@ const styles = StyleSheet.create({
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   linkText: {
     color: palette.mint,

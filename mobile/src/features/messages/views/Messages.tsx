@@ -15,6 +15,7 @@ import {
   ConversationSummary,
 } from '../../../shared/models/types';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
 import { useMessagesViewModel } from '../viewModels/useMessagesViewModel';
 
 type MessagesScreenProps = {
@@ -125,7 +126,7 @@ export function MessagesScreen({
               onChangeText={onMessageDraftChange}
               multiline
             />
-            <View style={styles.twoButtons}>
+            <ActionRow>
               <PrimaryButton
                 label={data.attachLabel}
                 variant="secondary"
@@ -137,7 +138,7 @@ export function MessagesScreen({
                 onPress={() => void onSendMessage()}
                 disabled={data.sendDisabled}
               />
-            </View>
+            </ActionRow>
           </Section>
         </View>
       </ScrollView>
@@ -152,12 +153,8 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  twoButtons: {
-    flexDirection: 'row',
     gap: spacing.md,
+    padding: spacing.md,
   },
   messageBubble: {
     alignSelf: 'flex-start',
@@ -172,13 +169,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.mintSoft,
   },
   uploadPreview: {
+    alignSelf: 'stretch',
     borderRadius: radius.md,
     height: 116,
-    width: '100%',
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
@@ -188,7 +185,7 @@ const styles = StyleSheet.create({
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontWeight: '500',
+    lineHeight: 18,
   },
 });

@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Bell,
   ChevronRight,
@@ -13,6 +13,10 @@ import {
 import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { CurrentUserProfile } from '../../../shared/models/types';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import {
   CustomerMoreMenuIcon,
   useCustomerMoreViewModel,
@@ -48,8 +52,8 @@ export function CustomerMoreScreen({
   const { data } = more;
 
   return (
-    <ScrollView contentContainerStyle={styles.withBottomNav}>
-      <View style={styles.content}>
+    <ScreenScroll>
+      <ScreenContent>
         <View style={styles.moreProfileRow}>
           <View style={styles.moreAvatar}>
             <Text style={styles.moreAvatarText}>
@@ -75,7 +79,9 @@ export function CustomerMoreScreen({
                 onPress={() => navigate(item.screen, 'customer')}
               >
                 <Icon color={palette.ink} size={22} strokeWidth={2.2} />
-                <Text style={styles.moreMenuLabel}>{item.label}</Text>
+                <Text style={styles.moreMenuLabel} numberOfLines={2}>
+                  {item.label}
+                </Text>
                 {showBadge ? (
                   <View style={styles.notificationBadge}>
                     <Text style={styles.notificationBadgeText}>
@@ -85,7 +91,11 @@ export function CustomerMoreScreen({
                     </Text>
                   </View>
                 ) : null}
-                <ChevronRight color={palette.faint} size={20} />
+                <ChevronRight
+                  color={palette.faint}
+                  size={18}
+                  style={styles.menuChevron}
+                />
               </Pressable>
             );
           })}
@@ -96,28 +106,19 @@ export function CustomerMoreScreen({
           <Text style={styles.logoutText}>Log out</Text>
         </Pressable>
         <Text style={styles.noticeText}>ServEase v1.0.0</Text>
-      </View>
-    </ScrollView>
+      </ScreenContent>
+    </ScreenScroll>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
   flex: {
     flex: 1,
   },
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 19,
   },
   moreProfileRow: {
@@ -145,22 +146,32 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   moreMenuList: {
-    gap: spacing.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: spacing.sm,
   },
   moreMenuItem: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: '#F5F5F5',
     borderRadius: radius.md,
-    flexDirection: 'row',
-    gap: spacing.base,
-    minHeight: 56,
-    paddingHorizontal: spacing.base,
+    gap: spacing.sm,
+    minHeight: 92,
+    padding: spacing.base,
+    position: 'relative',
+    width: '48%',
   },
   moreMenuLabel: {
     color: palette.ink,
-    flex: 1,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '800',
+    lineHeight: 18,
+    paddingRight: spacing.lg,
+  },
+  menuChevron: {
+    position: 'absolute',
+    right: spacing.sm,
+    top: spacing.sm,
   },
   notificationBadge: {
     alignItems: 'center',
@@ -170,6 +181,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minWidth: 22,
     paddingHorizontal: 6,
+    position: 'absolute',
+    right: spacing.sm,
+    top: 36,
   },
   notificationBadgeText: {
     color: palette.white,
@@ -187,13 +201,13 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     color: palette.red,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   noticeText: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 18,
     textAlign: 'center',
   },

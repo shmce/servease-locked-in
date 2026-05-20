@@ -23,6 +23,12 @@ type CustomerExploreViewModelInput = {
 };
 
 type GuideIconKey = 'search' | 'star' | 'message';
+type CategoryBadgeTone = 'success' | 'warning' | 'danger' | 'neutral';
+
+type CategoryBadge = {
+  label: string;
+  tone: CategoryBadgeTone;
+};
 
 const guideSteps: {
   iconKey: GuideIconKey;
@@ -101,6 +107,7 @@ export function buildCustomerExploreViewModel({
 }: CustomerExploreViewModelInput) {
   const safeGuideStep = customerGuideStep % guideSteps.length;
   const guideStep = guideSteps[safeGuideStep];
+  const categoryBadges = buildCategoryBadges(categories, services, providers);
   const bookAgainRows = completedRebookOptions(bookings)
     .slice(0, 5)
     .map((booking) => ({
@@ -115,6 +122,7 @@ export function buildCustomerExploreViewModel({
     data: {
       bookAgainRows,
       categoryRows: categories.map((category) => ({
+        badges: categoryBadges.get(category.id) ?? [],
         category,
         id: category.id,
         isSelected: category.id === selectedCategoryId,
@@ -166,6 +174,91 @@ export function buildCustomerExploreViewModel({
     isLoading: false,
     error: null,
   };
+}
+
+function buildCategoryBadges(
+  categories: CatalogCategory[],
+  services: CatalogServiceItem[],
+  providers: ProviderListing[],
+): Map<string, CategoryBadge[]> {
+  const badgesByCategory = new Map<string, CategoryBadge[]>();
+  const categoryIds = new Set(categories.map((category) => category.id));
+  const serviceCategoryById = new Map<string, string>();
+  const serviceCountsByCategory = new Map<string, number>();
+
+  services.forEach((service) => {
+    if (!service.categoryId || !categoryIds.has(service.categoryId)) {
+      return;
+    }
+
+    serviceCategoryById.set(service.id, service.categoryId);
+    serviceCountsByCategory.set(
+      service.categoryId,
+      (serviceCountsByCategory.get(service.categoryId) ?? 0) + 1,
+    );
+  });
+
+  const popularCategoryId = highestScoredKey(serviceCountsByCategory);
+  if (popularCategoryId) {
+    addCategoryBadge(badgesByCategory, popularCategoryId, {
+      label: 'Popular',
+      tone: 'success',
+    });
+  }
+
+  const providerScoresByCategory = new Map<string, number>();
+  providers.forEach((provider) => {
+    if (!provider.serviceId) {
+      return;
+    }
+
+    const categoryId = serviceCategoryById.get(provider.serviceId);
+    if (!categoryId) {
+      return;
+    }
+
+    const reviewWeight = Math.max(provider.reviewCount, 1);
+    const score = provider.averageRating * reviewWeight;
+    providerScoresByCategory.set(
+      categoryId,
+      (providerScoresByCategory.get(categoryId) ?? 0) + score,
+    );
+  });
+
+  const topProviderCategoryId = highestScoredKey(providerScoresByCategory);
+  if (topProviderCategoryId) {
+    addCategoryBadge(badgesByCategory, topProviderCategoryId, {
+      label: 'Top Providers',
+      tone: 'neutral',
+    });
+  }
+
+  return badgesByCategory;
+}
+
+function addCategoryBadge(
+  badgesByCategory: Map<string, CategoryBadge[]>,
+  categoryId: string,
+  badge: CategoryBadge,
+) {
+  badgesByCategory.set(categoryId, [
+    ...(badgesByCategory.get(categoryId) ?? []),
+    badge,
+  ]);
+}
+
+function highestScoredKey(scores: Map<string, number>): string | null {
+  let bestKey: string | null = null;
+  let bestScore = 0;
+
+  scores.forEach((score, key) => {
+    if (score > bestScore) {
+      bestKey = key;
+      bestScore = score;
+    }
+  });
+
+  return bestKey;
 }
 
 function completedRebookOptions(bookings: BookingSummary[]): BookingSummary[] {

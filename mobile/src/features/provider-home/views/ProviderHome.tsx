@@ -360,8 +360,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     justifyContent: 'center',
-    minHeight: spacing.xxl,
-    minWidth: spacing.xxl,
+    minHeight: 44,
+    minWidth: 44,
     position: 'relative',
   },
   unreadDot: {
@@ -407,7 +407,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
-    minHeight: spacing.xxl,
+    minHeight: 48,
     paddingHorizontal: spacing.base,
   },
   primaryActionText: {
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.xs,
     justifyContent: 'center',
-    minHeight: spacing.xxl,
+    minHeight: 44,
     paddingHorizontal: spacing.sm,
   },
   secondaryPillText: {
@@ -448,7 +448,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flex: 1,
     gap: spacing.xs,
-    minHeight: spacing.xxl * 3,
+    minHeight: 84,
     padding: spacing.md,
   },
   homePillDisabled: {
@@ -535,7 +535,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-    minHeight: spacing.xxl,
+    minHeight: 48,
     paddingHorizontal: spacing.md,
   },
   activeText: {

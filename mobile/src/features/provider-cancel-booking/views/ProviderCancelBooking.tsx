@@ -5,6 +5,7 @@ import {
   TopBar,
 } from '../../../components/DesignKit';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import { StickyFooter } from '../../../shared/components/ScreenLayout';
 import { useProviderCancelBookingViewModel } from '../viewModels/useProviderCancelBookingViewModel';
 
 type ProviderCancelBookingScreenProps = {
@@ -67,7 +68,7 @@ export function ProviderCancelBookingScreen({
           </Card>
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter>
         <PrimaryButton
           label="Cancel Booking"
           variant="danger"
@@ -77,8 +78,7 @@ export function ProviderCancelBookingScreen({
         <Text style={styles.footerLink} onPress={onKeepBooking}>
           Keep booking
         </Text>
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
@@ -90,8 +90,8 @@ const styles = StyleSheet.create({
     paddingBottom: 148,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   policyCard: {
     backgroundColor: palette.white,
@@ -102,14 +102,14 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   manageCopy: {
     color: palette.muted,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 22,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
     marginTop: spacing.xs,
   },
   radioGroup: {
@@ -140,33 +140,13 @@ const styles = StyleSheet.create({
   radioLabel: {
     color: palette.ink,
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-  },
-  stickyFooter: {
-    backgroundColor: palette.white,
-    borderTopColor: palette.lineSoft,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    padding: spacing.lg,
-    position: 'absolute',
-    right: 0,
   },
   footerLink: {
     color: palette.mint,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     textAlign: 'center',
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: '#111111',
-    borderRadius: radius.pill,
-    height: 4,
-    marginTop: spacing.xs,
-    opacity: 0.18,
-    width: 96,
   },
 });

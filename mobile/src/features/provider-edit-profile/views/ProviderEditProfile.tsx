@@ -5,8 +5,9 @@ import {
   PrimaryButton,
   TopBar,
 } from '../../../components/DesignKit';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, spacing, type } from '../../../theme/serveaseDesign';
 import { CurrentUserProfile } from '../../../shared/models/types';
+import { StickyFooter } from '../../../shared/components/ScreenLayout';
 import { useProviderEditProfileViewModel } from '../viewModels/useProviderEditProfileViewModel';
 
 type ProviderEditProfileScreenProps = {
@@ -73,7 +74,7 @@ export function ProviderEditProfileScreen({
           </Card>
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter>
         <PrimaryButton
           label={data.saveButtonLabel}
           onPress={onSaveProfile}
@@ -82,8 +83,7 @@ export function ProviderEditProfileScreen({
         <Text style={styles.footerLink} onPress={onBack}>
           Back to profile
         </Text>
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
@@ -95,37 +95,18 @@ const styles = StyleSheet.create({
     paddingBottom: 132,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   noticeText: {
     ...type.caption,
     color: palette.muted,
     textAlign: 'center',
   },
-  stickyFooter: {
-    backgroundColor: palette.white,
-    borderTopColor: palette.line,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    padding: spacing.xl,
-    position: 'absolute',
-    right: 0,
-  },
   footerLink: {
     color: palette.mint,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     textAlign: 'center',
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.line,
-    borderRadius: radius.pill,
-    height: 4,
-    marginTop: spacing.xs,
-    width: 132,
   },
 });

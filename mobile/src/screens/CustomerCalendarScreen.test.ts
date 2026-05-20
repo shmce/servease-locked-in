@@ -9,6 +9,10 @@ test('customer calendar screen mirrors provider calendar for customer bookings',
     'utf8',
   );
   const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const appRouterSource = readFileSync(
+    join(process.cwd(), 'src/legacy-router/AppRouter.tsx'),
+    'utf8',
+  );
   const viewSource = readFileSync(
     join(process.cwd(), 'src/features/customer-calendar/views/CustomerCalendar.tsx'),
     'utf8',
@@ -22,8 +26,9 @@ test('customer calendar screen mirrors provider calendar for customer bookings',
   );
 
   assert.match(screenSource, /features\/customer-calendar\/views\/CustomerCalendar/);
-  assert.match(appSource, /label: 'Calendar'/);
-  assert.match(appSource, /route\.screen === 'calendar' \? renderCustomerCalendar\(\)/);
+  assert.match(appSource, /calendar: renderCustomerCalendar/);
+  assert.match(appRouterSource, /label: 'Calendar'/);
+  assert.match(appRouterSource, /renderers\.customer\.calendar\(\)/);
   assert.match(viewSource, /title="Calendar"/);
   assert.match(viewSource, /Your upcoming service schedule/);
   assert.match(viewSource, /MonthCalendar/);

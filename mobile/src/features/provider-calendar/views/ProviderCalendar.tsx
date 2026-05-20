@@ -114,8 +114,8 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   legendRow: {
     flexDirection: 'row',
@@ -149,13 +149,13 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     marginTop: spacing.xs,
   },
 });
