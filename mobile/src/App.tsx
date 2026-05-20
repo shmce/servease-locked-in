@@ -2597,6 +2597,7 @@ export default function App() {
     return (
       <CustomerCategoryScreen
         categories={categories}
+        providers={providers}
         selectedCategoryId={selectedCategoryId}
         services={services}
         onBack={() => navigate('explore', 'customer')}
@@ -2916,6 +2917,7 @@ export default function App() {
         onMessagesLoaded={messagesFlow.actions.setMessages}
         onNotice={setNotice}
         onSelectConversation={messagesFlow.actions.setSelectedConversationId}
+        onDeselectConversation={() => messagesFlow.actions.setSelectedConversationId(null)}
         onSendMessage={messagesFlow.actions.sendMessage}
       />
     );

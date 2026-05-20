@@ -473,6 +473,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   card: {
     backgroundColor: palette.white,
@@ -511,6 +512,7 @@ const styles = StyleSheet.create({
   buttonText: {
     ...type.action,
     color: palette.white,
+    fontWeight: '700',
   },
   secondaryButtonText: {
     color: palette.mint,

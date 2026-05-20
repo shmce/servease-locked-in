@@ -61,8 +61,17 @@ export function useMessagesViewModel({
         const booking = conversation.bookingId
           ? conversationByBookingId.get(conversation.bookingId)
           : undefined;
+        const serviceName = booking?.serviceTitle ?? 'Booking conversation';
+        const counterparty =
+          conversationCounterpartyName(appRole, conversation, booking) ?? serviceName;
         return {
           conversation,
+          counterparty,
+          initial: counterparty.slice(0, 1).toUpperCase(),
+          serviceName,
+          timeLabel: conversation.lastMessageAt
+            ? formatDateTime(conversation.lastMessageAt)
+            : '',
           meta: `${booking?.bookingReference ?? 'Unlinked booking'} - ${
             conversation.lastMessageAt
               ? formatDateTime(conversation.lastMessageAt)
@@ -110,6 +119,14 @@ export function useMessagesViewModel({
     [apiOptions, onMessagesLoaded, onNotice, onSelectConversation],
   );
 
+  const threadTitle =
+    conversationCounterpartyName(
+      appRole,
+      selectedConversation,
+      selectedConversationBooking,
+    ) ?? 'Conversation';
+  const threadSubtitle = selectedConversationBooking?.serviceTitle ?? '';
+
   return {
     data: {
       attachDisabled: !hasSession || busyAction === 'upload-message_attachment',
@@ -122,6 +139,8 @@ export function useMessagesViewModel({
       threadEmptyLabel: selectedConversationId
         ? 'Say hi to start the conversation.'
         : 'Pick a conversation to start chatting.',
+      threadTitle,
+      threadSubtitle,
     },
     isLoading,
     error: null,

@@ -124,7 +124,7 @@ export function buildCustomerProviderProfileViewModel({
         {
           key: 'verification',
           label: 'Verification',
-          value: provider.verificationStatus,
+          value: provider.verificationStatus === 'approved' ? 'Verified' : 'Pending review',
         },
       ],
       activeAvailabilityWindows,
