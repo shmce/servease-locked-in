@@ -10,6 +10,12 @@ export class InvalidPricingRuleRequestError extends Error {
   }
 }
 
+export class PricingFuelSyncUnavailableError extends Error {
+  constructor() {
+    super('pricing_fuel_sync_unavailable');
+  }
+}
+
 export class PricingQuoteNotFoundError extends Error {
   constructor() {
     super('pricing_quote_not_found');

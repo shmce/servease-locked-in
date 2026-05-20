@@ -12,6 +12,7 @@ import {
   PayoutSummary,
   RecordPayoutEventRequest,
   RefundSummary,
+  SyncPricingFuelIndexRequest,
   UpsertPromotionRequest,
   UpsertPricingCategoryRuleRequest,
   UpdateCommissionRuleRequest,
@@ -275,6 +276,16 @@ export class PaymentServiceClient {
   ): Promise<PricingFuelIndexSummary> {
     return this.request<PricingFuelIndexSummary>(
       '/internal/pricing/admin/fuel-index',
+      'POST',
+      input,
+    );
+  }
+
+  syncPricingFuelIndexFromGasWatch(
+    input: SyncPricingFuelIndexRequest,
+  ): Promise<PricingFuelIndexSummary> {
+    return this.request<PricingFuelIndexSummary>(
+      '/internal/pricing/admin/fuel-index/sync',
       'POST',
       input,
     );

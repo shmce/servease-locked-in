@@ -135,6 +135,37 @@ describe("serveaseAdminApi", () => {
     expect(payments[0].status).toBe("cancelled");
   });
 
+  it("syncs the pricing fuel index from GasWatch PH through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "fuel-gaswatch-1",
+          region: "default",
+          fuelPricePerLiter: 89.84,
+          source: "gaswatch-ph:diesel:metro-manila-average",
+          effectiveAt: "2026-05-19T00:00:00.000Z",
+          createdBy: "admin-1",
+          createdAt: "2026-05-19T01:00:00.000Z",
+        },
+      }),
+    });
+
+    const { syncAdminPricingFuelIndexFromGasWatch } = await import("./serveaseAdminApi");
+    const row = await syncAdminPricingFuelIndexFromGasWatch("admin-token");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/pricing/fuel-index/sync",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          authorization: "Bearer admin-token",
+        }),
+      }),
+    );
+    expect(row.source).toBe("gaswatch-ph:diesel:metro-manila-average");
+  });
+
   it("syncs payment status with APICenter through the gateway", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

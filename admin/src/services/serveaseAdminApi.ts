@@ -2155,6 +2155,16 @@ export function createAdminPricingFuelIndex(
   })
 }
 
+export function syncAdminPricingFuelIndexFromGasWatch(
+  token: string,
+): Promise<AdminPricingFuelIndexSummary> {
+  return request<AdminPricingFuelIndexSummary>('/v1/admin/pricing/fuel-index/sync', {
+    method: 'POST',
+    token,
+    body: {},
+  })
+}
+
 export function listAdminPricingQuoteAudits(
   token: string,
 ): Promise<AdminPricingQuoteAuditSummary[]> {

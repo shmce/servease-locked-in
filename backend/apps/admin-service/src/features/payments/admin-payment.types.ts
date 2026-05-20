@@ -202,6 +202,11 @@ export interface CreatePricingFuelIndexRequest {
   adminUserId: string;
 }
 
+export interface SyncPricingFuelIndexRequest {
+  adminUserId?: string | null;
+  region?: string | null;
+}
+
 export interface PricingQuoteAuditSummary {
   quoteId: string;
   customerId: string;

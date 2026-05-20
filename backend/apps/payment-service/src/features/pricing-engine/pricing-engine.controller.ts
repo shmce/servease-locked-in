@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpException, Param, Post, Put } from '@nestjs/common';
 import {
+  PricingFuelSyncUnavailableError,
   InvalidPricingQuoteRequestError,
   InvalidPricingRuleRequestError,
   PricingQuoteExpiredError,
@@ -14,6 +15,7 @@ import {
   PricingQuoteAuditSummary,
   PricingQuoteSummary,
   PricingQuoteValidationResult,
+  SyncPricingFuelIndexInput,
   UpsertPricingCategoryRuleInput,
 } from './pricing-engine.types';
 
@@ -83,6 +85,19 @@ export class PricingEngineController {
     }
   }
 
+  @Post('admin/fuel-index/sync')
+  async syncFuelIndexFromGasWatch(
+    @Body() body: SyncPricingFuelIndexInput,
+  ): Promise<{ data: PricingFuelIndexSummary }> {
+    try {
+      return {
+        data: await this.pricingEngineService.syncFuelIndexFromGasWatch(body ?? {}),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get('admin/quote-audits')
   async listQuoteAudits(): Promise<{ data: PricingQuoteAuditSummary[] }> {
     try {
@@ -106,6 +121,14 @@ export class PricingEngineController {
         'invalid_pricing_rule_request',
         'Pricing rule request is invalid.',
         400,
+      );
+    }
+
+    if (error instanceof PricingFuelSyncUnavailableError) {
+      return this.error(
+        'pricing_fuel_sync_unavailable',
+        'GasWatch PH fuel price sync is unavailable.',
+        503,
       );
     }
 

@@ -4,6 +4,7 @@ import {
   PricingCategoryRuleSummary,
   PricingFuelIndexSummary,
   PricingQuoteAuditSummary,
+  SyncPricingFuelIndexRequest,
   UpsertPricingCategoryRuleRequest,
 } from './admin-payment.types';
 import { AdminServiceClient } from './clients/admin-service.client';
@@ -30,6 +31,12 @@ export class AdminPricingGatewayService {
     input: CreatePricingFuelIndexRequest,
   ): Promise<PricingFuelIndexSummary> {
     return this.adminServiceClient.createPricingFuelIndex(input);
+  }
+
+  syncFuelIndexFromGasWatch(
+    input: SyncPricingFuelIndexRequest,
+  ): Promise<PricingFuelIndexSummary> {
+    return this.adminServiceClient.syncPricingFuelIndexFromGasWatch(input);
   }
 
   listQuoteAudits(): Promise<PricingQuoteAuditSummary[]> {

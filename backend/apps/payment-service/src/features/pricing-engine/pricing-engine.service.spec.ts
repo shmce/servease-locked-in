@@ -1,10 +1,13 @@
+import { Test } from '@nestjs/testing';
 import {
   InvalidPricingQuoteRequestError,
   InvalidPricingRuleRequestError,
+  PricingFuelSyncUnavailableError,
   PricingQuoteExpiredError,
 } from './pricing-engine.errors';
 import { PricingEngineRepository } from './pricing-engine.repository';
 import { PricingEngineService } from './pricing-engine.service';
+import { PricingFuelPriceProvider } from './pricing-engine.types';
 
 describe('PricingEngineService', () => {
   const freshFuel = {
@@ -35,6 +38,24 @@ describe('PricingEngineService', () => {
     isActive: true,
     updatedAt: null,
   };
+
+  it('resolves through Nest dependency injection with the default fuel price provider', async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        PricingEngineService,
+        {
+          provide: PricingEngineRepository,
+          useValue: {},
+        },
+      ],
+    }).compile();
+
+    expect(moduleRef.get(PricingEngineService)).toBeInstanceOf(
+      PricingEngineService,
+    );
+
+    await moduleRef.close();
+  });
 
   it('calculates and persists a gas-aware fair quote', async () => {
     const repository = {
@@ -156,5 +177,95 @@ describe('PricingEngineService', () => {
       }),
     ).toThrow(InvalidPricingRuleRequestError);
     expect(repository.upsertRule).not.toHaveBeenCalled();
+  });
+
+  it('syncs the fuel index from GasWatch PH through payment-owned snapshots', async () => {
+    const repository = {
+      listFuelIndex: jest.fn().mockResolvedValue([]),
+      createFuelIndex: jest.fn(async (input) => ({
+        id: 'fuel-gaswatch-1',
+        region: input.region,
+        fuelPricePerLiter: input.fuelPricePerLiter,
+        source: input.source,
+        effectiveAt: input.effectiveAt,
+        createdBy: input.adminUserId,
+        createdAt: '2026-05-19T01:00:00.000Z',
+      })),
+    } as unknown as PricingEngineRepository;
+    const fuelPriceProvider = {
+      getLatestFuelPrice: jest.fn().mockResolvedValue({
+        region: 'default',
+        fuelType: 'diesel',
+        pricePerLiter: 89.84,
+        source: 'gaswatch-ph:diesel:metro-manila-average',
+        effectiveAt: '2026-05-19T00:00:00.000Z',
+      }),
+    } as PricingFuelPriceProvider;
+    const service = new PricingEngineService(repository, fuelPriceProvider);
+
+    const row = await service.syncFuelIndexFromGasWatch({
+      adminUserId: 'admin-1',
+    });
+
+    expect(fuelPriceProvider.getLatestFuelPrice).toHaveBeenCalled();
+    expect(repository.createFuelIndex).toHaveBeenCalledWith({
+      region: 'default',
+      fuelPricePerLiter: 89.84,
+      source: 'gaswatch-ph:diesel:metro-manila-average',
+      effectiveAt: '2026-05-19T00:00:00.000Z',
+      adminUserId: 'admin-1',
+    });
+    expect(row.source).toBe('gaswatch-ph:diesel:metro-manila-average');
+  });
+
+  it('returns the existing GasWatch PH snapshot when the source has not changed', async () => {
+    const existing = {
+      id: 'fuel-existing',
+      region: 'default',
+      fuelPricePerLiter: 89.84,
+      source: 'gaswatch-ph:diesel:metro-manila-average',
+      effectiveAt: '2026-05-19T00:00:00.000Z',
+      createdBy: null,
+      createdAt: '2026-05-19T01:00:00.000Z',
+    };
+    const repository = {
+      listFuelIndex: jest.fn().mockResolvedValue([existing]),
+      createFuelIndex: jest.fn(),
+    } as unknown as PricingEngineRepository;
+    const fuelPriceProvider = {
+      getLatestFuelPrice: jest.fn().mockResolvedValue({
+        region: 'default',
+        fuelType: 'diesel',
+        pricePerLiter: 89.84,
+        source: 'gaswatch-ph:diesel:metro-manila-average',
+        effectiveAt: '2026-05-19T00:00:00.000Z',
+      }),
+    } as PricingFuelPriceProvider;
+    const service = new PricingEngineService(repository, fuelPriceProvider);
+
+    await expect(service.syncFuelIndexFromGasWatch()).resolves.toBe(existing);
+    expect(repository.createFuelIndex).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when GasWatch PH returns an invalid fuel price', async () => {
+    const repository = {
+      listFuelIndex: jest.fn(),
+      createFuelIndex: jest.fn(),
+    } as unknown as PricingEngineRepository;
+    const fuelPriceProvider = {
+      getLatestFuelPrice: jest.fn().mockResolvedValue({
+        region: 'default',
+        fuelType: 'diesel',
+        pricePerLiter: 0,
+        source: 'gaswatch-ph:diesel:metro-manila-average',
+        effectiveAt: '2026-05-19T00:00:00.000Z',
+      }),
+    } as PricingFuelPriceProvider;
+    const service = new PricingEngineService(repository, fuelPriceProvider);
+
+    await expect(service.syncFuelIndexFromGasWatch()).rejects.toBeInstanceOf(
+      PricingFuelSyncUnavailableError,
+    );
+    expect(repository.createFuelIndex).not.toHaveBeenCalled();
   });
 });
