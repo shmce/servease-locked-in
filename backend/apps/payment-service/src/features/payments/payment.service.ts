@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InvalidPaymentRequestError } from './payment.errors';
 import {
   CreatePaymentInput,
+  ConfirmCashOnServicePaymentInput,
   CreatePayoutRequestInput,
   CustomerPaymentMethodSummary,
   PaymentSummary,
@@ -34,6 +35,19 @@ export class PaymentService {
     return this.paymentRepository.createPayment({
       ...input,
       paymentMethod: input.paymentMethod.trim(),
+    });
+  }
+
+  async confirmCashOnServicePayment(
+    input: ConfirmCashOnServicePaymentInput,
+  ): Promise<PaymentSummary> {
+    if (!input.bookingId?.trim()) {
+      throw new InvalidPaymentRequestError();
+    }
+
+    return this.paymentRepository.confirmCashOnServicePayment({
+      bookingId: input.bookingId.trim(),
+      providerId: input.providerId?.trim() || null,
     });
   }
 

@@ -700,7 +700,7 @@ export function completedBookingCount(statuses: BookingStatus[]): number {
 
 export function providerPayoutTotal(payments: PaymentSummary[]): number {
   return payments
-    .filter((payment) => payment.status === 'paid' || payment.status === 'pending')
+    .filter((payment) => payment.status === 'paid')
     .reduce((total, payment) => total + payment.providerPayout, 0);
 }
 

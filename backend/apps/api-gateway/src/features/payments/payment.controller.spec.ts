@@ -392,6 +392,38 @@ describe('PaymentController', () => {
     expect(paymentGatewayService.createCheckoutSession).not.toHaveBeenCalled();
   });
 
+  it('rejects checkout creation with non-APICenter payment methods', async () => {
+    const authTokenService = {
+      authenticate: jest.fn(),
+    } as unknown as AuthTokenService;
+    const paymentGatewayService = {
+      createCheckoutSession: jest.fn(),
+    } as unknown as PaymentGatewayService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      {} as unknown as BookingGatewayService,
+      authTokenService,
+      {} as unknown as CatalogServiceClient,
+    );
+
+    await expect(
+      controller.createCheckoutSession('Bearer token', undefined, {
+        bookingId: 'booking-1',
+        successUrl: 'https://servease.test/pay/success',
+        cancelUrl: 'https://servease.test/pay/cancel',
+        paymentMethods: ['cash_on_service' as never],
+      }),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_payment_request',
+        },
+      },
+    });
+    expect(authTokenService.authenticate).not.toHaveBeenCalled();
+    expect(paymentGatewayService.createCheckoutSession).not.toHaveBeenCalled();
+  });
+
   it('loads APICenter checkout status only after returned booking visibility is confirmed', async () => {
     const authTokenService = {
       authenticate: jest.fn().mockResolvedValue('customer-1'),

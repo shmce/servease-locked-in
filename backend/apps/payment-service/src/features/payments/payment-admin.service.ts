@@ -15,6 +15,7 @@ import {
   PayoutEventType,
   PayoutSummary,
   RecordPayoutEventInput,
+  ReleasePaymentToProviderInput,
   UpsertPromotionInput,
 } from './payment.types';
 import { SharedPaymentService } from './shared-payment.service';
@@ -204,6 +205,20 @@ export class PaymentAdminService {
       payoutId,
       status as PayoutStatus,
     );
+  }
+
+  async releasePaymentToProvider(
+    input: ReleasePaymentToProviderInput,
+  ): Promise<PayoutSummary> {
+    if (!input.paymentId?.trim() || !input.adminUserId?.trim()) {
+      throw new InvalidPaymentRequestError();
+    }
+
+    return this.paymentRepository.releasePaymentToProvider({
+      paymentId: input.paymentId.trim(),
+      adminUserId: input.adminUserId.trim(),
+      note: input.note?.trim() || null,
+    });
   }
 
   async listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {

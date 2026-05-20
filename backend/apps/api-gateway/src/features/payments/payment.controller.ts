@@ -56,6 +56,21 @@ const APICENTER_CHECKOUT_STATUSES = new Set([
   'partially_refunded',
 ]);
 const APICENTER_PAYMENT_PROVIDERS = new Set(['paymongo', 'mock']);
+const APICENTER_PAYMENT_METHODS = new Set([
+  'qrph',
+  'gcash',
+  'grab_pay',
+  'grabpay',
+  'paymaya',
+  'maya',
+  'card',
+  'visa',
+  'mastercard',
+  'dob',
+  'brankas',
+  'direct_online_banking',
+  'online_banking',
+]);
 
 @Controller('v1/payments')
 export class PaymentController {
@@ -152,7 +167,8 @@ export class PaymentController {
       if (
         !body.bookingId ||
         !this.isValidUrl(body.successUrl) ||
-        !this.isValidUrl(body.cancelUrl)
+        !this.isValidUrl(body.cancelUrl) ||
+        !this.areValidApicenterPaymentMethods(body.paymentMethods)
       ) {
         throw new InvalidPaymentRequestError();
       }
@@ -517,6 +533,15 @@ export class PaymentController {
     } catch {
       return false;
     }
+  }
+
+  private areValidApicenterPaymentMethods(
+    methods: string[] | undefined,
+  ): boolean {
+    return (
+      methods === undefined ||
+      methods.every((method) => APICENTER_PAYMENT_METHODS.has(method))
+    );
   }
 
   private assertApicenterWebhookSecret(provided: string | undefined): void {

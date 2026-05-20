@@ -52,6 +52,35 @@ test('Google auth opens APICenter authorization in the system browser, not WebVi
   assert.doesNotMatch(oauthSource, /WebView/);
 });
 
+test('customer payment flow refreshes server payment state after booking and checkout creation', () => {
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const bookingCreatedStart = source.indexOf('onBookingCreated: (booking) => {');
+  const bookingCreatedEnd = source.indexOf(
+    'onRefreshProviderAvailability:',
+    bookingCreatedStart,
+  );
+  const checkoutStart = source.indexOf('const checkout = await createCheckoutSession');
+  const checkoutEnd = source.indexOf('await Linking.openURL(checkout.redirectUrl);', checkoutStart);
+  const checkStatusStart = source.indexOf('async function checkSelectedPaymentStatus');
+  const checkStatusEnd = source.indexOf('async function collectPayment', checkStatusStart);
+  assert.notEqual(bookingCreatedStart, -1);
+  assert.notEqual(bookingCreatedEnd, -1);
+  assert.notEqual(checkoutStart, -1);
+  assert.notEqual(checkoutEnd, -1);
+  assert.notEqual(checkStatusStart, -1);
+  assert.notEqual(checkStatusEnd, -1);
+
+  const bookingCreatedSource = source.slice(bookingCreatedStart, bookingCreatedEnd);
+  const checkoutSource = source.slice(checkoutStart, checkoutEnd);
+  const checkStatusSource = source.slice(checkStatusStart, checkStatusEnd);
+
+  assert.match(bookingCreatedSource, /refreshPayments\(\)/);
+  assert.match(checkoutSource, /listPayments\(apiOptions\)/);
+  assert.match(checkoutSource, /setPayments\(nextPayments\)/);
+  assert.match(checkStatusSource, /nextPayment\?\.apicenterCheckoutId/);
+  assert.match(checkStatusSource, /reconcilePendingCheckout\(checkout\)/);
+});
+
 test('mobile manifest registers the Google auth callback scheme', () => {
   const manifest = JSON.parse(
     readFileSync(join(process.cwd(), 'app.json'), 'utf8'),

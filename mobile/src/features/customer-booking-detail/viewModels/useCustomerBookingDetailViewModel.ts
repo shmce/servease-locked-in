@@ -69,10 +69,15 @@ export function buildCustomerBookingDetailViewModel({
         label:
           selectedPayment.status === 'paid'
             ? 'Paid'
+            : selectedPayment.paymentMethod === 'cash_on_service'
+              ? 'Cash due on service'
             : `Payment ${selectedPayment.status}`,
         value: formatMoney(selectedPayment.amount),
       }
     : null;
+  const isOnlinePaymentPending =
+    selectedPayment?.status === 'pending' &&
+    selectedPayment.paymentMethod !== 'cash_on_service';
 
   return {
     data: {
@@ -84,8 +89,16 @@ export function buildCustomerBookingDetailViewModel({
         booking.providerBusinessName ??
         selectedProvider?.providerBusinessName ??
         'Provider details unavailable',
-      reservePaymentDisabled: Boolean(selectedPayment),
-      reservePaymentLabel: selectedPayment ? 'Payment reserved' : 'Reserve payment',
+      reservePaymentDisabled: Boolean(selectedPayment) && !isOnlinePaymentPending,
+      reservePaymentLabel: selectedPayment
+        ? isOnlinePaymentPending
+          ? 'Check payment status'
+          : selectedPayment.status === 'paid'
+            ? 'Payment paid'
+            : selectedPayment.paymentMethod === 'cash_on_service'
+              ? 'Cash due on service'
+              : 'Payment reserved'
+        : 'Reserve payment',
       scheduleLabel: `The service provider will start - ${formatDateTime(
         booking.scheduledAt,
       )}`,

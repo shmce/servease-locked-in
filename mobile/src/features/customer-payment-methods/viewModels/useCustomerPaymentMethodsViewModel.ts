@@ -12,9 +12,9 @@ type CustomerPaymentAction = {
 };
 
 const paymentActions: CustomerPaymentAction[] = [
-  { methodType: 'gcash', label: 'Add GCash', busyAction: 'customer-payment-gcash' },
-  { methodType: 'paymaya', label: 'Add PayMaya', busyAction: 'customer-payment-paymaya' },
-  { methodType: 'card', label: 'Add New Card', busyAction: 'customer-payment-card' },
+  { methodType: 'gcash', label: 'Use GCash', busyAction: 'customer-payment-gcash' },
+  { methodType: 'paymaya', label: 'Use Maya', busyAction: 'customer-payment-paymaya' },
+  { methodType: 'card', label: 'Use Card', busyAction: 'customer-payment-card' },
 ];
 
 export function useCustomerPaymentMethodsViewModel({
@@ -29,6 +29,7 @@ export function useCustomerPaymentMethodsViewModel({
   const data = useMemo(() => {
     const methods = customerPaymentMethods.map((method) => ({
       method,
+      label: paymentMethodLabel(method.methodType),
       meta: paymentMethodMeta(method),
       selected: selectedMethodId === method.id,
       canDelete: method.methodType !== 'cash_on_service',
@@ -50,4 +51,17 @@ export function useCustomerPaymentMethodsViewModel({
     isLoading: customerPaymentMethods.length === 0,
     error: null,
   };
+}
+
+function paymentMethodLabel(methodType: CustomerPaymentMethodType): string {
+  switch (methodType) {
+    case 'cash_on_service':
+      return 'Cash on service';
+    case 'gcash':
+      return 'GCash checkout';
+    case 'paymaya':
+      return 'Maya checkout';
+    case 'card':
+      return 'Card checkout';
+  }
 }

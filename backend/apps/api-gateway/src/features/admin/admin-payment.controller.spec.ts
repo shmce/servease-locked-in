@@ -151,4 +151,62 @@ describe('AdminPaymentController', () => {
     );
     expect(response.data.apicenterCheckoutStatus).toBe('paid');
   });
+
+  it('releases a paid payment to provider payout after resolving an admin user', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('admin-user-1'),
+    } as unknown as AuthTokenService;
+    const currentUserService = {
+      getCurrentUser: jest.fn().mockResolvedValue({
+        user: {
+          id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
+          role: 'admin',
+          status: 'active',
+        },
+      }),
+    } as unknown as CurrentUserService;
+    const adminPaymentGatewayService = {
+      releasePaymentToProvider: jest.fn().mockResolvedValue({
+        id: 'payout-1',
+        providerId: 'provider-1',
+        reference: 'PO-ABC123',
+        status: 'processing',
+      }),
+    } as unknown as AdminPaymentGatewayService;
+    const adminAuditGatewayService = {
+      createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+    } as unknown as AdminAuditGatewayService;
+    const controller = new AdminPaymentController(
+      adminPaymentGatewayService,
+      adminAuditGatewayService,
+      authTokenService,
+      currentUserService,
+    );
+
+    const response = await controller.releasePaymentToProvider(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      'payment-1',
+      { note: 'Release after completion' },
+    );
+
+    expect(adminPaymentGatewayService.releasePaymentToProvider).toHaveBeenCalledWith(
+      'payment-1',
+      'admin-user-1',
+      'Release after completion',
+    );
+    expect(adminAuditGatewayService.createAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'Released payment to provider payout',
+        entityId: 'payment-1',
+        metadata: expect.objectContaining({
+          payoutId: 'payout-1',
+          status: 'processing',
+        }),
+      }),
+    );
+    expect(response.data.id).toBe('payout-1');
+  });
 });

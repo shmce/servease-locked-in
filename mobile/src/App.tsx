@@ -157,6 +157,19 @@ import {
   syncExpoPushRegistration,
 } from './shared/models/apiService';
 
+type PendingCheckout = {
+  checkoutId: string;
+  bookingId: string;
+};
+
+const CHECKOUT_RECONCILE_RETRY_DELAYS_MS = [
+  2000,
+  5000,
+  10000,
+  15000,
+  30000,
+] as const;
+
 const AuthScreens = lazy(() =>
   import('./features/auth/views/AuthScreens').then((module) => ({
     default: module.AuthScreens,
@@ -467,10 +480,9 @@ export default function App() {
   const [providers, setProviders] = useState<ProviderListing[]>([]);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [payments, setPayments] = useState<PaymentSummary[]>([]);
-  const [pendingCheckout, setPendingCheckout] = useState<{
-    checkoutId: string;
-    bookingId: string;
-  } | null>(null);
+  const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(
+    null,
+  );
   const [customerPaymentMethods, setCustomerPaymentMethods] = useState<
     CustomerPaymentMethodSummary[]
   >([]);
@@ -534,6 +546,9 @@ export default function App() {
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const lastPushRegistrationKey = useRef<string | null>(null);
   const reconcilingCheckoutRef = useRef(false);
+  const checkoutReconcileRetryRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const payoutIdempotencyKeyRef = useRef<string | null>(null);
   const [providerPortfolioPhotoUri, setProviderPortfolioPhotoUri] = useState<string | null>(null);
   const [providerPortfolioPhotoUrl, setProviderPortfolioPhotoUrl] = useState<string | null>(null);
@@ -606,6 +621,7 @@ export default function App() {
       setBookings((current) => [booking, ...current]);
       setSelectedBookingId(booking.id);
       void refreshBookingTimelineEvents(booking.id);
+      void refreshPayments();
     },
     onRefreshProviderAvailability: (providerId) => {
       void refreshSelectedProviderAvailability(providerId);
@@ -649,6 +665,9 @@ export default function App() {
   });
   const loadCatalog = useStableCallback(loadCatalogImpl);
   const completeGoogleSignIn = useStableCallback(completeGoogleSignInImpl);
+  const clearCheckoutReconcileRetry = useStableCallback(
+    clearCheckoutReconcileRetryImpl,
+  );
   const reconcilePendingCheckout = useStableCallback(
     reconcilePendingCheckoutImpl,
   );
@@ -671,6 +690,7 @@ export default function App() {
   const providerServiceFlow = useProviderServiceFlowViewModel({
     apiOptions,
     onBookingUpdated: replaceBooking,
+    onPaymentsRefresh: refreshPayments,
     onRefreshBookingTimelineEvents: (bookingId) => {
       void refreshBookingTimelineEvents(bookingId);
     },
@@ -679,6 +699,7 @@ export default function App() {
     },
     onServiceUpdateCreated: upsertBookingServiceUpdate,
     selectedBooking: selectedBooking ?? null,
+    selectedPayment: selectedPayment ?? null,
     setBusyAction,
     setNotice,
     setProviderRoute: (screen) => setRoute({ role: 'provider', screen }),
@@ -810,6 +831,7 @@ export default function App() {
 
   useEffect(() => {
     if (!session?.accessToken || !pendingCheckout) {
+      clearCheckoutReconcileRetry();
       return undefined;
     }
 
@@ -835,8 +857,14 @@ export default function App() {
     return () => {
       linkingSubscription.remove();
       appStateSubscription.remove();
+      clearCheckoutReconcileRetry();
     };
-  }, [session?.accessToken, pendingCheckout, reconcilePendingCheckout]);
+  }, [
+    session?.accessToken,
+    pendingCheckout,
+    clearCheckoutReconcileRetry,
+    reconcilePendingCheckout,
+  ]);
 
   useEffect(() => {
     const trackingScreens: AppScreen[] = [
@@ -1583,6 +1611,10 @@ export default function App() {
     }
   }
 
+  async function refreshPayments() {
+    setPayments(await listPayments(apiOptions));
+  }
+
   async function transitionSelectedBooking(
     nextStatus: BookingStatus,
     reason?: string | null,
@@ -1760,10 +1792,41 @@ export default function App() {
     await Linking.openURL(calendarUrl);
   }
 
+  function clearCheckoutReconcileRetryImpl(): void {
+    if (!checkoutReconcileRetryRef.current) {
+      return;
+    }
+
+    clearTimeout(checkoutReconcileRetryRef.current);
+    checkoutReconcileRetryRef.current = null;
+  }
+
+  function scheduleCheckoutReconcileRetry(
+    checkout: PendingCheckout,
+    attempt: number,
+  ): void {
+    const delay = CHECKOUT_RECONCILE_RETRY_DELAYS_MS[attempt];
+    if (!session?.accessToken || delay === undefined) {
+      return;
+    }
+
+    clearCheckoutReconcileRetry();
+    checkoutReconcileRetryRef.current = setTimeout(() => {
+      checkoutReconcileRetryRef.current = null;
+      void reconcilePendingCheckout(checkout, attempt + 1);
+    }, delay);
+  }
+
   async function reconcilePendingCheckoutImpl(
     checkout = pendingCheckout,
+    attempt = 0,
   ): Promise<void> {
-    if (!checkout || !session?.accessToken || reconcilingCheckoutRef.current) {
+    if (
+      !checkout ||
+      !session?.accessToken ||
+      reconcilingCheckoutRef.current ||
+      (pendingCheckout && checkout.checkoutId !== pendingCheckout.checkoutId)
+    ) {
       return;
     }
 
@@ -1782,24 +1845,81 @@ export default function App() {
         'refunded',
         'partially_refunded',
       ];
-      if (finalStatuses.includes(status.status)) {
+      const isPaid = status.localPaymentStatus === 'paid' || status.status === 'paid';
+      const isFinal = isPaid || finalStatuses.includes(status.status);
+      if (isFinal) {
         setPendingCheckout((current) =>
           current?.checkoutId === checkout.checkoutId ? null : current,
         );
+        clearCheckoutReconcileRetry();
       }
 
-      if (status.localPaymentStatus === 'paid' || status.status === 'paid') {
+      if (isPaid) {
         setNotice('Checkout paid. Payment record updated.');
       } else if (status.status === 'created' || status.status === 'pending') {
         setNotice('Checkout is still pending.');
+        scheduleCheckoutReconcileRetry(checkout, attempt);
       } else {
         setNotice(`Checkout ${status.status}.`);
       }
     } catch (error) {
       setNotice(readError(error));
+      scheduleCheckoutReconcileRetry(checkout, attempt);
     } finally {
       reconcilingCheckoutRef.current = false;
       setBusyAction((current) => (current === 'payment-status' ? null : current));
+    }
+  }
+
+  async function checkSelectedPaymentStatus() {
+    if (!selectedPayment) {
+      setBusyAction('payment-status');
+      try {
+        setPayments(await listPayments(apiOptions));
+        setNotice('Payment status refreshed.');
+      } catch (error) {
+        setNotice(readError(error));
+      } finally {
+        setBusyAction(null);
+      }
+      return;
+    }
+
+    const checkoutId = selectedPayment.apicenterCheckoutId ?? null;
+    if (checkoutId && selectedBooking) {
+      const checkout = {
+        checkoutId,
+        bookingId: selectedBooking.id,
+      };
+      setPendingCheckout(checkout);
+      await reconcilePendingCheckout(checkout);
+      return;
+    }
+
+    setBusyAction('payment-status');
+    try {
+      const nextPayments = await listPayments(apiOptions);
+      setPayments(nextPayments);
+      const nextPayment = selectedBooking
+        ? nextPayments.find((payment) => payment.bookingId === selectedBooking.id)
+        : null;
+      if (
+        nextPayment?.apicenterCheckoutId &&
+        nextPayment.status === 'pending'
+      ) {
+        const checkout = {
+          checkoutId: nextPayment.apicenterCheckoutId,
+          bookingId: nextPayment.bookingId,
+        };
+        setPendingCheckout(checkout);
+        await reconcilePendingCheckout(checkout);
+      } else {
+        setNotice('Payment status refreshed.');
+      }
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
     }
   }
 
@@ -1847,6 +1967,8 @@ export default function App() {
           checkoutId: checkout.checkoutId,
           bookingId: selectedBooking.id,
         });
+        const nextPayments = await listPayments(apiOptions).catch(() => payments);
+        setPayments(nextPayments);
         await Linking.openURL(checkout.redirectUrl);
         setNotice('Secure checkout opened. Return after completing payment.');
       } else {
@@ -2113,18 +2235,18 @@ export default function App() {
         last4: null,
       },
       card: {
-        label: 'Card ending 4242',
-        brand: 'Visa',
-        last4: '4242',
+        label: 'Card checkout',
+        brand: null,
+        last4: null,
       },
       gcash: {
-        label: 'GCash wallet',
-        brand: 'GCash',
+        label: 'GCash checkout',
+        brand: null,
         last4: null,
       },
       paymaya: {
-        label: 'PayMaya wallet',
-        brand: 'PayMaya',
+        label: 'Maya checkout',
+        brand: null,
         last4: null,
       },
     };
@@ -2145,7 +2267,7 @@ export default function App() {
       ]);
       setCustomerPaymentMethods(methods);
       setSelectedCustomerPaymentMethodId(method.id);
-      setNotice(`${method.label} selected.`);
+      setNotice(`${method.label} selected for checkout.`);
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -2732,6 +2854,7 @@ export default function App() {
           customerBookingFlow.actions.setPromotionValidation(null);
         }}
         onApplyPromotionCode={customerBookingFlow.actions.applyPromotionCode}
+        onCheckPaymentStatus={checkSelectedPaymentStatus}
         onReservePayment={reservePayment}
       />
     );
@@ -2813,7 +2936,16 @@ export default function App() {
         }}
         onManageBooking={() => navigate('customerBookingManage', 'customer')}
         onMessage={() => void messagesFlow.actions.openSelectedBookingConversation()}
-        onReservePayment={() => navigate('customerReservePayment', 'customer')}
+        onReservePayment={() => {
+          if (
+            selectedPayment?.status === 'pending' &&
+            selectedPayment.paymentMethod !== 'cash_on_service'
+          ) {
+            void checkSelectedPaymentStatus();
+          } else {
+            navigate('customerReservePayment', 'customer');
+          }
+        }}
         onRatingChange={setRating}
         onReviewTextChange={setReviewText}
         onSubmitReview={() => void submitReview()}

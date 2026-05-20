@@ -13,6 +13,8 @@ type ProviderRequestPayoutViewModelInput = {
   busyAction: string | null;
 };
 
+const PROVIDER_PAYOUT_RAIL_FEE = 10;
+
 export function useProviderRequestPayoutViewModel({
   payoutAccount,
   payoutMethods,
@@ -53,8 +55,10 @@ export function buildProviderRequestPayoutViewModel({
     payoutMethods[0] ??
     null;
   const isValidPositiveAmount = Number.isFinite(amount) && amount > 0;
-  const fee = isValidPositiveAmount ? amount * 0.025 : 0;
-  const netAmount = isValidPositiveAmount ? amount - fee : 0;
+  const fee = isValidPositiveAmount
+    ? Math.min(amount, PROVIDER_PAYOUT_RAIL_FEE)
+    : 0;
+  const netAmount = isValidPositiveAmount ? Math.max(amount - fee, 0) : 0;
   const availableBalance = payoutAccount?.availableBalance ?? 0;
   const canSubmit =
     Boolean(selectedMethod) &&

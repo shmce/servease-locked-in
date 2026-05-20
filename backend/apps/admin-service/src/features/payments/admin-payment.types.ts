@@ -42,6 +42,7 @@ export interface RecordPaymentFailureRequest {
 
 export interface PayoutSummary {
   id: string;
+  paymentId: string | null;
   providerId: string;
   amount: number;
   processingFee: number;

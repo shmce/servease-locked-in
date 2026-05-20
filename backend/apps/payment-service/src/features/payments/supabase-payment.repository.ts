@@ -1,8 +1,12 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { createSupabaseServiceClient } from '../../../../../libs/common/src';
-import { PaymentNotFoundError } from './payment.errors';
+import {
+  InvalidPaymentRequestError,
+  PaymentNotFoundError,
+} from './payment.errors';
 import {
   CreatePaymentInput,
+  ConfirmCashOnServicePaymentInput,
   ApicenterCheckoutSyncSummary,
   CommissionRuleStatus,
   CommissionRuleSummary,
@@ -24,6 +28,7 @@ import {
   PayoutEventType,
   PayoutSummary,
   RecordPayoutEventInput,
+  ReleasePaymentToProviderInput,
   RecordApicenterCheckoutInput,
   UpsertPayoutMethodInput,
   CreatePayoutRequestInput,
@@ -118,6 +123,7 @@ interface CommissionRuleRow {
 
 interface PayoutRow {
   id: string;
+  payment_id: string | null;
   provider_id: string;
   amount: string | number | null;
   processing_fee: string | number | null;
@@ -248,6 +254,33 @@ export class SupabasePaymentRepository {
 
     if (error) {
       throw new Error(`Failed to create payment: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPayment(data as PaymentRow);
+  }
+
+  async confirmCashOnServicePayment(
+    input: ConfirmCashOnServicePaymentInput,
+  ): Promise<PaymentSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_confirm_cash_on_service_payment', {
+        p_booking_id: input.bookingId,
+        p_provider_id: input.providerId ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      if (error.message.includes('invalid_payment_request')) {
+        throw new InvalidPaymentRequestError();
+      }
+      throw new Error(`Failed to confirm cash payment: ${error.message}`);
     }
 
     if (!data) {
@@ -576,6 +609,34 @@ export class SupabasePaymentRepository {
         throw new PaymentNotFoundError();
       }
       throw new Error(`Failed to update payout: ${error.message}`);
+    }
+
+    if (!data) {
+      throw new PaymentNotFoundError();
+    }
+
+    return this.mapPayout(data as PayoutRow);
+  }
+
+  async releasePaymentToProvider(
+    input: ReleasePaymentToProviderInput,
+  ): Promise<PayoutSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_release_payment_to_provider', {
+        p_payment_id: input.paymentId,
+        p_admin_user_id: input.adminUserId,
+        p_note: input.note ?? null,
+      })
+      .maybeSingle();
+
+    if (error) {
+      if (error.message.includes('payment_not_found')) {
+        throw new PaymentNotFoundError();
+      }
+      if (error.message.includes('invalid_payment_request')) {
+        throw new InvalidPaymentRequestError();
+      }
+      throw new Error(`Failed to release payment: ${error.message}`);
     }
 
     if (!data) {
@@ -1029,6 +1090,7 @@ export class SupabasePaymentRepository {
   private mapPayout(row: PayoutRow): PayoutSummary {
     return {
       id: row.id,
+      paymentId: row.payment_id ?? null,
       providerId: row.provider_id,
       amount: Number(row.amount ?? 0),
       processingFee: Number(row.processing_fee ?? 0),

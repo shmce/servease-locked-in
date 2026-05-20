@@ -42,6 +42,11 @@ export interface CreatePaymentInput {
   paymentMethod: string;
 }
 
+export interface ConfirmCashOnServicePaymentInput {
+  bookingId: string;
+  providerId?: string | null;
+}
+
 export interface PromotionValidationSummary {
   code: string;
   valid: boolean;
@@ -141,6 +146,7 @@ export interface UpsertPayoutMethodInput {
 
 export interface PayoutSummary {
   id: string;
+  paymentId: string | null;
   providerId: string;
   amount: number;
   processingFee: number;
@@ -175,6 +181,12 @@ export interface RecordPayoutEventInput {
   bankReference?: string | null;
   note?: string | null;
   adminUserId?: string | null;
+}
+
+export interface ReleasePaymentToProviderInput {
+  paymentId: string;
+  adminUserId: string;
+  note?: string | null;
 }
 
 export interface RefundSummary {

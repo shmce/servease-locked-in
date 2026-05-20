@@ -37,6 +37,7 @@ type CustomerReservePaymentScreenProps = {
   onSavePaymentMethod: (methodType: CustomerPaymentMethodType) => Promise<void>;
   onPromoCodeChange: (value: string) => void;
   onApplyPromotionCode: () => Promise<unknown>;
+  onCheckPaymentStatus: () => Promise<void>;
   onReservePayment: () => Promise<void>;
 };
 
@@ -52,6 +53,7 @@ export function CustomerReservePaymentScreen({
   onSavePaymentMethod,
   onPromoCodeChange,
   onApplyPromotionCode,
+  onCheckPaymentStatus,
   onReservePayment,
 }: CustomerReservePaymentScreenProps) {
   const reservePayment = useCustomerReservePaymentViewModel({
@@ -71,10 +73,10 @@ export function CustomerReservePaymentScreen({
         <View style={styles.content}>
           <View style={styles.noticeBox}>
             <Text style={styles.cardBody}>
-              Cash-on-service reserves the booking in ServEase. Cards and wallets open secure APICenter checkout.
+              {data.statusNotice}
             </Text>
           </View>
-          <Section title="Saved payment methods">
+          <Section title="Checkout method">
             {data.hasPaymentMethods ? (
               data.paymentMethods.map((item) => (
                 <Pressable
@@ -99,7 +101,7 @@ export function CustomerReservePaymentScreen({
                     size={22}
                   />
                   <View style={styles.flex}>
-                    <Text style={styles.cardTitle}>{item.method.label}</Text>
+                    <Text style={styles.cardTitle}>{item.label}</Text>
                     <Text style={styles.cardMeta}>{item.meta}</Text>
                   </View>
                 </Pressable>
@@ -108,7 +110,7 @@ export function CustomerReservePaymentScreen({
               <ActivityIndicator color={palette.mint} />
             )}
             <PrimaryButton
-              label="ADD NEW CARD"
+              label="Use Card"
               variant="secondary"
               onPress={() => void onSavePaymentMethod('card')}
             />
@@ -116,8 +118,10 @@ export function CustomerReservePaymentScreen({
           <Card>
             <View style={styles.rowBetween}>
               <View>
-                <Text style={styles.cardTitle}>Wallet options</Text>
-                <Text style={styles.cardMeta}>GCash and PayMaya use secure checkout</Text>
+                <Text style={styles.cardTitle}>Wallet checkout</Text>
+                <Text style={styles.cardMeta}>
+                  GCash and Maya details are entered in APICenter
+                </Text>
               </View>
               <View style={styles.inlineActions}>
                 <Pressable
@@ -130,7 +134,7 @@ export function CustomerReservePaymentScreen({
                   style={styles.smallAction}
                   onPress={() => void onSavePaymentMethod('paymaya')}
                 >
-                  <Text style={styles.smallActionText}>PayMaya</Text>
+                  <Text style={styles.smallActionText}>Maya</Text>
                 </Pressable>
               </View>
             </View>
@@ -170,7 +174,16 @@ export function CustomerReservePaymentScreen({
       <StickyFooter>
         <PrimaryButton
           label={data.confirmLabel}
-          onPress={() => void onReservePayment()}
+          onPress={() => {
+            if (
+              selectedPayment?.status === 'pending' &&
+              selectedPayment.paymentMethod !== 'cash_on_service'
+            ) {
+              void onCheckPaymentStatus();
+            } else {
+              void onReservePayment();
+            }
+          }}
           disabled={data.confirmDisabled}
         />
       </StickyFooter>

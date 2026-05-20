@@ -149,6 +149,7 @@ export interface RecordPaymentFailureRequest {
 
 export interface AdminPayoutSummary {
   id: string
+  paymentId: string | null
   providerId: string
   amount: number
   processingFee: number
@@ -942,6 +943,21 @@ export function syncAdminPaymentWithApicenter(
     {
       method: 'POST',
       token,
+    },
+  )
+}
+
+export function releaseAdminPaymentToProvider(
+  token: string,
+  paymentId: string,
+  note?: string | null,
+): Promise<AdminPayoutSummary> {
+  return request<AdminPayoutSummary>(
+    `/v1/admin/payments/${encodeURIComponent(paymentId)}/release`,
+    {
+      method: 'POST',
+      token,
+      body: { note: note ?? null },
     },
   )
 }

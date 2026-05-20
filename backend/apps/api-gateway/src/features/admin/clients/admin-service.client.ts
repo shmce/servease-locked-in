@@ -360,6 +360,21 @@ export class AdminServiceClient {
     );
   }
 
+  releasePaymentToProvider(
+    paymentId: string,
+    adminUserId: string,
+    note?: string | null,
+  ): Promise<PayoutSummary> {
+    return this.request<PayoutSummary>(
+      `/internal/admin/payments/${paymentId}/release`,
+      'POST',
+      {
+        adminUserId,
+        note: note ?? null,
+      },
+    );
+  }
+
   listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {
     return this.request<PayoutEventSummary[]>(
       `/internal/admin/payments/payouts/${payoutId}/events`,

@@ -40,6 +40,24 @@ export function buildProviderCompleteServiceViewModel({
   completionPhotoUrl,
   payment,
 }: ProviderCompleteServiceViewModelInput) {
+  const isCashPayment = payment?.paymentMethod === 'cash_on_service';
+  const isOnlinePayment = Boolean(payment?.paymentMethod && !isCashPayment);
+  const isOnlinePaymentBlocked = isOnlinePayment && payment?.status !== 'paid';
+  const paymentStatusLabel = payment
+    ? isCashPayment && payment.status === 'pending'
+      ? 'Cash due on service'
+      : payment.status === 'paid'
+        ? 'Paid'
+        : `Payment ${payment.status}`
+    : 'No payment record';
+  const paymentNotice = isOnlinePaymentBlocked
+    ? 'Customer online payment is still pending. Refresh the booking after the customer completes checkout.'
+    : isCashPayment && payment?.status === 'pending'
+      ? 'Cash collection will be marked paid when completion succeeds.'
+      : payment?.status === 'paid'
+        ? 'Payment is ready for service completion.'
+        : 'Payment record is not loaded. The backend will verify payment before completion.';
+
   return {
     data: {
       bookingReference: booking.bookingReference,
@@ -47,7 +65,16 @@ export function buildProviderCompleteServiceViewModel({
         ? 'Replace completion photo'
         : 'Add completion photo',
       completionPhotoUploaded: Boolean(completionPhotoUrl),
-      submitDisabled: busyAction === 'booking-completed',
+      paymentNotice,
+      paymentStatusLabel,
+      submitDisabled:
+        busyAction === 'service-complete' || isOnlinePaymentBlocked,
+      submitLabel:
+        busyAction === 'service-complete'
+          ? 'Completing...'
+          : isOnlinePaymentBlocked
+            ? 'Awaiting payment'
+            : 'Mark as Completed',
       summaryRows: [
         {
           key: 'service',
@@ -63,6 +90,11 @@ export function buildProviderCompleteServiceViewModel({
           key: 'provider-payout',
           label: 'Provider payout',
           value: formatMoney(payment?.providerPayout ?? booking.totalAmount),
+        },
+        {
+          key: 'payment-status',
+          label: 'Payment status',
+          value: paymentStatusLabel,
         },
       ],
     },

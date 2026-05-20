@@ -83,6 +83,23 @@ export class PaymentController {
     }
   }
 
+  @Post('bookings/:bookingId/cash-on-service/confirm')
+  async confirmCashOnServicePayment(
+    @Param('bookingId') bookingId: string,
+    @Body() body: { providerId?: string | null },
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.paymentService.confirmCashOnServicePayment({
+          bookingId,
+          providerId: body.providerId ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Post('promotions/validate')
   async validatePromotion(
     @Body()

@@ -68,6 +68,7 @@ export function ProviderCompleteServiceScreen({
           </Card>
           <Card>
             <Text style={styles.cardTitle}>Completion summary</Text>
+            <Text style={styles.noticeText}>{data.paymentNotice}</Text>
             {data.summaryRows.map((row) => (
               <View key={row.key} style={styles.infoRow}>
                 <Text style={styles.infoLabel}>{row.label}</Text>
@@ -98,7 +99,7 @@ export function ProviderCompleteServiceScreen({
       </ScrollView>
       <StickyFooter maxWidth={420}>
         <PrimaryButton
-          label="Mark as Completed"
+          label={data.submitLabel}
           onPress={() => void onCompleteService()}
           disabled={data.submitDisabled}
         />

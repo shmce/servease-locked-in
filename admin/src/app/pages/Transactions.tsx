@@ -45,16 +45,20 @@ import {
   Receipt,
   RefreshCw,
   Search,
+  Send,
   TrendingUp,
   XCircle,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  listAdminPayouts,
   listAdminPayments,
+  releaseAdminPaymentToProvider,
   syncAdminPaymentWithApicenter,
   updateAdminPaymentStatus,
   type AdminPaymentStatus,
   type AdminPaymentSummary,
+  type AdminPayoutSummary,
 } from "../../services/serveaseAdminApi";
 import { toast } from "sonner";
 import { usePersistentState } from "../../hooks/usePersistentState";
@@ -112,6 +116,7 @@ function getStatusBadge(status: AdminPaymentStatus) {
 export function Transactions() {
   const { accessToken } = useAuth();
   const [payments, setPayments] = useState<AdminPaymentSummary[]>([]);
+  const [payouts, setPayouts] = useState<AdminPayoutSummary[]>([]);
   const [searchTerm, setSearchTerm] = usePersistentState(
     "servease_admin_transactions_search",
     "",
@@ -128,7 +133,10 @@ export function Transactions() {
   const [error, setError] = useState<string | null>(null);
   const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
   const [syncingPaymentId, setSyncingPaymentId] = useState<string | null>(null);
+  const [releasingPaymentId, setReleasingPaymentId] = useState<string | null>(null);
   const [selectedPayment, setSelectedPayment] = useState<AdminPaymentSummary | null>(null);
+  const [pendingReleasePayment, setPendingReleasePayment] =
+    useState<AdminPaymentSummary | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     payment: AdminPaymentSummary;
     nextStatus: AdminPaymentStatus;
@@ -141,11 +149,15 @@ export function Transactions() {
     setError(null);
 
     try {
-      const data = await listAdminPayments(
-        accessToken,
-        statusFilter === "all" ? null : statusFilter,
-      );
-      setPayments(data);
+      const [paymentData, payoutData] = await Promise.all([
+        listAdminPayments(
+          accessToken,
+          statusFilter === "all" ? null : statusFilter,
+        ),
+        listAdminPayouts(accessToken),
+      ]);
+      setPayments(paymentData);
+      setPayouts(payoutData);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load payments.");
     } finally {
@@ -162,6 +174,13 @@ export function Transactions() {
       new Set(payments.map((payment) => payment.paymentMethod).filter(Boolean) as string[]),
     ).sort();
   }, [payments]);
+  const releasedPaymentIds = useMemo(() => {
+    return new Set(
+      payouts
+        .map((payout) => payout.paymentId)
+        .filter((paymentId): paymentId is string => Boolean(paymentId)),
+    );
+  }, [payouts]);
 
   const filteredPayments = useMemo(() => {
     const normalizedSearch = searchTerm.toLowerCase();
@@ -246,6 +265,34 @@ export function Transactions() {
       );
     } finally {
       setSyncingPaymentId(null);
+    }
+  };
+
+  const releasePayment = async () => {
+    if (!accessToken || !pendingReleasePayment) return;
+
+    const payment = pendingReleasePayment;
+    setReleasingPaymentId(payment.id);
+    try {
+      const payout = await releaseAdminPaymentToProvider(
+        accessToken,
+        payment.id,
+        "Released from admin transactions.",
+      );
+      setPayouts((current) => [
+        payout,
+        ...current.filter((item) => item.id !== payout.id),
+      ]);
+      toast.success(`Payment released as payout ${payout.reference ?? payout.id}.`);
+      setPendingReleasePayment(null);
+    } catch (releaseError) {
+      toast.error(
+        releaseError instanceof Error
+          ? releaseError.message
+          : "Unable to release payment to provider.",
+      );
+    } finally {
+      setReleasingPaymentId(null);
     }
   };
 
@@ -449,18 +496,19 @@ export function Transactions() {
                   <TableHead>Date</TableHead>
                   <TableHead>Details</TableHead>
                   <TableHead>Update</TableHead>
+                  <TableHead>Release</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={14} className="text-center py-8 text-gray-500">
                       Loading transactions...
                     </TableCell>
                   </TableRow>
                 ) : filteredPayments.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={13} className="text-center py-8 text-gray-500">
+                    <TableCell colSpan={14} className="text-center py-8 text-gray-500">
                       No transactions found
                     </TableCell>
                   </TableRow>
@@ -560,6 +608,33 @@ export function Transactions() {
                           </SelectContent>
                         </Select>
                       </TableCell>
+                      <TableCell>
+                        {releasedPaymentIds.has(payment.id) ? (
+                          <Badge className="bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]">
+                            Released
+                          </Badge>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setPendingReleasePayment(payment)}
+                            disabled={
+                              payment.status !== "paid" ||
+                              !payment.providerId ||
+                              payment.providerPayout <= 0 ||
+                              releasingPaymentId === payment.id
+                            }
+                            title={
+                              payment.status === "paid"
+                                ? "Release provider payout"
+                                : "Payment must be paid before release"
+                            }
+                          >
+                            <Send className="w-3 h-3 mr-1" />
+                            {releasingPaymentId === payment.id ? "Releasing..." : "Release"}
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -637,6 +712,35 @@ export function Transactions() {
               className="bg-[#16A34A] hover:bg-[#15803D]"
             >
               {updatingPaymentId ? "Updating..." : "Confirm Update"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!pendingReleasePayment}
+        onOpenChange={(open) => !open && setPendingReleasePayment(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Release payment to provider?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This creates a provider payout for payment{" "}
+              <span className="font-mono">{pendingReleasePayment?.id}</span>. The
+              release is idempotent if the payment was already released.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!releasingPaymentId}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void releasePayment();
+              }}
+              disabled={!!releasingPaymentId}
+              className="bg-[#16A34A] hover:bg-[#15803D]"
+            >
+              {releasingPaymentId ? "Releasing..." : "Release Payment"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

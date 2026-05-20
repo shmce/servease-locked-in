@@ -216,9 +216,10 @@ export const backendSupportMatrix: BackendSupportItem[] = [
     area: "Finance",
     screen: "Payouts, Refunds, Settlements, Commission",
     status: "partial",
-    currentSupport: "Payout requests, refund review, and settlement list/approve/reject actions are backend-backed with admin mutations and audit logs.",
+    currentSupport: "Payout requests, payment release, refund review, and settlement list/approve/reject actions are backend-backed with admin mutations and audit logs.",
     existingEndpoints: [
       "GET /v1/admin/payments/payouts",
+      "POST /v1/admin/payments/:paymentId/release",
       "PATCH /v1/admin/payments/payouts/:payoutId/status",
       "GET /v1/admin/refunds",
       "POST /v1/admin/refunds/:id/approve",
@@ -232,7 +233,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "POST /v1/admin/settlements/:id/reconcile",
     ],
     backendNeeded: [],
-    notes: "Settlement list uses payout summaries. Approval, rejection, release history, and bank-reference reconciliation are backed by payout events and admin audit logs.",
+    notes: "Settlement list uses payout summaries. Payment release creates a processing payout, while approval, rejection, release history, and bank-reference reconciliation are backed by payout events and admin audit logs.",
   },
   {
     area: "Marketing",

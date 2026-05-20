@@ -1455,6 +1455,7 @@ describe("serveaseAdminApi", () => {
       json: async () => ({
         data: {
           id: "payout-1",
+          paymentId: "payment-1",
           providerId: "provider-1",
           amount: 1000,
           processingFee: 20,
@@ -1485,6 +1486,48 @@ describe("serveaseAdminApi", () => {
     expect(payout.status).toBe("processing");
   });
 
+  it("releases paid payments to provider payouts through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "payout-1",
+          paymentId: "payment-1",
+          providerId: "provider-1",
+          amount: 850,
+          processingFee: 0,
+          netAmount: 850,
+          status: "processing",
+          payoutMethodId: "method-1",
+          methodType: "gcash",
+          accountLabel: "GCash **** 1234",
+          reference: "PO-ABC123",
+          periodStart: null,
+          periodEnd: null,
+          requestedAt: null,
+          paidAt: null,
+          createdAt: null,
+        },
+      }),
+    });
+
+    const { releaseAdminPaymentToProvider } = await import("./serveaseAdminApi");
+    const payout = await releaseAdminPaymentToProvider(
+      "admin-token",
+      "payment-1",
+      "Release completed service",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/payments/payment-1/release",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ note: "Release completed service" }),
+      }),
+    );
+    expect(payout.status).toBe("processing");
+  });
+
   it("lists settlements through the gateway", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -1492,6 +1535,7 @@ describe("serveaseAdminApi", () => {
         data: [
           {
             id: "payout-1",
+            paymentId: null,
             providerId: "provider-1",
             amount: 1000,
             processingFee: 20,
@@ -1529,6 +1573,7 @@ describe("serveaseAdminApi", () => {
       json: async () => ({
         data: {
           id: "payout-1",
+          paymentId: null,
           providerId: "provider-1",
           amount: 1000,
           processingFee: 20,

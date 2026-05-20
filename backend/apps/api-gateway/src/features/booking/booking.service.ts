@@ -7,6 +7,8 @@ import { CurrentUserIdentity } from '../current-user/current-user.types';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import { GeoServiceClient } from '../geo/clients/geo-service.client';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
+import { PaymentGatewayService } from '../payments/payment.service';
+import { PaymentSummary } from '../payments/payment.types';
 import { PricingGatewayService } from '../pricing/pricing.service';
 import {
   AddBookingAttachmentRequest,
@@ -41,6 +43,7 @@ export class BookingGatewayService {
     private readonly catalogServiceClient?: CatalogServiceClient,
     private readonly geoServiceClient?: GeoServiceClient,
     private readonly pricingGatewayService?: PricingGatewayService,
+    private readonly paymentGatewayService?: PaymentGatewayService,
   ) {}
 
   async createBooking(
@@ -50,6 +53,10 @@ export class BookingGatewayService {
     const bookingInput = await this.applyAcceptedQuote(customerId, input);
     const booking = await this.enrichBooking(
       await this.bookingServiceClient.createBooking(customerId, bookingInput),
+    );
+    await this.ensureCashPaymentReserved(
+      booking,
+      bookingInput.paymentMethod ?? 'cash_on_service',
     );
     await this.notifyProviderBookingCreated(booking);
     return booking;
@@ -177,6 +184,10 @@ export class BookingGatewayService {
       providerId,
     );
     this.assertActorCanTransition(visibleBooking, actorId, providerId, nextStatus);
+    const completionPayment = await this.assertPaymentAllowsCompletion(
+      visibleBooking,
+      nextStatus,
+    );
 
     const booking = await this.enrichBooking(
       await this.bookingServiceClient.transitionStatus(
@@ -188,8 +199,99 @@ export class BookingGatewayService {
         explanation,
       ),
     );
+    await this.confirmCashPaymentAfterCompletion(
+      booking,
+      nextStatus,
+      completionPayment,
+    );
     await this.notifyBookingStatusChanged(booking, actorId, providerId);
     return booking;
+  }
+
+  private async ensureCashPaymentReserved(
+    booking: BookingSummary,
+    paymentMethod: string | null | undefined,
+  ): Promise<void> {
+    if (
+      !this.paymentGatewayService ||
+      paymentMethod !== 'cash_on_service' ||
+      !Number.isFinite(booking.totalAmount) ||
+      booking.totalAmount <= 0
+    ) {
+      return;
+    }
+
+    await this.dispatchPaymentSideEffect(async () => {
+      await this.paymentGatewayService?.createPayment({
+        bookingId: booking.id,
+        customerId: booking.customerId,
+        providerId: booking.providerId,
+        amount: booking.totalAmount,
+        paymentMethod: 'cash_on_service',
+      });
+    });
+  }
+
+  private async assertPaymentAllowsCompletion(
+    booking: BookingSummary,
+    nextStatus: BookingStatus,
+  ): Promise<PaymentSummary | null> {
+    if (nextStatus !== 'completed' || !this.paymentGatewayService) {
+      return null;
+    }
+
+    const payment = await this.findPaymentForBooking(booking);
+    if (payment?.paymentMethod === 'cash_on_service') {
+      return payment;
+    }
+
+    if (!payment || payment.status !== 'paid') {
+      throw new InvalidBookingTransitionError();
+    }
+
+    return payment;
+  }
+
+  private async confirmCashPaymentAfterCompletion(
+    booking: BookingSummary,
+    nextStatus: BookingStatus,
+    payment: PaymentSummary | null,
+  ): Promise<void> {
+    if (
+      nextStatus !== 'completed' ||
+      payment?.paymentMethod !== 'cash_on_service' ||
+      !this.paymentGatewayService
+    ) {
+      return;
+    }
+
+    await this.paymentGatewayService.confirmCashOnServicePayment(
+      booking.id,
+      booking.providerId,
+    );
+  }
+
+  private async findPaymentForBooking(booking: BookingSummary) {
+    const payments = await this.paymentGatewayService?.listPayments({
+      customerId: booking.customerId,
+      providerId: booking.providerId,
+    });
+
+    return payments?.find((payment) => payment.bookingId === booking.id) ?? null;
+  }
+
+  private async dispatchPaymentSideEffect(
+    action: () => Promise<void>,
+  ): Promise<void> {
+    try {
+      await action();
+    } catch (error) {
+      this.logger.warn(
+        `Payment side effect failed: ${
+          error instanceof Error ? error.message : 'unknown error'
+        }`,
+      );
+    }
   }
 
   private async notifyProviderBookingCreated(

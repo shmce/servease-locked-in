@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpException, Param, Patch, Post, Query } from '@nestjs/common';
 import { AdminPaymentService } from './admin-payment.service';
+import { PaymentServiceRequestError } from './clients/payment-service.client';
 import {
   CommissionRuleSummary,
   PaymentSummary,
@@ -263,6 +264,31 @@ export class AdminPaymentController {
         data: await this.adminPaymentService.syncPaymentWithApicenter(paymentId),
       };
     } catch {
+      throw this.error(
+        'admin_dependency_unavailable',
+        'Admin payment workflow failed.',
+        503,
+      );
+    }
+  }
+
+  @Post(':paymentId/release')
+  async releasePaymentToProvider(
+    @Param('paymentId') paymentId: string,
+    @Body() body: { adminUserId?: string; note?: string | null },
+  ): Promise<{ data: PayoutSummary }> {
+    try {
+      return {
+        data: await this.adminPaymentService.releasePaymentToProvider(
+          paymentId,
+          body.adminUserId ?? '',
+          body.note ?? null,
+        ),
+      };
+    } catch (error) {
+      if (error instanceof PaymentServiceRequestError) {
+        throw this.error(error.code, error.message, error.status);
+      }
       throw this.error(
         'admin_dependency_unavailable',
         'Admin payment workflow failed.',

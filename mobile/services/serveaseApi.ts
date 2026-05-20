@@ -208,6 +208,15 @@ export interface PaymentSummary {
   paymentMethod: string | null;
   paidAt: string | null;
   createdAt: string | null;
+  failureReason?: string | null;
+  failureCode?: string | null;
+  retryCount?: number;
+  lastRetryAt?: string | null;
+  disputeId?: string | null;
+  apicenterCheckoutId?: string | null;
+  apicenterCheckoutStatus?: string | null;
+  apicenterProvider?: string | null;
+  apicenterProviderMode?: string | null;
 }
 
 export interface CreatePaymentRequest {
@@ -333,6 +342,7 @@ export interface PayoutAccountSummary {
 
 export interface PayoutSummary {
   id: string;
+  paymentId: string | null;
   providerId: string;
   amount: number;
   processingFee: number;

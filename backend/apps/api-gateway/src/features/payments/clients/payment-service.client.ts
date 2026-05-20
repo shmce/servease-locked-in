@@ -28,6 +28,19 @@ export class PaymentServiceClient {
     return this.request<PaymentSummary>('/internal/payments', 'POST', input);
   }
 
+  confirmCashOnServicePayment(
+    bookingId: string,
+    providerId?: string | null,
+  ): Promise<PaymentSummary> {
+    return this.request<PaymentSummary>(
+      `/internal/payments/bookings/${encodeURIComponent(
+        bookingId,
+      )}/cash-on-service/confirm`,
+      'POST',
+      { providerId: providerId ?? null },
+    );
+  }
+
   createCheckoutSession(
     input: CreateCheckoutSessionInput,
     idempotencyKey?: string | null,

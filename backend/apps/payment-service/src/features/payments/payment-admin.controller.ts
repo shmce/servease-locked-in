@@ -353,6 +353,24 @@ export class PaymentAdminController {
     }
   }
 
+  @Post(':paymentId/release')
+  async releasePaymentToProvider(
+    @Param('paymentId') paymentId: string,
+    @Body() body: { adminUserId?: string; note?: string | null },
+  ): Promise<{ data: PayoutSummary }> {
+    try {
+      return {
+        data: await this.paymentAdminService.releasePaymentToProvider({
+          paymentId,
+          adminUserId: body.adminUserId ?? '',
+          note: body.note ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get(':paymentId')
   async get(
     @Param('paymentId') paymentId: string,

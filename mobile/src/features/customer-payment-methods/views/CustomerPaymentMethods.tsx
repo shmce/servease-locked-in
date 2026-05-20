@@ -60,7 +60,7 @@ export function CustomerPaymentMethodsScreen({
       <TopBar title="Payment Methods" onBack={() => navigate('more', 'customer')} />
       <ScreenScroll>
         <ScreenContent>
-          <Section title="Saved methods">
+          <Section title="Checkout choices">
             {paymentMethods.data.hasMethods ? (
               paymentMethods.data.methods.map((item) => (
                 <Pressable
@@ -82,7 +82,7 @@ export function CustomerPaymentMethodsScreen({
                   </View>
                   <Wallet color={item.selected ? palette.mint : palette.muted} size={22} />
                   <View style={styles.flex}>
-                    <Text style={styles.cardTitle}>{item.method.label}</Text>
+                    <Text style={styles.cardTitle}>{item.label}</Text>
                     <Text style={styles.cardMeta}>{item.meta}</Text>
                   </View>
                   {item.canDelete ? (
@@ -100,6 +100,10 @@ export function CustomerPaymentMethodsScreen({
               <ActivityIndicator color={palette.mint} />
             )}
           </Section>
+          <Text style={styles.cardMeta}>
+            ServEase stores only your preferred checkout choice. Wallet and card
+            details are entered in secure APICenter checkout when you pay.
+          </Text>
           <ActionRow>
             {walletActions.map((action) => (
               <PrimaryButton
@@ -118,7 +122,9 @@ export function CustomerPaymentMethodsScreen({
               disabled={cardAction.disabled}
             />
           ) : null}
-          {paymentMethods.error ? <Text style={styles.cardMeta}>{paymentMethods.error}</Text> : null}
+          {paymentMethods.error ? (
+            <Text style={styles.cardMeta}>{paymentMethods.error}</Text>
+          ) : null}
         </ScreenContent>
       </ScreenScroll>
     </>

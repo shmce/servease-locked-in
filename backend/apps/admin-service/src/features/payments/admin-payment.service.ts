@@ -83,6 +83,18 @@ export class AdminPaymentService {
     return this.paymentServiceClient.updatePayoutStatus(payoutId, status);
   }
 
+  releasePaymentToProvider(
+    paymentId: string,
+    adminUserId: string,
+    note?: string | null,
+  ): Promise<PayoutSummary> {
+    return this.paymentServiceClient.releasePaymentToProvider(
+      paymentId,
+      adminUserId,
+      note ?? null,
+    );
+  }
+
   listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {
     return this.paymentServiceClient.listPayoutEvents(payoutId);
   }

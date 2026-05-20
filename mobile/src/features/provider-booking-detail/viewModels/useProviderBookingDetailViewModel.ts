@@ -110,7 +110,7 @@ export function buildProviderBookingDetailViewModel({
       estimatedEarningsLabel,
       serviceDetailRows,
       serviceTitle: booking.serviceTitle ?? 'Service booking',
-      statusActions: buildStatusActions(booking, busyAction),
+      statusActions: buildStatusActions(booking, busyAction, selectedPayment),
       statusChip: bookingStatusChip(booking.status),
       timelineSteps: timelineForStatus(booking.status),
     },
@@ -122,7 +122,13 @@ export function buildProviderBookingDetailViewModel({
 function buildStatusActions(
   booking: BookingSummary,
   busyAction: string | null,
+  selectedPayment: PaymentSummary | null,
 ): ProviderStatusActionRow[] {
+  const completionBlockedByPayment =
+    selectedPayment?.paymentMethod &&
+    selectedPayment.paymentMethod !== 'cash_on_service' &&
+    selectedPayment.status !== 'paid';
+
   switch (booking.status) {
     case 'pending':
       return [
@@ -169,8 +175,12 @@ function buildStatusActions(
         },
         {
           action: 'completeService',
+          disabled:
+            busyAction === 'service-complete' || Boolean(completionBlockedByPayment),
           key: 'complete-service',
-          label: 'Complete Service',
+          label: completionBlockedByPayment
+            ? 'Awaiting Payment'
+            : 'Complete Service',
           variant: 'secondary',
         },
         {

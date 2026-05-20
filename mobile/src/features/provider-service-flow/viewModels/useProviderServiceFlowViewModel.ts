@@ -10,6 +10,7 @@ import type {
   ApiOptions,
   BookingServiceUpdateSummary,
   BookingSummary,
+  PaymentSummary,
   UploadSummary,
 } from '../../../shared/models/types';
 
@@ -22,10 +23,12 @@ type UploadProviderJobPhoto = (
 type ProviderServiceFlowViewModelInput = {
   apiOptions: ApiOptions;
   onBookingUpdated: (booking: BookingSummary) => void;
+  onPaymentsRefresh: () => Promise<void>;
   onRefreshBookingTimelineEvents: (bookingId: string) => void;
   onRefreshBookingTracking: (bookingId: string) => void;
   onServiceUpdateCreated: (update: BookingServiceUpdateSummary) => void;
   selectedBooking: BookingSummary | null;
+  selectedPayment: PaymentSummary | null;
   setBusyAction: (busyAction: string | null) => void;
   setNotice: (notice: string) => void;
   setProviderRoute: (
@@ -39,10 +42,12 @@ type ProviderServiceFlowViewModelInput = {
 export function useProviderServiceFlowViewModel({
   apiOptions,
   onBookingUpdated,
+  onPaymentsRefresh,
   onRefreshBookingTimelineEvents,
   onRefreshBookingTracking,
   onServiceUpdateCreated,
   selectedBooking,
+  selectedPayment,
   setBusyAction,
   setNotice,
   setProviderRoute,
@@ -135,17 +140,17 @@ export function useProviderServiceFlowViewModel({
       return;
     }
 
+    if (
+      selectedPayment?.paymentMethod &&
+      selectedPayment.paymentMethod !== 'cash_on_service' &&
+      selectedPayment.status !== 'paid'
+    ) {
+      setNotice('Customer online payment must be paid before completing service.');
+      return;
+    }
+
     setBusyAction('service-complete');
     try {
-      const update = await createBookingServiceUpdate(
-        selectedBooking.id,
-        {
-          updateType: 'completion',
-          message: completionNotes.trim() || 'Service marked completed.',
-        },
-        apiOptions,
-      );
-      onServiceUpdateCreated(update);
       const updated = await transitionBookingStatus(
         selectedBooking.id,
         {
@@ -156,6 +161,17 @@ export function useProviderServiceFlowViewModel({
       );
       onBookingUpdated(updated);
       onRefreshBookingTracking(updated.id);
+      const update = await createBookingServiceUpdate(
+        updated.id,
+        {
+          updateType: 'completion',
+          message: completionNotes.trim() || 'Service marked completed.',
+        },
+        apiOptions,
+      );
+      onServiceUpdateCreated(update);
+      onRefreshBookingTimelineEvents(updated.id);
+      await onPaymentsRefresh().catch(() => undefined);
       setCompletionNotes('');
       setNotice('Service completed.');
       setProviderRoute('providerServiceCompleted');
@@ -168,9 +184,12 @@ export function useProviderServiceFlowViewModel({
     apiOptions,
     completionNotes,
     onBookingUpdated,
+    onPaymentsRefresh,
+    onRefreshBookingTimelineEvents,
     onRefreshBookingTracking,
     onServiceUpdateCreated,
     selectedBooking,
+    selectedPayment,
     setBusyAction,
     setNotice,
     setProviderRoute,
