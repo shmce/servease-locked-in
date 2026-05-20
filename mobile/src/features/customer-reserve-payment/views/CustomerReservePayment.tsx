@@ -21,6 +21,7 @@ import {
   PaymentSummary,
   PromotionValidationSummary,
 } from '../../../shared/models/types';
+import { StickyFooter } from '../../../shared/components/ScreenLayout';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
 import { useCustomerReservePaymentViewModel } from '../viewModels/useCustomerReservePaymentViewModel';
 
@@ -166,14 +167,13 @@ export function CustomerReservePaymentScreen({
           </Card>
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter>
         <PrimaryButton
           label={data.confirmLabel}
           onPress={() => void onReservePayment()}
           disabled={data.confirmDisabled}
         />
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
@@ -185,8 +185,8 @@ const styles = StyleSheet.create({
     paddingBottom: 180,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   noticeBox: {
     backgroundColor: palette.mintSoft,
@@ -196,8 +196,8 @@ const styles = StyleSheet.create({
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   paymentMethodOption: {
     alignItems: 'center',
@@ -272,31 +272,12 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     padding: spacing.md,
   },
-  stickyFooter: {
-    backgroundColor: palette.white,
-    borderTopColor: palette.line,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    padding: spacing.lg,
-    position: 'absolute',
-    right: 0,
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.ink,
-    borderRadius: radius.pill,
-    height: 4,
-    opacity: 0.18,
-    width: 118,
-  },
   flex: {
     flex: 1,
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {

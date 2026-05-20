@@ -67,8 +67,8 @@ const styles = StyleSheet.create({
   },
   confirmationContent: {
     alignItems: 'stretch',
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   successCircle: {
     alignItems: 'center',
@@ -88,9 +88,9 @@ const styles = StyleSheet.create({
   },
   pageCopy: {
     color: palette.muted,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 22,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
     textAlign: 'center',
   },
   infoRow: {

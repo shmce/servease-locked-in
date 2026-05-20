@@ -94,6 +94,31 @@ test('mobile app exposes the MVVM entry and shared model structure', () => {
   assert.doesNotMatch(modelApiSource, /from 'react'|react-native/);
 });
 
+test('mobile app is wired through Expo Router layouts', () => {
+  const packageJson = JSON.parse(readProjectFile('package.json')) as {
+    main: string;
+    dependencies: Record<string, string>;
+  };
+  const appJson = JSON.parse(readProjectFile('app.json')) as {
+    expo: { plugins?: unknown[] };
+  };
+  const rootLayoutSource = readProjectFile('src/app/_layout.tsx');
+  const appIndexSource = readProjectFile('src/app/index.tsx');
+  const customerLayoutSource = readProjectFile('src/app/(customer)/_layout.tsx');
+  const providerLayoutSource = readProjectFile('src/app/(provider)/_layout.tsx');
+
+  assert.equal(packageJson.main, 'expo-router/entry');
+  assert.match(packageJson.dependencies['expo-router'], /\d/);
+  assert.match(packageJson.dependencies['react-native-safe-area-context'], /\d/);
+  assert.match(packageJson.dependencies['react-native-screens'], /\d/);
+  assert.deepEqual(appJson.expo.plugins?.[0], 'expo-router');
+  assert.match(rootLayoutSource, /from 'expo-router'/);
+  assert.match(rootLayoutSource, /<Stack/);
+  assert.match(appIndexSource, /from '\.\.\/App'/);
+  assert.match(customerLayoutSource, /<Tabs/);
+  assert.match(providerLayoutSource, /<Tabs/);
+});
+
 test('feature views depend on shared model types instead of the API model barrel', () => {
   for (const viewPath of featureViewFiles()) {
     const source = readProjectFile(viewPath);
@@ -208,7 +233,7 @@ test('app shell imports model interfaces from shared model types', () => {
 
 test('app shell lazy-loads feature page components', () => {
   const appSource = readProjectFile('src/App.tsx');
-  const appShellSource = readProjectFile('src/app/AppShell.tsx');
+  const appShellSource = readProjectFile('src/legacy-router/AppShell.tsx');
 
   assert.match(appSource, /\blazy\(/);
   assert.match(appShellSource, /\bSuspense\b/);
@@ -220,7 +245,7 @@ test('app shell lazy-loads feature page components', () => {
 
 test('app shell delegates route framing to the app router', () => {
   const appSource = readProjectFile('src/App.tsx');
-  const routerSource = readProjectFile('src/app/AppRouter.tsx');
+  const routerSource = readProjectFile('src/legacy-router/AppRouter.tsx');
 
   assert.match(appSource, /<AppRouter/);
   assert.match(appSource, /<AppShell/);

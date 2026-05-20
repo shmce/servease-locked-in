@@ -1,7 +1,6 @@
 import {
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -15,7 +14,11 @@ import {
 import { ProfileInfoRow } from '../../../components/AppDisplay';
 import { CurrentUserProfile } from '../../../shared/models/types';
 import { AppScreen } from '../../../navigation/types';
-import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import { palette, radius } from '../../../theme/serveaseDesign';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { useCustomerProfileViewModel } from '../viewModels/useCustomerProfileViewModel';
 
 type CustomerProfileScreenProps = {
@@ -56,8 +59,8 @@ export function CustomerProfileScreen({
   return (
     <>
       <TopBar title="My Profile" onBack={() => navigate('more', 'customer')} />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+      <ScreenScroll>
+        <ScreenContent>
           <View style={styles.profileHero}>
             <Pressable
               style={styles.profileAvatarLarge}
@@ -113,22 +116,13 @@ export function CustomerProfileScreen({
             disabled={profileView.isSaving}
           />
           {profileView.error ? <Text style={styles.cardMeta}>{profileView.error}</Text> : null}
-        </View>
-      </ScrollView>
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
   profileHero: {
     alignItems: 'center',
   },
@@ -167,7 +161,7 @@ const styles = StyleSheet.create({
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 19,
   },
 });

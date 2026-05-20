@@ -8,6 +8,10 @@ import {
 } from '../../../components/DesignKit';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { ProviderPortfolioMediaSummary } from '../../../shared/models/types';
+import {
+  ActionRow,
+  MediaUploadBox,
+} from '../../../shared/components/ScreenLayout';
 import { useProviderPortfolioViewModel } from '../viewModels/useProviderPortfolioViewModel';
 
 type ProviderPortfolioScreenProps = {
@@ -69,21 +73,15 @@ export function ProviderPortfolioScreen({
       />
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.content}>
-          <Pressable
-            style={styles.uploadBox}
+          <MediaUploadBox
+            imageUri={providerPortfolioPhotoUri}
+            icon={<ImageIcon color={palette.mint} size={28} strokeWidth={2.5} />}
+            label={data.uploadLabel}
             onPress={onUploadPortfolioMedia}
-            accessibilityRole="button"
-          >
-            {providerPortfolioPhotoUri ? (
-              <Image
-                source={{ uri: providerPortfolioPhotoUri }}
-                style={styles.uploadPreview}
-              />
-            ) : (
-              <ImageIcon color={palette.mint} size={28} strokeWidth={2.5} />
-            )}
-            <Text style={styles.linkText}>{data.uploadLabel}</Text>
-          </Pressable>
+            minHeight={132}
+            previewHeight={132}
+            surface="mint"
+          />
 
           <View style={styles.portfolioGrid}>
             {data.portfolioItems.map((portfolioItem) => (
@@ -100,7 +98,7 @@ export function ProviderPortfolioScreen({
                       onChangeText={onPortfolioCaptionDraftChange}
                       placeholder="Portfolio caption"
                     />
-                    <View style={styles.twoButtons}>
+                    <ActionRow>
                       <PrimaryButton
                         label="Save"
                         onPress={() => onSavePortfolioCaption(portfolioItem.item)}
@@ -111,7 +109,7 @@ export function ProviderPortfolioScreen({
                         variant="secondary"
                         onPress={onCancelPortfolioCaption}
                       />
-                    </View>
+                    </ActionRow>
                   </View>
                 ) : (
                   <>
@@ -169,30 +167,14 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  uploadBox: {
-    alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderColor: palette.mint,
-    borderRadius: radius.md,
-    borderStyle: 'dashed',
-    borderWidth: 2,
-    gap: spacing.sm,
-    justifyContent: 'center',
-    minHeight: 132,
-    overflow: 'hidden',
-    padding: spacing.lg,
-  },
-  uploadPreview: {
-    height: 132,
-    width: '100%',
+    gap: spacing.md,
+    padding: spacing.md,
   },
   portfolioGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    justifyContent: 'space-between',
+    rowGap: spacing.sm,
   },
   portfolioTile: {
     alignItems: 'center',
@@ -202,11 +184,11 @@ const styles = StyleSheet.create({
     height: 150,
     justifyContent: 'center',
     overflow: 'hidden',
-    width: '47%',
+    width: '48%',
   },
   portfolioImage: {
+    alignSelf: 'stretch',
     height: '100%',
-    width: '100%',
   },
   portfolioText: {
     backgroundColor: 'rgba(255,255,255,0.88)',
@@ -256,9 +238,5 @@ const styles = StyleSheet.create({
     color: palette.mint,
     fontSize: 13,
     fontWeight: '900',
-  },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
   },
 });

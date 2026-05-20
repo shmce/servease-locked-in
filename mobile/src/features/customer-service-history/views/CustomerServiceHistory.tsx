@@ -1,8 +1,10 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
 import { BookingCard } from '../../../components/AppDisplay';
 import { EmptyState, TopBar } from '../../../components/DesignKit';
 import { BookingSummary } from '../../../shared/models/types';
-import { palette, spacing } from '../../../theme/serveaseDesign';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { useCustomerServiceHistoryViewModel } from '../viewModels/useCustomerServiceHistoryViewModel';
 
 type CustomerServiceHistoryScreenProps = {
@@ -29,8 +31,8 @@ export function CustomerServiceHistoryScreen({
           navigateToBookings();
         }}
       />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+      <ScreenScroll>
+        <ScreenContent>
           {history.data.completedBookings.map((booking) => (
             <BookingCard
               key={booking.id}
@@ -45,20 +47,8 @@ export function CustomerServiceHistoryScreen({
               body="Completed services will appear in your history."
             />
           ) : null}
-        </View>
-      </ScrollView>
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-});

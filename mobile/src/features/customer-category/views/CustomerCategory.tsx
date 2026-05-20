@@ -1,11 +1,19 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { EmptyState, TopBar } from '../../../components/DesignKit';
-import { ServiceListItem } from '../../../components/AppDisplay';
-import { palette, spacing, type } from '../../../theme/serveaseDesign';
+import { spacing } from '../../../theme/serveaseDesign';
 import {
   CatalogCategory,
   CatalogServiceItem,
 } from '../../../shared/models/types';
+import {
+  CompactGrid,
+  CompactGridItem,
+  MarketplaceTile,
+  ScreenContent,
+  ScreenScroll,
+  marketplaceTextStyles,
+} from '../../../shared/components/ScreenLayout';
+import { formatMoney } from '../../../shared/utils/booking';
 import { useCustomerCategoryViewModel } from '../viewModels/useCustomerCategoryViewModel';
 
 type CustomerCategoryScreenProps = {
@@ -37,42 +45,39 @@ export function CustomerCategoryScreen({
         subtitle={data.serviceCountLabel}
         onBack={onBack}
       />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <Text style={styles.detailTitle}>{data.categoryName}</Text>
-          <Text style={styles.cardMeta}>{data.serviceCountLabel}</Text>
-          {data.services.map((service) => (
-            <ServiceListItem
-              key={service.id}
-              service={service}
-              onPress={() => onOpenService(service)}
-            />
-          ))}
+      <ScreenScroll>
+        <ScreenContent>
+          <View style={styles.headerCopy}>
+            <Text style={marketplaceTextStyles.title}>{data.categoryName}</Text>
+            <Text style={marketplaceTextStyles.meta}>{data.serviceCountLabel}</Text>
+          </View>
+          <CompactGrid>
+            {data.services.map((service) => (
+              <CompactGridItem key={service.id}>
+                <MarketplaceTile
+                  title={service.name}
+                  body={service.description ?? 'Bookable service'}
+                  onPress={() => onOpenService(service)}
+                  footer={
+                    <Text style={marketplaceTextStyles.price}>
+                      {formatMoney(service.price)}
+                    </Text>
+                  }
+                />
+              </CompactGridItem>
+            ))}
+          </CompactGrid>
           {!data.hasServices ? (
             <EmptyState title="No services found" body="Try another category." />
           ) : null}
-        </View>
-      </ScrollView>
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  detailTitle: {
-    ...type.title,
-    color: palette.ink,
-  },
-  cardMeta: {
-    ...type.caption,
-    color: palette.muted,
+  headerCopy: {
+    gap: spacing.xs,
   },
 });

@@ -231,71 +231,28 @@ export function CustomerExploreScreen({
         >
           <View style={styles.categoryGrid}>
             {data.categoryRows.map((category) => (
-              <CategoryTile
-                key={category.id}
-                title={category.title}
-                subtitle={category.subtitle}
-                selected={category.isSelected}
-                onPress={() => onSelectCategory(category.category)}
-              />
+              <View key={category.id} style={styles.categoryTileWrapper}>
+                <CategoryTile
+                  title={category.title}
+                  subtitle={category.subtitle}
+                  selected={category.isSelected}
+                  onPress={() => onSelectCategory(category.category)}
+                />
+                {category.badges.length > 0 ? (
+                  <View style={styles.categoryBadgeAnchor}>
+                    {category.badges.map((badge) => (
+                      <Badge
+                        key={badge.label}
+                        label={badge.label}
+                        tone={badge.tone}
+                      />
+                    ))}
+                  </View>
+
+                ) : null}
+              </View>
             ))}
           </View>
-        </Section>
-
-        <Section
-          title="Popular services"
-          action={
-            <Text style={styles.linkText} onPress={onViewAllServices}>
-              View all
-            </Text>
-          }
-        >
-          {data.serviceRows.map((service) => (
-            <Card
-              key={service.id}
-              selected={service.isSelected}
-              onPress={() => onSelectService(service.service)}
-            >
-              <View style={styles.rowBetween}>
-                <Text style={styles.cardTitle}>{service.title}</Text>
-                <Text style={styles.priceText}>{service.priceLabel}</Text>
-              </View>
-              <Text style={styles.cardBody}>{service.description}</Text>
-            </Card>
-          ))}
-        </Section>
-
-        <Section
-          title="Top service providers"
-          action={
-            <Text style={styles.linkText} onPress={onViewTopProviders}>
-              View all
-            </Text>
-          }
-        >
-          {data.providerRows.map((provider) => (
-            <Card
-              key={provider.id}
-              selected={provider.isSelected}
-              onPress={() => onSelectProvider(provider.provider)}
-            >
-              <View style={styles.rowBetween}>
-                <View style={styles.flex}>
-                  <Text style={styles.cardTitle}>{provider.title}</Text>
-                  <Text style={styles.cardMeta}>{provider.providerBusinessName}</Text>
-                </View>
-                <Badge
-                  label={provider.verificationStatus}
-                  tone={provider.verificationTone}
-                />
-              </View>
-              <Text style={styles.cardBody}>{provider.description}</Text>
-              <View style={styles.rowBetween}>
-                <Text style={styles.priceText}>{provider.priceLabel}</Text>
-                <Text style={styles.cardMeta}>{provider.ratingLabel}</Text>
-              </View>
-            </Card>
-          ))}
         </Section>
       </View>
     </ScrollView>
@@ -306,13 +263,13 @@ const styles = StyleSheet.create({
   withBottomNav: {
     backgroundColor: palette.cream,
     flexGrow: 1,
-    paddingBottom: 108,
+    paddingBottom: 96,
   },
   customerHero: {
     backgroundColor: palette.mint,
     gap: spacing.base,
-    paddingBottom: spacing.xxl,
-    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingTop: spacing.base,
   },
   heroRow: {
@@ -328,86 +285,86 @@ const styles = StyleSheet.create({
   heroAvatar: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 14,
-    height: 40,
+    borderRadius: 12,
+    height: 36,
     justifyContent: 'center',
-    width: 40,
+    width: 36,
   },
   heroMuted: {
     color: 'rgba(255,255,255,0.82)',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '500',
   },
   heroName: {
     color: palette.white,
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '900',
   },
   notificationButton: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.24)',
     borderColor: 'rgba(255,255,255,0.32)',
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     borderWidth: 1,
-    height: 44,
+    height: 40,
     justifyContent: 'center',
     position: 'relative',
-    width: 44,
+    width: 40,
   },
   heroUnreadDot: {
     backgroundColor: palette.coral,
     borderColor: 'rgba(86,196,144,0.8)',
     borderRadius: radius.pill,
-    borderWidth: 2,
-    height: 9,
+    borderWidth: 1.5,
+    height: 8,
     position: 'absolute',
-    right: 9,
-    top: 8,
-    width: 9,
+    right: 8,
+    top: 7,
+    width: 8,
   },
   searchBar: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 52,
+    gap: spacing.sm,
+    minHeight: 46,
     justifyContent: 'center',
     paddingHorizontal: spacing.base,
-    boxShadow: '0 6px 16px rgba(44,90,60,0.12)',
+    boxShadow: '0 4px 12px rgba(44,90,60,0.08)',
   },
   searchText: {
     color: palette.faint,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '500',
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   guideHeaderRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   guideIcon: {
     alignItems: 'center',
     backgroundColor: palette.mintSoft,
-    borderRadius: radius.md,
-    height: 44,
+    borderRadius: radius.sm,
+    height: 38,
     justifyContent: 'center',
-    width: 44,
+    width: 38,
   },
   guideDismissButton: {
     alignItems: 'center',
-    minHeight: 44,
+    minHeight: 38,
     justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
+    paddingHorizontal: spacing.xs,
   },
   guideDismissText: {
     color: palette.faint,
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 12,
+    fontWeight: '700',
   },
   guideFooterRow: {
     alignItems: 'center',
@@ -421,18 +378,18 @@ const styles = StyleSheet.create({
   guideDot: {
     backgroundColor: palette.line,
     borderRadius: radius.pill,
-    height: 8,
-    width: 8,
+    height: 6,
+    width: 6,
   },
   guideDotActive: {
     backgroundColor: palette.mint,
-    width: 18,
+    width: 14,
   },
   guideNextButton: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.xxs,
-    minHeight: 44,
+    minHeight: 38,
   },
   bookAgainRailWrap: {
     position: 'relative',
@@ -441,57 +398,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(240,255,244,0.94)',
     borderRadius: radius.pill,
-    height: 36,
+    height: 32,
     justifyContent: 'center',
     position: 'absolute',
-    right: spacing.sm,
-    top: 22,
-    width: 36,
-    boxShadow: '0 6px 14px rgba(0,0,0,0.08)',
+    right: spacing.xs,
+    top: 20,
+    width: 32,
+    boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
   },
   horizontalRail: {
-    gap: spacing.md,
-    paddingRight: spacing.lg,
+    gap: spacing.sm,
+    paddingRight: spacing.md,
   },
   bookAgainCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
     borderColor: palette.line,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 80,
-    minWidth: 250,
-    padding: spacing.base,
+    gap: spacing.sm,
+    minHeight: 72,
+    minWidth: 230,
+    padding: spacing.sm,
   },
   bookAgainAvatar: {
     alignItems: 'center',
     backgroundColor: palette.mint,
     borderRadius: radius.pill,
-    height: 44,
+    height: 36,
     justifyContent: 'center',
-    width: 44,
+    width: 36,
   },
   bookAgainInitial: {
     color: palette.white,
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '700',
   },
   bookAgainTitle: {
     color: palette.ink,
-    fontSize: 14,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '700',
   },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    justifyContent: 'space-between',
+    rowGap: spacing.sm,
+  },
+  categoryTileWrapper: {
+    position: 'relative',
+    width: '48%',
+  },
+  categoryBadgeAnchor: {
+    gap: spacing.xs,
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    pointerEvents: 'none',
+    zIndex: 10,
   },
   rowBetween: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
     justifyContent: 'space-between',
   },
   flex: {
@@ -499,27 +469,28 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '700',
   },
   cardBody: {
     color: palette.muted,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 18,
   },
   cardMeta: {
     ...type.caption,
+    fontSize: 11,
     color: palette.muted,
   },
   linkText: {
     color: palette.mint,
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 12,
+    fontWeight: '700',
   },
   priceText: {
     color: palette.mint,
-    fontSize: 18,
-    fontWeight: '900',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

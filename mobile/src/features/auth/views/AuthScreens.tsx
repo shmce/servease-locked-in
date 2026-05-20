@@ -515,9 +515,10 @@ const styles = StyleSheet.create({
   claireLogoWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    left: 0,
     position: 'absolute',
+    right: 0,
     top: 285,
-    width: '100%',
   },
   claireLogoImage: {
     height: 53,
@@ -525,7 +526,7 @@ const styles = StyleSheet.create({
   },
   claireTagline: {
     color: palette.white,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '500',
     left: 27,
     lineHeight: 23,
@@ -553,7 +554,7 @@ const styles = StyleSheet.create({
   },
   claireSignupText: {
     color: palette.mint,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
     lineHeight: 21,
   },
@@ -573,7 +574,7 @@ const styles = StyleSheet.create({
   },
   claireLoginText: {
     color: palette.white,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
     lineHeight: 21,
   },
@@ -626,9 +627,9 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   authContent: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+    padding: spacing.md,
+    paddingBottom: spacing.md,
   },
   authHero: {
     ...type.hero,
@@ -641,7 +642,7 @@ const styles = StyleSheet.create({
   },
   forgotLink: {
     color: palette.mint,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     textAlign: 'right',
   },
@@ -658,7 +659,7 @@ const styles = StyleSheet.create({
   dividerText: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   methodTabs: {
     backgroundColor: '#F3F4F6',
@@ -704,18 +705,18 @@ const styles = StyleSheet.create({
   },
   phoneMark: {
     color: palette.ink,
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '900',
   },
   socialText: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
   },
   noticeText: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 18,
     textAlign: 'center',
   },

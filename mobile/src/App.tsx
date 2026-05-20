@@ -15,8 +15,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import { TopBar } from './components/DesignKit';
-import { AppRouter, type AppRouterRenderers } from './app/AppRouter';
-import { AppShell } from './app/AppShell';
+import { AppRouter, type AppRouterRenderers } from './legacy-router/AppRouter';
+import { AppShell } from './legacy-router/AppShell';
 import {
   MissingSelection,
 } from './components/AppDisplay';

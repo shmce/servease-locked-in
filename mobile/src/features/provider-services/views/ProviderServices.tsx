@@ -14,6 +14,7 @@ import {
   BookingPricingMode,
   ProviderOwnedServiceSummary,
 } from '../../../shared/models/types';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
 import { useProviderServicesViewModel } from '../viewModels/useProviderServicesViewModel';
 
 type ProviderServicesScreenProps = {
@@ -100,7 +101,7 @@ export function ProviderServicesScreen({
                       onChangeText={onEditServicePriceChange}
                       keyboardType="decimal-pad"
                     />
-                    <View style={styles.twoButtons}>
+                    <ActionRow>
                       <PrimaryButton
                         label={data.saveEditButtonLabel}
                         onPress={onSaveOwnedServiceEdit}
@@ -111,7 +112,7 @@ export function ProviderServicesScreen({
                         variant="secondary"
                         onPress={onCancelEditService}
                       />
-                    </View>
+                    </ActionRow>
                   </>
                 ) : (
                   <>
@@ -122,7 +123,7 @@ export function ProviderServicesScreen({
                       </View>
                       <Badge label={row.statusLabel} tone={row.statusTone} />
                     </View>
-                    <View style={styles.serviceActionRow}>
+                    <ActionRow>
                       <PrimaryButton
                         label="Edit"
                         variant="secondary"
@@ -134,7 +135,7 @@ export function ProviderServicesScreen({
                         onPress={() => onToggleOwnedServiceActive(row.id)}
                         disabled={row.isToggleDisabled}
                       />
-                    </View>
+                    </ActionRow>
                     <PrimaryButton
                       label={row.removeButtonLabel}
                       variant="danger"
@@ -177,7 +178,7 @@ export function ProviderServicesScreen({
                     />
                   ))}
                 </View>
-                <View style={styles.twoButtons}>
+                <ActionRow>
                   <PrimaryButton
                     label={data.saveNewServiceButtonLabel}
                     onPress={onSaveNewService}
@@ -188,7 +189,7 @@ export function ProviderServicesScreen({
                     variant="secondary"
                     onPress={onCancelAddService}
                   />
-                </View>
+                </ActionRow>
               </Card>
             ) : (
               <PrimaryButton
@@ -210,8 +211,8 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   rowBetween: {
     alignItems: 'center',
@@ -229,15 +230,6 @@ const styles = StyleSheet.create({
   cardMeta: {
     ...type.caption,
     color: palette.muted,
-  },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  serviceActionRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: 12,
   },
   wrap: {
     flexDirection: 'row',

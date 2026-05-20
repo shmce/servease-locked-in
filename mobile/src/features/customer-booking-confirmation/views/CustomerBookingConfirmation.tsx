@@ -22,6 +22,7 @@ import {
   PaymentSummary,
   ProviderListing,
 } from '../../../shared/models/types';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
 import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerBookingConfirmationViewModel } from '../viewModels/useCustomerBookingConfirmationViewModel';
@@ -105,7 +106,7 @@ export function CustomerBookingConfirmationScreen({
         {timelineEvents}
         <Text style={styles.noticeText}>{confirmation.data.bookedForLabel}</Text>
 
-        <View style={styles.twoButtons}>
+        <ActionRow>
           <PrimaryButton
             label="Manage booking"
             onPress={() => navigate('customerBookingManage', 'customer')}
@@ -115,7 +116,7 @@ export function CustomerBookingConfirmationScreen({
             variant="secondary"
             onPress={() => void addSelectedBookingToCalendar()}
           />
-        </View>
+        </ActionRow>
         <PrimaryButton
           label="Reserve payment"
           variant="secondary"
@@ -134,9 +135,9 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   confirmationContent: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-    paddingTop: spacing.xxl,
+    gap: spacing.md,
+    padding: spacing.md,
+    paddingTop: spacing.lg,
   },
   successCircle: {
     alignItems: 'center',
@@ -186,33 +187,29 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginTop: spacing.xs,
   },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
   flex: {
     flex: 1,
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 19,
   },
   linkText: {
     color: palette.mint,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
   },
   noticeText: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '700',
-    lineHeight: 19,
+    fontWeight: '500',
+    lineHeight: 18,
   },
 });

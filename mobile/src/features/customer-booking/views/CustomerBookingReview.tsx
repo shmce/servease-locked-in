@@ -14,6 +14,7 @@ import {
   PromotionValidationSummary,
   ProviderListing,
 } from '../../../shared/models/types';
+import { StickyFooter } from '../../../shared/components/ScreenLayout';
 import { useCustomerBookingReviewViewModel } from '../viewModels/useCustomerBookingReviewViewModel';
 
 type CustomerBookingReviewScreenProps = {
@@ -124,7 +125,7 @@ export function CustomerBookingReviewScreen({
           </View>
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter>
         <PrimaryButton
           label={data.confirmLabel}
           onPress={onConfirm}
@@ -136,8 +137,7 @@ export function CustomerBookingReviewScreen({
         <Text style={styles.footerLink} onPress={onEditBooking}>
           Edit booking
         </Text>
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
@@ -149,8 +149,8 @@ const styles = StyleSheet.create({
     paddingBottom: 180,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   providerSummaryRow: {
     alignItems: 'center',
@@ -193,25 +193,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
   },
-  stickyFooter: {
-    backgroundColor: palette.white,
-    borderTopColor: palette.line,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    padding: spacing.lg,
-    position: 'absolute',
-    right: 0,
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.ink,
-    borderRadius: radius.pill,
-    height: 4,
-    opacity: 0.18,
-    width: 118,
-  },
   footerLink: {
     ...type.caption,
     color: palette.mint,
@@ -225,7 +206,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
@@ -239,7 +220,7 @@ const styles = StyleSheet.create({
   },
   totalLabel: {
     color: palette.ink,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
   },
   totalValue: {

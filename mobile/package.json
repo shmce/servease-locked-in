@@ -1,7 +1,7 @@
 {
   "name": "mobile",
   "version": "1.0.0",
-  "main": "index.ts",
+  "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -25,11 +25,14 @@
     "expo-image-picker": "~17.0.11",
     "expo-location": "~19.0.8",
     "expo-notifications": "~0.32.17",
+    "expo-router": "~6.0.23",
     "expo-status-bar": "~3.0.9",
     "lucide-react-native": "^1.16.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
     "react-native-svg": "^15.12.1",
     "react-native-web": "^0.21.0",
     "react-native-webview": "13.15.0"

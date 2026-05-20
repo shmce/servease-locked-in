@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Gift } from 'lucide-react-native';
 import {
   Card,
@@ -12,6 +12,10 @@ import {
 } from '../../../shared/models/types';
 import { AppScreen } from '../../../navigation/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { useCustomerReferralViewModel } from '../viewModels/useCustomerReferralViewModel';
 
 type CustomerReferralScreenProps = {
@@ -42,8 +46,8 @@ export function CustomerReferralScreen({
   return (
     <>
       <TopBar title="Refer a Friend" onBack={() => navigate('more', 'customer')} />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+      <ScreenScroll>
+        <ScreenContent>
           <Card>
             <View style={styles.providerSummaryRow}>
               <View style={styles.quickIcon}>
@@ -74,22 +78,13 @@ export function CustomerReferralScreen({
             disabled={referral.isLoading}
           />
           {referral.error ? <Text style={styles.cardMeta}>{referral.error}</Text> : null}
-        </View>
-      </ScrollView>
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
   providerSummaryRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -108,7 +103,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   detailTitle: {
@@ -120,7 +115,7 @@ const styles = StyleSheet.create({
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 19,
   },
   metricGrid: {

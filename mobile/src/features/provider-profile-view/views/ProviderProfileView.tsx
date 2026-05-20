@@ -15,6 +15,7 @@ import {
   ProviderPortfolioMediaSummary,
   ReviewSummary,
 } from '../../../shared/models/types';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
 import { useProviderProfileViewModel } from '../viewModels/useProviderProfileViewModel';
 
 type ProviderProfileViewScreenProps = {
@@ -143,7 +144,7 @@ export function ProviderProfileViewScreen({
                       onChangeText={onReviewReplyTextChange}
                       multiline
                     />
-                    <View style={styles.twoButtons}>
+                    <ActionRow>
                       <PrimaryButton
                         label={busyAction === 'review-reply' ? 'Sending...' : 'Submit Reply'}
                         onPress={onSubmitReviewReply}
@@ -154,7 +155,7 @@ export function ProviderProfileViewScreen({
                         variant="secondary"
                         onPress={onCancelReviewReply}
                       />
-                    </View>
+                    </ActionRow>
                   </>
                 ) : (
                   <Text
@@ -186,8 +187,8 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   profileHero: {
     alignItems: 'center',
@@ -227,7 +228,8 @@ const styles = StyleSheet.create({
   portfolioGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    justifyContent: 'space-between',
+    rowGap: spacing.sm,
   },
   portfolioTile: {
     alignItems: 'center',
@@ -237,11 +239,11 @@ const styles = StyleSheet.create({
     height: 150,
     justifyContent: 'center',
     overflow: 'hidden',
-    width: '47%',
+    width: '48%',
   },
   portfolioImage: {
+    alignSelf: 'stretch',
     height: '100%',
-    width: '100%',
   },
   portfolioText: {
     backgroundColor: 'rgba(255,255,255,0.88)',
@@ -263,9 +265,5 @@ const styles = StyleSheet.create({
     color: palette.mint,
     fontSize: 13,
     fontWeight: '900',
-  },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
   },
 });

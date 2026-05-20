@@ -1,4 +1,4 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Camera, CheckCircle } from 'lucide-react-native';
 import {
   Card,
@@ -8,6 +8,10 @@ import {
 } from '../../../components/DesignKit';
 import { BookingSummary } from '../../../shared/models/types';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import {
+  MediaUploadBox,
+  StickyFooter,
+} from '../../../shared/components/ScreenLayout';
 import {
   ProviderStartChecklistKey,
   ProviderStartChecklistState,
@@ -83,18 +87,14 @@ export function ProviderStartServiceScreen({
           </Card>
           <Card>
             <Text style={styles.cardTitle}>Before photo</Text>
-            <Pressable
-              style={styles.uploadBox}
+            <MediaUploadBox
+              imageUri={beforePhotoUri}
+              icon={<Camera color={palette.mint} size={28} strokeWidth={2.5} />}
+              label={data.beforePhotoActionLabel}
               onPress={onPickBeforePhoto}
-              accessibilityRole="button"
-            >
-              {beforePhotoUri ? (
-                <Image source={{ uri: beforePhotoUri }} style={styles.uploadPreview} />
-              ) : (
-                <Camera color={palette.mint} size={28} strokeWidth={2.5} />
-              )}
-              <Text style={styles.linkText}>{data.beforePhotoActionLabel}</Text>
-            </Pressable>
+              minHeight={132}
+              previewHeight={120}
+            />
             {data.startingConditionUploaded ? (
               <Text style={styles.noticeText}>Starting condition photo uploaded.</Text>
             ) : null}
@@ -107,7 +107,7 @@ export function ProviderStartServiceScreen({
           </Card>
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter>
         <PrimaryButton
           label="Start Service"
           onPress={() => void onStartService()}
@@ -116,8 +116,7 @@ export function ProviderStartServiceScreen({
         <Text style={styles.footerLink} onPress={onBack}>
           Back to booking
         </Text>
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
@@ -148,54 +147,14 @@ const styles = StyleSheet.create({
     paddingBottom: 132,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  stickyFooter: {
-    alignSelf: 'center',
-    backgroundColor: palette.white,
-    borderTopColor: palette.lineSoft,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    maxWidth: 393,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    position: 'absolute',
-    right: 0,
-    width: '100%',
+    gap: spacing.md,
+    padding: spacing.md,
   },
   footerLink: {
     color: palette.mint,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     textAlign: 'center',
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: '#111111',
-    borderRadius: radius.pill,
-    height: 4,
-    marginTop: spacing.xs,
-    opacity: 0.18,
-    width: 96,
-  },
-  uploadBox: {
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderStyle: 'dashed',
-    borderWidth: 2,
-    gap: spacing.sm,
-    minHeight: 160,
-    paddingVertical: spacing.xxl,
-  },
-  uploadPreview: {
-    borderRadius: radius.md,
-    height: 120,
-    width: '100%',
   },
   operationalTitle: {
     color: palette.ink,
@@ -226,7 +185,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
@@ -236,13 +195,13 @@ const styles = StyleSheet.create({
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   radioLabel: {
     color: palette.ink,
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   linkText: {

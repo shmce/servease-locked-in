@@ -18,6 +18,7 @@ import {
   ProviderPortfolioMediaSummary,
   ReviewSummary,
 } from '../../../shared/models/types';
+import { ActionRow, StickyFooter } from '../../../shared/components/ScreenLayout';
 import {
   CustomerProviderProfileTab,
   useCustomerProviderProfileViewModel,
@@ -82,10 +83,10 @@ export function CustomerProviderProfileScreen({
             <MetricCard label="Reviews" value={data.reviewCountLabel} />
             <MetricCard label="Service" value={data.servicePriceLabel} />
           </View>
-          <View style={styles.profileActionRow}>
+          <ActionRow>
             <PrimaryButton label="Book Now" onPress={onBook} />
             <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
-          </View>
+          </ActionRow>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -107,10 +108,9 @@ export function CustomerProviderProfileScreen({
           />
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter>
         <PrimaryButton label="Book Service" onPress={onBook} />
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
@@ -223,14 +223,14 @@ const styles = StyleSheet.create({
     paddingBottom: 132,
   },
   providerCover: {
+    alignSelf: 'stretch',
     backgroundColor: palette.mint,
-    height: 160,
-    width: '100%',
+    height: 132,
   },
   providerProfileBody: {
-    gap: spacing.lg,
+    gap: spacing.md,
     marginTop: -50,
-    padding: spacing.xl,
+    padding: spacing.md,
   },
   providerProfileAvatar: {
     alignItems: 'center',
@@ -250,9 +250,9 @@ const styles = StyleSheet.create({
   },
   profileName: {
     color: palette.ink,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '900',
-    lineHeight: 34,
+    lineHeight: 30,
   },
   wrap: {
     flexDirection: 'row',
@@ -263,29 +263,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
   },
-  profileActionRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
   horizontalRail: {
-    gap: spacing.md,
+    gap: spacing.sm,
     paddingRight: spacing.sm,
   },
   portfolioGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.md,
+    justifyContent: 'space-between',
+    rowGap: spacing.sm,
   },
   portfolioTile: {
     backgroundColor: palette.mintSoft,
     borderRadius: radius.md,
-    height: 150,
+    height: 128,
     overflow: 'hidden',
-    width: '47%',
+    width: '48%',
   },
   portfolioImage: {
+    alignSelf: 'stretch',
     flex: 1,
-    width: '100%',
   },
   portfolioText: {
     backgroundColor: 'rgba(0,0,0,0.45)',
@@ -314,35 +311,13 @@ const styles = StyleSheet.create({
     color: palette.ink,
   },
   cardBody: {
-    ...type.body,
     color: palette.body,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   cardMeta: {
     ...type.caption,
     color: palette.muted,
-  },
-  stickyFooter: {
-    alignSelf: 'center',
-    backgroundColor: palette.white,
-    borderTopColor: palette.lineSoft,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    maxWidth: 393,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    position: 'absolute',
-    right: 0,
-    width: '100%',
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.ink,
-    borderRadius: radius.pill,
-    height: 5,
-    marginBottom: spacing.sm,
-    marginTop: spacing.xs,
-    width: 134,
   },
 });

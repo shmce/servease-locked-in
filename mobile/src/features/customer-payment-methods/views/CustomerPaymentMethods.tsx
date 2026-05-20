@@ -1,7 +1,6 @@
 import {
   ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -18,6 +17,11 @@ import {
 } from '../../../shared/models/types';
 import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import {
+  ActionRow,
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { useCustomerPaymentMethodsViewModel } from '../viewModels/useCustomerPaymentMethodsViewModel';
 
 type CustomerPaymentMethodsScreenProps = {
@@ -54,8 +58,8 @@ export function CustomerPaymentMethodsScreen({
   return (
     <>
       <TopBar title="Payment Methods" onBack={() => navigate('more', 'customer')} />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+      <ScreenScroll>
+        <ScreenContent>
           <Section title="Saved methods">
             {paymentMethods.data.hasMethods ? (
               paymentMethods.data.methods.map((item) => (
@@ -96,7 +100,7 @@ export function CustomerPaymentMethodsScreen({
               <ActivityIndicator color={palette.mint} />
             )}
           </Section>
-          <View style={styles.twoButtons}>
+          <ActionRow>
             {walletActions.map((action) => (
               <PrimaryButton
                 key={action.methodType}
@@ -106,7 +110,7 @@ export function CustomerPaymentMethodsScreen({
                 disabled={action.disabled}
               />
             ))}
-          </View>
+          </ActionRow>
           {cardAction ? (
             <PrimaryButton
               label={cardAction.label}
@@ -115,22 +119,13 @@ export function CustomerPaymentMethodsScreen({
             />
           ) : null}
           {paymentMethods.error ? <Text style={styles.cardMeta}>{paymentMethods.error}</Text> : null}
-        </View>
-      </ScrollView>
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
   paymentMethodOption: {
     alignItems: 'center',
     backgroundColor: palette.white,
@@ -172,22 +167,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 34,
   },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
   flex: {
     flex: 1,
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 19,
   },
 });

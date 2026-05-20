@@ -1,4 +1,4 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Clock, Image as ImageIcon } from 'lucide-react-native';
 import {
   Card,
@@ -11,6 +11,7 @@ import {
   BookingTimelineEventSummary,
 } from '../../../shared/models/types';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { MediaUploadBox } from '../../../shared/components/ScreenLayout';
 import { useProviderServiceInProgressViewModel } from '../viewModels/useProviderServiceInProgressViewModel';
 
 type ProviderServiceInProgressScreenProps = {
@@ -90,18 +91,13 @@ export function ProviderServiceInProgressScreen({
           </Card>
           <Card>
             <Text style={styles.cardTitle}>Progress photos</Text>
-            <Pressable
-              style={styles.uploadBox}
+            <MediaUploadBox
+              imageUri={progressPhotoUri}
+              icon={<ImageIcon color={palette.mint} size={28} strokeWidth={2.5} />}
+              label={data.progressPhotoActionLabel}
               onPress={onPickProgressPhoto}
-              accessibilityRole="button"
-            >
-              {progressPhotoUri ? (
-                <Image source={{ uri: progressPhotoUri }} style={styles.uploadPreview} />
-              ) : (
-                <ImageIcon color={palette.mint} size={28} strokeWidth={2.5} />
-              )}
-              <Text style={styles.linkText}>{data.progressPhotoActionLabel}</Text>
-            </Pressable>
+              minHeight={132}
+            />
             {data.progressPhotoUploaded ? (
               <Text style={styles.noticeText}>Progress photo uploaded.</Text>
             ) : null}
@@ -127,15 +123,15 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   timerCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
     borderRadius: radius.lg,
     gap: spacing.xs,
-    padding: spacing.xl,
+    padding: spacing.md,
   },
   timerText: {
     color: palette.ink,
@@ -145,7 +141,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
@@ -155,26 +151,8 @@ const styles = StyleSheet.create({
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-  uploadBox: {
-    alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.lg,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    gap: spacing.sm,
-    justifyContent: 'center',
-    minHeight: 136,
-    overflow: 'hidden',
-    padding: spacing.lg,
-  },
-  uploadPreview: {
-    borderRadius: radius.md,
-    height: 116,
-    width: '100%',
+    fontWeight: '500',
+    lineHeight: 18,
   },
   actions: {
     gap: spacing.sm,

@@ -10,7 +10,7 @@ test('customer calendar screen mirrors provider calendar for customer bookings',
   );
   const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const appRouterSource = readFileSync(
-    join(process.cwd(), 'src/app/AppRouter.tsx'),
+    join(process.cwd(), 'src/legacy-router/AppRouter.tsx'),
     'utf8',
   );
   const viewSource = readFileSync(

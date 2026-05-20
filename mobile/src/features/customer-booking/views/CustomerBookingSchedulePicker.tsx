@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   },
   timeTileText: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
   },
   timeTileTextSelected: {

@@ -3,6 +3,7 @@ import { QuickAction } from '../../../components/AppDisplay';
 import { TopBar } from '../../../components/DesignKit';
 import { AppScreen } from '../../../navigation/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
 import { useProviderMoreViewModel } from '../viewModels/useProviderMoreViewModel';
 
 type ProviderMoreScreenProps = {
@@ -18,7 +19,7 @@ export function ProviderMoreScreen({ navigate }: ProviderMoreScreenProps) {
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.content}>
           {providerMore.data.actionRows.map((row) => (
-            <View key={row.map((action) => action.label).join('-')} style={styles.twoButtons}>
+            <ActionRow key={row.map((action) => action.label).join('-')}>
               {row.map((action) => (
                 <QuickAction
                   key={action.label}
@@ -26,7 +27,7 @@ export function ProviderMoreScreen({ navigate }: ProviderMoreScreenProps) {
                   onPress={() => navigate(action.screen, 'provider')}
                 />
               ))}
-            </View>
+            </ActionRow>
           ))}
         </View>
       </ScrollView>
@@ -41,11 +42,7 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  twoButtons: {
-    flexDirection: 'row',
     gap: spacing.md,
+    padding: spacing.md,
   },
 });

@@ -96,18 +96,18 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   notificationCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
     borderColor: palette.line,
-    borderRadius: 24,
+    borderRadius: 14,
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
-    padding: spacing.lg,
+    padding: spacing.base,
   },
   notificationCardUnread: {
     borderColor: palette.mint,
@@ -131,19 +131,19 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardBody: {
     color: palette.muted,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 19,
   },
 });
