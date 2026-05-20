@@ -1,5 +1,5 @@
 import { AppScreen } from '../navigation/types';
-import { DayOfWeek } from '../../services/serveaseApi';
+import { DayOfWeek } from '../shared/models/types';
 
 function createDefaultScheduledAt(): string {
   const date = new Date(Date.now() + 3 * 86400000);

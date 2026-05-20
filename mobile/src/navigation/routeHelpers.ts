@@ -7,7 +7,7 @@ import {
   Sparkles,
   Wrench,
 } from 'lucide-react-native';
-import { BookingStatus } from '../../services/serveaseApi';
+import { BookingStatus } from '../shared/models/types';
 import { palette } from '../theme/serveaseDesign';
 import { AppScreen, CustomerTab, ProviderTab } from './types';
 
@@ -24,6 +24,9 @@ export function getCustomerTab(screen: AppScreen): CustomerTab {
     screen === 'customerTrackServiceProvider'
   ) {
     return 'bookings';
+  }
+  if (screen === 'calendar') {
+    return 'calendar';
   }
   if (screen === 'messages') {
     return 'messages';

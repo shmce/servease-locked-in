@@ -1,0 +1,306 @@
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { CreditCard } from 'lucide-react-native';
+import {
+  Card,
+  Field,
+  PrimaryButton,
+  Section,
+  TopBar,
+} from '../../../components/DesignKit';
+import { InfoRow } from '../../../components/AppDisplay';
+import {
+  CustomerPaymentMethodSummary,
+  CustomerPaymentMethodType,
+  PaymentSummary,
+  PromotionValidationSummary,
+} from '../../../shared/models/types';
+import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { useCustomerReservePaymentViewModel } from '../viewModels/useCustomerReservePaymentViewModel';
+
+type CustomerReservePaymentScreenProps = {
+  customerPaymentMethods: CustomerPaymentMethodSummary[];
+  selectedMethodId: string | null;
+  selectedPayment: PaymentSummary | null;
+  promotionValidation: PromotionValidationSummary | null;
+  promoCode: string;
+  busyAction: string | null;
+  onBack: () => void;
+  onSelectPaymentMethod: (methodId: string) => void;
+  onSavePaymentMethod: (methodType: CustomerPaymentMethodType) => Promise<void>;
+  onPromoCodeChange: (value: string) => void;
+  onApplyPromotionCode: () => Promise<unknown>;
+  onReservePayment: () => Promise<void>;
+};
+
+export function CustomerReservePaymentScreen({
+  customerPaymentMethods,
+  selectedMethodId,
+  selectedPayment,
+  promotionValidation,
+  promoCode,
+  busyAction,
+  onBack,
+  onSelectPaymentMethod,
+  onSavePaymentMethod,
+  onPromoCodeChange,
+  onApplyPromotionCode,
+  onReservePayment,
+}: CustomerReservePaymentScreenProps) {
+  const reservePayment = useCustomerReservePaymentViewModel({
+    customerPaymentMethods,
+    selectedMethodId,
+    selectedPayment,
+    promotionValidation,
+    promoCode,
+    busyAction,
+  });
+  const { data } = reservePayment;
+
+  return (
+    <>
+      <TopBar title="Reserve payment" onBack={onBack} />
+      <ScrollView contentContainerStyle={styles.withStickyFooter}>
+        <View style={styles.content}>
+          <View style={styles.noticeBox}>
+            <Text style={styles.cardBody}>
+              Cash-on-service reserves the booking in ServEase. Cards and wallets open secure APICenter checkout.
+            </Text>
+          </View>
+          <Section title="Saved payment methods">
+            {data.hasPaymentMethods ? (
+              data.paymentMethods.map((item) => (
+                <Pressable
+                  key={item.method.id}
+                  style={[
+                    styles.paymentMethodOption,
+                    item.selected && styles.paymentMethodSelected,
+                  ]}
+                  onPress={() => onSelectPaymentMethod(item.method.id)}
+                  accessibilityRole="button"
+                >
+                  <View
+                    style={[
+                      styles.radioOuter,
+                      item.selected && styles.radioOuterSelected,
+                    ]}
+                  >
+                    {item.selected ? <View style={styles.radioInner} /> : null}
+                  </View>
+                  <CreditCard
+                    color={item.selected ? palette.mint : palette.muted}
+                    size={22}
+                  />
+                  <View style={styles.flex}>
+                    <Text style={styles.cardTitle}>{item.method.label}</Text>
+                    <Text style={styles.cardMeta}>{item.meta}</Text>
+                  </View>
+                </Pressable>
+              ))
+            ) : (
+              <ActivityIndicator color={palette.mint} />
+            )}
+            <PrimaryButton
+              label="ADD NEW CARD"
+              variant="secondary"
+              onPress={() => void onSavePaymentMethod('card')}
+            />
+          </Section>
+          <Card>
+            <View style={styles.rowBetween}>
+              <View>
+                <Text style={styles.cardTitle}>Wallet options</Text>
+                <Text style={styles.cardMeta}>GCash and PayMaya use secure checkout</Text>
+              </View>
+              <View style={styles.inlineActions}>
+                <Pressable
+                  style={styles.smallAction}
+                  onPress={() => void onSavePaymentMethod('gcash')}
+                >
+                  <Text style={styles.smallActionText}>GCash</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.smallAction}
+                  onPress={() => void onSavePaymentMethod('paymaya')}
+                >
+                  <Text style={styles.smallActionText}>PayMaya</Text>
+                </Pressable>
+              </View>
+            </View>
+          </Card>
+          <Card>
+            <Text style={styles.cardTitle}>Promo code</Text>
+            <Field
+              label="Code"
+              value={data.normalizedPromoCode}
+              onChangeText={onPromoCodeChange}
+              placeholder="SERVEASE10"
+            />
+            <PrimaryButton
+              label={data.applyPromoLabel}
+              variant="secondary"
+              onPress={() => void onApplyPromotionCode()}
+              disabled={data.applyPromoDisabled}
+            />
+            {data.promoResult ? (
+              <View
+                style={
+                  data.promoResult.tone === 'success'
+                    ? styles.promoAppliedBox
+                    : styles.promoRejectedBox
+                }
+              >
+                <Text style={styles.cardTitle}>{data.promoResult.title}</Text>
+                <Text style={styles.cardMeta}>{data.promoResult.message}</Text>
+                {data.promoResult.rows.map((row) => (
+                  <InfoRow key={row.key} label={row.label} value={row.value} />
+                ))}
+              </View>
+            ) : null}
+          </Card>
+        </View>
+      </ScrollView>
+      <View style={styles.stickyFooter}>
+        <PrimaryButton
+          label={data.confirmLabel}
+          onPress={() => void onReservePayment()}
+          disabled={data.confirmDisabled}
+        />
+        <View style={styles.footerHomeIndicator} />
+      </View>
+    </>
+  );
+}
+
+const styles = StyleSheet.create({
+  withStickyFooter: {
+    backgroundColor: palette.cream,
+    flexGrow: 1,
+    paddingBottom: 180,
+  },
+  content: {
+    gap: spacing.lg,
+    padding: spacing.xl,
+  },
+  noticeBox: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+  },
+  cardBody: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  paymentMethodOption: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.base,
+  },
+  paymentMethodSelected: {
+    backgroundColor: palette.mintSoft,
+    borderColor: palette.mint,
+  },
+  radioOuter: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.mint,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    height: 20,
+    justifyContent: 'center',
+    width: 20,
+  },
+  radioOuterSelected: {
+    borderColor: palette.mint,
+  },
+  radioInner: {
+    backgroundColor: palette.mint,
+    borderRadius: radius.pill,
+    height: 10,
+    width: 10,
+  },
+  rowBetween: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+  },
+  inlineActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  smallAction: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    gap: spacing.xxs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  smallActionText: {
+    color: palette.mint,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  promoAppliedBox: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.lg,
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    padding: spacing.md,
+  },
+  promoRejectedBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: radius.lg,
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    padding: spacing.md,
+  },
+  stickyFooter: {
+    backgroundColor: palette.white,
+    borderTopColor: palette.line,
+    borderTopWidth: 1,
+    bottom: 0,
+    gap: spacing.sm,
+    left: 0,
+    padding: spacing.lg,
+    position: 'absolute',
+    right: 0,
+  },
+  footerHomeIndicator: {
+    alignSelf: 'center',
+    backgroundColor: palette.ink,
+    borderRadius: radius.pill,
+    height: 4,
+    opacity: 0.18,
+    width: 118,
+  },
+  flex: {
+    flex: 1,
+  },
+  cardTitle: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  cardMeta: {
+    ...type.caption,
+    color: palette.muted,
+  },
+});

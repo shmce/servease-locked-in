@@ -2,8 +2,9 @@ name: Production readiness
 
 on:
   pull_request:
+    branches: [test, uat, main]
   push:
-    branches: [main]
+    branches: [test, uat, main]
   workflow_dispatch:
 
 jobs:
@@ -12,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -62,8 +66,45 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      - run: npm run test:cov
       - run: npm audit --omit=dev
+
+  mobile-promotion-gates:
+    name: Mobile E2E + k6 enforcement gate
+    needs: mobile
+    runs-on: ubuntu-latest
+    env:
+      MOBILE_SINGLE_SYSTEMS_JSON: ${{ vars.MOBILE_SINGLE_SYSTEMS_JSON }}
+      MOBILE_MULTI_SYSTEMS_JSON: ${{ vars.MOBILE_MULTI_SYSTEMS_JSON }}
+      MOBILE_K6_BASE_URL: ${{ vars.MOBILE_K6_BASE_URL || vars.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5001' }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: grafana/setup-k6-action@v1
+      - run: npm ci
+      - name: Validate mobile systems metadata
+        run: |
+          if [ -z "$MOBILE_SINGLE_SYSTEMS_JSON$MOBILE_MULTI_SYSTEMS_JSON" ]; then
+            echo "MOBILE_SINGLE_SYSTEMS_JSON or MOBILE_MULTI_SYSTEMS_JSON repository variable is required" >&2
+            exit 1
+          fi
+      - name: Run mobile k6 smoke
+        if: ${{ vars.MOBILE_K6_ENABLED == 'true' }}
+        run: npm run perf:k6
+      - name: Verify Detox setup
+        run: |
+          test -f .detoxrc.js
+          test -f e2e/servease.e2e.js
+      - name: Run Android Detox E2E
+        if: ${{ vars.MOBILE_DETOX_ANDROID_ENABLED == 'true' }}
+        run: npm run e2e:android
 
   landing:
     name: Landing Page gates

@@ -37,6 +37,33 @@ Use this runbook when cutting a production release for `backend`, `mobile`, `Lan
 - `SUPABASE_STORAGE_BUCKET`
 - `EAS_PROJECT_ID`
 
+## Required Branch Flow And Protection
+
+Use the promotion flow `test -> uat -> main`.
+
+Protect all three branches in GitHub:
+
+- `test`
+- `uat`
+- `main`
+
+Require pull requests for promotion, block direct pushes, require at least one non-author approval, and require the `Production readiness` status checks before merging. Do not bypass failed E2E, k6, lint, typecheck, test, coverage, audit, or secret-scan checks.
+
+## Required Mobile Promotion Variables
+
+Configure one of these repository variables so the mobile promotion gate can identify the mobile system metadata:
+
+- `MOBILE_SINGLE_SYSTEMS_JSON`
+- `MOBILE_MULTI_SYSTEMS_JSON`
+
+Configure the mobile promotion policy variables per environment:
+
+- `MOBILE_K6_ENABLED=true` to enforce the k6 smoke gate.
+- `MOBILE_K6_BASE_URL` to point k6 at the gateway/API Center URL for the branch environment.
+- `MOBILE_DETOX_ANDROID_ENABLED=true` to enforce Android Detox E2E on runners with an Android emulator.
+
+The repository keeps iOS Detox configuration in `mobile/.detoxrc.js`; run iOS Detox on macOS runners when the shared orchestrator provides the simulator lane.
+
 ## Required Expo Production Environment Variables
 
 Configure these in the Expo project production environment before running EAS builds:
@@ -98,6 +125,8 @@ Copy and fill these templates in the matching deployment environment:
    - Enable `run_live_apicenter_audit` only after live-send/payment approval.
    - Provide `live_audit_phone` and `live_audit_email` when enabling `live_audit_send` or `live_audit_payment`.
 4. Confirm the `Native mobile production builds` job completed successfully. The workflow runs EAS iOS and Android builds with `--wait`, so this job should not pass until both native builds finish.
+   - Android artifacts must be `.apk` for installable test builds or `.aab` for store release builds.
+   - iOS artifacts must be `.app.zip` for simulator app bundles or `.xcarchive.zip` for release preparation.
 5. Run mutating smoke scripts only against an isolated/resettable Supabase project:
 
 ```bash

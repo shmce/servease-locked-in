@@ -4,15 +4,28 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 test('booking form verifies service addresses through the APICenter geo gateway', () => {
-  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const bookingFormSource = readFileSync(
+    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    'utf8',
+  );
+  const bookingFormViewModel = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingFormViewModel.ts',
+    ),
+    'utf8',
+  );
 
   assert.match(source, /geocodeAddress/);
   assert.match(source, /verifyServiceAddress/);
-  assert.match(source, /Verify address/);
+  assert.match(bookingFormSource, /verifyAddressLabel/);
+  assert.match(bookingFormSource, /AddressVerificationPreview/);
+  assert.match(bookingFormViewModel, /Verify address/);
 });
 
 test('Google auth callback exchanges the APICenter code before returning to password login', () => {
-  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
 
   assert.match(source, /exchangeGoogleCode/);
   assert.match(source, /servease:\/\/auth\/google\/callback/);
@@ -20,7 +33,7 @@ test('Google auth callback exchanges the APICenter code before returning to pass
 });
 
 test('Google auth opens APICenter authorization in the system browser, not WebView', () => {
-  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const oauthStart = source.indexOf('async function startGoogleSignIn');
   const oauthEnd = source.indexOf('async function requestPhoneOtp');
   assert.notEqual(oauthStart, -1);
@@ -42,7 +55,7 @@ test('mobile manifest registers the Google auth callback scheme', () => {
 });
 
 test('provider navigation keeps directions inside the app through the geo gateway', () => {
-  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const navigationStart = source.indexOf('async function refreshProviderDirections');
   const navigationEnd = source.indexOf('function upsertBookingServiceUpdate');
   assert.notEqual(navigationStart, -1);
@@ -57,7 +70,7 @@ test('provider navigation keeps directions inside the app through the geo gatewa
 });
 
 test('provider navigation publishes live location through the booking gateway', () => {
-  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const liveLocationSource = readFileSync(
     join(process.cwd(), 'src/tracking/useProviderLiveLocation.ts'),
     'utf8',
@@ -73,7 +86,7 @@ test('provider navigation publishes live location through the booking gateway', 
 });
 
 test('tracking screens subscribe to HTTP live tracking before polling fallback', () => {
-  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
 
   assert.match(source, /subscribeBookingTrackingSnapshots/);
   assert.match(source, /TRACKING_STREAM_FALLBACK_DELAY_MS/);
@@ -82,20 +95,60 @@ test('tracking screens subscribe to HTTP live tracking before polling fallback',
 });
 
 test('tracking navigation uses compact collapsible sheet states', () => {
-  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const customerTrackSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+    ),
+    'utf8',
+  );
+  const customerTrackViewModelSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-track-provider/viewModels/useCustomerTrackProviderViewModel.ts',
+    ),
+    'utf8',
+  );
+  const providerNavigationSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/provider-navigation-mode/views/ProviderNavigationMode.tsx',
+    ),
+    'utf8',
+  );
+  const providerNavigationViewModelSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/provider-navigation-mode/viewModels/useProviderNavigationModeViewModel.ts',
+    ),
+    'utf8',
+  );
 
-  assert.match(source, /type NavigationSheetLevel = 'peek' \| 'half' \| 'expanded'/);
-  assert.match(source, /useState<NavigationSheetLevel>\('peek'\)/);
-  assert.match(source, /NavigationSheetHeader/);
-  assert.match(source, /navBottomSheetPeek/);
-  assert.match(source, /navBottomSheetHalf/);
-  assert.match(source, /navBottomSheetExpanded/);
-  assert.match(source, /navigationSheetStyle\(customerTrackingSheetLevel\)/);
-  assert.match(source, /navigationSheetStyle\(providerNavigationSheetLevel\)/);
+  assert.match(
+    customerTrackViewModelSource,
+    /type CustomerTrackingSheetLevel = 'peek' \| 'half' \| 'expanded'/,
+  );
+  assert.match(
+    providerNavigationViewModelSource,
+    /type ProviderNavigationSheetLevel = 'peek' \| 'half' \| 'expanded'/,
+  );
+  assert.match(source, /useState<CustomerTrackingSheetLevel>\('peek'\)/);
+  assert.match(source, /useState<ProviderNavigationSheetLevel>\('peek'\)/);
+  assert.match(customerTrackSource, /NavigationSheetHeader/);
+  assert.match(customerTrackSource, /navBottomSheetPeek/);
+  assert.match(customerTrackSource, /navBottomSheetHalf/);
+  assert.match(customerTrackSource, /navBottomSheetExpanded/);
+  assert.match(customerTrackSource, /sheetStyle\(sheetLevel\)/);
+  assert.match(providerNavigationSource, /NavigationSheetHeader/);
+  assert.match(providerNavigationSource, /navBottomSheetPeek/);
+  assert.match(providerNavigationSource, /navBottomSheetHalf/);
+  assert.match(providerNavigationSource, /navBottomSheetExpanded/);
+  assert.match(providerNavigationSource, /navigationSheetStyle\(sheetLevel\)/);
 });
 
 test('tracking map canvas remains absolutely filled behind the sheet', () => {
-  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const mapCanvasStart = source.indexOf('mapCanvas: {');
   const mapCloseStart = source.indexOf('mapCloseButton: {');
   assert.notEqual(mapCanvasStart, -1);
@@ -135,35 +188,57 @@ test('tracking map uses MapLibre with OpenFreeMap through WebView and keeps fall
 });
 
 test('provider navigation uses first-person WebView drive mode', () => {
-  const appSource = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const providerNavigationSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/provider-navigation-mode/views/ProviderNavigationMode.tsx',
+    ),
+    'utf8',
+  );
+  const providerNavigationViewModelSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/provider-navigation-mode/viewModels/useProviderNavigationModeViewModel.ts',
+    ),
+    'utf8',
+  );
   const mapSource = readFileSync(
     join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
     'utf8',
   );
-  const providerNavigationStart = appSource.indexOf('function renderProviderNavigationMode');
+  const appNavigationStart = appSource.indexOf('function renderProviderNavigationMode');
   const providerStartServiceStart = appSource.indexOf('function renderProviderStartService');
-  const guidanceStart = appSource.indexOf('function ProviderNavigationGuidanceBanner');
-  const sheetStyleStart = appSource.indexOf('function navigationSheetStyle');
+  const guidanceStart = providerNavigationSource.indexOf(
+    'function ProviderNavigationGuidanceBanner',
+  );
+  const sheetStyleStart = providerNavigationSource.indexOf('function navigationSheetStyle');
   const htmlStart = mapSource.indexOf('function buildTrackingMapHtml');
   const previewStart = mapSource.indexOf('function derivePreviewProviderLocation');
-  assert.notEqual(providerNavigationStart, -1);
+  assert.notEqual(appNavigationStart, -1);
   assert.notEqual(providerStartServiceStart, -1);
   assert.notEqual(guidanceStart, -1);
   assert.notEqual(sheetStyleStart, -1);
   assert.notEqual(htmlStart, -1);
   assert.notEqual(previewStart, -1);
 
-  const providerNavigationSource = appSource.slice(
-    providerNavigationStart,
+  const appNavigationSource = appSource.slice(
+    appNavigationStart,
     providerStartServiceStart,
   );
-  const guidanceSource = appSource.slice(guidanceStart, sheetStyleStart);
+  const guidanceSource = providerNavigationSource.slice(guidanceStart, sheetStyleStart);
   const htmlSource = mapSource.slice(htmlStart, previewStart);
 
+  assert.match(appNavigationSource, /ProviderNavigationModeScreen/);
   assert.match(providerNavigationSource, /mode="navigation"/);
-  assert.match(providerNavigationSource, /providerLiveLocation\.location \?\?/);
+  assert.match(providerNavigationSource, /navigationOrigin=\{data\.navigationOrigin\}/);
   assert.match(providerNavigationSource, /ProviderNavigationGuidanceBanner/);
   assert.match(providerNavigationSource, /ProviderNavigationDriveStats/);
+  assert.match(
+    providerNavigationViewModelSource,
+    /liveLocation\.location\s*\?\?\s*fallbackOrigin\s*\?\?\s*tracking\?\.providerLocation\s*\?\?\s*null/,
+  );
+  assert.match(providerNavigationViewModelSource, /providerNavigationGuidance/);
   assert.match(guidanceSource, /guidance\.maneuverSymbol/);
   assert.match(guidanceSource, /guidance\.distanceLabel/);
   assert.match(guidanceSource, /Then \{guidance\.nextInstruction\}/);
@@ -172,6 +247,7 @@ test('provider navigation uses first-person WebView drive mode', () => {
   assert.match(htmlSource, /pitch: provider && isNavigationMode \? 62 : 0/);
   assert.match(htmlSource, /offset: \[0, 110\]/);
   assert.match(htmlSource, /deriveRouteBearing/);
+  assert.doesNotMatch(appNavigationSource, /Linking\.openURL/);
   assert.doesNotMatch(providerNavigationSource, /Linking\.openURL/);
 });
 

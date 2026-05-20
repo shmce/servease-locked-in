@@ -1,6 +1,6 @@
-import { AppScreen } from '../navigation/types';
-import { formatMoney } from '../domain/booking';
-import { BookingSummary, PaymentSummary } from '../../services/serveaseApi';
+import { AppScreen } from '../../../navigation/types';
+import { formatMoney } from '../../../shared/utils/booking';
+import { BookingSummary, PaymentSummary } from '../../../shared/models/types';
 
 const MANILA_TIME_ZONE = 'Asia/Manila';
 const START_SERVICE_WINDOW_MS = 30 * 60 * 1000;

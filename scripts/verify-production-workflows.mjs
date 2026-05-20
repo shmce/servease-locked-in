@@ -18,6 +18,7 @@ const checks = [
     'npx playwright test',
     'npm run smoke:routes',
     'node scripts/verify-production-env-templates.mjs',
+    'gitleaks/gitleaks-action@v2',
   ]),
   ...containsAll(files.release, [
     'name: Production release verification',
@@ -38,11 +39,17 @@ const checks = [
     'npm run check:migrations',
     'npm run smoke:apicenter',
     'npm run audit:apicenter-live',
+    'gitleaks/gitleaks-action@v2',
     'Validate EAS token',
     'EAS_TOKEN production secret is required for native builds',
     'timeout-minutes: 360',
     'npx eas-cli build --platform ios --profile production --non-interactive --wait',
     'npx eas-cli build --platform android --profile production --non-interactive --wait',
+    'npx eas-cli build --platform android --profile production-apk --non-interactive --wait',
+    'npx eas-cli build --platform ios --profile production-ios-simulator --non-interactive --wait',
+    'Verify EAS production artifact expectations',
+    'node scripts/verify-eas-artifact-metadata.mjs android-apk-artifact.json android .apk',
+    'node scripts/verify-eas-artifact-metadata.mjs ios-app-artifact.json ios .app.zip',
   ]),
   {
     file: files.release,
@@ -53,6 +60,16 @@ const checks = [
     file: files.eas,
     ok: JSON.parse(read(files.eas)).build?.production?.environment === 'production',
     message: 'EAS production build profile must use the production environment',
+  },
+  {
+    file: files.eas,
+    ok: JSON.parse(read(files.eas)).build?.['production-apk']?.android?.buildType === 'apk',
+    message: 'EAS production-apk profile must produce an installable Android APK',
+  },
+  {
+    file: files.eas,
+    ok: JSON.parse(read(files.eas)).build?.['production-ios-simulator']?.ios?.simulator === true,
+    message: 'EAS production-ios-simulator profile must produce an iOS .app.zip bundle',
   },
   {
     file: files.eas,

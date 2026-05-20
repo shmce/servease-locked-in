@@ -1,6 +1,6 @@
 export type AppRole = 'customer' | 'provider';
 
-export type CustomerTab = 'explore' | 'bookings' | 'messages' | 'more';
+export type CustomerTab = 'explore' | 'bookings' | 'calendar' | 'messages' | 'more';
 export type ProviderTab = 'home' | 'bookings' | 'calendar' | 'messages' | 'more';
 
 export type AuthScreen =

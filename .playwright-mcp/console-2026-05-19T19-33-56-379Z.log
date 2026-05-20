@@ -50,3 +50,224 @@ Performance optimizations: OFF. @ http://localhost:8081/index.ts.bundle?platform
 [  591986ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8081/:0
 [  592663ms] [WARNING] Animated: `useNativeDriver` is not supported because the native animated module is missing. Falling back to JS-based animation. To resolve this, add `RCTAnimation` module to this app, or remove `useNativeDriver`. Make sure to run `bundle exec pod install` first. Read more about autolinking: https://github.com/react-native-community/cli/blob/master/docs/autolinking.md @ http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:175406
 [  594259ms] [WARNING] [expo-notifications] Listening to push token changes is not yet fully supported on web. Adding a listener will have no effect. @ :26718
+[ 2349471ms] Error: UnableToResolveError Unable to resolve module ./screens/ProviderCalendarScreen from /Users/mac/ServEase/mobile/src/App.tsx: 
+
+None of these files exist:
+  * src/screens/ProviderCalendarScreen(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/screens/ProviderCalendarScreen
+[0m [90m 123 |[39m [36mimport[39m { [33mCustomerMoreScreen[39m } [36mfrom[39m [32m'./screens/CustomerMoreScreen'[39m[33m;[39m
+ [90m 124 |[39m [36mimport[39m { [33mProviderBookingsScreen[39m } [36mfrom[39m [32m'./screens/ProviderBookingsScreen'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 125 |[39m [36mimport[39m { [33mProviderCalendarScreen[39m } [36mfrom[39m [32m'./screens/ProviderCalendarScreen'[39m[33m;[39m
+ [90m     |[39m                                         [31m[1m^[22m[39m
+ [90m 126 |[39m [36mimport[39m { [33mProviderHomeScreen[39m } [36mfrom[39m [32m'./screens/ProviderHomeScreen'[39m[33m;[39m
+ [90m 127 |[39m [36mimport[39m { [33mProviderSetAvailabilityScreen[39m } [36mfrom[39m [32m'./screens/ProviderSetAvailabilityScreen'[39m[33m;[39m
+ [90m 128 |[39m [36mimport[39m {[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 2446702ms] Error: UnableToResolveError Unable to resolve module ../components/DesignKit from /Users/mac/ServEase/mobile/src/features/provider-calendar/views/ProviderCalendar.tsx: 
+
+None of these files exist:
+  * src/features/provider-calendar/components/DesignKit(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/features/provider-calendar/components/DesignKit
+[0m [90m  7 |[39m   [33mSection[39m[33m,[39m
+ [90m  8 |[39m   [33mTopBar[39m[33m,[39m
+[31m[1m>[22m[39m[90m  9 |[39m } [36mfrom[39m [32m'../components/DesignKit'[39m[33m;[39m
+ [90m    |[39m         [31m[1m^[22m[39m
+ [90m 10 |[39m [36mimport[39m { [33mMonthCalendar[39m } [36mfrom[39m [32m'../components/MonthCalendar'[39m[33m;[39m
+ [90m 11 |[39m [36mimport[39m { formatDateTime } [36mfrom[39m [32m'../domain/booking'[39m[33m;[39m
+ [90m 12 |[39m [36mimport[39m { palette[33m,[39m radius[33m,[39m spacing } [36mfrom[39m [32m'../theme/serveaseDesign'[39m[33m;[39m[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 2611679ms] Error: TransformError SyntaxError: /Users/mac/ServEase/mobile/src/features/provider-calendar/views/ProviderCalendar.tsx: Unexpected token (10:0)
+
+[0m [90m  8 |[39m   [33mTopBar[39m[33m,[39m
+ [90m  9 |[39m } [36mfrom[39m [32m'../components/DesignKit'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 10 |[39m } [36mfrom[39m [32m'../../../components/DesignKit'[39m[33m;[39m
+ [90m    |[39m [31m[1m^[22m[39m
+ [90m 11 |[39m [36mimport[39m { [33mMonthCalendar[39m } [36mfrom[39m [32m'../../../components/MonthCalendar'[39m[33m;[39m
+ [90m 12 |[39m [36mimport[39m { formatDateTime } [36mfrom[39m [32m'../../../shared/utils/booking'[39m[33m;[39m
+ [90m 13 |[39m [36mimport[39m { palette[33m,[39m radius[33m,[39m spacing } [36mfrom[39m [32m'../../../theme/serveaseDesign'[39m[33m;[39m[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 2923415ms] Error: UnableToResolveError Unable to resolve module ./screens/ProviderSetAvailabilityScreen from /Users/mac/ServEase/mobile/src/App.tsx: 
+
+None of these files exist:
+  * src/screens/ProviderSetAvailabilityScreen(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/screens/ProviderSetAvailabilityScreen
+[0m [90m 123 |[39m [36mimport[39m { [33mProviderCalendarScreen[39m } [36mfrom[39m [32m'./screens/ProviderCalendarScreen'[39m[33m;[39m
+ [90m 124 |[39m [36mimport[39m { [33mProviderHomeScreen[39m } [36mfrom[39m [32m'./screens/ProviderHomeScreen'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 125 |[39m [36mimport[39m { [33mProviderSetAvailabilityScreen[39m } [36mfrom[39m [32m'./screens/ProviderSetAvailabilityScreen'[39m[33m;[39m
+ [90m     |[39m                                                [31m[1m^[22m[39m
+ [90m 126 |[39m [36mimport[39m {
+ [90m 127 |[39m   [33mAddressVerificationPreview[39m[33m,[39m
+ [90m 128 |[39m   [33mTrackingMapPreview[39m[33m,[39m[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 2926275ms] Error: UnableToResolveError Unable to resolve module ../../services/serveaseApi from /Users/mac/ServEase/mobile/src/features/provider-set-availability/views/ProviderSetAvailability.tsx: 
+
+None of these files exist:
+  * src/features/services/serveaseApi(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/features/services/serveaseApi
+[0m [90m  9 |[39m   removeProviderDayOff[33m,[39m
+ [90m 10 |[39m   removeProviderTimeOffWindow[33m,[39m
+[31m[1m>[22m[39m[90m 11 |[39m } [36mfrom[39m [32m'../../services/serveaseApi'[39m[33m;[39m
+ [90m    |[39m         [31m[1m^[22m[39m
+ [90m 12 |[39m [36mimport[39m { [33mCard[39m[33m,[39m [33mField[39m[33m,[39m [33mPrimaryButton[39m[33m,[39m [33mSection[39m[33m,[39m [33mTopBar[39m } [36mfrom[39m [32m'../components/DesignKit'[39m[33m;[39m
+ [90m 13 |[39m [36mimport[39m { bookingTimeSlots } [36mfrom[39m [32m'../constants/appContent'[39m[33m;[39m
+ [90m 14 |[39m [36mimport[39m { buildTimeOffEndSlots } [36mfrom[39m [32m'../domain/providerAvailability'[39m[33m;[39m[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 2955779ms] Error: UnableToResolveError Unable to resolve module ../../services/serveaseApi from /Users/mac/ServEase/mobile/src/features/provider-set-availability/views/ProviderSetAvailability.tsx: 
+
+None of these files exist:
+  * src/features/services/serveaseApi(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/features/services/serveaseApi
+[0m [90m  9 |[39m   removeProviderDayOff[33m,[39m
+ [90m 10 |[39m   removeProviderTimeOffWindow[33m,[39m
+[31m[1m>[22m[39m[90m 11 |[39m } [36mfrom[39m [32m'../../services/serveaseApi'[39m[33m;[39m
+ [90m    |[39m         [31m[1m^[22m[39m
+ [90m 12 |[39m [36mimport[39m { [33mCard[39m[33m,[39m [33mField[39m[33m,[39m [33mPrimaryButton[39m[33m,[39m [33mSection[39m[33m,[39m [33mTopBar[39m } [36mfrom[39m [32m'../components/DesignKit'[39m[33m;[39m
+ [90m 13 |[39m [36mimport[39m { bookingTimeSlots } [36mfrom[39m [32m'../constants/appContent'[39m[33m;[39m
+ [90m 14 |[39m [36mimport[39m { buildTimeOffEndSlots } [36mfrom[39m [32m'../domain/providerAvailability'[39m[33m;[39m[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 3119002ms] Error: UnableToResolveError Unable to resolve module ./screens/CustomerMoreScreen from /Users/mac/ServEase/mobile/src/App.tsx: 
+
+None of these files exist:
+  * src/screens/CustomerMoreScreen(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/screens/CustomerMoreScreen
+[0m [90m 117 |[39m [36mimport[39m { resolveNotificationRoute } [36mfrom[39m [32m'./navigation/notificationRouting'[39m[33m;[39m
+ [90m 118 |[39m [36mimport[39m { [33mAuthScreens[39m } [36mfrom[39m [32m'./screens/AuthScreens'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 119 |[39m [36mimport[39m { [33mCustomerMoreScreen[39m } [36mfrom[39m [32m'./screens/CustomerMoreScreen'[39m[33m;[39m
+ [90m     |[39m                                     [31m[1m^[22m[39m
+ [90m 120 |[39m [36mimport[39m { [33mCustomerBookingSchedulePicker[39m } [36mfrom[39m [32m'./features/customer-booking/views/CustomerBookingSchedulePicker'[39m[33m;[39m
+ [90m 121 |[39m [36mimport[39m { buildCustomerBookingViewModel } [36mfrom[39m [32m'./features/customer-booking/viewModels/useCustomerBookingViewModel'[39m[33m;[39m
+ [90m 122 |[39m [36mimport[39m { [33mProviderBookingsScreen[39m } [36mfrom[39m [32m'./screens/ProviderBookingsScreen'[39m[33m;[39m[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 3122369ms] Error: UnableToResolveError Unable to resolve module ../theme/serveaseDesign from /Users/mac/ServEase/mobile/src/features/customer-more/views/CustomerMore.tsx: 
+
+None of these files exist:
+  * src/features/customer-more/theme/serveaseDesign(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/features/customer-more/theme/serveaseDesign
+[0m [90m 12 |[39m } [36mfrom[39m [32m'lucide-react-native'[39m[33m;[39m
+ [90m 13 |[39m [36mimport[39m { [33mAppScreen[39m } [36mfrom[39m [32m'../navigation/types'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 14 |[39m [36mimport[39m { palette[33m,[39m radius[33m,[39m spacing } [36mfrom[39m [32m'../theme/serveaseDesign'[39m[33m;[39m
+ [90m    |[39m                                           [31m[1m^[22m[39m
+ [90m 15 |[39m [36mimport[39m { [33mCurrentUserProfile[39m } [36mfrom[39m [32m'../../services/serveaseApi'[39m[33m;[39m
+ [90m 16 |[39m
+ [90m 17 |[39m type [33mCustomerMoreScreenProps[39m [33m=[39m {[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 3135409ms] Error: UnableToResolveError Unable to resolve module ../theme/serveaseDesign from /Users/mac/ServEase/mobile/src/features/customer-more/views/CustomerMore.tsx: 
+
+None of these files exist:
+  * src/features/customer-more/theme/serveaseDesign(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/features/customer-more/theme/serveaseDesign
+[0m [90m 12 |[39m } [36mfrom[39m [32m'lucide-react-native'[39m[33m;[39m
+ [90m 13 |[39m [36mimport[39m { [33mAppScreen[39m } [36mfrom[39m [32m'../navigation/types'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 14 |[39m [36mimport[39m { palette[33m,[39m radius[33m,[39m spacing } [36mfrom[39m [32m'../theme/serveaseDesign'[39m[33m;[39m
+ [90m    |[39m                                           [31m[1m^[22m[39m
+ [90m 15 |[39m [36mimport[39m { [33mCurrentUserProfile[39m } [36mfrom[39m [32m'../../services/serveaseApi'[39m[33m;[39m
+ [90m 16 |[39m
+ [90m 17 |[39m type [33mCustomerMoreScreenProps[39m [33m=[39m {[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 3230318ms] Error: UnableToResolveError Unable to resolve module ./screens/AuthScreens from /Users/mac/ServEase/mobile/src/App.tsx: 
+
+None of these files exist:
+  * src/screens/AuthScreens(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/screens/AuthScreens
+[0m [90m 116 |[39m } [36mfrom[39m [32m'./navigation/routeHelpers'[39m[33m;[39m
+ [90m 117 |[39m [36mimport[39m { resolveNotificationRoute } [36mfrom[39m [32m'./navigation/notificationRouting'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 118 |[39m [36mimport[39m { [33mAuthScreens[39m } [36mfrom[39m [32m'./screens/AuthScreens'[39m[33m;[39m
+ [90m     |[39m                              [31m[1m^[22m[39m
+ [90m 119 |[39m [36mimport[39m { [33mCustomerMoreScreen[39m } [36mfrom[39m [32m'./screens/CustomerMoreScreen'[39m[33m;[39m
+ [90m 120 |[39m [36mimport[39m { [33mCustomerBookingSchedulePicker[39m } [36mfrom[39m [32m'./features/customer-booking/views/CustomerBookingSchedulePicker'[39m[33m;[39m
+ [90m 121 |[39m [36mimport[39m { buildCustomerBookingViewModel } [36mfrom[39m [32m'./features/customer-booking/viewModels/useCustomerBookingViewModel'[39m[33m;[39m[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 3233182ms] Error: UnableToResolveError Unable to resolve module ../components/DesignKit from /Users/mac/ServEase/mobile/src/features/auth/views/AuthScreens.tsx: 
+
+None of these files exist:
+  * src/features/auth/components/DesignKit(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/features/auth/components/DesignKit
+[0m [90m 2 |[39m [36mimport[39m { [33mImage[39m[33m,[39m [33mPressable[39m[33m,[39m [33mScrollView[39m[33m,[39m [33mStyleSheet[39m[33m,[39m [33mText[39m[33m,[39m [33mView[39m } [36mfrom[39m [32m'react-native'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mCheck[39m } [36mfrom[39m [32m'lucide-react-native'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { [33mField[39m[33m,[39m [33mPhoneFrame[39m[33m,[39m [33mPrimaryButton[39m[33m,[39m [33mStatusStrip[39m[33m,[39m [33mTopBar[39m } [36mfrom[39m [32m'../components/DesignKit'[39m[33m;[39m
+ [90m   |[39m                                                                        [31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m { [33mRoleCard[39m } [36mfrom[39m [32m'../components/AppDisplay'[39m[33m;[39m
+ [90m 6 |[39m [36mimport[39m { [33mAppRole[39m[33m,[39m [33mAppScreen[39m } [36mfrom[39m [32m'../navigation/types'[39m[33m;[39m
+ [90m 7 |[39m [36mimport[39m { palette[33m,[39m radius[33m,[39m spacing[33m,[39m type } [36mfrom[39m [32m'../theme/serveaseDesign'[39m[33m;[39m[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 3246939ms] Error: UnableToResolveError Unable to resolve module ../components/DesignKit from /Users/mac/ServEase/mobile/src/features/auth/views/AuthScreens.tsx: 
+
+None of these files exist:
+  * src/features/auth/components/DesignKit(.web.ts|.ts|.web.tsx|.tsx|.web.mjs|.mjs|.web.js|.js|.web.jsx|.jsx|.web.json|.json|.web.cjs|.cjs|.web.scss|.scss|.web.sass|.sass|.web.css|.css)
+  * src/features/auth/components/DesignKit
+[0m [90m 2 |[39m [36mimport[39m { [33mImage[39m[33m,[39m [33mPressable[39m[33m,[39m [33mScrollView[39m[33m,[39m [33mStyleSheet[39m[33m,[39m [33mText[39m[33m,[39m [33mView[39m } [36mfrom[39m [32m'react-native'[39m[33m;[39m
+ [90m 3 |[39m [36mimport[39m { [33mCheck[39m } [36mfrom[39m [32m'lucide-react-native'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 4 |[39m [36mimport[39m { [33mField[39m[33m,[39m [33mPhoneFrame[39m[33m,[39m [33mPrimaryButton[39m[33m,[39m [33mStatusStrip[39m[33m,[39m [33mTopBar[39m } [36mfrom[39m [32m'../components/DesignKit'[39m[33m;[39m
+ [90m   |[39m                                                                        [31m[1m^[22m[39m
+ [90m 5 |[39m [36mimport[39m { [33mRoleCard[39m } [36mfrom[39m [32m'../components/AppDisplay'[39m[33m;[39m
+ [90m 6 |[39m [36mimport[39m { [33mAppRole[39m[33m,[39m [33mAppScreen[39m } [36mfrom[39m [32m'../navigation/types'[39m[33m;[39m
+ [90m 7 |[39m [36mimport[39m { palette[33m,[39m radius[33m,[39m spacing[33m,[39m type } [36mfrom[39m [32m'../theme/serveaseDesign'[39m[33m;[39m[0m
+    at showCompileError (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1762:19)
+    at HMRClient.<anonymous> (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1682:13)
+    at HMRClient.emit (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:2013:31)
+    at HMRClient._ws.onmessage (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:1828:18)
+[ 3270822ms] ReferenceError: isAgreed is not defined
+    at AuthScreens (http://localhost:8081/src/features/auth/views/AuthScreens.bundle//&platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable&minify=false&modulesOnly=true&runModule=false&shallow=true:630:49)
+    at react-stack-bottom-frame (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:17834:20)
+    at renderWithHooks (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:8044:22)
+    at updateFunctionComponent (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:9737:19)
+    at beginWork (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:10323:18)
+    at runWithFiberInDEV (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:5816:70)
+    at performUnitOfWork (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:12396:95)
+    at workLoopSync (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:12289:40)
+    at renderRootSync (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:12273:9)
+    at performWorkOnRoot (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:12037:44)
+[ 3270822ms] [WARNING] %s
+
+%s
+ An error occurred in the <AuthScreens> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:9497
+[ 3294878ms] ReferenceError: isAgreed is not defined
+    at AuthScreens (http://localhost:8081/src/features/auth/views/AuthScreens.bundle//&platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable&minify=false&modulesOnly=true&runModule=false&shallow=true:612:49)
+    at react-stack-bottom-frame (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:17834:20)
+    at renderWithHooks (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:8044:22)
+    at updateFunctionComponent (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:9737:19)
+    at beginWork (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:10323:18)
+    at runWithFiberInDEV (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:5816:70)
+    at performUnitOfWork (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:12396:95)
+    at workLoopSync (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:12289:40)
+    at renderRootSync (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:12273:9)
+    at performWorkOnRoot (http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:12037:44)
+[ 3294878ms] [WARNING] %s
+
+%s
+ An error occurred in the <AuthScreens> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:8081/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:9497

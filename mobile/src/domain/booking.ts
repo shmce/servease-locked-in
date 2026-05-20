@@ -4,7 +4,7 @@ import {
   PaymentSummary,
   ProviderAvailabilitySchedule,
   UserRole,
-} from '../../services/serveaseApi';
+} from '../shared/models/types';
 
 const MANILA_TIME_ZONE = 'Asia/Manila';
 const MANILA_UTC_OFFSET = '+08:00';
@@ -320,11 +320,36 @@ export function pricingConfidenceLabel(
 }
 
 export function formatMoney(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) {
+  if (value === null) {
+    return 'PHP 0';
+  }
+
+  if (!Number.isFinite(value)) {
     return 'Price pending';
   }
 
   return `PHP ${value.toLocaleString('en-PH')}`;
+}
+
+export function promotionNotice(input: {
+  valid: boolean;
+  discountAmount: number;
+  message: string;
+}): string {
+  return input.valid
+    ? `Promo applied: ${formatMoney(input.discountAmount)} off.`
+    : input.message;
+}
+
+export function addressVerifiedNotice(input: {
+  latitude: number;
+  longitude: number;
+}): string {
+  return `Address verified near ${input.latitude.toFixed(4)}, ${input.longitude.toFixed(4)}.`;
+}
+
+export function paymentNotice(input: { status: string; amount: number }): string {
+  return `Payment ${input.status} for ${formatMoney(input.amount)}.`;
 }
 
 export function formatDateTime(value: string | null): string {

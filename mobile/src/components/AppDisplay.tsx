@@ -31,7 +31,7 @@ import {
   BookingSummary,
   CatalogServiceItem,
   ProviderListing,
-} from '../../services/serveaseApi';
+} from '../shared/models/types';
 
 export function BookingCard({
   booking,

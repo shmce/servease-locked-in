@@ -1,4 +1,11 @@
-import { createElement, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import WebView from 'react-native-webview';
 import Svg, {
@@ -17,7 +24,7 @@ import {
   GeoAddressResult,
   GeoDirectionsRoute,
   GeoRouteLocation,
-} from '../../services/serveaseApi';
+} from '../shared/models/types';
 import { palette, radius, spacing, type } from '../theme/serveaseDesign';
 
 type TrackingMapLocation = {
@@ -216,12 +223,7 @@ function TrackingMapWebView({
   );
   const mapHtml = useMemo(
     () => buildTrackingMapHtml(provider, destination, routeGeometry, { mode }),
-    [
-      destination.latitude,
-      destination.longitude,
-      mode,
-      routeGeometryKey,
-    ],
+    [destination, mode, provider, routeGeometry],
   );
 
   useEffect(() => {
@@ -232,24 +234,18 @@ function TrackingMapWebView({
     routeGeometryKey,
   ]);
 
-  const injectProviderUpdate = () => {
+  const injectProviderUpdate = useCallback(() => {
     const updateScript = buildProviderLocationUpdateScript(provider, routeGeometry);
     if (!updateScript) {
       return;
     }
 
     webViewRef.current?.injectJavaScript(updateScript);
-  };
+  }, [provider, routeGeometry]);
 
   useEffect(() => {
     injectProviderUpdate();
-  }, [
-    provider?.latitude,
-    provider?.longitude,
-    provider?.headingDegrees,
-    provider?.speedMps,
-    routeGeometryKey,
-  ]);
+  }, [injectProviderUpdate]);
 
   if (mapFailed) {
     return <TrackingMapSvgPreview routePath={routePath} points={points} />;

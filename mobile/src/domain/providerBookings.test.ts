@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { filterProviderBookings } from './providerBookings';
-import { BookingSummary } from '../../services/serveaseApi';
+import { BookingSummary } from '../shared/models/types';
 
 function booking(
   id: string,
