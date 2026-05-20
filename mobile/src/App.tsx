@@ -30,6 +30,10 @@ import {
   statusLabel,
 } from './domain/booking';
 import {
+  buildProviderServiceDescription,
+  validateProviderSignupRequirements,
+} from './domain/providerRegistration';
+import {
   bookingTimeSlots,
   defaultScheduledAt,
   type ProviderBookingTab,
@@ -475,6 +479,7 @@ export default function App() {
   const [signupBusinessName, setSignupBusinessName] = useState('');
   const [signupServiceArea, setSignupServiceArea] = useState('');
   const [signupServiceDescription, setSignupServiceDescription] = useState('');
+  const [signupExperienceYears, setSignupExperienceYears] = useState('');
   const [profileFullName, setProfileFullName] = useState('');
   const [profileContactNumber, setProfileContactNumber] = useState('');
   const [profileAddress, setProfileAddress] = useState('');
@@ -1127,9 +1132,19 @@ export default function App() {
       return;
     }
 
-    if (intendedRole === 'provider' && !signupBusinessName.trim()) {
-      setNotice('Enter your business name.');
-      return;
+    if (intendedRole === 'provider') {
+      const providerRequirementError = validateProviderSignupRequirements({
+        businessName: signupBusinessName,
+        contactNumber: signupContactNumber,
+        experienceYears: signupExperienceYears,
+        serviceArea: signupServiceArea,
+        serviceDescription: signupServiceDescription,
+      });
+
+      if (providerRequirementError) {
+        setNotice(providerRequirementError);
+        return;
+      }
     }
 
     setBusyAction('sign-up');
@@ -1152,7 +1167,10 @@ export default function App() {
               : null,
           serviceDescription:
             intendedRole === 'provider'
-              ? signupServiceDescription.trim() || null
+              ? buildProviderServiceDescription(
+                  signupServiceDescription,
+                  signupExperienceYears,
+                )
               : null,
         },
         { baseUrl: apiBaseUrl },
@@ -1179,6 +1197,7 @@ export default function App() {
       setSignupBusinessName('');
       setSignupServiceArea('');
       setSignupServiceDescription('');
+      setSignupExperienceYears('');
       resetRoute({
         role: nextRole,
         screen: nextRole === 'provider' ? 'home' : 'explore',
@@ -2724,6 +2743,7 @@ export default function App() {
         signupBusinessName={signupBusinessName}
         signupServiceArea={signupServiceArea}
         signupServiceDescription={signupServiceDescription}
+        signupExperienceYears={signupExperienceYears}
         notice={notice}
         busyAction={busyAction}
         setEmail={setEmail}
@@ -2734,6 +2754,7 @@ export default function App() {
         setSignupBusinessName={setSignupBusinessName}
         setSignupServiceArea={setSignupServiceArea}
         setSignupServiceDescription={setSignupServiceDescription}
+        setSignupExperienceYears={setSignupExperienceYears}
         setNotice={setNotice}
         navigate={navigate}
         signIn={signIn}

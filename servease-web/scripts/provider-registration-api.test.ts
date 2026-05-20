@@ -103,6 +103,20 @@ assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), {
   serviceArea: '123 Main Street, Quezon City, Metro Manila, 1100, 10km radius',
 });
 
+const incompleteResponse = await registrationRoute.POST(
+  new Request('http://landing.test/api/provider-registration', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...draft,
+      step2: {
+        ...draft.step2,
+        subCategory: '',
+      },
+    }),
+  }),
+);
+assert.equal(incompleteResponse.status, 400);
+
 function jsonResponse(status: number, payload: unknown): Response {
   return {
     ok: status >= 200 && status < 300,

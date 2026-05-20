@@ -11,6 +11,7 @@ import {
 import { RoleCard } from '../../../components/AppDisplay';
 import { AppRole, AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { providerSignupRequirements } from '../../../domain/providerRegistration';
 import { useAuthViewModel } from '../viewModels/useAuthViewModel';
 
 const claireImage2 = require('../../../../assets/image 2.png');
@@ -29,6 +30,7 @@ type AuthScreensProps = {
   signupBusinessName: string;
   signupServiceArea: string;
   signupServiceDescription: string;
+  signupExperienceYears: string;
   notice: string;
   busyAction: string | null;
   setEmail: Dispatch<SetStateAction<string>>;
@@ -39,6 +41,7 @@ type AuthScreensProps = {
   setSignupBusinessName: Dispatch<SetStateAction<string>>;
   setSignupServiceArea: Dispatch<SetStateAction<string>>;
   setSignupServiceDescription: Dispatch<SetStateAction<string>>;
+  setSignupExperienceYears: Dispatch<SetStateAction<string>>;
   setNotice: Dispatch<SetStateAction<string>>;
   navigate: (screen: AppScreen, nextRole?: AppRole | null) => void;
   signIn: (role: AppRole) => Promise<void>;
@@ -59,6 +62,7 @@ export function AuthScreens({
   signupBusinessName,
   signupServiceArea,
   signupServiceDescription,
+  signupExperienceYears,
   notice,
   busyAction,
   setEmail,
@@ -69,6 +73,7 @@ export function AuthScreens({
   setSignupBusinessName,
   setSignupServiceArea,
   setSignupServiceDescription,
+  setSignupExperienceYears,
   setNotice,
   navigate,
   signIn,
@@ -179,6 +184,7 @@ export function AuthScreens({
           />
           {isProvider ? (
             <>
+              <ProviderRequirementsCard />
               <Field
                 label="Business Name"
                 value={signupBusinessName}
@@ -190,6 +196,13 @@ export function AuthScreens({
                 value={signupServiceArea}
                 onChangeText={setSignupServiceArea}
                 placeholder="Metro Manila"
+              />
+              <Field
+                label="Years of Experience"
+                value={signupExperienceYears}
+                onChangeText={setSignupExperienceYears}
+                keyboardType="numeric"
+                placeholder="3"
               />
               <Field
                 label="Service Description"
@@ -461,6 +474,26 @@ export function AuthScreens({
   );
 }
 
+function ProviderRequirementsCard() {
+  return (
+    <View style={styles.requirementsCard}>
+      <Text style={styles.requirementsTitle}>Required for admin approval</Text>
+      {providerSignupRequirements.map((requirement) => (
+        <View key={requirement} style={styles.requirementRow}>
+          <View style={styles.requirementIcon}>
+            <Check color={palette.mint} size={12} strokeWidth={3} />
+          </View>
+          <Text style={styles.requirementText}>{requirement}</Text>
+        </View>
+      ))}
+      <Text style={styles.requirementNote}>
+        You can upload the government ID from the provider home screen after the
+        account is created.
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   authGate: {
     backgroundColor: palette.mint,
@@ -624,6 +657,47 @@ const styles = StyleSheet.create({
     ...type.body,
     color: palette.muted,
     marginTop: -spacing.md,
+  },
+  requirementsCard: {
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  requirementsTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 18,
+  },
+  requirementRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  requirementIcon: {
+    alignItems: 'center',
+    backgroundColor: '#E9F9F0',
+    borderRadius: radius.pill,
+    height: 20,
+    justifyContent: 'center',
+    width: 20,
+  },
+  requirementText: {
+    color: palette.ink,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  requirementNote: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+    marginTop: spacing.xs,
   },
   forgotLink: {
     color: palette.mint,

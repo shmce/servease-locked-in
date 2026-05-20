@@ -100,8 +100,11 @@ function assertProviderRegistrationDraft(
     !isNonEmptyString(step1.fullName) ||
     !isNonEmptyString(step1.email) ||
     !isNonEmptyString(step1.password) ||
+    !isNonEmptyString(step1.contactNumber) ||
     !isNonEmptyString(step2.businessName) ||
     !isNonEmptyString(step2.primaryCategory) ||
+    !isNonEmptyString(step2.subCategory) ||
+    !isNonEmptyString(step2.experienceYears) ||
     !isNonEmptyString(step3.streetAddress) ||
     !isNonEmptyString(step3.city) ||
     !isNonEmptyString(step3.province) ||
