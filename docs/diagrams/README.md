@@ -1,8 +1,13 @@
 # ServEase Diagrams
 
+Last verified from code: 2026-05-20.
+
 This directory contains the standard capstone/thesis diagram package for ServEase.
 The editable sources are Mermaid files in `source/`. Generated exports are stored in
 `exports/svg/` and `exports/png/`.
+
+For the route-by-route narrative behind the sequence and activity diagrams, see
+[`../call-flows.md`](../call-flows.md).
 
 ## Diagram Index
 

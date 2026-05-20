@@ -73,6 +73,15 @@ classDiagram
     reason
   }
 
+  class ProviderTimeOffWindow {
+    id
+    providerId
+    offDate
+    startTime
+    endTime
+    reason
+  }
+
   class Conversation {
     id
     bookingId
@@ -134,6 +143,7 @@ classDiagram
   ServiceItem "1" --> "0..*" ProviderListing
   ProviderProfile "1" --> "0..*" AvailabilityWindow
   ProviderProfile "1" --> "0..*" ProviderDayOff
+  ProviderProfile "1" --> "0..*" ProviderTimeOffWindow
   User "1" --> "0..*" Booking : customer
   ProviderProfile "1" --> "0..*" Booking : provider
   ServiceItem "1" --> "0..*" Booking

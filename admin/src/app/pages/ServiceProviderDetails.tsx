@@ -70,7 +70,6 @@ import {
   TrendingUp,
   RotateCw,
   ImageOff,
-  ScanLine,
 } from "lucide-react";
 
 /* ─── SHARED CONSTANTS ───────────────────────────────────────────── */
@@ -209,9 +208,6 @@ export function ServiceProviderDetails() {
     totalScore: "—",
     checklist: [] as { label: string; checked: boolean }[],
     services: apiProvider?.serviceDescription ? [apiProvider.serviceDescription] : [],
-    govIdType: "—",
-    govIdNumber: "—",
-    ocrConfidence: null as number | null,
   };
 
   const [activeTab, setActiveTab] = useState("Documents");
@@ -719,52 +715,6 @@ export function ServiceProviderDetails() {
               </CardContent>
             </Card>
 
-            {/* OCR Extracted Data Card (Read-only) */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <ScanLine className="w-4 h-4 text-[#16A34A]" />
-                  OCR Extracted Data
-                  <Badge className="ml-auto bg-gray-100 text-gray-500 border-gray-200 text-xs font-normal">Read-only</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-0">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Government ID Type</p>
-                    <p className="text-sm font-medium text-gray-900 mt-1.5 flex items-center gap-2">
-                      {provider.govIdType}
-                      {hasMeaningfulValue(provider.govIdType) ? (
-                        <CheckCircle className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
-                      ) : null}
-                    </p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Government ID Number</p>
-                    <p className="text-sm font-mono font-medium text-gray-900 mt-1.5 flex items-center gap-2">
-                      {provider.govIdNumber}
-                      {hasMeaningfulValue(provider.govIdNumber) ? (
-                        <CheckCircle className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
-                      ) : null}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500">OCR Confidence Score</p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-[#16A34A] rounded-full"
-                        style={{ width: `${provider.ocrConfidence ?? 0}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-semibold text-[#16A34A]">
-                      {provider.ocrConfidence === null ? "—" : `${provider.ocrConfidence}%`}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* ── RIGHT COLUMN (col-span-5) ── */}

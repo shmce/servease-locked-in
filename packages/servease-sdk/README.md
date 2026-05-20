@@ -85,6 +85,8 @@ await servease.bookings.create(
 - `availability.replaceWindows(input)`
 - `availability.addDayOff(input)`
 - `availability.removeDayOff(offDate)`
+- `availability.addTimeOff(input)`
+- `availability.removeTimeOff(windowId)`
 - `providerApplications.getMine(options?)`
 - `payments.list()`
 - `payments.create(input, options?)`

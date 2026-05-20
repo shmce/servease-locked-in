@@ -10,7 +10,7 @@ The original Figma project is available at https://www.figma.com/design/NjHaqneA
 - `src/app/context`: provider data context and state wiring.
 - `src/app/utils`: provider dashboard helpers.
 - `src/assets`: static imported assets.
-- `BACKEND_ADJUSTMENTS.md`: backend contracts still needed for full live provider data.
+- `BACKEND_ADJUSTMENTS.md`: follow-up backend needs for richer provider data.
 
 ## Environment
 
@@ -36,4 +36,4 @@ npm run build
 
 ## Backend Wiring
 
-The provider dashboard should use gateway-backed provider routes as live wiring is completed. It must not call internal service ports or use Supabase service-role credentials.
+The provider dashboard uses gateway-backed provider routes through `src/shared/models/apiService.ts`. It must not call internal service ports or use Supabase service-role credentials. See `../docs/app-surface-contracts.md` for the current route map.

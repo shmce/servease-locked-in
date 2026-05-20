@@ -8,14 +8,14 @@ This plan records the current build state and the next acceptance gates. Older p
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Repository documentation | Active | `AGENTS.md`, `DESIGN.md`, and `docs/` are the canonical baseline. |
+| Repository documentation | Active | `AGENTS.md`, `DESIGN.md`, and `docs/` are the canonical baseline. Contract, call-flow, app-surface, and data-ownership docs were refreshed on 2026-05-20. |
 | Backend workspace | Active | API Gateway plus services for auth, user, catalog, booking, availability, messaging, payment, review, notification, support, and admin. |
 | Database migrations | Active | Service-owned migrations live in `backend/database`. |
 | Mobile app | Active | Expo app with API/auth clients, push registration, and demo smoke support. |
 | Admin dashboard | Active | Next.js dashboard wired to `/v1/admin/...` gateway routes. |
-| Provider web dashboard | Active | Next.js provider surface with gateway wiring in progress. |
+| Provider web dashboard | Active | Next.js provider surface with gateway-backed client coverage; richer backend needs are tracked in `FE_Web(Provider)/BACKEND_ADJUSTMENTS.md`. |
 | Landing page | Active | Next.js public/account surface with API proxy routes to the gateway. |
-| GitHub Packages | Active | Backend installs `@implementsprint/sdk` from GitHub Packages. |
+| GitHub Packages | Active | Backend installs `@implementsprint/sdk` from GitHub Packages; `packages/servease-sdk` contains the typed public ServEase client. |
 
 ## Active Acceptance Gates
 
@@ -99,6 +99,17 @@ npm run build
 ```
 
 Inspect affected routes locally with `npm run dev` for material UI or form changes.
+
+## SDK Gate
+
+Use this gate for `packages/servease-sdk` changes:
+
+```sh
+cd packages/servease-sdk
+npm run typecheck
+npm test
+npm run build
+```
 
 ## Retired Phase Notes
 

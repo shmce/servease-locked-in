@@ -80,7 +80,7 @@ const PROVIDERS: Record<string, {
   services: string[];
   govIdType: string;
   govIdNumber: string;
-  ocrConfidence: number;
+  documentConfidence: number;
 }> = {
   "PRV-001": {
     id: "PRV-001",
@@ -116,8 +116,8 @@ const PROVIDERS: Record<string, {
     ],
     auditTrail: [
       { id: 1, timestamp: "Jan 10, 2024 8:00 AM", actor: "System", action: "Application submitted by provider", type: "system" },
-      { id: 2, timestamp: "Jan 10, 2024 8:05 AM", actor: "System", action: "Documents uploaded and queued for OCR processing", type: "system" },
-      { id: 3, timestamp: "Jan 10, 2024 8:10 AM", actor: "System", action: "OCR processing completed – confidence score: 96%", type: "system" },
+      { id: 2, timestamp: "Jan 10, 2024 8:05 AM", actor: "System", action: "Documents uploaded and queued for Document processing", type: "system" },
+      { id: 3, timestamp: "Jan 10, 2024 8:10 AM", actor: "System", action: "Document processing completed – confidence score: 96%", type: "system" },
       { id: 4, timestamp: "Jan 11, 2024 10:00 AM", actor: "Admin User", action: "NBI Clearance verified via NBI Online API", type: "admin" },
       { id: 5, timestamp: "Jan 12, 2024 2:00 PM", actor: "Admin User", action: "PRC License verified via PRC Online API", type: "admin" },
       { id: 6, timestamp: "Jan 13, 2024 11:30 AM", actor: "Admin User", action: "Background check submitted to third-party service", type: "admin" },
@@ -129,7 +129,7 @@ const PROVIDERS: Record<string, {
     services: ["Plumbing repairs & installation", "Electrical troubleshooting", "Carpentry & furniture assembly", "Painting & wall repairs", "General home maintenance"],
     govIdType: "PhilSys National ID",
     govIdNumber: "PSN-2024-001234",
-    ocrConfidence: 96,
+    documentConfidence: 96,
   },
   "PRV-002": {
     id: "PRV-002",
@@ -165,7 +165,7 @@ const PROVIDERS: Record<string, {
     ],
     auditTrail: [
       { id: 1, timestamp: "Feb 15, 2024 9:00 AM", actor: "System", action: "Application submitted by provider", type: "system" },
-      { id: 2, timestamp: "Feb 15, 2024 9:08 AM", actor: "System", action: "OCR processing completed – confidence score: 98%", type: "system" },
+      { id: 2, timestamp: "Feb 15, 2024 9:08 AM", actor: "System", action: "Document processing completed – confidence score: 98%", type: "system" },
       { id: 3, timestamp: "Feb 16, 2024 11:00 AM", actor: "Admin User", action: "NBI Clearance verified", type: "admin" },
       { id: 4, timestamp: "Feb 19, 2024 3:00 PM", actor: "Admin User", action: "All verifications complete. Premium level approved.", type: "admin" },
       { id: 5, timestamp: "Feb 20, 2024 10:00 AM", actor: "Admin User", action: "Application approved. Provider onboarded.", type: "admin" },
@@ -174,7 +174,7 @@ const PROVIDERS: Record<string, {
     services: ["Deep cleaning", "Regular housekeeping", "Office cleaning", "Move-in/move-out cleaning", "Post-construction cleaning"],
     govIdType: "Driver's License",
     govIdNumber: "DL-2024-005678",
-    ocrConfidence: 98,
+    documentConfidence: 98,
   },
 };
 
@@ -465,12 +465,12 @@ export function ServiceProviderDetails() {
               </CardContent>
             </Card>
 
-            {/* OCR Extracted Data Card (Read-only) */}
+            {/* Document Extracted Data Card (Read-only) */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ScanLine className="w-4 h-4 text-[#16A34A]" />
-                  OCR Extracted Data
+                  Document Extracted Data
                   <Badge className="ml-auto bg-gray-100 text-gray-500 border-gray-200 text-xs font-normal">Read-only</Badge>
                 </CardTitle>
               </CardHeader>
@@ -492,12 +492,12 @@ export function ServiceProviderDetails() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <p className="text-xs text-gray-500">OCR Confidence Score</p>
+                  <p className="text-xs text-gray-500">Document Confidence Score</p>
                   <div className="flex items-center gap-3">
                     <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#16A34A] rounded-full" style={{ width: `${provider.ocrConfidence}%` }} />
+                      <div className="h-full bg-[#16A34A] rounded-full" style={{ width: `${provider.documentConfidence}%` }} />
                     </div>
-                    <span className="text-sm font-semibold text-[#16A34A]">{provider.ocrConfidence}%</span>
+                    <span className="text-sm font-semibold text-[#16A34A]">{provider.documentConfidence}%</span>
                   </div>
                 </div>
               </CardContent>

@@ -36,6 +36,7 @@ npm run web
 npm run typecheck
 npm run lint
 npm test
+npm run smoke:demo-api
 ```
 
 `npm run smoke:demo-api` checks the demo API flow against the configured gateway.

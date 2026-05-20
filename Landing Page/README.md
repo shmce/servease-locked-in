@@ -34,7 +34,11 @@ If your Supabase dashboard still labels the browser key as an anon key, `NEXT_PU
 ```sh
 npm install
 npm run dev
+npm run typecheck
+npm run lint
+npm test
 npm run build
+npm run e2e
 ```
 
 ## Backend Boundary

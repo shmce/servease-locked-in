@@ -395,8 +395,12 @@ export interface AdminProviderSummary {
   verificationStatus: string
   averageRating: number
   reviewCount: number
+  totalBookings: number | null
+  completionRate: number | null
   isActive: boolean
   createdAt: string | null
+  approvedByUserId?: string | null
+  approvedByName?: string | null
   userEmail: string | null
   userFullName: string | null
   userContactNumber?: string | null
@@ -1481,19 +1485,6 @@ export function addAdminProviderApplicationReviewNote(
       method: 'POST',
       token,
       body: { note },
-    },
-  )
-}
-
-export function runAdminProviderApplicationOcr(
-  token: string,
-  applicationId: string,
-): Promise<AdminProviderApplicationReview> {
-  return request<AdminProviderApplicationReview>(
-    `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}/ocr`,
-    {
-      method: 'POST',
-      token,
     },
   )
 }

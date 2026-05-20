@@ -751,24 +751,11 @@ describe("serveaseAdminApi", () => {
             ],
           },
         }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: {
-            ...reviewPayload,
-            ocrData: {
-              ...reviewPayload.ocrData,
-              governmentIdNumber: "PSN-2026-9999",
-            },
-          },
-        }),
       });
 
     const {
       addAdminProviderApplicationReviewNote,
       getAdminProviderApplicationReview,
-      runAdminProviderApplicationOcr,
       updateAdminProviderApplicationReview,
     } = await import("./serveaseAdminApi");
 
@@ -794,10 +781,6 @@ describe("serveaseAdminApi", () => {
       "provider-1",
       "Manual check completed.",
     );
-    const ocr = await runAdminProviderApplicationOcr(
-      "admin-token",
-      "provider-1",
-    );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -817,15 +800,10 @@ describe("serveaseAdminApi", () => {
         body: JSON.stringify({ note: "Manual check completed." }),
       }),
     );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
-      "http://gateway.test/v1/admin/provider-applications/provider-1/ocr",
-      expect.objectContaining({ method: "POST" }),
-    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(review.isComplete).toBe(false);
     expect(updated.isComplete).toBe(true);
     expect(noted.notes[0]?.note).toBe("Manual check completed.");
-    expect(ocr.ocrData.governmentIdNumber).toBe("PSN-2026-9999");
   });
 
   it("loads and moderates reviews through the gateway", async () => {

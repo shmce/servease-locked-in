@@ -17,7 +17,7 @@ sequenceDiagram
   CatalogDb-->>CatalogService: Provider service data
   CatalogService-->>BookingService: Provider and service summary
   BookingService->>AvailabilityService: Validate provider schedule
-  AvailabilityService->>BookingDb: Check availability windows and days off
+  AvailabilityService->>BookingDb: Check availability windows, days off, and time off
   AvailabilityService->>BookingDb: Check conflicting bookings
   BookingDb-->>AvailabilityService: Availability result
   AvailabilityService-->>BookingService: Available
