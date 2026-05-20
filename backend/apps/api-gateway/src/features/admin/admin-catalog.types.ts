@@ -28,12 +28,33 @@ export interface AdminProviderSummary {
   verificationStatus: string;
   averageRating: number;
   reviewCount: number;
+  totalBookings: number | null;
+  completionRate: number | null;
   isActive: boolean;
   createdAt: string | null;
+  approvedByUserId?: string | null;
+  approvedByName?: string | null;
   userEmail: string | null;
   userFullName: string | null;
   userContactNumber?: string | null;
   userStatus: string | null;
+}
+
+export type AdminServiceAreaStatus = 'active' | 'inactive';
+
+export interface AdminServiceAreaSummary {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  status: AdminServiceAreaStatus;
+  notes: string | null;
+  providerCount: number;
+  latitude: number | null;
+  longitude: number | null;
+  polygon?: unknown;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 export interface UpsertCategoryRequest {
@@ -51,4 +72,13 @@ export interface UpsertServiceRequest {
   price?: number | null;
   pricingMode?: 'flat' | 'hourly';
   isActive?: boolean;
+}
+
+export interface UpsertServiceAreaRequest {
+  name: string;
+  city: string;
+  region: string;
+  status: AdminServiceAreaStatus;
+  notes?: string | null;
+  polygon?: unknown;
 }

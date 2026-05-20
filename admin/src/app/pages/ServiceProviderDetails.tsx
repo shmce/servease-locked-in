@@ -10,11 +10,13 @@ import {
   listAdminProviderPortfolio,
   deleteAdminProviderPortfolioMedia,
   getAdminProviderAvailability,
+  listAdminAuditLogs,
   AdminProviderApplicationSummary,
   AdminProviderSummary,
   AdminProviderPortfolioMediaSummary,
   AdminAvailabilitySchedule,
   AdminAvailabilityDayOfWeek,
+  AdminAuditLogSummary,
 } from "../../services/serveaseAdminApi";
 import {
   countVerifiedProviderDocuments,
@@ -52,7 +54,6 @@ import {
   Clock,
   FileText,
   Shield,
-  ShieldCheck,
   User,
   ZoomIn,
   ZoomOut,
@@ -69,183 +70,11 @@ import {
   TrendingUp,
   RotateCw,
   ImageOff,
-  Users,
   ScanLine,
 } from "lucide-react";
 
-/* ─── MOCK DATA ─────────────────────────────────────────────────── */
-const PROVIDERS: Record<string, {
-  id: string;
-  businessName: string;
-  ownerName: string;
-  category: string;
-  location: string;
-  phone: string;
-  email: string;
-  website: string;
-  rating: number;
-  totalBookings: number;
-  completionRate: number;
-  verificationLevel: "Basic" | "Fully Verified" | "Premium";
-  approvalDate: string;
-  approvedBy: string;
-  joinDate: string;
-  nbiNumber: string;
-  prcNumber: string;
-  tinNumber: string;
-  bgCheckStatus: "Passed" | "Failed" | "Concern";
-  totalScore: number;
-  checklist: { label: string; checked: boolean }[];
-  notes: { id: number; text: string; author: string; timestamp: string }[];
-  auditTrail: { id: number; timestamp: string; actor: string; action: string; type: "system" | "admin" | "provider" }[];
-  services: string[];
-  govIdType: string;
-  govIdNumber: string;
-  ocrConfidence: number;
-}> = {
-  "PRV-001": {
-    id: "PRV-001",
-    businessName: "HomeFixPro Manila",
-    ownerName: "Juan Dela Cruz",
-    category: "Home Maintenance & Repair",
-    location: "Makati City, Metro Manila",
-    phone: "+63 917 123 4567",
-    email: "contact@homefixpro.ph",
-    website: "https://homefixpro.ph",
-    rating: 4.8,
-    totalBookings: 234,
-    completionRate: 97.4,
-    verificationLevel: "Fully Verified",
-    approvalDate: "Jan 15, 2024",
-    approvedBy: "Admin User",
-    joinDate: "Jan 15, 2024",
-    nbiNumber: "NBI-2024-HM-001234",
-    prcNumber: "PRC-2024-HM-056789",
-    tinNumber: "123-456-789-000",
-    bgCheckStatus: "Passed",
-    totalScore: 96,
-    checklist: [
-      { label: "Identity matches documents", checked: true },
-      { label: "NBI verified", checked: true },
-      { label: "PRC verified", checked: true },
-      { label: "TIN verified", checked: true },
-      { label: "All required documents submitted", checked: true },
-    ],
-    notes: [
-      { id: 1, text: "Application reviewed and all documents verified successfully.", author: "Admin User", timestamp: "Jan 14, 2024 2:30 PM" },
-      { id: 2, text: "Background check cleared. Provider approved for platform.", author: "Admin User", timestamp: "Jan 15, 2024 9:00 AM" },
-    ],
-    auditTrail: [
-      { id: 1, timestamp: "Jan 10, 2024 8:00 AM", actor: "System", action: "Application submitted by provider", type: "system" },
-      { id: 2, timestamp: "Jan 10, 2024 8:05 AM", actor: "System", action: "Documents uploaded and queued for OCR processing", type: "system" },
-      { id: 3, timestamp: "Jan 10, 2024 8:10 AM", actor: "System", action: "OCR processing completed – confidence score: 96%", type: "system" },
-      { id: 4, timestamp: "Jan 11, 2024 10:00 AM", actor: "Admin User", action: "NBI Clearance verified via NBI Online API", type: "admin" },
-      { id: 5, timestamp: "Jan 12, 2024 2:00 PM", actor: "Admin User", action: "PRC License verified via PRC Online API", type: "admin" },
-      { id: 6, timestamp: "Jan 13, 2024 11:30 AM", actor: "Admin User", action: "Background check submitted to third-party service", type: "admin" },
-      { id: 7, timestamp: "Jan 14, 2024 2:30 PM", actor: "Admin User", action: "All documents reviewed. Notes added to application.", type: "admin" },
-      { id: 8, timestamp: "Jan 15, 2024 9:00 AM", actor: "Admin User", action: "Application approved. Provider onboarded to platform.", type: "admin" },
-      { id: 9, timestamp: "Jan 15, 2024 9:02 AM", actor: "System", action: "Verification level set to: Fully Verified", type: "system" },
-      { id: 10, timestamp: "Jan 15, 2024 9:05 AM", actor: "System", action: "Welcome email sent to provider", type: "system" },
-    ],
-    services: ["Plumbing repairs & installation", "Electrical troubleshooting", "Carpentry & furniture assembly", "Painting & wall repairs", "General home maintenance"],
-    govIdType: "PhilSys National ID",
-    govIdNumber: "PSN-2024-001234",
-    ocrConfidence: 96,
-  },
-  "PRV-002": {
-    id: "PRV-002",
-    businessName: "Sparkle Clean Services",
-    ownerName: "Maria Santos",
-    category: "Domestic & Cleaning Services",
-    location: "Quezon City, Metro Manila",
-    phone: "+63 917 234 5678",
-    email: "info@sparkleclean.ph",
-    website: "https://sparkleclean.ph",
-    rating: 4.9,
-    totalBookings: 198,
-    completionRate: 97,
-    verificationLevel: "Premium",
-    approvalDate: "Feb 20, 2024",
-    approvedBy: "Admin User",
-    joinDate: "Feb 20, 2024",
-    nbiNumber: "NBI-2024-DC-005678",
-    prcNumber: "N/A",
-    tinNumber: "234-567-890-000",
-    bgCheckStatus: "Passed",
-    totalScore: 98,
-    checklist: [
-      { label: "Identity matches documents", checked: true },
-      { label: "NBI verified", checked: true },
-      { label: "PRC verified", checked: true },
-      { label: "TIN verified", checked: true },
-      { label: "All required documents submitted", checked: true },
-    ],
-    notes: [
-      { id: 1, text: "Excellent application. All documents in order.", author: "Admin User", timestamp: "Feb 19, 2024 3:00 PM" },
-      { id: 2, text: "Premium verification level granted due to exceptional records.", author: "Admin User", timestamp: "Feb 20, 2024 10:00 AM" },
-    ],
-    auditTrail: [
-      { id: 1, timestamp: "Feb 15, 2024 9:00 AM", actor: "System", action: "Application submitted by provider", type: "system" },
-      { id: 2, timestamp: "Feb 15, 2024 9:08 AM", actor: "System", action: "OCR processing completed – confidence score: 98%", type: "system" },
-      { id: 3, timestamp: "Feb 16, 2024 11:00 AM", actor: "Admin User", action: "NBI Clearance verified", type: "admin" },
-      { id: 4, timestamp: "Feb 19, 2024 3:00 PM", actor: "Admin User", action: "All verifications complete. Premium level approved.", type: "admin" },
-      { id: 5, timestamp: "Feb 20, 2024 10:00 AM", actor: "Admin User", action: "Application approved. Provider onboarded.", type: "admin" },
-      { id: 6, timestamp: "Feb 20, 2024 10:02 AM", actor: "System", action: "Verification level set to: Premium", type: "system" },
-    ],
-    services: ["Deep cleaning", "Regular housekeeping", "Office cleaning", "Move-in/move-out cleaning", "Post-construction cleaning"],
-    govIdType: "Driver's License",
-    govIdNumber: "DL-2024-005678",
-    ocrConfidence: 98,
-  },
-  "PRV-003": {
-    id: "PRV-003",
-    businessName: "TechRepair Express",
-    ownerName: "Carlos Reyes",
-    category: "Automotive & Tech Support",
-    location: "Pasig City, Metro Manila",
-    phone: "+63 918 345 6789",
-    email: "support@techrepairexpress.ph",
-    website: "https://techrepairexpress.ph",
-    rating: 4.6,
-    totalBookings: 312,
-    completionRate: 94.2,
-    verificationLevel: "Basic",
-    approvalDate: "Mar 5, 2024",
-    approvedBy: "Admin User",
-    joinDate: "Mar 5, 2024",
-    nbiNumber: "NBI-2024-AT-009012",
-    prcNumber: "N/A",
-    tinNumber: "345-678-901-000",
-    bgCheckStatus: "Passed",
-    totalScore: 88,
-    checklist: [
-      { label: "Identity matches documents", checked: true },
-      { label: "NBI verified", checked: true },
-      { label: "PRC verified", checked: false },
-      { label: "TIN verified", checked: true },
-      { label: "All required documents submitted", checked: true },
-    ],
-    notes: [
-      { id: 1, text: "Basic verification completed. PRC not applicable for this category.", author: "Admin User", timestamp: "Mar 4, 2024 4:15 PM" },
-    ],
-    auditTrail: [
-      { id: 1, timestamp: "Mar 1, 2024 10:00 AM", actor: "System", action: "Application submitted by provider", type: "system" },
-      { id: 2, timestamp: "Mar 1, 2024 10:12 AM", actor: "System", action: "OCR processing completed – confidence score: 88%", type: "system" },
-      { id: 3, timestamp: "Mar 3, 2024 2:00 PM", actor: "Admin User", action: "NBI Clearance verified", type: "admin" },
-      { id: 4, timestamp: "Mar 4, 2024 4:15 PM", actor: "Admin User", action: "Basic verification approved.", type: "admin" },
-      { id: 5, timestamp: "Mar 5, 2024 9:30 AM", actor: "System", action: "Verification level set to: Basic", type: "system" },
-    ],
-    services: ["Laptop & desktop repair", "Mobile phone repair", "Network setup & troubleshooting", "Smart home device installation", "Data recovery"],
-    govIdType: "Postal ID",
-    govIdNumber: "PI-2024-009012",
-    ocrConfidence: 88,
-  },
-};
-
-const DEFAULT_PROVIDER = PROVIDERS["PRV-001"];
-
 /* ─── SHARED CONSTANTS ───────────────────────────────────────────── */
-const TABS = ["Overview", "Documents", "Portfolio", "Availability", "References", "Background Check", "Activity Logs"];
+const TABS = ["Overview", "Documents", "Portfolio", "Availability", "Activity Logs"];
 
 const DAY_ORDER: AdminAvailabilityDayOfWeek[] = [
   "monday",
@@ -266,16 +95,6 @@ const DAY_LABELS: Record<AdminAvailabilityDayOfWeek, string> = {
   saturday: "Saturday",
   sunday: "Sunday",
 };
-
-const DOCUMENT_TYPES = [
-  { id: "gov-id", name: "Government ID", file: "national-id-verified.jpg", date: "Jan 10, 2024", color: "bg-blue-100", iconColor: "text-blue-500" },
-  { id: "nbi", name: "NBI Clearance", file: "nbi-clearance-verified.pdf", date: "Jan 10, 2024", color: "bg-green-100", iconColor: "text-green-500" },
-  { id: "prc", name: "PRC License", file: "prc-license-verified.jpg", date: "Jan 10, 2024", color: "bg-purple-100", iconColor: "text-purple-500" },
-  { id: "tin", name: "TIN Document", file: "bir-tin-verified.pdf", date: "Jan 10, 2024", color: "bg-teal-100", iconColor: "text-teal-500" },
-  { id: "permit", name: "Business Permit", file: "business-permit-verified.pdf", date: "Jan 10, 2024", color: "bg-cyan-100", iconColor: "text-cyan-500" },
-  { id: "address", name: "Proof of Address", file: "utility-bill-verified.jpg", date: "Jan 10, 2024", color: "bg-indigo-100", iconColor: "text-indigo-500" },
-  { id: "insurance", name: "Insurance Certificate", file: "insurance-cert-verified.pdf", date: "Jan 10, 2024", color: "bg-pink-100", iconColor: "text-pink-500" },
-];
 
 /* ─── HELPERS ────────────────────────────────────────────────────── */
 function getLevelBadge(level: string) {
@@ -307,11 +126,41 @@ function getDocumentStatusBadge(status: ProviderDocumentItem["status"]) {
   }
 }
 
-const TAB_EMPTY_ICONS: Record<string, React.ReactNode> = {
-  Portfolio: <ImageOff className="w-10 h-10 text-gray-200 mb-3" />,
-  References: <Users className="w-10 h-10 text-gray-200 mb-3" />,
-  "Background Check": <ShieldCheck className="w-10 h-10 text-gray-200 mb-3" />,
+function formatNullableDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "—";
+}
+
+function hasMeaningfulValue(value: string | number | null | undefined): boolean {
+  const normalized = String(value ?? "").trim();
+  return normalized.length > 0 && normalized !== "—";
+}
+
+type ProviderBookingStats = AdminProviderSummary & {
+  totalBookings?: number | null;
+  completionRate?: number | null;
 };
+
+function formatIntegerStat(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+    return "—";
+  }
+  return Number(value).toLocaleString("en-US");
+}
+
+function formatCompletionRate(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) {
+    return "—";
+  }
+  return `${Math.round(Number(value))}%`;
+}
 
 /* ─── MAIN COMPONENT ─────────────────────────────────────────────── */
 export function ServiceProviderDetails() {
@@ -328,24 +177,37 @@ export function ServiceProviderDetails() {
       .catch(() => setLoadError('Provider not found.'));
   }, [id, accessToken]);
 
-  const fallback = (id && PROVIDERS[id]) ? PROVIDERS[id] : DEFAULT_PROVIDER;
-  const provider = apiProvider
-    ? {
-        ...fallback,
-        id: apiProvider.id,
-        businessName: apiProvider.businessName ?? fallback.businessName,
-        ownerName: apiProvider.userFullName ?? fallback.ownerName,
-        email: apiProvider.userEmail ?? fallback.email,
-        phone: apiProvider.userContactNumber ?? fallback.phone,
-        location: apiProvider.serviceArea ?? fallback.location,
-        rating: apiProvider.averageRating,
-        totalBookings: apiProvider.reviewCount,
-        verificationLevel: (
-          apiProvider.verificationStatus === 'approved' ? 'Fully Verified' :
-          apiProvider.verificationStatus === 'rejected' ? 'Basic' : 'Basic'
-        ) as typeof fallback.verificationLevel,
-      }
-    : fallback;
+  const providerStats = apiProvider as ProviderBookingStats | null;
+  const provider = {
+    id: apiProvider?.id ?? id ?? "",
+    businessName: apiProvider?.businessName ?? "Provider not loaded",
+    ownerName: apiProvider?.userFullName ?? "—",
+    category: apiProvider?.serviceDescription ?? "Service Marketplace",
+    location: apiProvider?.serviceArea ?? "—",
+    phone: apiProvider?.userContactNumber ?? "—",
+    email: apiProvider?.userEmail ?? "—",
+    website: "—",
+    rating: apiProvider ? apiProvider.averageRating : 0,
+    totalBookings: formatIntegerStat(providerStats?.totalBookings),
+    completionRate: formatCompletionRate(providerStats?.completionRate),
+    verificationLevel:
+      apiProvider?.verificationStatus === "approved"
+        ? "Fully Verified"
+        : "Basic",
+    approvalDate: formatNullableDate(apiProvider?.createdAt),
+    approvedBy: apiProvider?.approvedByName ?? "—",
+    joinDate: formatNullableDate(apiProvider?.createdAt),
+    nbiNumber: "—",
+    prcNumber: "—",
+    tinNumber: "—",
+    bgCheckStatus: "—",
+    totalScore: "—",
+    checklist: [] as { label: string; checked: boolean }[],
+    services: apiProvider?.serviceDescription ? [apiProvider.serviceDescription] : [],
+    govIdType: "—",
+    govIdNumber: "—",
+    ocrConfidence: null as number | null,
+  };
 
   const [activeTab, setActiveTab] = useState("Documents");
   const [showRevokeModal, setShowRevokeModal] = useState(false);
@@ -436,6 +298,16 @@ export function ServiceProviderDetails() {
   const [availability, setAvailability] = useState<AdminAvailabilitySchedule | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [providerAuditTrail, setProviderAuditTrail] = useState<
+    Array<{
+      id: string;
+      timestamp: string;
+      actor: string;
+      action: string;
+      type: "system" | "admin" | "provider";
+    }>
+  >([]);
+  const [isLoadingAuditTrail, setIsLoadingAuditTrail] = useState(false);
 
   useEffect(() => {
     if (!apiProvider?.id || !accessToken || activeTab !== "Availability") return;
@@ -460,6 +332,54 @@ export function ServiceProviderDetails() {
     };
   }, [apiProvider?.id, accessToken, activeTab]);
 
+  useEffect(() => {
+    if (!apiProvider?.id || !accessToken || activeTab !== "Activity Logs") return;
+    let cancelled = false;
+
+    const toAuditEntry = (log: AdminAuditLogSummary) => ({
+      id: log.id,
+      timestamp: formatNullableDate(log.createdAt),
+      actor: log.adminName ?? log.adminEmail ?? "Admin",
+      action: log.details ?? log.action,
+      type: "admin" as const,
+    });
+
+    setIsLoadingAuditTrail(true);
+    listAdminAuditLogs(accessToken, {
+      entityType: "ProviderApplication",
+      limit: 100,
+    })
+      .then((logs) => {
+        if (!cancelled) {
+          setProviderAuditTrail(
+            logs
+              .filter((log) => {
+                const metadataProviderId =
+                  typeof log.metadata?.providerId === "string"
+                    ? log.metadata.providerId
+                    : null;
+                return log.entityId === apiProvider.id || metadataProviderId === apiProvider.id;
+              })
+              .map(toAuditEntry),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProviderAuditTrail([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingAuditTrail(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiProvider?.id, accessToken, activeTab]);
+
   const handleRemovePortfolioMedia = async (mediaId: string) => {
     if (!accessToken || !apiProvider?.id) return;
     setDeletingMediaId(mediaId);
@@ -476,13 +396,9 @@ export function ServiceProviderDetails() {
     }
   };
 
-  const fallbackDocuments: ProviderDocumentItem[] = DOCUMENT_TYPES.map((doc) => ({
-    ...doc,
-    status: "verified" as const,
-  }));
   const displayedDocuments = providerApplication
     ? toProviderDocumentItems(providerApplication.documents)
-    : fallbackDocuments;
+    : [];
   const verifiedDocuments = countVerifiedProviderDocuments(displayedDocuments);
 
   const openDocModal = async (doc: ProviderDocumentItem) => {
@@ -604,7 +520,7 @@ export function ServiceProviderDetails() {
                   <p className="text-xs text-gray-400">Bookings</p>
                 </div>
                 <div>
-                  <p className="font-bold text-gray-900">{provider.completionRate}%</p>
+                  <p className="font-bold text-gray-900">{provider.completionRate}</p>
                   <p className="text-xs text-gray-400">Completion</p>
                 </div>
                 <div>
@@ -670,11 +586,15 @@ export function ServiceProviderDetails() {
             </CardHeader>
             <CardContent className="pt-0">
               <ul className="space-y-2">
-                {provider.services.map((service, i) => (
-                  <li key={i} className="flex items-center gap-2 text-sm text-gray-700">
-                    <CheckCircle className="w-4 h-4 text-[#16A34A] shrink-0" />{service}
-                  </li>
-                ))}
+                {provider.services.length === 0 ? (
+                  <li className="text-sm text-gray-500">No services returned by the backend.</li>
+                ) : (
+                  provider.services.map((service, i) => (
+                    <li key={i} className="flex items-center gap-2 text-sm text-gray-700">
+                      <CheckCircle className="w-4 h-4 text-[#16A34A] shrink-0" />{service}
+                    </li>
+                  ))
+                )}
               </ul>
             </CardContent>
           </Card>
@@ -690,7 +610,7 @@ export function ServiceProviderDetails() {
                 {[
                   { label: "Rating", value: `${provider.rating} ★`, color: "text-yellow-600" },
                   { label: "Total Bookings", value: provider.totalBookings.toString(), color: "text-blue-600" },
-                  { label: "Completion Rate", value: `${provider.completionRate}%`, color: "text-[#16A34A]" },
+                  { label: "Completion Rate", value: provider.completionRate, color: "text-[#16A34A]" },
                   { label: "Member Since", value: provider.joinDate, color: "text-gray-700" },
                 ].map(stat => (
                   <div key={stat.label} className="bg-gray-50 rounded-xl p-4 text-center">
@@ -783,14 +703,18 @@ export function ServiceProviderDetails() {
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Government ID Type</p>
                     <p className="text-sm font-medium text-gray-900 mt-1.5 flex items-center gap-2">
                       {provider.govIdType}
-                      <CheckCircle className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
+                      {hasMeaningfulValue(provider.govIdType) ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
+                      ) : null}
                     </p>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-3">
                     <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Government ID Number</p>
                     <p className="text-sm font-mono font-medium text-gray-900 mt-1.5 flex items-center gap-2">
                       {provider.govIdNumber}
-                      <CheckCircle className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
+                      {hasMeaningfulValue(provider.govIdNumber) ? (
+                        <CheckCircle className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
+                      ) : null}
                     </p>
                   </div>
                 </div>
@@ -798,9 +722,14 @@ export function ServiceProviderDetails() {
                   <p className="text-xs text-gray-500">OCR Confidence Score</p>
                   <div className="flex items-center gap-3">
                     <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#16A34A] rounded-full" style={{ width: `${provider.ocrConfidence}%` }} />
+                      <div
+                        className="h-full bg-[#16A34A] rounded-full"
+                        style={{ width: `${provider.ocrConfidence ?? 0}%` }}
+                      />
                     </div>
-                    <span className="text-sm font-semibold text-[#16A34A]">{provider.ocrConfidence}%</span>
+                    <span className="text-sm font-semibold text-[#16A34A]">
+                      {provider.ocrConfidence === null ? "—" : `${provider.ocrConfidence}%`}
+                    </span>
                   </div>
                 </div>
               </CardContent>
@@ -829,7 +758,9 @@ export function ServiceProviderDetails() {
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">{item.label}</p>
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-mono font-medium text-gray-900">{item.value}</p>
-                      <CheckCircle className="w-4 h-4 text-[#16A34A] shrink-0" />
+                      {hasMeaningfulValue(item.value) ? (
+                        <CheckCircle className="w-4 h-4 text-[#16A34A] shrink-0" />
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -837,7 +768,9 @@ export function ServiceProviderDetails() {
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Background Check Status</p>
                   <div className="flex items-center justify-between">
                     {getBgCheckBadge(provider.bgCheckStatus)}
-                    <Shield className="w-4 h-4 text-[#16A34A] shrink-0" />
+                    {hasMeaningfulValue(provider.bgCheckStatus) ? (
+                      <Shield className="w-4 h-4 text-[#16A34A] shrink-0" />
+                    ) : null}
                   </div>
                 </div>
               </CardContent>
@@ -859,31 +792,40 @@ export function ServiceProviderDetails() {
                 <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mb-3">
                   <div
                     className="h-full bg-[#16A34A] rounded-full"
-                    style={{ width: `${(provider.checklist.filter(c => c.checked).length / provider.checklist.length) * 100}%` }}
+                    style={{
+                      width:
+                        provider.checklist.length > 0
+                          ? `${(provider.checklist.filter(c => c.checked).length / provider.checklist.length) * 100}%`
+                          : "0%",
+                    }}
                   />
                 </div>
-                {provider.checklist.map((item, i) => (
-                  <div key={i} className={`flex items-center gap-3 p-2.5 rounded-lg ${item.checked ? "bg-gray-50" : "bg-red-50"}`}>
-                    {item.checked
-                      ? <CheckCircle className="w-4 h-4 text-[#16A34A] shrink-0" />
-                      : <XCircle className="w-4 h-4 text-red-500 shrink-0" />
-                    }
-                    <span className="text-sm text-gray-900 flex-1">{item.label}</span>
-                    {item.checked
-                      ? <CheckCircle className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
-                      : <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                    }
-                  </div>
-                ))}
+                {provider.checklist.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-3">No verification checklist returned by the backend.</p>
+                ) : (
+                  provider.checklist.map((item, i) => (
+                    <div key={i} className={`flex items-center gap-3 p-2.5 rounded-lg ${item.checked ? "bg-gray-50" : "bg-red-50"}`}>
+                      {item.checked
+                        ? <CheckCircle className="w-4 h-4 text-[#16A34A] shrink-0" />
+                        : <XCircle className="w-4 h-4 text-red-500 shrink-0" />
+                      }
+                      <span className="text-sm text-gray-900 flex-1">{item.label}</span>
+                      {item.checked
+                        ? <CheckCircle className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
+                        : <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      }
+                    </div>
+                  ))
+                )}
                 {/* Total Application Score */}
                 <div className="mt-4 pt-3 border-t border-gray-100">
                   <div className="rounded-xl p-4 bg-[#F0FDF4] border border-[#BBF7D0] space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-semibold text-gray-700">Total Application Score</p>
-                      <span className="text-2xl font-bold text-[#16A34A]">{provider.totalScore}<span className="text-sm font-normal text-gray-400">/100</span></span>
+                      <span className="text-2xl font-bold text-[#16A34A]">{provider.totalScore}</span>
                     </div>
                     <div className="w-full h-2 bg-[#BBF7D0] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#16A34A] rounded-full" style={{ width: `${provider.totalScore}%` }} />
+                      <div className="h-full bg-[#16A34A] rounded-full" style={{ width: "0%" }} />
                     </div>
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-gray-500">Verification Level</p>
@@ -891,28 +833,6 @@ export function ServiceProviderDetails() {
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Admin Notes (Read-only) */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#16A34A]" />
-                  Admin Notes
-                  <Badge className="ml-auto bg-gray-100 text-gray-500 border-gray-200 text-xs font-normal">Read-only</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0">
-                {provider.notes.map(note => (
-                  <div key={note.id} className="bg-gray-50 rounded-lg p-3 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-gray-700">{note.author}</span>
-                      <span className="text-xs text-gray-400">{note.timestamp}</span>
-                    </div>
-                    <p className="text-sm text-gray-600">{note.text}</p>
-                  </div>
-                ))}
               </CardContent>
             </Card>
           </div>
@@ -932,31 +852,41 @@ export function ServiceProviderDetails() {
             <div className="relative pl-6">
               <div className="absolute left-[11px] top-0 bottom-0 w-px bg-gray-200" />
               <div className="space-y-0">
-                {provider.auditTrail.map(entry => (
-                  <div key={entry.id} className="relative pb-6 last:pb-0">
-                    <div className={`absolute left-[-17px] top-1 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                      entry.type === "system" ? "bg-blue-50 border-blue-300" : "bg-[#DCFCE7] border-[#16A34A]"
-                    }`}>
-                      <div className={`w-1.5 h-1.5 rounded-full ${entry.type === "system" ? "bg-blue-400" : "bg-[#16A34A]"}`} />
-                    </div>
-                    <div className="pl-2 hover:bg-gray-50 rounded-lg p-2 transition-colors -ml-2">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="space-y-0.5">
-                          <p className="text-sm text-gray-900">{entry.action}</p>
-                          <div className="flex items-center gap-2">
-                            <Badge className={`text-xs ${entry.type === "system" ? "bg-blue-50 text-blue-600 border-blue-200" : "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]"}`}>
-                              {entry.type === "system"
-                                ? <><Activity className="w-3 h-3 mr-1" />System</>
-                                : <><User className="w-3 h-3 mr-1" />{entry.actor}</>
-                              }
-                            </Badge>
+                {isLoadingAuditTrail ? (
+                  <p className="text-sm text-gray-500 py-6 text-center">
+                    Loading provider activity logs...
+                  </p>
+                ) : providerAuditTrail.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-6 text-center">
+                    No provider activity logs returned by the backend.
+                  </p>
+                ) : (
+                  providerAuditTrail.map(entry => (
+                    <div key={entry.id} className="relative pb-6 last:pb-0">
+                      <div className={`absolute left-[-17px] top-1 w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                        entry.type === "system" ? "bg-blue-50 border-blue-300" : "bg-[#DCFCE7] border-[#16A34A]"
+                      }`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${entry.type === "system" ? "bg-blue-400" : "bg-[#16A34A]"}`} />
+                      </div>
+                      <div className="pl-2 hover:bg-gray-50 rounded-lg p-2 transition-colors -ml-2">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-0.5">
+                            <p className="text-sm text-gray-900">{entry.action}</p>
+                            <div className="flex items-center gap-2">
+                              <Badge className={`text-xs ${entry.type === "system" ? "bg-blue-50 text-blue-600 border-blue-200" : "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]"}`}>
+                                {entry.type === "system"
+                                  ? <><Activity className="w-3 h-3 mr-1" />System</>
+                                  : <><User className="w-3 h-3 mr-1" />{entry.actor}</>
+                                }
+                              </Badge>
+                            </div>
                           </div>
+                          <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">{entry.timestamp}</span>
                         </div>
-                        <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">{entry.timestamp}</span>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </CardContent>
@@ -1126,21 +1056,6 @@ export function ServiceProviderDetails() {
                 </div>
               </>
             )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ─── EMPTY STATE TABS ─── */}
-      {activeTab !== "Overview" &&
-        activeTab !== "Documents" &&
-        activeTab !== "Activity Logs" &&
-        activeTab !== "Portfolio" &&
-        activeTab !== "Availability" && (
-        <Card className="border-dashed border-gray-200">
-          <CardContent className="flex flex-col items-center justify-center py-20 text-center">
-            {TAB_EMPTY_ICONS[activeTab] ?? <FileText className="w-10 h-10 text-gray-200 mb-3" />}
-            <p className="text-gray-400 text-sm font-medium">{activeTab}</p>
-            <p className="text-gray-300 text-xs mt-1">No information available for this section yet</p>
           </CardContent>
         </Card>
       )}

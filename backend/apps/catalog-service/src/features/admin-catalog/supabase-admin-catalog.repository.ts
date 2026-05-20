@@ -3,8 +3,10 @@ import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import {
   AdminCategoryItem,
   AdminProviderSummary,
+  AdminServiceAreaSummary,
   AdminServiceItem,
   UpsertCategoryRequest,
+  UpsertServiceAreaRequest,
   UpsertServiceRequest,
 } from './admin-catalog.types';
 
@@ -36,6 +38,21 @@ interface ServiceRow {
   is_active: boolean;
 }
 
+interface ServiceAreaRow {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  status: 'active' | 'inactive';
+  notes: string | null;
+  polygon?: unknown;
+  latitude: string | number | null;
+  longitude: string | number | null;
+  provider_count: string | number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 interface ProviderRow {
   id: string;
   user_id: string;
@@ -47,8 +64,12 @@ interface ProviderRow {
   verification_status: string;
   average_rating: number;
   review_count: number;
+  total_bookings?: string | number | null;
+  completion_rate?: string | number | null;
   is_active: boolean;
   created_at: string | null;
+  approved_by_user_id?: string | null;
+  approved_by_name?: string | null;
   user_email: string | null;
   user_full_name: string | null;
   user_contact_number?: string | null;
@@ -152,6 +173,57 @@ export class SupabaseAdminCatalogRepository {
     if (error) throw new Error(`Failed to delete service: ${error.message}`);
   }
 
+  async listServiceAreas(): Promise<AdminServiceAreaSummary[]> {
+    const { data, error } = await this.client.rpc('servease_admin_list_service_areas');
+    if (error) throw new Error(`Failed to list service areas: ${error.message}`);
+    return ((data as ServiceAreaRow[]) ?? []).map(this.mapServiceArea);
+  }
+
+  async createServiceArea(
+    req: UpsertServiceAreaRequest,
+  ): Promise<AdminServiceAreaSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_create_service_area', {
+        p_name: req.name,
+        p_city: req.city,
+        p_region: req.region,
+        p_status: req.status,
+        p_notes: req.notes ?? null,
+        p_polygon: req.polygon ?? null,
+      })
+      .maybeSingle();
+
+    if (error) throw new Error(`Failed to create service area: ${error.message}`);
+    return this.mapServiceArea(data as ServiceAreaRow);
+  }
+
+  async updateServiceArea(
+    id: string,
+    req: Partial<UpsertServiceAreaRequest>,
+  ): Promise<AdminServiceAreaSummary> {
+    const { data, error } = await this.client
+      .rpc('servease_admin_update_service_area', {
+        p_id: id,
+        p_name: req.name ?? null,
+        p_city: req.city ?? null,
+        p_region: req.region ?? null,
+        p_status: req.status ?? null,
+        p_notes: req.notes ?? null,
+        p_polygon: req.polygon ?? null,
+      })
+      .maybeSingle();
+
+    if (error) throw new Error(`Failed to update service area: ${error.message}`);
+    return this.mapServiceArea(data as ServiceAreaRow);
+  }
+
+  async deleteServiceArea(id: string): Promise<void> {
+    const { error } = await this.client.rpc('servease_admin_delete_service_area', {
+      p_id: id,
+    });
+    if (error) throw new Error(`Failed to delete service area: ${error.message}`);
+  }
+
   async listProviders(
     status?: string | null,
     query?: string | null,
@@ -214,6 +286,23 @@ export class SupabaseAdminCatalogRepository {
     };
   }
 
+  private mapServiceArea(row: ServiceAreaRow): AdminServiceAreaSummary {
+    return {
+      id: row.id,
+      name: row.name,
+      city: row.city,
+      region: row.region,
+      status: row.status,
+      notes: row.notes,
+      providerCount: Number(row.provider_count ?? 0),
+      latitude: row.latitude === null ? null : Number(row.latitude),
+      longitude: row.longitude === null ? null : Number(row.longitude),
+      polygon: row.polygon ?? null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
   private mapProvider(row: ProviderRow): AdminProviderSummary {
     return {
       id: row.id,
@@ -226,8 +315,18 @@ export class SupabaseAdminCatalogRepository {
       verificationStatus: row.verification_status,
       averageRating: Number(row.average_rating ?? 0),
       reviewCount: Number(row.review_count ?? 0),
+      totalBookings:
+        row.total_bookings === null || row.total_bookings === undefined
+          ? null
+          : Number(row.total_bookings),
+      completionRate:
+        row.completion_rate === null || row.completion_rate === undefined
+          ? null
+          : Number(row.completion_rate),
       isActive: row.is_active,
       createdAt: row.created_at,
+      approvedByUserId: row.approved_by_user_id ?? null,
+      approvedByName: row.approved_by_name ?? null,
       userEmail: row.user_email,
       userFullName: row.user_full_name,
       userContactNumber: row.user_contact_number ?? null,
