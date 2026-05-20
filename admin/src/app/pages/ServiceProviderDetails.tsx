@@ -335,14 +335,26 @@ export function ServiceProviderDetails() {
   useEffect(() => {
     if (!apiProvider?.id || !accessToken || activeTab !== "Activity Logs") return;
     let cancelled = false;
+    const providerDisplayName = apiProvider.businessName?.trim();
 
-    const toAuditEntry = (log: AdminAuditLogSummary) => ({
-      id: log.id,
-      timestamp: formatNullableDate(log.createdAt),
-      actor: log.adminName ?? log.adminEmail ?? "Admin",
-      action: log.details ?? log.action,
-      type: "admin" as const,
-    });
+    const toAuditEntry = (log: AdminAuditLogSummary) => {
+      const action = log.details ?? log.action;
+      const metadataProviderId =
+        typeof log.metadata?.providerId === "string"
+          ? log.metadata.providerId
+          : null;
+
+      return {
+        id: log.id,
+        timestamp: formatNullableDate(log.createdAt),
+        actor: log.adminName ?? log.adminEmail ?? "Admin",
+        action:
+          metadataProviderId === apiProvider.id && providerDisplayName
+            ? action.replace(/\bPA-[A-Z0-9-]+\b/g, providerDisplayName)
+            : action,
+        type: "admin" as const,
+      };
+    };
 
     setIsLoadingAuditTrail(true);
     listAdminAuditLogs(accessToken, {
@@ -378,7 +390,7 @@ export function ServiceProviderDetails() {
     return () => {
       cancelled = true;
     };
-  }, [apiProvider?.id, accessToken, activeTab]);
+  }, [apiProvider?.id, apiProvider?.businessName, accessToken, activeTab]);
 
   const handleRemovePortfolioMedia = async (mediaId: string) => {
     if (!accessToken || !apiProvider?.id) return;
