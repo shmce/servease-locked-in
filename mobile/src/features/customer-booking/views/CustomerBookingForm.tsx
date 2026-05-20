@@ -121,6 +121,7 @@ export function CustomerBookingFormScreen({
             onScheduledAtChange={onScheduledAtChange}
             onBookingSlotErrorChange={onBookingSlotErrorChange}
             onUnavailableSlotPress={onUnavailableSlotPress}
+            onHoursRequiredChange={onHoursRequiredChange}
           />
 
           <Section
@@ -162,13 +163,6 @@ export function CustomerBookingFormScreen({
             {addressGeoResult ? (
               <AddressVerificationPreview result={addressGeoResult} />
             ) : null}
-            <Field
-              label="Duration (hours)"
-              value={hoursRequired}
-              onChangeText={onHoursRequiredChange}
-              keyboardType="number-pad"
-              placeholder="1"
-            />
           </Section>
 
           <Section title="Add details (optional)">
@@ -243,7 +237,7 @@ const styles = StyleSheet.create({
   providerPhotoText: {
     color: palette.white,
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   flex: {
     flex: 1,
@@ -268,7 +262,7 @@ const styles = StyleSheet.create({
   smallActionText: {
     color: palette.mint,
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   faded: {
     opacity: 0.5,
@@ -285,17 +279,17 @@ const styles = StyleSheet.create({
   footerTotalLabel: {
     color: palette.ink,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   footerTotalValue: {
     color: palette.ink,
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   footerLink: {
     color: palette.mint,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     textAlign: 'center',
   },
   cardTitle: {
@@ -311,7 +305,7 @@ const styles = StyleSheet.create({
   linkText: {
     color: palette.mint,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   noticeText: {
     ...type.caption,

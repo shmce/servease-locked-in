@@ -12,14 +12,12 @@ import {
   TopBar,
 } from '../../../components/DesignKit';
 import { NotificationSummary } from '../../../shared/models/types';
-import { AppRole, AppScreen } from '../../../navigation/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useNotificationsViewModel } from '../viewModels/useNotificationsViewModel';
 
 type NotificationsScreenProps = {
-  role: AppRole;
   notifications: NotificationSummary[];
-  navigate: (screen: AppScreen, nextRole?: AppRole) => void;
+  onBack: () => void;
   openNotification: (notification: NotificationSummary) => Promise<void>;
 };
 
@@ -40,9 +38,8 @@ function NotificationIcon({ kind }: { kind: string }) {
 }
 
 export function NotificationsScreen({
-  role,
   notifications,
-  navigate,
+  onBack,
   openNotification,
 }: NotificationsScreenProps) {
   const notificationsView = useNotificationsViewModel({ notifications });
@@ -51,7 +48,7 @@ export function NotificationsScreen({
     <>
       <TopBar
         title="Notifications"
-        onBack={() => navigate(role === 'provider' ? 'home' : 'more', role)}
+        onBack={onBack}
         right={
           notificationsView.data.unreadCount > 0 ? (
             <Badge label={`${notificationsView.data.unreadCount} new`} tone="success" />

@@ -179,19 +179,19 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '700',
   },
   cardMeta: {
     color: palette.faint,
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '500',
     marginTop: spacing.xs,
   },
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 20,
   },
   updateChecklist: {

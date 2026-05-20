@@ -185,6 +185,7 @@ const styles = StyleSheet.create({
   monthTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   monthActions: {
     flexDirection: 'row',
@@ -212,7 +213,7 @@ const styles = StyleSheet.create({
     color: palette.faint,
     flex: 1,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     textAlign: 'center',
   },
   monthGrid: {
@@ -239,7 +240,7 @@ const styles = StyleSheet.create({
   dayNumber: {
     color: palette.ink,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   dayNumberSelected: {
     color: palette.mintDeep,

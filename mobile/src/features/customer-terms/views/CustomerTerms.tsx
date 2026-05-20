@@ -1,6 +1,5 @@
 import { StyleSheet, Text } from 'react-native';
 import { Card, TopBar } from '../../../components/DesignKit';
-import { AppScreen } from '../../../navigation/types';
 import { palette } from '../../../theme/serveaseDesign';
 import {
   ScreenContent,
@@ -9,15 +8,15 @@ import {
 import { useCustomerTermsViewModel } from '../viewModels/useCustomerTermsViewModel';
 
 type CustomerTermsScreenProps = {
-  navigate: (screen: AppScreen, nextRole?: 'customer') => void;
+  onBack: () => void;
 };
 
-export function CustomerTermsScreen({ navigate }: CustomerTermsScreenProps) {
+export function CustomerTermsScreen({ onBack }: CustomerTermsScreenProps) {
   const terms = useCustomerTermsViewModel();
 
   return (
     <>
-      <TopBar title="Terms & Privacy" onBack={() => navigate('more', 'customer')} />
+      <TopBar title="Terms & Privacy" onBack={onBack} />
       <ScreenScroll>
         <ScreenContent>
           {terms.data.termsSections.map((section) => (

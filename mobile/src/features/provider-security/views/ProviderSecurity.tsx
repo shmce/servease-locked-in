@@ -1,13 +1,12 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { Section, TopBar } from '../../../components/DesignKit';
-import { AppScreen } from '../../../navigation/types';
 import { TwoFactorSettingsCard } from '../../../shared/components/TwoFactorSettingsCard';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useProviderSecurityViewModel } from '../viewModels/useProviderSecurityViewModel';
 
 type ProviderSecurityScreenProps = {
   busyAction: string | null;
-  navigate: (screen: AppScreen, nextRole?: 'provider') => void;
+  onBack: () => void;
   twoFactorCode: string;
   twoFactorEnabled: boolean;
   twoFactorSecret: string;
@@ -19,7 +18,7 @@ type ProviderSecurityScreenProps = {
 
 export function ProviderSecurityScreen({
   busyAction,
-  navigate,
+  onBack,
   twoFactorCode,
   twoFactorEnabled,
   twoFactorSecret,
@@ -35,7 +34,7 @@ export function ProviderSecurityScreen({
       <TopBar
         title={security.data.pageTitle}
         subtitle={security.data.pageSubtitle}
-        onBack={() => navigate('more', 'provider')}
+        onBack={onBack}
       />
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.content}>

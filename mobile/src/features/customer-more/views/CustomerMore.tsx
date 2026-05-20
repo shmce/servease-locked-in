@@ -1,26 +1,12 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import {
-  Bell,
-  ChevronRight,
-  FileText,
-  Gift,
-  HelpCircle,
-  LogOut,
-  Settings as SettingsIcon,
-  User,
-  WalletCards,
-} from 'lucide-react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LogOut } from 'lucide-react-native';
+import { QuickAction } from '../../../components/AppDisplay';
+import { TopBar } from '../../../components/DesignKit';
 import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { CurrentUserProfile } from '../../../shared/models/types';
-import {
-  ScreenContent,
-  ScreenScroll,
-} from '../../../shared/components/ScreenLayout';
-import {
-  CustomerMoreMenuIcon,
-  useCustomerMoreViewModel,
-} from '../viewModels/useCustomerMoreViewModel';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
+import { useCustomerMoreViewModel } from '../viewModels/useCustomerMoreViewModel';
 
 type CustomerMoreScreenProps = {
   profile: CurrentUserProfile | null;
@@ -29,167 +15,106 @@ type CustomerMoreScreenProps = {
   unreadNotificationCount?: number;
 };
 
-const menuIcons: Record<CustomerMoreMenuIcon, typeof User> = {
-  user: User,
-  bell: Bell,
-  gift: Gift,
-  wallet: WalletCards,
-  settings: SettingsIcon,
-  help: HelpCircle,
-  file: FileText,
-};
-
 export function CustomerMoreScreen({
   profile,
   navigate,
   signOut,
   unreadNotificationCount = 0,
 }: CustomerMoreScreenProps) {
-  const more = useCustomerMoreViewModel({
-    profile,
-    unreadNotificationCount,
-  });
+  const more = useCustomerMoreViewModel({ profile, unreadNotificationCount });
   const { data } = more;
 
   return (
-    <ScreenScroll>
-      <ScreenContent>
-        <View style={styles.moreProfileRow}>
-          <View style={styles.moreAvatar}>
-            <Text style={styles.moreAvatarText}>
-              {data.displayName.slice(0, 1).toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.flex}>
-            <Text style={styles.moreName}>{data.displayName}</Text>
-            <Text style={styles.cardMeta}>{data.displayEmail}</Text>
-          </View>
-        </View>
+    <>
+      <TopBar title="More" subtitle="Account and preferences" />
+      <ScrollView contentContainerStyle={styles.withBottomNav}>
+        <View style={styles.content}>
 
-        <View style={styles.moreMenuList}>
-          {data.menuItems.map((item) => {
-            const Icon = menuIcons[item.icon];
-            const showBadge =
-              item.screen === 'customerNotifications' &&
-              data.unreadNotificationCount > 0;
-            return (
-              <Pressable
-                key={item.label}
-                style={styles.moreMenuItem}
-                onPress={() => navigate(item.screen, 'customer')}
-              >
-                <Icon color={palette.ink} size={22} strokeWidth={2.2} />
-                <Text style={styles.moreMenuLabel} numberOfLines={2}>
-                  {item.label}
-                </Text>
-                {showBadge ? (
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationBadgeText}>
-                      {data.unreadNotificationCount > 99
-                        ? '99+'
-                        : data.unreadNotificationCount}
-                    </Text>
-                  </View>
-                ) : null}
-                <ChevronRight
-                  color={palette.faint}
-                  size={18}
-                  style={styles.menuChevron}
+          <View style={styles.profileRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{data.initial}</Text>
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.name}>{data.displayName}</Text>
+              <Text style={styles.email}>{data.displayEmail}</Text>
+            </View>
+          </View>
+
+          {data.actionRows.map((row) => (
+            <ActionRow key={row.map((a) => a.label).join('-')}>
+              {row.map((action) => (
+                <QuickAction
+                  key={action.label}
+                  label={action.label}
+                  badge={action.badge}
+                  onPress={() => navigate(action.screen, 'customer')}
                 />
-              </Pressable>
-            );
-          })}
-        </View>
+              ))}
+            </ActionRow>
+          ))}
 
-        <Pressable style={styles.logoutButton} onPress={() => void signOut()}>
-          <LogOut color={palette.red} size={22} strokeWidth={2.2} />
-          <Text style={styles.logoutText}>Log out</Text>
-        </Pressable>
-        <Text style={styles.noticeText}>ServEase v1.0.0</Text>
-      </ScreenContent>
-    </ScreenScroll>
+          <Pressable style={styles.logoutButton} onPress={() => void signOut()}>
+            <LogOut color={palette.red} size={20} strokeWidth={2.2} />
+            <Text style={styles.logoutText}>Log out</Text>
+          </Pressable>
+
+          <Text style={styles.versionText}>ServEase v1.0.0</Text>
+
+        </View>
+      </ScrollView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  withBottomNav: {
+    backgroundColor: palette.cream,
+    flexGrow: 1,
+    paddingBottom: 108,
+  },
+  content: {
+    gap: spacing.md,
+    padding: spacing.md,
+  },
   flex: {
     flex: 1,
   },
-  cardMeta: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 19,
-  },
-  moreProfileRow: {
+
+  profileRow: {
     alignItems: 'center',
+    backgroundColor: palette.white,
+    borderRadius: radius.md,
     flexDirection: 'row',
     gap: spacing.base,
-    marginBottom: spacing.sm,
+    padding: spacing.base,
+    marginBottom: spacing.xs,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.06)',
   },
-  moreAvatar: {
+  avatar: {
     alignItems: 'center',
     backgroundColor: palette.mint,
     borderRadius: radius.pill,
-    height: 64,
+    height: 52,
     justifyContent: 'center',
-    width: 64,
+    width: 52,
   },
-  moreAvatarText: {
+  avatarText: {
     color: palette.white,
-    fontSize: 28,
-    fontWeight: '900',
+    fontSize: 22,
+    fontWeight: '700',
   },
-  moreName: {
+  name: {
     color: palette.ink,
-    fontSize: 18,
-    fontWeight: '900',
+    fontSize: 16,
+    fontWeight: '700',
   },
-  moreMenuList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: spacing.sm,
-  },
-  moreMenuItem: {
-    alignItems: 'flex-start',
-    backgroundColor: '#F5F5F5',
-    borderRadius: radius.md,
-    gap: spacing.sm,
-    minHeight: 92,
-    padding: spacing.base,
-    position: 'relative',
-    width: '48%',
-  },
-  moreMenuLabel: {
-    color: palette.ink,
+  email: {
+    color: palette.muted,
     fontSize: 13,
-    fontWeight: '800',
-    lineHeight: 18,
-    paddingRight: spacing.lg,
+    fontWeight: '500',
+    marginTop: 2,
   },
-  menuChevron: {
-    position: 'absolute',
-    right: spacing.sm,
-    top: spacing.sm,
-  },
-  notificationBadge: {
-    alignItems: 'center',
-    backgroundColor: palette.red,
-    borderRadius: radius.pill,
-    height: 22,
-    justifyContent: 'center',
-    minWidth: 22,
-    paddingHorizontal: 6,
-    position: 'absolute',
-    right: spacing.sm,
-    top: 36,
-  },
-  notificationBadgeText: {
-    color: palette.white,
-    fontSize: 11,
-    fontWeight: '900',
-  },
+
   logoutButton: {
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
@@ -197,18 +122,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: 52,
+    marginTop: spacing.xs,
   },
   logoutText: {
     color: palette.red,
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '700',
   },
-  noticeText: {
-    color: palette.muted,
-    fontSize: 13,
+
+  versionText: {
+    color: palette.faint,
+    fontSize: 12,
     fontWeight: '500',
-    lineHeight: 18,
     textAlign: 'center',
   },
 });

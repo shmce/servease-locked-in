@@ -15,6 +15,8 @@ const activeBookingStatuses: BookingStatus[] = [
   'in_progress',
 ];
 
+const upcomingPreviewLimit = 3;
+
 export function useCustomerCalendarViewModel({
   bookings,
   onRefresh,
@@ -68,15 +70,15 @@ export function useCustomerCalendarViewModel({
         ? activeBookings.filter(
             (booking) => formatApiDate(new Date(booking.scheduledAt)) === selectedDate,
           )
-        : activeBookings.slice(0, 5),
+        : activeBookings.slice(0, upcomingPreviewLimit),
     [activeBookings, selectedDate],
   );
 
-  const agendaTitle = selectedDate ? 'Bookings on selected date' : 'Upcoming bookings';
+  const agendaTitle = selectedDate ? 'Bookings on selected date' : 'Next up';
   const emptyTitle = selectedDate ? 'No bookings this day' : 'No active bookings';
   const emptyBody = selectedDate
     ? 'Pick another marked date or browse services to schedule something new.'
-    : 'Confirmed bookings will show a blue calendar marker.';
+    : 'Upcoming bookings will appear here after you book a service.';
 
   return {
     data: {
@@ -84,6 +86,7 @@ export function useCustomerCalendarViewModel({
       calendarMarkers,
       emptyBody,
       emptyTitle,
+      isShowingUpcomingPreview: !selectedDate,
       selectedDate,
       selectedDateBookings: selectedDateBookings.map((booking) => ({
         booking,

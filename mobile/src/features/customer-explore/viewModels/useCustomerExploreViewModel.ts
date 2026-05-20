@@ -8,9 +8,12 @@ import {
 } from '../../../shared/models/types';
 import { formatDateTime, formatMoney } from '../../../shared/utils/booking';
 
+export type CategoryFilter = 'all' | 'popular' | 'top-rated';
+
 type CustomerExploreViewModelInput = {
   bookings: BookingSummary[];
   categories: CatalogCategory[];
+  categoryFilter?: CategoryFilter;
   customerGuideDismissed: boolean;
   customerGuideStep: number;
   profile: CurrentUserProfile | null;
@@ -23,12 +26,6 @@ type CustomerExploreViewModelInput = {
 };
 
 type GuideIconKey = 'search' | 'star' | 'message';
-type CategoryBadgeTone = 'success' | 'warning' | 'danger' | 'neutral';
-
-type CategoryBadge = {
-  label: string;
-  tone: CategoryBadgeTone;
-};
 
 const guideSteps: {
   iconKey: GuideIconKey;
@@ -55,6 +52,7 @@ const guideSteps: {
 export function useCustomerExploreViewModel({
   bookings,
   categories,
+  categoryFilter,
   customerGuideDismissed,
   customerGuideStep,
   profile,
@@ -68,6 +66,7 @@ export function useCustomerExploreViewModel({
   return useMemo(() => buildCustomerExploreViewModel({
     bookings,
     categories,
+    categoryFilter,
     customerGuideDismissed,
     customerGuideStep,
     profile,
@@ -80,6 +79,7 @@ export function useCustomerExploreViewModel({
   }), [
     bookings,
     categories,
+    categoryFilter,
     customerGuideDismissed,
     customerGuideStep,
     profile,
@@ -95,6 +95,7 @@ export function useCustomerExploreViewModel({
 export function buildCustomerExploreViewModel({
   bookings,
   categories,
+  categoryFilter = 'all',
   customerGuideDismissed,
   customerGuideStep,
   profile,
@@ -107,7 +108,9 @@ export function buildCustomerExploreViewModel({
 }: CustomerExploreViewModelInput) {
   const safeGuideStep = customerGuideStep % guideSteps.length;
   const guideStep = guideSteps[safeGuideStep];
-  const categoryBadges = buildCategoryBadges(categories, services, providers);
+  const serviceCountsByCategory = buildServiceCountsByCategory(categories, services);
+  const providerScoresByCategory = buildProviderScoresByCategory(categories, services, providers);
+  const popularCategoryId = highestScoredKey(serviceCountsByCategory);
   const bookAgainRows = completedRebookOptions(bookings)
     .slice(0, 5)
     .map((booking) => ({
@@ -118,17 +121,26 @@ export function buildCustomerExploreViewModel({
       title: booking.serviceTitle ?? 'Service booking',
     }));
 
+  const baseRows = categories.map((category) => ({
+    category,
+    id: category.id,
+    isPopular: category.id === popularCategoryId,
+    isSelected: category.id === selectedCategoryId,
+    subtitle: category.description ?? 'Tap to view services',
+    title: category.name,
+  }));
+
+  const categoryRows = sortCategoryRows(
+    baseRows,
+    categoryFilter,
+    serviceCountsByCategory,
+    providerScoresByCategory,
+  );
+
   return {
     data: {
       bookAgainRows,
-      categoryRows: categories.map((category) => ({
-        badges: categoryBadges.get(category.id) ?? [],
-        category,
-        id: category.id,
-        isSelected: category.id === selectedCategoryId,
-        subtitle: category.description ?? 'Tap to view services',
-        title: category.name,
-      })),
+      categoryRows,
       customerName: profile?.user.fullName ?? 'Kisshia',
       guide: {
         body: guideStep.body,
@@ -140,7 +152,6 @@ export function buildCustomerExploreViewModel({
         title: guideStep.title,
         totalSteps: guideSteps.length,
       },
-      hasBookAgainCue: bookAgainRows.length > 1,
       hasBookAgainRows: bookAgainRows.length > 0,
       notificationAccessibilityLabel:
         unreadCount > 0
@@ -176,106 +187,80 @@ export function buildCustomerExploreViewModel({
   };
 }
 
-function buildCategoryBadges(
+function buildServiceCountsByCategory(
+  categories: CatalogCategory[],
+  services: CatalogServiceItem[],
+): Map<string, number> {
+  const categoryIds = new Set(categories.map((c) => c.id));
+  const counts = new Map<string, number>();
+  services.forEach((service) => {
+    if (!service.categoryId || !categoryIds.has(service.categoryId)) return;
+    counts.set(service.categoryId, (counts.get(service.categoryId) ?? 0) + 1);
+  });
+  return counts;
+}
+
+function buildProviderScoresByCategory(
   categories: CatalogCategory[],
   services: CatalogServiceItem[],
   providers: ProviderListing[],
-): Map<string, CategoryBadge[]> {
-  const badgesByCategory = new Map<string, CategoryBadge[]>();
-  const categoryIds = new Set(categories.map((category) => category.id));
+): Map<string, number> {
+  const categoryIds = new Set(categories.map((c) => c.id));
   const serviceCategoryById = new Map<string, string>();
-  const serviceCountsByCategory = new Map<string, number>();
-
   services.forEach((service) => {
-    if (!service.categoryId || !categoryIds.has(service.categoryId)) {
-      return;
-    }
-
+    if (!service.categoryId || !categoryIds.has(service.categoryId)) return;
     serviceCategoryById.set(service.id, service.categoryId);
-    serviceCountsByCategory.set(
-      service.categoryId,
-      (serviceCountsByCategory.get(service.categoryId) ?? 0) + 1,
-    );
   });
-
-  const popularCategoryId = highestScoredKey(serviceCountsByCategory);
-  if (popularCategoryId) {
-    addCategoryBadge(badgesByCategory, popularCategoryId, {
-      label: 'Popular',
-      tone: 'success',
-    });
-  }
-
-  const providerScoresByCategory = new Map<string, number>();
+  const scores = new Map<string, number>();
   providers.forEach((provider) => {
-    if (!provider.serviceId) {
-      return;
-    }
-
+    if (!provider.serviceId) return;
     const categoryId = serviceCategoryById.get(provider.serviceId);
-    if (!categoryId) {
-      return;
-    }
-
-    const reviewWeight = Math.max(provider.reviewCount, 1);
-    const score = provider.averageRating * reviewWeight;
-    providerScoresByCategory.set(
-      categoryId,
-      (providerScoresByCategory.get(categoryId) ?? 0) + score,
-    );
+    if (!categoryId) return;
+    const score = provider.averageRating * Math.max(provider.reviewCount, 1);
+    scores.set(categoryId, (scores.get(categoryId) ?? 0) + score);
   });
-
-  const topProviderCategoryId = highestScoredKey(providerScoresByCategory);
-  if (topProviderCategoryId) {
-    addCategoryBadge(badgesByCategory, topProviderCategoryId, {
-      label: 'Top Providers',
-      tone: 'neutral',
-    });
-  }
-
-  return badgesByCategory;
+  return scores;
 }
 
-function addCategoryBadge(
-  badgesByCategory: Map<string, CategoryBadge[]>,
-  categoryId: string,
-  badge: CategoryBadge,
-) {
-  badgesByCategory.set(categoryId, [
-    ...(badgesByCategory.get(categoryId) ?? []),
-    badge,
-  ]);
+function sortCategoryRows<T extends { id: string }>(
+  rows: T[],
+  filter: CategoryFilter,
+  serviceCountsByCategory: Map<string, number>,
+  providerScoresByCategory: Map<string, number>,
+): T[] {
+  if (filter === 'popular') {
+    return [...rows].sort(
+      (a, b) =>
+        (serviceCountsByCategory.get(b.id) ?? 0) - (serviceCountsByCategory.get(a.id) ?? 0),
+    );
+  }
+  if (filter === 'top-rated') {
+    return [...rows].sort(
+      (a, b) =>
+        (providerScoresByCategory.get(b.id) ?? 0) - (providerScoresByCategory.get(a.id) ?? 0),
+    );
+  }
+  return rows;
 }
 
 function highestScoredKey(scores: Map<string, number>): string | null {
   let bestKey: string | null = null;
   let bestScore = 0;
-
   scores.forEach((score, key) => {
     if (score > bestScore) {
       bestKey = key;
       bestScore = score;
     }
   });
-
   return bestKey;
 }
 
 function completedRebookOptions(bookings: BookingSummary[]): BookingSummary[] {
   const seen = new Set<string>();
-
   return bookings.filter((booking) => {
-    if (booking.status !== 'completed') {
-      return false;
-    }
-
-    const key = `${booking.serviceId ?? booking.serviceTitle ?? booking.id}:${
-      booking.providerId
-    }`;
-    if (seen.has(key)) {
-      return false;
-    }
-
+    if (booking.status !== 'completed') return false;
+    const key = `${booking.serviceId ?? booking.serviceTitle ?? booking.id}:${booking.providerId}`;
+    if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });

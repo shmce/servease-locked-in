@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Badge,
   Card,
@@ -16,12 +16,14 @@ type CustomerCalendarScreenProps = {
   bookings: BookingSummary[];
   onRefresh: () => Promise<void> | void;
   openBooking: (booking: BookingSummary) => void;
+  onViewAllBookings: () => void;
 };
 
 export function CustomerCalendarScreen({
   bookings,
   onRefresh,
   openBooking,
+  onViewAllBookings,
 }: CustomerCalendarScreenProps) {
   const calendar = useCustomerCalendarViewModel({ bookings, onRefresh });
   const openCalendarBooking = (booking: BookingSummary) => {
@@ -55,7 +57,20 @@ export function CustomerCalendarScreen({
             </View>
           </Section>
 
-          <Section title={calendar.data.agendaTitle}>
+          <Section
+            title={calendar.data.agendaTitle}
+            action={
+              calendar.data.isShowingUpcomingPreview ? (
+                <Pressable
+                  onPress={onViewAllBookings}
+                  accessibilityRole="button"
+                  accessibilityLabel="View all bookings"
+                >
+                  <Text style={styles.sectionAction}>View all</Text>
+                </Pressable>
+              ) : null
+            }
+          >
             {calendar.data.selectedDateBookings.length ? (
               calendar.data.selectedDateBookings.map((item) => {
                 const { booking } = item;
@@ -137,12 +152,17 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: palette.ink,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
     fontWeight: '500',
     marginTop: spacing.xs,
+  },
+  sectionAction: {
+    color: palette.mintDeep,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

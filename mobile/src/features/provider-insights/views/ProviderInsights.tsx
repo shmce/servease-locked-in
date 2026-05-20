@@ -10,21 +10,20 @@ import {
   BookingSummary,
   ProviderDashboardSummary,
 } from '../../../shared/models/types';
-import { AppScreen } from '../../../navigation/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useProviderInsightsViewModel } from '../viewModels/useProviderInsightsViewModel';
 
 type ProviderInsightsScreenProps = {
   providerDashboard: ProviderDashboardSummary | null;
   bookings: BookingSummary[];
-  navigate: (screen: AppScreen, nextRole?: 'provider') => void;
+  onBack: () => void;
   refreshWorkspace: () => Promise<void>;
 };
 
 export function ProviderInsightsScreen({
   providerDashboard,
   bookings,
-  navigate,
+  onBack,
   refreshWorkspace,
 }: ProviderInsightsScreenProps) {
   const insights = useProviderInsightsViewModel({
@@ -37,7 +36,7 @@ export function ProviderInsightsScreen({
       <TopBar
         title="Performance Insights"
         subtitle="How your business is performing"
-        onBack={() => navigate('more', 'provider')}
+        onBack={onBack}
         right={
           <PrimaryButton
             label="Refresh"

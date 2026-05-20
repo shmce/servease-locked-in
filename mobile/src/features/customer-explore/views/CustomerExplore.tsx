@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Bell,
   ChevronRight,
@@ -9,7 +10,7 @@ import {
 } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CategoryTile } from '../../../components/AppDisplay';
-import { Badge, Card, Section } from '../../../components/DesignKit';
+import { Card, Pill, Section } from '../../../components/DesignKit';
 import {
   BookingSummary,
   CatalogCategory,
@@ -17,8 +18,11 @@ import {
   CurrentUserProfile,
   ProviderListing,
 } from '../../../shared/models/types';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
-import { useCustomerExploreViewModel } from '../viewModels/useCustomerExploreViewModel';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import {
+  CategoryFilter,
+  useCustomerExploreViewModel,
+} from '../viewModels/useCustomerExploreViewModel';
 
 type CustomerExploreScreenProps = {
   bookings: BookingSummary[];
@@ -51,6 +55,12 @@ const guideIcons = {
   message: MessageCircle,
 };
 
+const filterOptions: { key: CategoryFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'popular', label: 'Popular' },
+  { key: 'top-rated', label: 'Top Rated' },
+];
+
 export function CustomerExploreScreen({
   bookings,
   categories,
@@ -75,9 +85,12 @@ export function CustomerExploreScreen({
   onViewAllServices,
   onViewTopProviders,
 }: CustomerExploreScreenProps) {
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+
   const explore = useCustomerExploreViewModel({
     bookings,
     categories,
+    categoryFilter,
     customerGuideDismissed,
     customerGuideStep,
     profile,
@@ -213,34 +226,38 @@ export function CustomerExploreScreen({
         </Section>
 
         <Section
-          title="Browse categories"
+          title="Browse Categories"
           action={
             <Text style={styles.linkText} onPress={onViewAllServices}>
               View all
             </Text>
           }
         >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            {filterOptions.map(({ key, label }) => (
+              <Pill
+                key={key}
+                label={label}
+                selected={categoryFilter === key}
+                onPress={() => setCategoryFilter(key)}
+              />
+            ))}
+          </ScrollView>
+
           <View style={styles.categoryList}>
             {data.categoryRows.map((category) => (
-              <View key={category.id} style={styles.categoryItemWrapper}>
-                <CategoryTile
-                  title={category.title}
-                  subtitle={category.subtitle}
-                  selected={category.isSelected}
-                  onPress={() => onSelectCategory(category.category)}
-                />
-                {category.badges.length > 0 ? (
-                  <View style={styles.categoryBadgeAnchor}>
-                    {category.badges.map((badge) => (
-                      <Badge
-                        key={badge.label}
-                        label={badge.label}
-                        tone={badge.tone}
-                      />
-                    ))}
-                  </View>
-                ) : null}
-              </View>
+              <CategoryTile
+                key={category.id}
+                title={category.title}
+                subtitle={category.subtitle}
+                selected={category.isSelected}
+                tag={category.isPopular ? 'Popular' : undefined}
+                onPress={() => onSelectCategory(category.category)}
+              />
             ))}
           </View>
         </Section>
@@ -292,7 +309,7 @@ const styles = StyleSheet.create({
   heroName: {
     color: palette.white,
     fontSize: 20,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   notificationButton: {
     alignItems: 'center',
@@ -470,20 +487,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Browse categories — single column
+  // Browse categories — filter + single column list
+  filterRow: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
   categoryList: {
     gap: spacing.sm,
-  },
-  categoryItemWrapper: {
-    position: 'relative',
-  },
-  categoryBadgeAnchor: {
-    gap: spacing.xs,
-    pointerEvents: 'none',
-    position: 'absolute',
-    right: 16,
-    top: 16,
-    zIndex: 10,
   },
 
   // Shared text

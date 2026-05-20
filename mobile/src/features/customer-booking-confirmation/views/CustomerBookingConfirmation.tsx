@@ -33,6 +33,7 @@ type CustomerBookingConfirmationScreenProps = {
   selectedPayment: PaymentSummary | null;
   timelineEvents: ReactNode;
   navigate: (screen: AppScreen, nextRole?: 'customer') => void;
+  onBack: () => void;
   addSelectedBookingToCalendar: () => Promise<void>;
   onMissingProvider: () => void;
 };
@@ -43,6 +44,7 @@ export function CustomerBookingConfirmationScreen({
   selectedPayment,
   timelineEvents,
   navigate,
+  onBack,
   addSelectedBookingToCalendar,
   onMissingProvider,
 }: CustomerBookingConfirmationScreenProps) {
@@ -53,7 +55,7 @@ export function CustomerBookingConfirmationScreen({
   });
 
   if (!confirmation.data.hasBooking) {
-    return <MissingSelection onBack={() => navigate('bookings', 'customer')} />;
+    return <MissingSelection onBack={onBack} />;
   }
 
   return (

@@ -1,17 +1,15 @@
-import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Star } from 'lucide-react-native';
+import { CheckCircle, MessageCircle, Star } from 'lucide-react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-  Badge,
   Card,
   EmptyState,
-  MetricCard,
   Pill,
   PrimaryButton,
   Section,
   TopBar,
 } from '../../../components/DesignKit';
 import { InfoRow, ServiceListItem } from '../../../components/AppDisplay';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
   ProviderAvailabilitySchedule,
   ProviderListing,
@@ -67,30 +65,63 @@ export function CustomerProviderProfileScreen({
   return (
     <>
       <TopBar title="Provider Profile" onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.withStickyFooter}>
-        <View style={styles.providerCover} />
-        <View style={styles.providerProfileBody}>
-          <View style={styles.providerProfileAvatar}>
-            <Text style={styles.providerProfileAvatarText}>{data.avatarInitial}</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.hero}>
+          <View style={styles.heroInner}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarInitial}>{data.avatarInitial}</Text>
+            </View>
           </View>
-          <Text style={styles.profileName}>{data.displayName}</Text>
-          <View style={styles.wrap}>
-            <Badge label={data.verificationStatus} tone={data.verificationTone} />
-            <Badge label="Marketplace provider" tone="neutral" />
+        </View>
+
+        <View style={styles.body}>
+          <View style={styles.nameBlock}>
+            <View style={styles.nameRow}>
+              <Text style={styles.providerName}>{data.displayName}</Text>
+              {data.verificationTone === 'success' ? (
+                <CheckCircle color={palette.mint} size={18} strokeWidth={2.2} />
+              ) : null}
+            </View>
+            <Text style={styles.serviceLabel}>{provider.title}</Text>
           </View>
-          <View style={styles.profileStatsGrid}>
-            <MetricCard label="Rating" value={data.ratingLabel} />
-            <MetricCard label="Reviews" value={data.reviewCountLabel} />
-            <MetricCard label="Service" value={data.servicePriceLabel} />
+
+          <View style={styles.statsCard}>
+            <View style={styles.statCell}>
+              <View style={styles.statValueRow}>
+                <Star color="#FFC107" fill="#FFC107" size={14} />
+                <Text style={styles.statValue}>{data.ratingLabel}</Text>
+              </View>
+              <Text style={styles.statLabel}>Rating</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statCell}>
+              <Text style={styles.statValue}>{data.reviewCountLabel}</Text>
+              <Text style={styles.statLabel}>Reviews</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statCell}>
+              <Text style={[styles.statValue, styles.statValueMint]}>{data.servicePriceLabel}</Text>
+              <Text style={styles.statLabel}>Starting price</Text>
+            </View>
           </View>
+
           <ActionRow>
             <PrimaryButton label="Book Now" onPress={onBook} />
-            <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
+            <Pressable
+              style={styles.messageButton}
+              onPress={onMessage}
+              accessibilityRole="button"
+              accessibilityLabel="Message provider"
+            >
+              <MessageCircle color={palette.mint} size={18} strokeWidth={2.2} />
+              <Text style={styles.messageButtonText}>Message</Text>
+            </Pressable>
           </ActionRow>
+
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.horizontalRail}
+            contentContainerStyle={styles.tabRail}
           >
             {data.tabs.map((tab) => (
               <Pill
@@ -101,8 +132,10 @@ export function CustomerProviderProfileScreen({
               />
             ))}
           </ScrollView>
+
           <ProviderProfileTabContent
             data={data}
+            provider={provider}
             onBook={onBook}
             onFlagReview={onFlagReview}
           />
@@ -117,10 +150,12 @@ export function CustomerProviderProfileScreen({
 
 function ProviderProfileTabContent({
   data,
+  provider,
   onBook,
   onFlagReview,
 }: {
   data: ReturnType<typeof useCustomerProviderProfileViewModel>['data'];
+  provider: ProviderListing;
   onBook: () => void;
   onFlagReview: (reviewId: string) => void;
 }) {
@@ -140,7 +175,7 @@ function ProviderProfileTabContent({
             <View key={item.id} style={styles.portfolioTile}>
               <Image source={{ uri: item.fileUrl }} style={styles.portfolioImage} />
               {item.caption ? (
-                <Text style={styles.portfolioText} numberOfLines={1}>
+                <Text style={styles.portfolioCaption} numberOfLines={1}>
                   {item.caption}
                 </Text>
               ) : null}
@@ -159,18 +194,18 @@ function ProviderProfileTabContent({
       <Section title="Reviews">
         {data.reviewCards.map((review) => (
           <Card key={review.id}>
-            <View style={styles.rowBetween}>
-              <View style={styles.ratingRow}>
-                <Star color="#FFC107" fill="#FFC107" size={14} />
-                <Text style={styles.cardTitle}>{review.ratingLabel}</Text>
+            <View style={styles.reviewHeader}>
+              <View style={styles.reviewRatingRow}>
+                <Star color="#FFC107" fill="#FFC107" size={13} />
+                <Text style={styles.reviewRating}>{review.ratingLabel}</Text>
               </View>
               {review.canFlag ? (
-                <Text style={styles.cardMeta} onPress={() => onFlagReview(review.id)}>
+                <Text style={styles.flagLabel} onPress={() => onFlagReview(review.id)}>
                   {review.flagLabel}
                 </Text>
               ) : null}
             </View>
-            <Text style={styles.cardBody}>{review.reviewText}</Text>
+            <Text style={styles.reviewText}>{review.reviewText}</Text>
           </Card>
         ))}
         {!data.hasReviews ? (
@@ -184,17 +219,17 @@ function ProviderProfileTabContent({
     return (
       <Section title="Availability">
         <Card>
-          <Text style={styles.cardTitle}>Available booking windows</Text>
+          <Text style={styles.cardSectionTitle}>Available booking windows</Text>
           {data.activeAvailabilityWindows.map((window) => (
             <InfoRow key={window.id} label={window.label} value={window.value} />
           ))}
           {!data.hasActiveAvailabilityWindows ? (
-            <Text style={styles.cardMeta}>No public availability windows are active yet.</Text>
+            <Text style={styles.emptyNote}>No public availability windows are active yet.</Text>
           ) : null}
         </Card>
         {data.hasDaysOff ? (
           <Card>
-            <Text style={styles.cardTitle}>Unavailable dates</Text>
+            <Text style={styles.cardSectionTitle}>Unavailable dates</Text>
             {data.daysOff.map((dayOff) => (
               <InfoRow key={dayOff.id} label={dayOff.label} value={dayOff.value} />
             ))}
@@ -207,9 +242,17 @@ function ProviderProfileTabContent({
   return (
     <Section title="About">
       <Card>
-        <Text style={styles.cardBody}>{data.description}</Text>
-        {data.aboutRows.map((row) => (
-          <InfoRow key={row.key} label={row.label} value={row.value} />
+        <Text style={styles.aboutBody}>{data.description}</Text>
+      </Card>
+      <Card>
+        {data.aboutRows.map((row, index) => (
+          <View
+            key={row.key}
+            style={[styles.detailRow, index < data.aboutRows.length - 1 && styles.detailRowBorder]}
+          >
+            <Text style={styles.detailLabel}>{row.label}</Text>
+            <Text style={styles.detailValue}>{row.value}</Text>
+          </View>
         ))}
       </Card>
     </Section>
@@ -217,61 +260,142 @@ function ProviderProfileTabContent({
 }
 
 const styles = StyleSheet.create({
-  withStickyFooter: {
-    backgroundColor: palette.white,
+  scrollContent: {
+    backgroundColor: palette.cream,
     flexGrow: 1,
     paddingBottom: 132,
   },
-  providerCover: {
-    alignSelf: 'stretch',
+
+  // Hero
+  hero: {
+    alignItems: 'center',
     backgroundColor: palette.mint,
-    height: 132,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    height: 148,
+    justifyContent: 'flex-end',
+    paddingBottom: 0,
   },
-  providerProfileBody: {
-    gap: spacing.md,
-    marginTop: -50,
-    padding: spacing.md,
+  heroInner: {
+    marginBottom: -48,
   },
-  providerProfileAvatar: {
+  avatar: {
     alignItems: 'center',
     backgroundColor: palette.white,
     borderColor: palette.white,
     borderRadius: radius.pill,
     borderWidth: 4,
-    height: 100,
+    boxShadow: '0 6px 16px rgba(44,90,60,0.18)',
+    height: 96,
     justifyContent: 'center',
-    boxShadow: '0 5px 10px rgba(0,0,0,0.12)',
-    width: 100,
+    width: 96,
   },
-  providerProfileAvatarText: {
+  avatarInitial: {
     color: palette.mint,
-    fontSize: 40,
-    fontWeight: '900',
+    fontSize: 38,
+    fontWeight: '700',
   },
-  profileName: {
+
+  // Body
+  body: {
+    gap: spacing.md,
+    marginTop: spacing.xl,
+    padding: spacing.base,
+    paddingTop: spacing.lg,
+  },
+  nameBlock: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  nameRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  providerName: {
     color: palette.ink,
-    fontSize: 24,
-    fontWeight: '900',
-    lineHeight: 30,
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
   },
-  wrap: {
+  serviceLabel: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+
+  // Stats card
+  statsCard: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
+    paddingVertical: spacing.base,
   },
-  profileStatsGrid: {
+  statCell: {
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.xxs,
+  },
+  statValueRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: 4,
   },
-  horizontalRail: {
+  statValue: {
+    color: palette.ink,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  statValueMint: {
+    color: palette.mint,
+  },
+  statLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  statDivider: {
+    backgroundColor: palette.line,
+    height: 32,
+    width: 1,
+  },
+
+  // Message button (secondary action)
+  messageButton: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.mint,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: spacing.base,
+  },
+  messageButtonText: {
+    color: palette.mint,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+
+  // Tabs
+  tabRail: {
     gap: spacing.sm,
     paddingRight: spacing.sm,
   },
+
+  // Portfolio
   portfolioGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: spacing.sm,
+    gap: spacing.sm,
   },
   portfolioTile: {
     backgroundColor: palette.mintSoft,
@@ -284,7 +408,7 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     flex: 1,
   },
-  portfolioText: {
+  portfolioCaption: {
     backgroundColor: 'rgba(0,0,0,0.45)',
     bottom: 0,
     color: palette.white,
@@ -295,29 +419,73 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 0,
   },
-  rowBetween: {
+
+  // Reviews
+  reviewHeader: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
     justifyContent: 'space-between',
+    marginBottom: spacing.xs,
   },
-  ratingRow: {
+  reviewRatingRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.xs,
+    gap: 4,
   },
-  cardTitle: {
-    ...type.section,
+  reviewRating: {
     color: palette.ink,
+    fontSize: 13,
+    fontWeight: '700',
   },
-  cardBody: {
+  flagLabel: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  reviewText: {
     color: palette.body,
     fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    fontWeight: '400',
+    lineHeight: 19,
   },
-  cardMeta: {
-    ...type.caption,
+
+  // Availability / About
+  cardSectionTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+  emptyNote: {
     color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  aboutBody: {
+    color: palette.body,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 19,
+  },
+  detailRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+  },
+  detailRowBorder: {
+    borderBottomColor: palette.line,
+    borderBottomWidth: 1,
+  },
+  detailLabel: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  detailValue: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'right',
   },
 });

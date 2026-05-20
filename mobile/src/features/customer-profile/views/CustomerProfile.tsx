@@ -13,7 +13,6 @@ import {
 } from '../../../components/DesignKit';
 import { ProfileInfoRow } from '../../../components/AppDisplay';
 import { CurrentUserProfile } from '../../../shared/models/types';
-import { AppScreen } from '../../../navigation/types';
 import { palette, radius } from '../../../theme/serveaseDesign';
 import {
   ScreenContent,
@@ -28,7 +27,7 @@ type CustomerProfileScreenProps = {
   profileContactNumber: string;
   profileAddress: string;
   busyAction: string | null;
-  navigate: (screen: AppScreen, nextRole?: 'customer') => void;
+  onBack: () => void;
   setProfileFullName: (value: string) => void;
   setProfileContactNumber: (value: string) => void;
   setProfileAddress: (value: string) => void;
@@ -43,7 +42,7 @@ export function CustomerProfileScreen({
   profileContactNumber,
   profileAddress,
   busyAction,
-  navigate,
+  onBack,
   setProfileFullName,
   setProfileContactNumber,
   setProfileAddress,
@@ -58,7 +57,7 @@ export function CustomerProfileScreen({
 
   return (
     <>
-      <TopBar title="My Profile" onBack={() => navigate('more', 'customer')} />
+      <TopBar title="My Profile" onBack={onBack} />
       <ScreenScroll>
         <ScreenContent>
           <View style={styles.profileHero}>

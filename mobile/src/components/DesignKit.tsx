@@ -450,6 +450,7 @@ const styles = StyleSheet.create({
   topTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   topSubtitle: {
     ...type.caption,
@@ -473,6 +474,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   card: {
     backgroundColor: palette.white,
@@ -511,6 +513,7 @@ const styles = StyleSheet.create({
   buttonText: {
     ...type.action,
     color: palette.white,
+    fontWeight: '700',
   },
   secondaryButtonText: {
     color: palette.mint,
@@ -555,7 +558,7 @@ const styles = StyleSheet.create({
   pillText: {
     ...type.caption,
     color: palette.body,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   pillTextSelected: {
     color: palette.mintDeep,
@@ -567,7 +570,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     ...type.caption,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   metricCard: {
     backgroundColor: palette.white,
@@ -591,7 +594,7 @@ const styles = StyleSheet.create({
   metricValue: {
     color: palette.ink,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   featuredMetricValue: {
     color: palette.mint,
@@ -609,6 +612,7 @@ const styles = StyleSheet.create({
   emptyTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
     textAlign: 'center',
   },
   emptyBody: {
@@ -649,7 +653,7 @@ const styles = StyleSheet.create({
   navMark: {
     color: '#B0A89E',
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   navMarkActive: {
     color: palette.mint,
@@ -661,7 +665,7 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: palette.mint,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   unreadDot: {
     backgroundColor: palette.coral,

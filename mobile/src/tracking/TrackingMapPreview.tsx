@@ -920,7 +920,7 @@ const mapStyles = StyleSheet.create({
   addressVerificationTitle: {
     color: palette.ink,
     fontSize: type.caption.fontSize,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   cardBody: {
     color: palette.body,
@@ -935,7 +935,7 @@ const mapStyles = StyleSheet.create({
   cardTitle: {
     color: palette.ink,
     fontSize: type.body.fontSize,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   flex: {
     flex: 1,
