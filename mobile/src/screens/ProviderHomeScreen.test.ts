@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { BookingSummary, PaymentSummary } from '../../services/serveaseApi';
+import { BookingSummary, PaymentSummary } from '../shared/models/types';
 
 function booking(
   overrides: Partial<BookingSummary> = {},
@@ -40,32 +40,46 @@ function payment(overrides: Partial<PaymentSummary> = {}): PaymentSummary {
 }
 
 test('provider home is extracted from App into the action-first screen', () => {
-  const appSource = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const screenPath = join(process.cwd(), 'src/screens/ProviderHomeScreen.tsx');
 
   assert.equal(existsSync(screenPath), true);
 
   const screenSource = readFileSync(screenPath, 'utf8');
   const modelSource = readFileSync(
-    join(process.cwd(), 'src/screens/ProviderHomeModel.ts'),
+    join(
+      process.cwd(),
+      'src/features/provider-home/viewModels/providerHomeModel.ts',
+    ),
     'utf8',
   );
 
-  assert.match(appSource, /import \{ ProviderHomeScreen \} from '\.\/src\/screens\/ProviderHomeScreen';/);
+  assert.match(
+    appSource,
+    /const ProviderHomeScreen = lazy\(\(\) =>[\s\S]*features\/provider-home\/views\/ProviderHome/,
+  );
+  assert.doesNotMatch(appSource, /from '\.\/screens\/ProviderHomeScreen'/);
   assert.match(appSource, /function renderProviderHome\(\)[\s\S]*<ProviderHomeScreen/);
-  assert.match(screenSource, /export function ProviderHomeScreen/);
-  assert.match(screenSource, /ActionHero/);
-  assert.match(screenSource, /Request Payout/);
-  assert.match(screenSource, /Block Time/);
+  assert.match(screenSource, /features\/provider-home\/views\/ProviderHome/);
+  const viewSource = readFileSync(
+    join(process.cwd(), 'src/features/provider-home/views/ProviderHome.tsx'),
+    'utf8',
+  );
+  assert.match(viewSource, /export function ProviderHomeScreen/);
+  assert.match(viewSource, /ActionHero/);
+  assert.match(viewSource, /Request Payout/);
+  assert.match(viewSource, /Block Time/);
   assert.match(modelSource, /All caught up/);
-  assert.doesNotMatch(screenSource, /Available Payout/);
-  assert.doesNotMatch(screenSource, /My Services/);
-  assert.doesNotMatch(screenSource, /Quick Actions/);
-  assert.doesNotMatch(screenSource, /palette\.(coral|blue|violet|amber)/);
+  assert.doesNotMatch(viewSource, /Available Payout/);
+  assert.doesNotMatch(viewSource, /My Services/);
+  assert.doesNotMatch(viewSource, /Quick Actions/);
+  assert.doesNotMatch(viewSource, /palette\.(coral|blue|violet|amber)/);
 });
 
 test('provider home hero state matrix follows the action priority', async () => {
-  const { buildProviderHomeViewModel } = await import('./ProviderHomeModel');
+  const { buildProviderHomeViewModel } = await import(
+    '../features/provider-home/viewModels/providerHomeModel'
+  );
   const now = new Date('2026-05-20T11:00:00+08:00');
 
   assert.equal(
@@ -120,7 +134,9 @@ test('provider home hero state matrix follows the action priority', async () => 
 });
 
 test('nextJobAction respects the exact 30 minute boundary', async () => {
-  const { nextJobAction } = await import('./ProviderHomeModel');
+  const { nextJobAction } = await import(
+    '../features/provider-home/viewModels/providerHomeModel'
+  );
   const scheduled = booking({ scheduledAt: '2026-05-20T14:00:00+08:00' });
 
   assert.equal(
@@ -138,30 +154,82 @@ test('nextJobAction respects the exact 30 minute boundary', async () => {
 });
 
 test('request payout pill uses the existing positive-amount minimum', async () => {
-  const { buildPayoutAction } = await import('./ProviderHomeModel');
+  const { buildPayoutAction } = await import(
+    '../features/provider-home/viewModels/providerHomeModel'
+  );
 
   assert.equal(buildPayoutAction(10, 1).disabled, false);
   assert.equal(buildPayoutAction(0, 1).disabled, true);
   assert.match(buildPayoutAction(0, 1).accessibilityLabel, /minimum PHP 1/);
 });
 
-test('provider home model snapshots cover empty and one-job states', async (t) => {
-  const { buildProviderHomeViewModel } = await import('./ProviderHomeModel');
+test('provider home model snapshots cover empty and one-job states', async () => {
+  const { buildProviderHomeViewModel } = await import(
+    '../features/provider-home/viewModels/providerHomeModel'
+  );
   const now = new Date('2026-05-20T11:00:00+08:00');
 
-  t.assert.snapshot(buildProviderHomeViewModel({
-    bookings: [],
-    payments: [],
-    payoutTotal: 0,
-    minimumPayoutAmount: 1,
-    now,
-  }));
+  assert.deepEqual(
+    buildProviderHomeViewModel({
+      bookings: [],
+      payments: [],
+      payoutTotal: 0,
+      minimumPayoutAmount: 1,
+      now,
+    }),
+    {
+      hero: {
+        kind: 'caught-up',
+        title: 'All caught up.',
+        subtitle: 'No jobs or booking requests need action right now.',
+        meta: 'Open schedule',
+        primaryActionLabel: 'Block time off',
+        secondaryActionLabel: 'Share profile',
+        primaryActionScreen: 'calendar',
+        secondaryActionScreen: 'providerProfileView',
+      },
+      payoutAction: {
+        disabled: true,
+        label: 'Request Payout',
+        balanceLabel: 'PHP 0',
+        helperLabel: 'Minimum PHP 1',
+        accessibilityLabel:
+          'Request Payout disabled. Available: PHP 0; minimum PHP 1 to request.',
+      },
+      activeBookings: [],
+      todayEarnings: 0,
+      weekEarnings: 0,
+    },
+  );
 
-  t.assert.snapshot(buildProviderHomeViewModel({
-    bookings: [booking()],
-    payments: [payment()],
-    payoutTotal: 1200,
-    minimumPayoutAmount: 1,
-    now,
-  }));
+  assert.deepEqual(
+    buildProviderHomeViewModel({
+      bookings: [booking()],
+      payments: [payment()],
+      payoutTotal: 1200,
+      minimumPayoutAmount: 1,
+      now,
+    }),
+    {
+      hero: {
+        kind: 'job',
+        title: 'Deep Cleaning',
+        subtitle: '2:00 PM · Maria',
+        meta: '123 Mabini Street, Manila',
+        bookingId: 'booking-1',
+        primaryActionLabel: 'Navigate',
+        primaryActionScreen: 'providerNavigationMode',
+      },
+      payoutAction: {
+        disabled: false,
+        label: 'Request Payout',
+        balanceLabel: 'PHP 1,200',
+        helperLabel: 'PHP 1,200',
+        accessibilityLabel: 'Request Payout. Available: PHP 1,200.',
+      },
+      activeBookings: [],
+      todayEarnings: 0,
+      weekEarnings: 900,
+    },
+  );
 });

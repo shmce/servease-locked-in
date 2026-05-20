@@ -4,20 +4,39 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 test('customer booking flow renders blocked slots as unavailable and refreshes after server backstop', () => {
-  const source = readFileSync(join(process.cwd(), 'App.tsx'), 'utf8');
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const bookingFormView = readFileSync(
+    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    'utf8',
+  );
+  const scheduleView = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/views/CustomerBookingSchedulePicker.tsx',
+    ),
+    'utf8',
+  );
+  const scheduleViewModel = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingViewModel.ts',
+    ),
+    'utf8',
+  );
   const bookingDomain = readFileSync(
     join(process.cwd(), 'src/domain/booking.ts'),
     'utf8',
   );
 
-  assert.match(source, /buildCustomerBookingAvailability/);
-  assert.match(source, /MonthCalendar/);
-  assert.match(source, /calendarDisabledDates/);
-  assert.match(source, /calendarMarkers/);
-  assert.match(source, /markers=\{calendarMarkers\}/);
-  assert.match(source, /minDate=\{customerCalendarMinDate\}/);
-  assert.match(source, /Provider unavailable/);
-  assert.match(source, /disabled=\{!isAvailable\}/);
+  assert.match(bookingFormView, /CustomerBookingSchedulePicker/);
+  assert.match(scheduleViewModel, /buildCustomerBookingAvailability/);
+  assert.match(scheduleView, /MonthCalendar/);
+  assert.match(scheduleViewModel, /calendarDisabledDates/);
+  assert.match(scheduleViewModel, /calendarMarkers/);
+  assert.match(scheduleView, /markers=\{data\.calendarMarkers\}/);
+  assert.match(scheduleView, /minDate=\{data\.customerCalendarMinDate\}/);
+  assert.match(scheduleView, /Provider unavailable/);
+  assert.match(scheduleView, /disabled=\{!isAvailable\}/);
   assert.match(source, /providerUnavailableSlotPickerMessage\(error, message\)/);
   assert.match(
     bookingDomain,

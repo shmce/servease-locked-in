@@ -37,6 +37,7 @@ export const claireRouteManifest: ClaireRouteManifestItem[] = [
   { key: 'reservePayment', sourcePath: '/customer/payment/:bookingId', group: 'customer', backendMode: 'connected', notes: 'Uses APICenter checkout for card/wallet methods and the existing reservation API for cash-on-service.' },
   { key: 'bookingConfirmation', sourcePath: '/customer/booking-confirmation/:bookingId', group: 'customer', backendMode: 'connected' },
   { key: 'myBookings', sourcePath: '/customer/bookings', group: 'customer', backendMode: 'connected' },
+  { key: 'customerCalendar', sourcePath: '/customer/calendar', group: 'customer', backendMode: 'connected' },
   { key: 'bookingDetails', sourcePath: '/customer/booking/:id', group: 'customer', backendMode: 'connected' },
   { key: 'manageBooking', sourcePath: '/customer/booking/:id/manage', group: 'customer', backendMode: 'connected' },
   { key: 'cancelBooking', sourcePath: '/customer/booking/:id/cancel', group: 'customer', backendMode: 'connected' },

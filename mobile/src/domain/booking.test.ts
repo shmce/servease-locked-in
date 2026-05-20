@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   activeBookingCount,
+  addressVerifiedNotice,
   bookingStatusChip,
   buildCustomerBookingAvailability,
   buildCalendarExportUrl,
@@ -9,13 +10,22 @@ import {
   buildCustomerBookingCalendarState,
   buildMapsDirectionsUrl,
   buildProviderBookingSlots,
+  completedBookingCount,
   providerUnavailableSlotPickerMessage,
   formatBookingDuration,
+  formatDateTime,
+  formatManilaDateInput,
+  formatMoney,
   nextBookingStatuses,
   pricingConfidenceLabel,
   pricingFairnessLabel,
   pricingModeLabel,
+  paymentNotice,
+  promotionNotice,
   providerPayoutTotal,
+  roleLabel,
+  statusActionLabel,
+  statusLabel,
   timelineEventLabel,
   toManilaBookingIso,
 } from './booking';
@@ -89,6 +99,10 @@ describe('booking domain helpers', () => {
       2,
     );
     assert.equal(
+      completedBookingCount(['pending', 'completed', 'completed', 'rejected']),
+      2,
+    );
+    assert.equal(
       providerPayoutTotal([
         {
           id: 'payment-1',
@@ -121,12 +135,49 @@ describe('booking domain helpers', () => {
     );
   });
 
+  it('formats booking display helper fallbacks', () => {
+    assert.equal(statusLabel('in_progress'), 'in progress');
+    assert.equal(statusActionLabel('in_progress'), 'Start service');
+    assert.equal(statusActionLabel('rejected'), 'Decline');
+    assert.equal(roleLabel('provider'), 'Provider');
+    assert.equal(roleLabel('customer'), 'Customer');
+    assert.equal(roleLabel('admin'), 'Admin');
+    assert.equal(formatMoney(null), 'PHP 0');
+    assert.equal(formatMoney(2500), 'PHP 2,500');
+    assert.equal(formatDateTime(null), 'Not scheduled');
+    assert.equal(formatDateTime('not-a-date'), 'Invalid Date');
+    assert.equal(formatManilaDateInput(new Date('2026-05-20T01:00:00.000Z')), '2026-05-20');
+  });
+
   it('converts form date-time values to Manila booking instants', () => {
     assert.equal(
       toManilaBookingIso('2026-05-20T10:00'),
       '2026-05-20T02:00:00.000Z',
     );
     assert.equal(toManilaBookingIso('not-a-date'), null);
+  });
+
+  it('formats app shell notices without shell-side money or coordinate logic', () => {
+    assert.equal(
+      promotionNotice({ valid: true, discountAmount: 125, message: 'Unused' }),
+      'Promo applied: PHP 125 off.',
+    );
+    assert.equal(
+      promotionNotice({
+        valid: false,
+        discountAmount: 0,
+        message: 'Promo code expired.',
+      }),
+      'Promo code expired.',
+    );
+    assert.equal(
+      addressVerifiedNotice({ latitude: 14.599512, longitude: 120.984222 }),
+      'Address verified near 14.5995, 120.9842.',
+    );
+    assert.equal(
+      paymentNotice({ status: 'paid', amount: 1500 }),
+      'Payment paid for PHP 1,500.',
+    );
   });
 
   it('builds a calendar export URL for confirmed bookings', () => {
@@ -205,6 +256,32 @@ describe('booking domain helpers', () => {
         status: 'refunded',
         paymentMethod: null,
         paidAt: '2026-04-01T00:00:00.000Z',
+        createdAt: null,
+      },
+      {
+        id: 'p-5',
+        bookingId: 'b-5',
+        customerId: 'c-1',
+        providerId: 'pr-1',
+        amount: 100,
+        platformFee: 10,
+        providerPayout: 90,
+        status: 'paid',
+        paymentMethod: null,
+        paidAt: null,
+        createdAt: null,
+      },
+      {
+        id: 'p-6',
+        bookingId: 'b-6',
+        customerId: 'c-1',
+        providerId: 'pr-1',
+        amount: 100,
+        platformFee: 10,
+        providerPayout: 90,
+        status: 'paid',
+        paymentMethod: null,
+        paidAt: 'not-a-date',
         createdAt: null,
       },
     ]);
