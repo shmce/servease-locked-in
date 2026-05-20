@@ -255,6 +255,16 @@ test('app shell delegates route framing to the app router', () => {
   assert.match(routerSource, /label: 'Calendar'/);
 });
 
+test('legacy route frame fills the native device viewport', () => {
+  const designKitSource = readProjectFile('src/components/DesignKit.tsx');
+  const appShellSource = readProjectFile('src/legacy-router/AppShell.tsx');
+
+  assert.doesNotMatch(designKitSource, /phoneFrame:[\s\S]*?maxWidth/);
+  assert.doesNotMatch(designKitSource, /styles\.homeIndicator/);
+  assert.match(appShellSource, /expo-navigation-bar/);
+  assert.match(appShellSource, /expo-system-ui/);
+});
+
 test('app shell delegates display notice formatting to domain helpers', () => {
   const appSource = readProjectFile('src/App.tsx');
   const bookingFlowSource = readProjectFile(
@@ -1156,11 +1166,22 @@ test('provider more follows feature-level MVVM boundaries', () => {
   const viewModelSource = readProjectFile(viewModelPath);
 
   assert.match(appSource, /ProviderMoreScreen/);
+  assert.match(appSource, /profile=\{profile\}/);
+  assert.match(appSource, /signOut=\{signOut\}/);
+  assert.match(appSource, /unreadNotificationCount=\{notificationsFlow\.data\.unreadCount\}/);
   assert.match(viewSource, /useProviderMoreViewModel/);
+  assert.match(viewSource, /styles\.profileRow/);
+  assert.match(viewSource, /styles\.logoutButton/);
+  assert.match(viewSource, /typeof signOut === 'function'/);
+  assert.match(viewSource, /onPress=\{handleSignOut\}/);
+  assert.match(viewSource, /ServEase v1\.0\.0/);
+  assert.match(viewSource, /badge=\{action\.badge\}/);
   assert.doesNotMatch(viewSource, /providerPayoutManagement/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /providerPayoutManagement/);
   assert.match(viewModelSource, /actionRows/);
+  assert.match(viewModelSource, /providerProfile\?\.businessName/);
+  assert.match(viewModelSource, /providerNotifications/);
 });
 
 test('provider security follows feature-level MVVM boundaries', () => {

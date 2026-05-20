@@ -346,32 +346,28 @@ export function AuthScreens({
   return (
     <PhoneFrame>
       <View style={styles.authGate}>
-        <View style={styles.claireTopLeftWrap}>
-          <Image
-            source={claireImage2}
-            style={styles.claireTopLeftAsset}
-            resizeMode="stretch"
-            accessible={false}
-          />
-        </View>
+        <Image
+          source={claireImage2}
+          style={styles.claireTopLeftAsset}
+          resizeMode="contain"
+          accessible={false}
+        />
         <Image
           source={claireImg0157}
           style={styles.claireTopRightAsset}
-          resizeMode="stretch"
+          resizeMode="contain"
           accessible={false}
         />
-        <View style={styles.claireBottomLeftWrap}>
-          <Image
-            source={claireImage3}
-            style={styles.claireBottomLeftAsset}
-            resizeMode="stretch"
-            accessible={false}
-          />
-        </View>
+        <Image
+          source={claireImage3}
+          style={styles.claireBottomLeftAsset}
+          resizeMode="contain"
+          accessible={false}
+        />
         <Image
           source={claireImage4}
           style={styles.claireBottomRightAsset}
-          resizeMode="stretch"
+          resizeMode="contain"
           accessible={false}
         />
 
@@ -472,44 +468,33 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  claireTopLeftWrap: {
-    height: 166,
-    left: -48,
-    position: 'absolute',
-    top: -4,
-    width: 160,
-  },
   claireTopLeftAsset: {
-    height: 166,
-    transform: [{ rotate: '180deg' }],
+    height: 254,
+    left: -55,
+    position: 'absolute',
+    top: -50,
     width: 160,
   },
   claireTopRightAsset: {
-    height: 264,
-    left: 266,
+    height: 316,
     position: 'absolute',
-    top: -4,
-    width: 160,
-  },
-  claireBottomLeftWrap: {
-    alignItems: 'center',
-    height: 230,
-    justifyContent: 'center',
-    left: -82,
-    position: 'absolute',
-    top: 655,
-    width: 247,
+    right: -35,
+    top: -50,
+    width: 150,
   },
   claireBottomLeftAsset: {
-    height: 171,
-    transform: [{ rotate: '159.59deg' }],
-    width: 200,
+    bottom: -55,
+    height: 232,
+    left: -45,
+    position: 'absolute',
+    transform: [{ rotate: '180deg' }],
+    width: 180,
   },
   claireBottomRightAsset: {
-    height: 154,
-    left: 247,
+    bottom: -30,
+    height: 198,
     position: 'absolute',
-    top: 684,
+    right: -45,
     width: 200,
   },
   claireLogoWrap: {

@@ -281,7 +281,6 @@ export function BottomNavigation<T extends string>({
           );
         })}
       </View>
-      <View style={styles.homeIndicator} />
     </View>
   );
 }
@@ -404,10 +403,7 @@ const styles = StyleSheet.create({
   phoneFrame: {
     backgroundColor: palette.white,
     flex: 1,
-    maxWidth: 393,
-    overflow: 'hidden',
     width: '100%',
-    alignSelf: 'center',
   },
   statusStrip: {
     alignItems: 'center',
@@ -625,9 +621,8 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(44, 42, 40, 0.07)',
     borderTopWidth: 1,
     boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
-    maxWidth: 393,
+    paddingBottom: spacing.sm,
     width: '100%',
-    alignSelf: 'center',
   },
   bottomNavRow: {
     flexDirection: 'row',
@@ -677,15 +672,6 @@ const styles = StyleSheet.create({
     right: 8,
     top: 2,
     width: 10,
-  },
-  homeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.ink,
-    borderRadius: radius.pill,
-    height: 5,
-    marginBottom: spacing.sm,
-    marginTop: spacing.xs,
-    width: 134,
   },
   timeline: {
     paddingTop: spacing.sm,

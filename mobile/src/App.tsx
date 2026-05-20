@@ -3738,7 +3738,14 @@ export default function App() {
   }
 
   function renderProviderMore() {
-    return <ProviderMoreScreen navigate={navigate} />;
+    return (
+      <ProviderMoreScreen
+        profile={profile}
+        navigate={navigate}
+        signOut={signOut}
+        unreadNotificationCount={notificationsFlow.data.unreadCount}
+      />
+    );
   }
 
   function renderProviderServices() {
@@ -3895,7 +3902,11 @@ export default function App() {
   };
 
   return (
-    <AppShell busyAction={busyAction} notice={notice}>
+    <AppShell
+      busyAction={busyAction}
+      notice={notice}
+      backgroundColor={route.screen === 'authGate' ? palette.mint : undefined}
+    >
       <AppRouter
         appRole={appRole}
         navigate={navigate}

@@ -1,24 +1,47 @@
+import * as NavigationBar from 'expo-navigation-bar';
 import { StatusBar } from 'expo-status-bar';
-import { ReactNode, Suspense } from 'react';
+import * as SystemUI from 'expo-system-ui';
+import { ReactNode, Suspense, useEffect } from 'react';
 import {
   ActivityIndicator,
-  SafeAreaView,
+  Platform,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { palette, radius, spacing } from '../theme/serveaseDesign';
 
 type AppShellProps = {
   busyAction: string | null;
   children: ReactNode;
   notice: string;
+  backgroundColor?: string;
 };
 
-export function AppShell({ busyAction, children, notice }: AppShellProps) {
+export function AppShell({ busyAction, children, notice, backgroundColor }: AppShellProps) {
+  const shellBackground = backgroundColor ?? palette.white;
+
+  useEffect(() => {
+    void SystemUI.setBackgroundColorAsync(shellBackground).catch(() => undefined);
+
+    if (Platform.OS === 'android') {
+      void NavigationBar.setPositionAsync('absolute').catch(() => undefined);
+      void NavigationBar.setBackgroundColorAsync('transparent').catch(() => undefined);
+      void NavigationBar.setButtonStyleAsync('dark').catch(() => undefined);
+    }
+  }, [shellBackground]);
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
+    <SafeAreaView
+      edges={backgroundColor ? [] : ['top']}
+      style={[styles.safeArea, { backgroundColor: shellBackground }]}
+    >
+      <StatusBar
+        backgroundColor="transparent"
+        style={backgroundColor ? 'light' : 'dark'}
+        translucent
+      />
       {children}
       {busyAction ? (
         <View style={styles.busyPill}>

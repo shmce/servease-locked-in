@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import { AppScreen } from '../../../navigation/types';
+import { CurrentUserProfile } from '../../../shared/models/types';
 
 type ProviderMoreAction = {
   label: string;
   screen: AppScreen;
+  badge?: number;
 };
 
 const actionRows: ProviderMoreAction[][] = [
@@ -30,12 +32,37 @@ const actionRows: ProviderMoreAction[][] = [
   [{ label: 'Settings', screen: 'providerSettings' }],
 ];
 
-export function useProviderMoreViewModel() {
+export function useProviderMoreViewModel({
+  profile,
+  unreadNotificationCount = 0,
+}: {
+  profile: CurrentUserProfile | null;
+  unreadNotificationCount?: number;
+}) {
   const data = useMemo(
-    () => ({
-      actionRows,
-    }),
-    [],
+    () => {
+      const displayName =
+        profile?.providerProfile?.businessName ??
+        profile?.user.fullName ??
+        'Provider';
+      const displayEmail = profile?.user.email ?? 'provider@example.com';
+      const rows = actionRows.map((row) =>
+        row.map((action) =>
+          action.screen === 'providerNotifications' && unreadNotificationCount > 0
+            ? { ...action, badge: unreadNotificationCount }
+            : action,
+        ),
+      );
+
+      return {
+        actionRows: rows,
+        displayEmail,
+        displayName,
+        initial: displayName.slice(0, 1).toUpperCase(),
+        unreadNotificationCount,
+      };
+    },
+    [profile, unreadNotificationCount],
   );
 
   return {
