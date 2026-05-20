@@ -21,13 +21,13 @@ import {
   Section,
   TopBar,
 } from '../../../components/DesignKit';
-import { AppRole, AppScreen } from '../../../navigation/types';
+import { AppRole } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useHelpCenterViewModel } from '../viewModels/useHelpCenterViewModel';
 
 type HelpCenterScreenProps = {
   role: AppRole;
-  navigate: (screen: AppScreen, nextRole?: AppRole) => void;
+  onBack: () => void;
   supportPanel: ReactNode;
 };
 
@@ -49,7 +49,7 @@ function HelpFaqIcon({ kind }: { kind: string }) {
 
 export function HelpCenterScreen({
   role,
-  navigate,
+  onBack,
   supportPanel,
 }: HelpCenterScreenProps) {
   const [expandedFaqId, setExpandedFaqId] = useState<number | null>(null);
@@ -58,7 +58,7 @@ export function HelpCenterScreen({
   return (
     <>
       <View style={styles.helpHeader}>
-        <TopBar title="Help Center" green onBack={() => navigate('more', role)} />
+        <TopBar title="Help Center" green onBack={onBack} />
         <View style={styles.helpSearch}>
           <Search color={palette.faint} size={20} />
           <Field

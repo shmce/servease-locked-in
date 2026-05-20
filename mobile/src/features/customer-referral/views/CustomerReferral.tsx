@@ -10,7 +10,6 @@ import {
   ApiOptions,
   ReferralSummary,
 } from '../../../shared/models/types';
-import { AppScreen } from '../../../navigation/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import {
   ScreenContent,
@@ -21,7 +20,7 @@ import { useCustomerReferralViewModel } from '../viewModels/useCustomerReferralV
 type CustomerReferralScreenProps = {
   apiOptions: ApiOptions;
   referralSummary: ReferralSummary | null;
-  navigate: (screen: AppScreen, nextRole?: 'customer') => void;
+  onBack: () => void;
   onReferralSummaryLoaded: (summary: ReferralSummary) => void;
   onNotice: (notice: string) => void;
   readError: (error: unknown) => string;
@@ -30,7 +29,7 @@ type CustomerReferralScreenProps = {
 export function CustomerReferralScreen({
   apiOptions,
   referralSummary,
-  navigate,
+  onBack,
   onReferralSummaryLoaded,
   onNotice,
   readError,
@@ -45,7 +44,7 @@ export function CustomerReferralScreen({
 
   return (
     <>
-      <TopBar title="Refer a Friend" onBack={() => navigate('more', 'customer')} />
+      <TopBar title="Refer a Friend" onBack={onBack} />
       <ScreenScroll>
         <ScreenContent>
           <Card>

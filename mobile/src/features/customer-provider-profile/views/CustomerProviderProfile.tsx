@@ -1,7 +1,6 @@
 import { CheckCircle, MessageCircle, Star } from 'lucide-react-native';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-  Badge,
   Card,
   EmptyState,
   Pill,

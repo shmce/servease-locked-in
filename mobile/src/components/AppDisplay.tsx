@@ -405,6 +405,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   cardBody: {
     ...type.body,
@@ -413,6 +414,7 @@ const styles = StyleSheet.create({
   cardMeta: {
     ...type.caption,
     color: palette.muted,
+    fontWeight: '500',
   },
   label: {
     color: palette.body,
@@ -422,7 +424,7 @@ const styles = StyleSheet.create({
   priceText: {
     color: palette.mint,
     fontSize: 14,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   serviceListItem: {
     alignItems: 'center',
@@ -446,7 +448,7 @@ const styles = StyleSheet.create({
   serviceThumbText: {
     color: palette.mint,
     fontSize: 38,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   providerListItem: {
     alignItems: 'center',
@@ -470,7 +472,7 @@ const styles = StyleSheet.create({
   providerListAvatarText: {
     color: palette.white,
     fontSize: 20,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   providerMetaRow: {
     alignItems: 'center',
@@ -516,8 +518,8 @@ const styles = StyleSheet.create({
   infoValue: {
     color: palette.ink,
     flex: 1.4,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     textAlign: 'right',
   },
   profileInfoRow: {
@@ -540,7 +542,7 @@ const styles = StyleSheet.create({
   settingsSectionTitle: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
     textTransform: 'uppercase',
   },
   settingsSectionBody: {
@@ -654,12 +656,12 @@ const styles = StyleSheet.create({
   tableLabel: {
     color: palette.muted,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '500',
   },
   tableValue: {
     color: palette.ink,
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   bookingCardHeader: {
     alignItems: 'flex-start',
@@ -679,7 +681,7 @@ const styles = StyleSheet.create({
   providerName: {
     color: palette.ink,
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     marginTop: spacing.xxs,
   },
   bookingActionButton: {
@@ -691,7 +693,7 @@ const styles = StyleSheet.create({
   bookingActionText: {
     color: palette.white,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   quickAction: {
     backgroundColor: palette.white,
@@ -712,7 +714,7 @@ const styles = StyleSheet.create({
   quickIconText: {
     color: palette.mint,
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   quickBadge: {
     alignItems: 'center',
@@ -751,11 +753,11 @@ const styles = StyleSheet.create({
   roleMark: {
     color: palette.mint,
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   chevron: {
     color: palette.faint,
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '700',
   },
 });

@@ -15,7 +15,6 @@ import {
   CustomerPaymentMethodSummary,
   CustomerPaymentMethodType,
 } from '../../../shared/models/types';
-import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
   ActionRow,
@@ -28,7 +27,7 @@ type CustomerPaymentMethodsScreenProps = {
   customerPaymentMethods: CustomerPaymentMethodSummary[];
   selectedMethodId: string | null;
   busyAction: string | null;
-  navigate: (screen: AppScreen, nextRole?: 'customer') => void;
+  onBack: () => void;
   setSelectedCustomerPaymentMethodId: (methodId: string) => void;
   saveCustomerPaymentMethod: (methodType: CustomerPaymentMethodType) => Promise<void>;
   removeCustomerPaymentMethod: (methodId: string) => Promise<void>;
@@ -38,7 +37,7 @@ export function CustomerPaymentMethodsScreen({
   customerPaymentMethods,
   selectedMethodId,
   busyAction,
-  navigate,
+  onBack,
   setSelectedCustomerPaymentMethodId,
   saveCustomerPaymentMethod,
   removeCustomerPaymentMethod,
@@ -57,7 +56,7 @@ export function CustomerPaymentMethodsScreen({
 
   return (
     <>
-      <TopBar title="Payment Methods" onBack={() => navigate('more', 'customer')} />
+      <TopBar title="Payment Methods" onBack={onBack} />
       <ScreenScroll>
         <ScreenContent>
           <Section title="Saved methods">

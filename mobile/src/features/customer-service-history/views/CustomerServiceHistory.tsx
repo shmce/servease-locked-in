@@ -9,15 +9,13 @@ import { useCustomerServiceHistoryViewModel } from '../viewModels/useCustomerSer
 
 type CustomerServiceHistoryScreenProps = {
   bookings: BookingSummary[];
-  setBookingFilter: (filter: 'active' | 'completed') => void;
-  navigateToBookings: () => void;
+  onBack: () => void;
   openBooking: (booking: BookingSummary) => void;
 };
 
 export function CustomerServiceHistoryScreen({
   bookings,
-  setBookingFilter,
-  navigateToBookings,
+  onBack,
   openBooking,
 }: CustomerServiceHistoryScreenProps) {
   const history = useCustomerServiceHistoryViewModel({ bookings });
@@ -26,10 +24,7 @@ export function CustomerServiceHistoryScreen({
     <>
       <TopBar
         title="Completed Bookings"
-        onBack={() => {
-          setBookingFilter('completed');
-          navigateToBookings();
-        }}
+        onBack={onBack}
       />
       <ScreenScroll>
         <ScreenContent>

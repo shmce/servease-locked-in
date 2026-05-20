@@ -27,7 +27,6 @@ import {
   ScreenContent,
   ScreenScroll,
 } from '../../../shared/components/ScreenLayout';
-import { AppScreen } from '../../../navigation/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import {
   CustomerSettingsIcon,
@@ -48,7 +47,7 @@ type CustomerSettingsScreenProps = {
   twoFactorCode: string;
   deleteConfirmText: string;
   busyAction: string | null;
-  navigate: (screen: AppScreen, nextRole?: 'customer') => void;
+  onBack: () => void;
   setNotice: (notice: string) => void;
   setCurrentPassword: (value: string) => void;
   setNewPassword: (value: string) => void;
@@ -85,7 +84,7 @@ export function CustomerSettingsScreen({
   twoFactorCode,
   deleteConfirmText,
   busyAction,
-  navigate,
+  onBack,
   setNotice,
   setCurrentPassword,
   setNewPassword,
@@ -113,7 +112,7 @@ export function CustomerSettingsScreen({
 
   return (
     <>
-      <TopBar title="Settings" onBack={() => navigate('more', 'customer')} />
+      <TopBar title="Settings" onBack={onBack} />
       <ScreenScroll>
         <ScreenContent>
           <SettingsSection title="Notifications">

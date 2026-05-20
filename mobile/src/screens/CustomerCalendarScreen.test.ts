@@ -33,9 +33,13 @@ test('customer calendar screen mirrors provider calendar for customer bookings',
   assert.match(viewSource, /Your upcoming service schedule/);
   assert.match(viewSource, /MonthCalendar/);
   assert.match(viewSource, /openBooking\(booking\)/);
+  assert.match(viewSource, /View all/);
+  assert.match(viewSource, /onViewAllBookings/);
   assert.match(viewModelSource, /activeBookingStatuses/);
   assert.match(viewModelSource, /pending/);
   assert.match(viewModelSource, /confirmed/);
   assert.match(viewModelSource, /in_progress/);
   assert.match(viewModelSource, /formatApiDate/);
+  assert.match(viewModelSource, /upcomingPreviewLimit = 3/);
+  assert.match(viewModelSource, /Next up/);
 });
