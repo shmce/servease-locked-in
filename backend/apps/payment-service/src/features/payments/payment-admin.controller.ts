@@ -35,8 +35,7 @@ export class PaymentAdminController {
     }
   }
 
-  // Static prefix routes MUST be declared BEFORE :paymentId routes so they
-  // don't get captured by `@Get(':paymentId')`. See feedback-route-order.
+  // Static prefix routes MUST be declared BEFORE paymentId routes.
 
   @Get('promotions')
   async listPromotions(

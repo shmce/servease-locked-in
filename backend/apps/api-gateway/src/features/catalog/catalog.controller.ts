@@ -118,21 +118,6 @@ export class CatalogController {
     }
   }
 
-  @Delete('provider/portfolio/:mediaId')
-  @HttpCode(204)
-  async deleteProviderPortfolioMedia(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('mediaId') mediaId: string,
-  ): Promise<void> {
-    try {
-      this.validateOptionalUuid(mediaId);
-      const userId = await this.authTokenService.authenticate(authorization);
-      await this.catalogGatewayService.deleteProviderPortfolioMedia(userId, mediaId);
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
   @Put('provider/portfolio/order')
   async reorderProviderPortfolioMedia(
     @Headers('authorization') authorization: string | undefined,
@@ -147,6 +132,21 @@ export class CatalogController {
           body.items,
         ),
       };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete('provider/portfolio/:mediaId')
+  @HttpCode(204)
+  async deleteProviderPortfolioMedia(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('mediaId') mediaId: string,
+  ): Promise<void> {
+    try {
+      this.validateOptionalUuid(mediaId);
+      const userId = await this.authTokenService.authenticate(authorization);
+      await this.catalogGatewayService.deleteProviderPortfolioMedia(userId, mediaId);
     } catch (error) {
       throw this.toHttpException(error);
     }

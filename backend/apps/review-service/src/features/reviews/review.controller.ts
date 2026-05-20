@@ -47,24 +47,6 @@ export class ReviewController {
     }
   }
 
-  @Post(':reviewId/reply')
-  async reply(
-    @Param('reviewId') reviewId: string,
-    @Body() body: { providerId?: string; responseText?: string },
-  ): Promise<{ data: ReviewResponseSummary }> {
-    try {
-      return {
-        data: await this.reviewService.createReviewResponse({
-          reviewId,
-          providerId: body.providerId ?? '',
-          responseText: body.responseText ?? '',
-        }),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
   @Get('admin')
   async listForAdmin(
     @Query('providerId') providerId?: string,
@@ -78,6 +60,24 @@ export class ReviewController {
           providerId: providerId ?? null,
           flaggedOnly: flagged === 'true',
           limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':reviewId/reply')
+  async reply(
+    @Param('reviewId') reviewId: string,
+    @Body() body: { providerId?: string; responseText?: string },
+  ): Promise<{ data: ReviewResponseSummary }> {
+    try {
+      return {
+        data: await this.reviewService.createReviewResponse({
+          reviewId,
+          providerId: body.providerId ?? '',
+          responseText: body.responseText ?? '',
         }),
       };
     } catch (error) {

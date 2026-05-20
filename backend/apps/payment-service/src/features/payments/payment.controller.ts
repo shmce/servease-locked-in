@@ -137,19 +137,6 @@ export class PaymentController {
     }
   }
 
-  @Get('checkout-sessions/:checkoutId/status')
-  async checkoutStatus(
-    @Param('checkoutId') checkoutId: string,
-  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
-    try {
-      return {
-        data: await this.sharedPaymentService.getCheckoutStatus(checkoutId),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
   @Post('checkout-sessions/webhook')
   async checkoutWebhook(
     @Body() body: ApicenterCheckoutWebhookInput,
@@ -157,6 +144,19 @@ export class PaymentController {
     try {
       return {
         data: await this.sharedPaymentService.syncCheckoutWebhook(body),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('checkout-sessions/:checkoutId/status')
+  async checkoutStatus(
+    @Param('checkoutId') checkoutId: string,
+  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.getCheckoutStatus(checkoutId),
       };
     } catch (error) {
       throw this.toHttpException(error);

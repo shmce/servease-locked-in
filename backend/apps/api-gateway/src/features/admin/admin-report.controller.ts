@@ -87,42 +87,6 @@ export class AdminReportController {
     private readonly adminServiceClient: AdminServiceClient,
   ) {}
 
-  @Get(':type/schedules')
-  async listSchedules(
-    @Param('type') type: string,
-    @Headers('authorization') authorization: string | undefined,
-  ): Promise<{ data: ScheduledAdminReportResponse[] }> {
-    try {
-      await this.requireAdmin(authorization);
-      const reportType = this.requireReportType(type);
-      return {
-        data: await this.adminServiceClient.listAdminReportSchedules(
-          reportType,
-          100,
-        ),
-      };
-    } catch (error) {
-      throw this.handleReportError(error, 'Report schedule listing failed.');
-    }
-  }
-
-  @Get(':type.pdf')
-  @Header('content-type', 'application/pdf')
-  @Header('content-disposition', 'attachment; filename="servease-report.pdf"')
-  async reportPdf(
-    @Param('type') type: string,
-    @Headers('authorization') authorization: string | undefined,
-  ): Promise<string> {
-    try {
-      await this.requireAdmin(authorization);
-      const reportType = this.requireReportType(type);
-      const dataset = await this.buildReportDataset(reportType);
-      return this.toPdf(dataset);
-    } catch (error) {
-      throw this.handleReportError(error, 'PDF report export failed.');
-    }
-  }
-
   @Get('revenue.csv')
   @Header('content-type', 'text/csv; charset=utf-8')
   @Header('content-disposition', 'attachment; filename="servease-revenue.csv"')
@@ -195,6 +159,42 @@ export class AdminReportController {
       return this.toBookingsCsv(bookings);
     } catch (error) {
       throw this.handleExportError(error, 'Booking report export failed.');
+    }
+  }
+
+  @Get(':type/schedules')
+  async listSchedules(
+    @Param('type') type: string,
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: ScheduledAdminReportResponse[] }> {
+    try {
+      await this.requireAdmin(authorization);
+      const reportType = this.requireReportType(type);
+      return {
+        data: await this.adminServiceClient.listAdminReportSchedules(
+          reportType,
+          100,
+        ),
+      };
+    } catch (error) {
+      throw this.handleReportError(error, 'Report schedule listing failed.');
+    }
+  }
+
+  @Get(':type.pdf')
+  @Header('content-type', 'application/pdf')
+  @Header('content-disposition', 'attachment; filename="servease-report.pdf"')
+  async reportPdf(
+    @Param('type') type: string,
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<string> {
+    try {
+      await this.requireAdmin(authorization);
+      const reportType = this.requireReportType(type);
+      const dataset = await this.buildReportDataset(reportType);
+      return this.toPdf(dataset);
+    } catch (error) {
+      throw this.handleReportError(error, 'PDF report export failed.');
     }
   }
 

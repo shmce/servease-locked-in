@@ -75,6 +75,22 @@ export class BookingController {
     }
   }
 
+  @Post()
+  async create(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: CreateBookingRequest,
+  ): Promise<{ data: BookingSummary }> {
+    try {
+      this.validateCreateRequest(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.bookingGatewayService.createBooking(userId, body),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get(':bookingId/tracking')
   async tracking(
     @Headers('authorization') authorization: string | undefined,
@@ -147,22 +163,6 @@ export class BookingController {
           userId,
           providerId,
         ),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
-  @Post()
-  async create(
-    @Headers('authorization') authorization: string | undefined,
-    @Body() body: CreateBookingRequest,
-  ): Promise<{ data: BookingSummary }> {
-    try {
-      this.validateCreateRequest(body);
-      const userId = await this.authTokenService.authenticate(authorization);
-      return {
-        data: await this.bookingGatewayService.createBooking(userId, body),
       };
     } catch (error) {
       throw this.toHttpException(error);
