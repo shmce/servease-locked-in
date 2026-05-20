@@ -162,6 +162,11 @@ function formatCompletionRate(value: number | null | undefined): string {
   return `${Math.round(Number(value))}%`;
 }
 
+function getDocumentFilenameLabel(doc: ProviderDocumentItem): string | null {
+  const fileName = doc.file.trim();
+  return fileName.length > 0 && !/\.document$/i.test(fileName) ? fileName : null;
+}
+
 /* ─── MAIN COMPONENT ─────────────────────────────────────────────── */
 export function ServiceProviderDetails() {
   const navigate = useNavigate();
@@ -672,29 +677,43 @@ export function ServiceProviderDetails() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {displayedDocuments.map(doc => (
-                      <div key={doc.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 hover:shadow-sm transition-all group">
-                        <div className={`${doc.color} rounded-lg h-20 flex items-center justify-center mb-3 relative overflow-hidden`}>
-                          <FileText className={`w-8 h-8 ${doc.iconColor} opacity-60`} />
-                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
-                            <button onClick={() => void openDocModal(doc)} className="bg-white rounded-full p-1.5 shadow-md">
-                              <ZoomIn className="w-3.5 h-3.5 text-gray-700" />
-                            </button>
+                    {displayedDocuments.map((doc, index) => {
+                      const fileNameLabel = getDocumentFilenameLabel(doc);
+                      const documentLabel = fileNameLabel
+                        ? doc.name
+                        : `${doc.name} #${index + 1}`;
+
+                      return (
+                        <div key={doc.id} className="border border-gray-100 rounded-xl p-3 hover:border-gray-200 hover:shadow-sm transition-all group">
+                          <div className={`${doc.color} rounded-lg h-20 flex items-center justify-center mb-3 relative overflow-hidden`}>
+                            <FileText className={`w-8 h-8 ${doc.iconColor} opacity-60`} />
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/10">
+                              <button onClick={() => void openDocModal(doc)} className="bg-white rounded-full p-1.5 shadow-md">
+                                <ZoomIn className="w-3.5 h-3.5 text-gray-700" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <p className="text-sm font-semibold text-gray-900">{documentLabel}</p>
+                            {fileNameLabel ? (
+                              <p
+                                className="text-xs text-gray-500 truncate font-mono"
+                                title={fileNameLabel}
+                              >
+                                {fileNameLabel}
+                              </p>
+                            ) : null}
+                            <p className="text-xs text-gray-400">Uploaded {doc.date}</p>
+                            <div className="flex items-center justify-between">
+                              {getDocumentStatusBadge(doc.status)}
+                              <button onClick={() => void openDocModal(doc)} className="text-xs text-[#16A34A] hover:text-[#15803D] font-medium">
+                                View Full Size
+                              </button>
+                            </div>
                           </div>
                         </div>
-                        <div className="space-y-1.5">
-                          <p className="text-sm font-semibold text-gray-900">{doc.name}</p>
-                          <p className="text-xs text-gray-500 truncate font-mono">{doc.file}</p>
-                          <p className="text-xs text-gray-400">Uploaded {doc.date}</p>
-                          <div className="flex items-center justify-between">
-                            {getDocumentStatusBadge(doc.status)}
-                            <button onClick={() => void openDocModal(doc)} className="text-xs text-[#16A34A] hover:text-[#15803D] font-medium">
-                              View Full Size
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
