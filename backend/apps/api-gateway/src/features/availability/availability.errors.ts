@@ -15,3 +15,15 @@ export class ProviderProfileRequiredError extends Error {
     super('provider_profile_required');
   }
 }
+
+export class TimeOffTooSoonError extends Error {
+  constructor() {
+    super('time_off_too_soon');
+  }
+}
+
+export class TimeOffConflictsBookingError extends Error {
+  constructor() {
+    super('time_off_conflicts_booking');
+  }
+}

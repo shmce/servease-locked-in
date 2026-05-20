@@ -16,6 +16,15 @@ describe('SupabaseProviderAvailabilityRepository', () => {
           },
         ],
         daysOff: [],
+        timeOffWindows: [
+          {
+            id: 'e4084ee1-8db7-4890-8c95-cd92725bd20a',
+            offDate: '2026-05-24',
+            startTime: '14:00',
+            endTime: '17:00',
+            reason: 'Personal errand',
+          },
+        ],
       },
       error: null,
     });
@@ -36,6 +45,15 @@ describe('SupabaseProviderAvailabilityRepository', () => {
         },
       ],
       daysOff: [],
+      timeOffWindows: [
+        {
+          id: 'e4084ee1-8db7-4890-8c95-cd92725bd20a',
+          offDate: '2026-05-24',
+          startTime: '14:00',
+          endTime: '17:00',
+          reason: 'Personal errand',
+        },
+      ],
     });
     expect(rpc).toHaveBeenCalledWith('servease_get_provider_availability', {
       p_provider_id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
@@ -48,6 +66,7 @@ describe('SupabaseProviderAvailabilityRepository', () => {
         providerId: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
         windows: [],
         daysOff: [],
+        timeOffWindows: [],
       },
       error: null,
     });
@@ -71,5 +90,52 @@ describe('SupabaseProviderAvailabilityRepository', () => {
         },
       ],
     });
+  });
+
+  it('adds and removes partial time-off windows through RPC', async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: {
+        providerId: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+        windows: [],
+        daysOff: [],
+        timeOffWindows: [],
+      },
+      error: null,
+    });
+    const repository = new SupabaseProviderAvailabilityRepository({ rpc });
+
+    await repository.addTimeOffWindow(
+      'f87b3f7e-6b54-4cef-852f-854983780c7b',
+      {
+        offDate: '2026-05-24',
+        startTime: '14:00',
+        endTime: '17:00',
+        reason: 'Personal errand',
+      },
+    );
+    await repository.removeTimeOffWindow(
+      'f87b3f7e-6b54-4cef-852f-854983780c7b',
+      'e4084ee1-8db7-4890-8c95-cd92725bd20a',
+    );
+
+    expect(rpc).toHaveBeenNthCalledWith(
+      1,
+      'servease_add_provider_time_off_window',
+      {
+        p_provider_id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+        p_off_date: '2026-05-24',
+        p_start_time: '14:00',
+        p_end_time: '17:00',
+        p_reason: 'Personal errand',
+      },
+    );
+    expect(rpc).toHaveBeenNthCalledWith(
+      2,
+      'servease_remove_provider_time_off_window',
+      {
+        p_provider_id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+        p_window_id: 'e4084ee1-8db7-4890-8c95-cd92725bd20a',
+      },
+    );
   });
 });

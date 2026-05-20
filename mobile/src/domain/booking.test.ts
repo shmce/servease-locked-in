@@ -2,17 +2,30 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   activeBookingCount,
+  addressVerifiedNotice,
   bookingStatusChip,
+  buildCustomerBookingAvailability,
   buildCalendarExportUrl,
   buildBookingTransitionRequest,
+  buildCustomerBookingCalendarState,
   buildMapsDirectionsUrl,
   buildProviderBookingSlots,
+  completedBookingCount,
+  providerUnavailableSlotPickerMessage,
   formatBookingDuration,
+  formatDateTime,
+  formatManilaDateInput,
+  formatMoney,
   nextBookingStatuses,
   pricingConfidenceLabel,
   pricingFairnessLabel,
   pricingModeLabel,
+  paymentNotice,
+  promotionNotice,
   providerPayoutTotal,
+  roleLabel,
+  statusActionLabel,
+  statusLabel,
   timelineEventLabel,
   toManilaBookingIso,
 } from './booking';
@@ -86,6 +99,10 @@ describe('booking domain helpers', () => {
       2,
     );
     assert.equal(
+      completedBookingCount(['pending', 'completed', 'completed', 'rejected']),
+      2,
+    );
+    assert.equal(
       providerPayoutTotal([
         {
           id: 'payment-1',
@@ -118,12 +135,49 @@ describe('booking domain helpers', () => {
     );
   });
 
+  it('formats booking display helper fallbacks', () => {
+    assert.equal(statusLabel('in_progress'), 'in progress');
+    assert.equal(statusActionLabel('in_progress'), 'Start service');
+    assert.equal(statusActionLabel('rejected'), 'Decline');
+    assert.equal(roleLabel('provider'), 'Provider');
+    assert.equal(roleLabel('customer'), 'Customer');
+    assert.equal(roleLabel('admin'), 'Admin');
+    assert.equal(formatMoney(null), 'PHP 0');
+    assert.equal(formatMoney(2500), 'PHP 2,500');
+    assert.equal(formatDateTime(null), 'Not scheduled');
+    assert.equal(formatDateTime('not-a-date'), 'Invalid Date');
+    assert.equal(formatManilaDateInput(new Date('2026-05-20T01:00:00.000Z')), '2026-05-20');
+  });
+
   it('converts form date-time values to Manila booking instants', () => {
     assert.equal(
       toManilaBookingIso('2026-05-20T10:00'),
       '2026-05-20T02:00:00.000Z',
     );
     assert.equal(toManilaBookingIso('not-a-date'), null);
+  });
+
+  it('formats app shell notices without shell-side money or coordinate logic', () => {
+    assert.equal(
+      promotionNotice({ valid: true, discountAmount: 125, message: 'Unused' }),
+      'Promo applied: PHP 125 off.',
+    );
+    assert.equal(
+      promotionNotice({
+        valid: false,
+        discountAmount: 0,
+        message: 'Promo code expired.',
+      }),
+      'Promo code expired.',
+    );
+    assert.equal(
+      addressVerifiedNotice({ latitude: 14.599512, longitude: 120.984222 }),
+      'Address verified near 14.5995, 120.9842.',
+    );
+    assert.equal(
+      paymentNotice({ status: 'paid', amount: 1500 }),
+      'Payment paid for PHP 1,500.',
+    );
   });
 
   it('builds a calendar export URL for confirmed bookings', () => {
@@ -204,6 +258,32 @@ describe('booking domain helpers', () => {
         paidAt: '2026-04-01T00:00:00.000Z',
         createdAt: null,
       },
+      {
+        id: 'p-5',
+        bookingId: 'b-5',
+        customerId: 'c-1',
+        providerId: 'pr-1',
+        amount: 100,
+        platformFee: 10,
+        providerPayout: 90,
+        status: 'paid',
+        paymentMethod: null,
+        paidAt: null,
+        createdAt: null,
+      },
+      {
+        id: 'p-6',
+        bookingId: 'b-6',
+        customerId: 'c-1',
+        providerId: 'pr-1',
+        amount: 100,
+        platformFee: 10,
+        providerPayout: 90,
+        status: 'paid',
+        paymentMethod: null,
+        paidAt: 'not-a-date',
+        createdAt: null,
+      },
     ]);
 
     assert.equal(summaries.length, 2);
@@ -270,6 +350,7 @@ describe('booking domain helpers', () => {
             reason: null,
           },
         ],
+        timeOffWindows: [],
       },
       2,
       ['08:00', '10:00', '11:00'],
@@ -280,5 +361,222 @@ describe('booking domain helpers', () => {
       '2026-05-27T08:00',
       '2026-05-27T10:00',
     ]);
+  });
+
+  it('builds customer availability with whole-day off and partial time-off states', () => {
+    const schedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'tuesday' as const,
+          startTime: '09:00',
+          endTime: '18:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+      ],
+      daysOff: [{ id: 'day-off-1', offDate: '2026-05-27', reason: null }],
+      timeOffWindows: [
+        {
+          id: 'time-off-1',
+          offDate: '2026-05-26',
+          startTime: '14:00',
+          endTime: '17:00',
+          reason: null,
+        },
+      ],
+    };
+
+    const availability = buildCustomerBookingAvailability(
+      schedule,
+      1,
+      ['13:00', '14:00', '15:00', '16:00', '17:00'],
+      new Date('2026-05-26T00:00:00'),
+      '2026-05-26',
+    );
+
+    assert.equal(
+      availability.dateOptions.find((date) => date.value === '2026-05-26')?.isAvailable,
+      true,
+    );
+    assert.equal(
+      availability.dateOptions.find((date) => date.value === '2026-05-27')?.isAvailable,
+      false,
+    );
+    assert.equal(
+      availability.dateOptions.find((date) => date.value === '2026-05-27')?.unavailableLabel,
+      'Provider unavailable',
+    );
+    assert.deepEqual(
+      availability.timeOptions.map((slot) => ({
+        time: slot.time,
+        isAvailable: slot.isAvailable,
+        unavailableLabel: slot.unavailableLabel,
+      })),
+      [
+        { time: '13:00', isAvailable: true, unavailableLabel: undefined },
+        { time: '14:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+        { time: '15:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+        { time: '16:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+        { time: '17:00', isAvailable: true, unavailableLabel: undefined },
+      ],
+    );
+  });
+
+  it('keeps weekly window edge slots available only when the full duration fits', () => {
+    const schedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'tuesday' as const,
+          startTime: '09:00',
+          endTime: '17:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+      ],
+      daysOff: [],
+      timeOffWindows: [],
+    };
+
+    const availability = buildCustomerBookingAvailability(
+      schedule,
+      2,
+      ['08:00', '09:00', '15:00', '16:00'],
+      new Date('2026-05-26T00:00:00'),
+      '2026-05-26',
+    );
+
+    assert.deepEqual(
+      availability.timeOptions.map((slot) => ({
+        time: slot.time,
+        isAvailable: slot.isAvailable,
+        unavailableLabel: slot.unavailableLabel,
+      })),
+      [
+        { time: '08:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+        { time: '09:00', isAvailable: true, unavailableLabel: undefined },
+        { time: '15:00', isAvailable: true, unavailableLabel: undefined },
+        { time: '16:00', isAvailable: false, unavailableLabel: 'Provider unavailable' },
+      ],
+    );
+  });
+
+  it('maps provider unavailable booking errors to the slot picker message', () => {
+    assert.equal(
+      providerUnavailableSlotPickerMessage(
+        { code: 'provider_unavailable' },
+        'Provider is unavailable for the requested time.',
+      ),
+      'This slot was just taken or blocked. Please pick another.',
+    );
+    assert.equal(
+      providerUnavailableSlotPickerMessage(
+        new Error('Provider is unavailable for the requested time.'),
+        'Provider is unavailable for the requested time.',
+      ),
+      'This slot was just taken or blocked. Please pick another.',
+    );
+    assert.equal(
+      providerUnavailableSlotPickerMessage(
+        new Error('Payment method required.'),
+        'Payment method required.',
+      ),
+      null,
+    );
+  });
+
+  it('builds customer calendar disabled dates and partial markers', () => {
+    const schedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'tuesday' as const,
+          startTime: '09:00',
+          endTime: '17:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+        {
+          id: 'window-2',
+          dayOfWeek: 'wednesday' as const,
+          startTime: '09:00',
+          endTime: '17:00',
+          isActive: true,
+          sortOrder: 2,
+        },
+      ],
+      daysOff: [{ id: 'day-off-1', offDate: '2026-05-28', reason: null }],
+      timeOffWindows: [
+        {
+          id: 'partial-1',
+          offDate: '2026-05-26',
+          startTime: '14:00',
+          endTime: '17:00',
+          reason: null,
+        },
+        {
+          id: 'full-1',
+          offDate: '2026-05-27',
+          startTime: '09:00',
+          endTime: '17:00',
+          reason: null,
+        },
+      ],
+    };
+
+    const state = buildCustomerBookingCalendarState(
+      schedule,
+      1,
+      ['09:00', '13:00', '14:00', '15:00', '16:00'],
+      '2026-05',
+    );
+
+    assert.equal(state.disabledDates.has('2026-05-26'), false);
+    assert.equal(state.markers['2026-05-26'], 'partial');
+    assert.equal(state.disabledDates.has('2026-05-27'), true);
+    assert.equal(state.markers['2026-05-27'], undefined);
+    assert.equal(state.disabledDates.has('2026-05-28'), true);
+    assert.equal(state.disabledDates.has('2026-05-29'), true);
+  });
+
+  it('excludes bookable slots that overlap provider time-off windows', () => {
+    const slots = buildProviderBookingSlots(
+      {
+        providerId: 'provider-1',
+        windows: [
+          {
+            id: 'window-1',
+            dayOfWeek: 'wednesday',
+            startTime: '08:00',
+            endTime: '17:00',
+            isActive: true,
+            sortOrder: 1,
+          },
+        ],
+        daysOff: [],
+        timeOffWindows: [
+          {
+            id: 'time-off-1',
+            offDate: '2026-05-20',
+            startTime: '14:00',
+            endTime: '17:00',
+            reason: null,
+          },
+        ],
+      },
+      1,
+      ['13:00', '14:00', '16:00'],
+      new Date(2026, 4, 20),
+    );
+
+    const values = slots.map((slot) => slot.value);
+
+    assert.ok(values.includes('2026-05-20T13:00'));
+    assert.ok(!values.includes('2026-05-20T14:00'));
+    assert.ok(!values.includes('2026-05-20T16:00'));
   });
 });

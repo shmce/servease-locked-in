@@ -43,6 +43,7 @@ Optional APICenter integration probing uses:
 
 - `APICENTER_URL`
 - `APICENTER_TRIBE_ID`
+- `APICENTER_SERVICE_ID`
 - `APICENTER_TRIBE_SECRET`
 - `APICENTER_WEBHOOK_SECRET` for the public APICenter payment webhook.
 

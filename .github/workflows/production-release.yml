@@ -49,6 +49,9 @@ jobs:
       SUPABASE_STORAGE_BUCKET: ${{ vars.SUPABASE_STORAGE_BUCKET || 'servease-uploads' }}
     steps:
       - uses: actions/checkout@v4
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
@@ -217,3 +220,13 @@ jobs:
         run: |
           npx eas-cli build --platform ios --profile production --non-interactive --wait
           npx eas-cli build --platform android --profile production --non-interactive --wait
+          npx eas-cli build --platform android --profile production-apk --non-interactive --wait
+          npx eas-cli build --platform ios --profile production-ios-simulator --non-interactive --wait
+      - name: Verify EAS production artifact expectations
+        run: |
+          echo "Android artifacts expected: .apk for installable test builds and .aab for store release builds."
+          echo "iOS artifacts expected: .app.zip for simulator app bundles and .xcarchive.zip for release preparation."
+          npx eas-cli build:download --platform android --non-interactive --json > android-apk-artifact.json
+          npx eas-cli build:download --platform ios --non-interactive --json > ios-app-artifact.json
+          node scripts/verify-eas-artifact-metadata.mjs android-apk-artifact.json android .apk
+          node scripts/verify-eas-artifact-metadata.mjs ios-app-artifact.json ios .app.zip

@@ -1,5 +1,5 @@
 import { AppScreen } from '../navigation/types';
-import { DayOfWeek } from '../../services/serveaseApi';
+import { DayOfWeek } from '../shared/models/types';
 
 function createDefaultScheduledAt(): string {
   const date = new Date(Date.now() + 3 * 86400000);
@@ -39,6 +39,7 @@ export const hiddenProviderBottomNavScreens: AppScreen[] = [
   'providerCancelBooking',
   'providerReportIssue',
   'providerServiceReceipt',
+  'providerSetAvailability',
   'providerRequestPayout',
 ];
 
@@ -182,7 +183,7 @@ export const providerHelpFaqs = [
     category: 'Account',
     question: 'How do I set my weekly availability?',
     answer:
-      'Open Calendar from the bottom tab bar. Pick a day, set start and end times, and save. Add days off for specific dates.',
+      'Open Calendar from the bottom tab bar. Pick a date to block a whole day off or a specific time range, and keep weekly windows updated for regular hours.',
   },
   {
     id: 108,

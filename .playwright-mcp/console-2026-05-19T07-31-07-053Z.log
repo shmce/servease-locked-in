@@ -1,0 +1,11 @@
+[ 6645475ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8083/:0
+[ 6675585ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:8083/:0
+[ 6688941ms] [WARNING] Animated: `useNativeDriver` is not supported because the native animated module is missing. Falling back to JS-based animation. To resolve this, add `RCTAnimation` module to this app, or remove `useNativeDriver`. Make sure to run `bundle exec pod install` first. Read more about autolinking: https://github.com/react-native-community/cli/blob/master/docs/autolinking.md @ http://localhost:8083/index.ts.bundle?platform=web&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.routerRoot=app&unstable_transformProfile=hermes-stable:175909
+[ 6690265ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://bwubdvjyjssywfjyhrxj.supabase.co/auth/v1/token?grant_type=password:0
+[ 6693035ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://bwubdvjyjssywfjyhrxj.supabase.co/auth/v1/token?grant_type=password:0
+[ 6693820ms] [ERROR] Failed to load resource: the server responded with a status of 400 () @ https://bwubdvjyjssywfjyhrxj.supabase.co/auth/v1/token?grant_type=password:0
+[ 6702619ms] [ERROR] Access to fetch at 'https://tamera-prepyloric-superacutely.ngrok-free.dev/v1/me' from origin 'http://localhost:8083' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8083/:0
+[ 6702619ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tamera-prepyloric-superacutely.ngrok-free.dev/v1/me:0
+[ 6703795ms] [ERROR] Access to fetch at 'https://tamera-prepyloric-superacutely.ngrok-free.dev/v1/me' from origin 'http://localhost:8083' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:8083/:0
+[ 6703795ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://tamera-prepyloric-superacutely.ngrok-free.dev/v1/me:0
+[ 6868513ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) @ http://localhost:8083/:0

@@ -1,4 +1,11 @@
-import { createElement, useEffect, useMemo, useState } from 'react';
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import WebView from 'react-native-webview';
 import Svg, {
@@ -17,7 +24,7 @@ import {
   GeoAddressResult,
   GeoDirectionsRoute,
   GeoRouteLocation,
-} from '../../services/serveaseApi';
+} from '../shared/models/types';
 import { palette, radius, spacing, type } from '../theme/serveaseDesign';
 
 type TrackingMapLocation = {
@@ -65,7 +72,8 @@ export function TrackingMapPreview({
   const previewProvider =
     actualProvider ??
     derivePreviewProviderLocation(destination, tracking?.distanceKm ?? null);
-  const points = projectTrackingPoints(previewProvider, destination);
+  const visibleProvider = actualProvider ?? previewProvider;
+  const points = projectTrackingPoints(visibleProvider, destination);
   const routePath =
     points.provider && points.destination
       ? `M ${points.provider.x} ${points.provider.y} C 108 42, 184 230, ${points.destination.x} ${points.destination.y}`
@@ -77,7 +85,7 @@ export function TrackingMapPreview({
         <View style={mapStyles.trackingMapWebViewFrame}>
           {Platform.OS === 'web' ? (
             createElement('iframe', {
-              srcDoc: buildTrackingMapHtml(actualProvider, destination, routeGeometry, {
+              srcDoc: buildTrackingMapHtml(visibleProvider, destination, routeGeometry, {
                 mode,
               }),
               style: trackingMapIframeStyle,
@@ -87,7 +95,7 @@ export function TrackingMapPreview({
             <TrackingMapWebView
               destination={destination}
               points={points}
-              provider={actualProvider}
+              provider={visibleProvider}
               mode={mode}
               routeGeometry={routeGeometry}
               routePath={routePath}
@@ -205,6 +213,14 @@ function TrackingMapWebView({
   routePath: string | null;
 }) {
   const [mapFailed, setMapFailed] = useState(false);
+  const webViewRef = useRef<WebView>(null);
+  const routeGeometryKey = useMemo(
+    () =>
+      routeGeometry
+        ?.map((point) => `${point.latitude},${point.longitude}`)
+        .join('|') ?? 'no-route',
+    [routeGeometry],
+  );
   const mapHtml = useMemo(
     () => buildTrackingMapHtml(provider, destination, routeGeometry, { mode }),
     [destination, mode, provider, routeGeometry],
@@ -215,10 +231,21 @@ function TrackingMapWebView({
   }, [
     destination.latitude,
     destination.longitude,
-    provider?.latitude,
-    provider?.longitude,
-    routeGeometry?.length,
+    routeGeometryKey,
   ]);
+
+  const injectProviderUpdate = useCallback(() => {
+    const updateScript = buildProviderLocationUpdateScript(provider, routeGeometry);
+    if (!updateScript) {
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(updateScript);
+  }, [provider, routeGeometry]);
+
+  useEffect(() => {
+    injectProviderUpdate();
+  }, [injectProviderUpdate]);
 
   if (mapFailed) {
     return <TrackingMapSvgPreview routePath={routePath} points={points} />;
@@ -226,11 +253,13 @@ function TrackingMapWebView({
 
   return (
     <WebView
+      ref={webViewRef}
       domStorageEnabled
       javaScriptEnabled
       mixedContentMode="never"
       onError={() => setMapFailed(true)}
       onHttpError={() => setMapFailed(true)}
+      onLoadEnd={injectProviderUpdate}
       originWhitelist={['*']}
       scrollEnabled={false}
       setSupportMultipleWindows={false}
@@ -381,12 +410,21 @@ function buildTrackingMapHtml(
       height: 34px;
       justify-content: center;
       line-height: 1;
+      position: relative;
       width: 34px;
     }
     .provider-marker::before {
       content: '▲';
       display: block;
       transform: translateY(-1px);
+    }
+    .provider-marker::after {
+      border: 2px solid rgba(37,99,235,0.32);
+      border-radius: 999px;
+      content: '';
+      inset: -11px;
+      pointer-events: none;
+      position: absolute;
     }
     .destination-marker {
       background: #00BF63;
@@ -444,20 +482,22 @@ function buildTrackingMapHtml(
   <div id="map"></div>
   <div class="map-controls" ${isNavigationMode ? '' : 'hidden'}>
     <button id="recenter-control" class="map-control" type="button" aria-label="Recenter on your location" hidden>&#8982;</button>
+    <button id="orientation-control" class="map-control" type="button" aria-label="Reset map orientation" hidden>&#8593;</button>
     <button id="overview-control" class="map-control" type="button" aria-label="Show full route">&#8599;</button>
   </div>
   <div id="fallback">Loading map tiles...</div>
   <script src="${MAPLIBRE_CDN_BASE}/maplibre-gl.js"></script>
   <script>
     const styleUrl = ${JSON.stringify(OPENFREEMAP_STYLE_URL)};
-    const provider = ${JSON.stringify(providerCoordinate)};
+    let provider = ${JSON.stringify(providerCoordinate)};
     const destination = ${JSON.stringify(destinationCoordinate)};
     const route = ${JSON.stringify(routeCoordinates)};
     const isNavigationMode = ${JSON.stringify(isNavigationMode)};
-    const cameraBearing = ${JSON.stringify(cameraBearing)};
-    const providerHeading = ${JSON.stringify(providerHeading)};
+    let cameraBearing = ${JSON.stringify(cameraBearing)};
+    let providerHeading = ${JSON.stringify(providerHeading)};
     const fallback = document.getElementById('fallback');
     const recenterControl = document.getElementById('recenter-control');
+    const orientationControl = document.getElementById('orientation-control');
     const overviewControl = document.getElementById('overview-control');
     let followProvider = true;
     let isProgrammaticCameraMove = false;
@@ -465,9 +505,13 @@ function buildTrackingMapHtml(
       const element = document.createElement('div');
       element.className = kind === 'provider' ? 'provider-marker' : 'destination-marker';
       if (kind === 'provider' && providerHeading !== null) {
-        element.style.transform = 'rotate(' + providerHeading + 'deg)';
+        element.style.rotate = providerHeading + 'deg';
       }
       return element;
+    };
+    let pendingTrackingUpdate = null;
+    window.__serveaseUpdateTracking = (payload) => {
+      pendingTrackingUpdate = payload;
     };
 
     try {
@@ -485,16 +529,73 @@ function buildTrackingMapHtml(
       map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
       if (isNavigationMode) {
         map.dragRotate.disable();
-        map.touchZoomRotate.disableRotation();
+        map.touchZoomRotate.enable();
+        map.touchPitch?.disable?.();
       }
-      if (provider) {
-        new maplibregl.Marker({ element: marker('provider') }).setLngLat(provider).addTo(map);
+      let routeSourceReady = false;
+      const providerFeature = () => ({
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'Point', coordinates: provider || destination }
+      });
+      const addOrUpdateProviderIndicator = () => {
+        if (!provider) {
+          return;
+        }
+        if (!map.loaded()) {
+          return;
+        }
+        if (map.getSource('provider-location')) {
+          map.getSource('provider-location')?.setData(providerFeature());
+          return;
+        }
+        map.addSource('provider-location', {
+          type: 'geojson',
+          data: providerFeature()
+        });
+        map.addLayer({
+          id: 'provider-location-ring',
+          type: 'circle',
+          source: 'provider-location',
+          paint: {
+            'circle-color': 'rgba(37,99,235,0.20)',
+            'circle-radius': 21,
+            'circle-stroke-color': '#FFFFFF',
+            'circle-stroke-width': 2
+          }
+        });
+        map.addLayer({
+          id: 'provider-location-dot',
+          type: 'circle',
+          source: 'provider-location',
+          paint: {
+            'circle-color': '#2563EB',
+            'circle-radius': 10,
+            'circle-stroke-color': '#FFFFFF',
+            'circle-stroke-width': 4
+          }
+        });
+        map.addLayer({
+          id: 'provider-location-arrow',
+          type: 'symbol',
+          source: 'provider-location',
+          layout: {
+            'text-field': '▲',
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
+            'text-rotate': cameraBearing,
+            'text-size': 15
+          },
+          paint: {
+            'text-color': '#FFFFFF'
+          }
+        });
       }
       new maplibregl.Marker({ element: marker('destination') }).setLngLat(destination).addTo(map);
 
       map.on('load', () => {
         fallback.style.display = 'none';
-        const routeLine = route || (provider ? [provider, destination] : null);
+        const currentRouteLine = () => route || (provider ? [provider, destination] : null);
         const withProgrammaticCameraMove = (move) => {
           isProgrammaticCameraMove = true;
           move();
@@ -503,6 +604,7 @@ function buildTrackingMapHtml(
           }, 360);
         };
         const fitRouteBounds = () => {
+          const routeLine = currentRouteLine();
           if (!routeLine) {
             return;
           }
@@ -513,6 +615,39 @@ function buildTrackingMapHtml(
           withProgrammaticCameraMove(() => {
             map.fitBounds(bounds, { duration: 280, maxZoom: 14, padding: 42 });
           });
+        };
+        const addOrUpdateRouteLine = () => {
+          const routeLine = currentRouteLine();
+          if (!routeLine) {
+            return;
+          }
+          const routeData = {
+            type: 'Feature',
+            properties: {},
+            geometry: { type: 'LineString', coordinates: routeLine }
+          };
+          if (routeSourceReady) {
+            map.getSource('tracking-route')?.setData(routeData);
+            return;
+          }
+          map.addSource('tracking-route', {
+            type: 'geojson',
+            data: routeData
+          });
+          map.addLayer({
+            id: 'tracking-route-casing',
+            type: 'line',
+            source: 'tracking-route',
+            paint: { 'line-color': '#FFFFFF', 'line-width': isNavigationMode ? 14 : 8, 'line-opacity': 0.96 }
+          });
+          map.addLayer({
+            id: 'tracking-route-line',
+            type: 'line',
+            source: 'tracking-route',
+            paint: { 'line-color': isNavigationMode ? '#16A34A' : '#0B7A44', 'line-width': isNavigationMode ? 8 : 4, 'line-opacity': 0.96 }
+          });
+          routeSourceReady = true;
+          addOrUpdateProviderIndicator();
         };
         const followCurrentProvider = () => {
           if (!provider) {
@@ -530,6 +665,33 @@ function buildTrackingMapHtml(
             });
           });
         };
+        const applyTrackingUpdate = (payload) => {
+          if (!payload || !Array.isArray(payload.provider)) {
+            return;
+          }
+          provider = payload.provider;
+          providerHeading = payload.providerHeading ?? null;
+          cameraBearing = payload.cameraBearing ?? cameraBearing;
+          addOrUpdateProviderIndicator();
+          map.setLayoutProperty('provider-location-arrow', 'text-rotate', cameraBearing);
+          addOrUpdateRouteLine();
+          if (isNavigationMode && followProvider) {
+            followCurrentProvider();
+          }
+        };
+        window.__serveaseUpdateTracking = applyTrackingUpdate;
+        const resetOrientation = () => {
+          if (orientationControl) {
+            orientationControl.hidden = true;
+          }
+          withProgrammaticCameraMove(() => {
+            map.easeTo({
+              bearing: cameraBearing,
+              duration: 280,
+              pitch: 62
+            });
+          });
+        };
         const pauseFollowForInspection = () => {
           if (!isNavigationMode || isProgrammaticCameraMove) {
             return;
@@ -542,39 +704,32 @@ function buildTrackingMapHtml(
         if (isNavigationMode) {
           map.on('dragstart', pauseFollowForInspection);
           map.on('zoomstart', pauseFollowForInspection);
+          map.on('rotatestart', () => {
+            pauseFollowForInspection();
+            if (orientationControl) {
+              orientationControl.hidden = false;
+            }
+          });
           recenterControl?.addEventListener('click', () => {
             followProvider = true;
             recenterControl.hidden = true;
+            if (orientationControl) {
+              orientationControl.hidden = true;
+            }
             followCurrentProvider();
           });
+          orientationControl?.addEventListener('click', resetOrientation);
           overviewControl?.addEventListener('click', () => {
             pauseFollowForInspection();
             fitRouteBounds();
           });
         }
-        if (!routeLine) {
-          return;
+        addOrUpdateRouteLine();
+        addOrUpdateProviderIndicator();
+        if (pendingTrackingUpdate) {
+          applyTrackingUpdate(pendingTrackingUpdate);
+          pendingTrackingUpdate = null;
         }
-        map.addSource('tracking-route', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            properties: {},
-            geometry: { type: 'LineString', coordinates: routeLine }
-          }
-        });
-        map.addLayer({
-          id: 'tracking-route-casing',
-          type: 'line',
-          source: 'tracking-route',
-          paint: { 'line-color': '#FFFFFF', 'line-width': isNavigationMode ? 14 : 8, 'line-opacity': 0.96 }
-        });
-        map.addLayer({
-          id: 'tracking-route-line',
-          type: 'line',
-          source: 'tracking-route',
-          paint: { 'line-color': isNavigationMode ? '#16A34A' : '#0B7A44', 'line-width': isNavigationMode ? 8 : 4, 'line-opacity': 0.96 }
-        });
         if (isNavigationMode && provider) {
           if (followProvider) {
             map.jumpTo({
@@ -600,6 +755,27 @@ function buildTrackingMapHtml(
   </script>
 </body>
 </html>`;
+}
+
+function buildProviderLocationUpdateScript(
+  provider: TrackingMapLocation | null,
+  routeGeometry: TrackingMapLocation[] | null,
+): string | null {
+  if (!provider) {
+    return null;
+  }
+
+  const providerHeading = normalizeHeading(provider.headingDegrees ?? null);
+  const routeBearing = routeGeometry?.length
+    ? deriveRouteBearing(provider, routeGeometry)
+    : null;
+  const payload = {
+    cameraBearing: providerHeading ?? routeBearing ?? 0,
+    provider: [provider.longitude, provider.latitude],
+    providerHeading,
+  };
+
+  return `window.__serveaseUpdateTracking?.(${JSON.stringify(payload)}); true;`;
 }
 
 function normalizeHeading(heading: number | null): number | null {

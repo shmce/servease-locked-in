@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Observable, from, timer } from 'rxjs';
+import { exhaustMap, map } from 'rxjs/operators';
 import { BookingServiceClient } from './clients/booking-service.client';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { CurrentUserIdentity } from '../current-user/current-user.types';
@@ -25,6 +27,8 @@ import {
   InvalidBookingRequestError,
   InvalidBookingTransitionError,
 } from './booking.errors';
+
+const TRACKING_STREAM_INTERVAL_MS = 2000;
 
 @Injectable()
 export class BookingGatewayService {
@@ -118,6 +122,32 @@ export class BookingGatewayService {
       customerId,
       providerId,
     ));
+  }
+
+  streamTrackingSnapshots(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+  ): Observable<BookingTrackingSnapshot> {
+    let previousSnapshot: BookingTrackingSnapshot | null = null;
+
+    return timer(0, TRACKING_STREAM_INTERVAL_MS).pipe(
+      exhaustMap(() =>
+        from(
+          this.getTrackingSnapshotForStream(
+            bookingId,
+            customerId,
+            providerId,
+            previousSnapshot,
+          ),
+        ).pipe(
+          map((snapshot) => {
+            previousSnapshot = snapshot;
+            return snapshot;
+          }),
+        ),
+      ),
+    );
   }
 
   updateLiveLocation(
@@ -457,5 +487,26 @@ export class BookingGatewayService {
     } catch {
       return snapshot;
     }
+  }
+
+  private async getTrackingSnapshotForStream(
+    bookingId: string,
+    customerId: string | null,
+    providerId: string | null,
+    previousSnapshot: BookingTrackingSnapshot | null,
+  ): Promise<BookingTrackingSnapshot> {
+    const snapshot = await this.bookingServiceClient.getTrackingSnapshot(
+      bookingId,
+      customerId,
+      providerId,
+    );
+
+    return this.enrichTrackingSnapshot({
+      ...snapshot,
+      destinationAddress:
+        previousSnapshot?.destinationAddress ?? snapshot.destinationAddress,
+      destinationLocation:
+        previousSnapshot?.destinationLocation ?? snapshot.destinationLocation,
+    });
   }
 }

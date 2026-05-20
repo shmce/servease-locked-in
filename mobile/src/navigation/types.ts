@@ -1,6 +1,6 @@
 export type AppRole = 'customer' | 'provider';
 
-export type CustomerTab = 'explore' | 'bookings' | 'messages' | 'more';
+export type CustomerTab = 'explore' | 'bookings' | 'calendar' | 'messages' | 'more';
 export type ProviderTab = 'home' | 'bookings' | 'calendar' | 'messages' | 'more';
 
 export type AuthScreen =
@@ -40,6 +40,7 @@ export type DetailScreen =
   | 'providerProfileView'
   | 'providerEditProfile'
   | 'providerPortfolio'
+  | 'providerSetAvailability'
   | 'providerNavigationMode'
   | 'providerStartService'
   | 'providerServiceInProgress'
@@ -50,6 +51,7 @@ export type DetailScreen =
   | 'providerServiceReceipt'
   | 'providerPayoutManagement'
   | 'providerRequestPayout'
+  | 'providerEarnings'
   | 'providerNotifications'
   | 'providerInsights'
   | 'providerHelp'

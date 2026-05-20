@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { InvalidAvailabilityRequestError } from './provider-availability.errors';
 import {
+  AddProviderTimeOffWindowInput,
   AvailabilityWindowInput,
   DayOfWeek,
   ProviderAvailabilitySchedule,
@@ -24,6 +25,14 @@ export interface ProviderAvailabilityRepository {
   removeDayOff(
     providerId: string,
     offDate: string,
+  ): Promise<ProviderAvailabilitySchedule>;
+  addTimeOffWindow(
+    providerId: string,
+    input: AddProviderTimeOffWindowInput,
+  ): Promise<ProviderAvailabilitySchedule>;
+  removeTimeOffWindow(
+    providerId: string,
+    windowId: string,
   ): Promise<ProviderAvailabilitySchedule>;
 }
 
@@ -83,22 +92,46 @@ export class ProviderAvailabilityService {
     return this.repository.removeDayOff(providerId, offDate);
   }
 
+  addTimeOffWindow(
+    providerId: string,
+    input: AddProviderTimeOffWindowInput,
+  ): Promise<ProviderAvailabilitySchedule> {
+    this.assertValidDate(input.offDate);
+    this.assertValidTimeRange(input.startTime, input.endTime);
+    return this.repository.addTimeOffWindow(providerId, input);
+  }
+
+  removeTimeOffWindow(
+    providerId: string,
+    windowId: string,
+  ): Promise<ProviderAvailabilitySchedule> {
+    if (!windowId?.trim()) {
+      throw new InvalidAvailabilityRequestError();
+    }
+
+    return this.repository.removeTimeOffWindow(providerId, windowId);
+  }
+
   private assertValidWindow(window: AvailabilityWindowInput): void {
     if (!DAYS.includes(window.dayOfWeek)) {
       throw new InvalidAvailabilityRequestError();
     }
 
-    if (
-      !TIME_PATTERN.test(window.startTime) ||
-      !TIME_PATTERN.test(window.endTime) ||
-      window.startTime >= window.endTime
-    ) {
-      throw new InvalidAvailabilityRequestError();
-    }
+    this.assertValidTimeRange(window.startTime, window.endTime);
   }
 
   private assertValidDate(date: string): void {
     if (!DATE_PATTERN.test(date)) {
+      throw new InvalidAvailabilityRequestError();
+    }
+  }
+
+  private assertValidTimeRange(startTime: string, endTime: string): void {
+    if (
+      !TIME_PATTERN.test(startTime) ||
+      !TIME_PATTERN.test(endTime) ||
+      startTime >= endTime
+    ) {
       throw new InvalidAvailabilityRequestError();
     }
   }

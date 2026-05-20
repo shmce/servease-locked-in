@@ -23,10 +23,19 @@ export interface ProviderDayOff {
   reason?: string | null;
 }
 
+export interface ProviderTimeOffWindow {
+  id: string;
+  offDate: string;
+  startTime: string;
+  endTime: string;
+  reason?: string | null;
+}
+
 export interface ProviderAvailabilitySchedule {
   providerId: string;
   windows: AvailabilityWindow[];
   daysOff: ProviderDayOff[];
+  timeOffWindows: ProviderTimeOffWindow[];
 }
 
 export interface ReplaceAvailabilityWindowsInput {
@@ -35,5 +44,12 @@ export interface ReplaceAvailabilityWindowsInput {
 
 export interface AddProviderDayOffInput {
   offDate: string;
+  reason?: string;
+}
+
+export interface AddProviderTimeOffInput {
+  offDate: string;
+  startTime: string;
+  endTime: string;
   reason?: string;
 }

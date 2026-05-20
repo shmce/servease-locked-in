@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  AddProviderTimeOffWindowInput,
   AvailabilityWindowInput,
   ProviderAvailabilitySchedule,
 } from './availability.types';
@@ -33,5 +34,19 @@ export class AvailabilityGatewayService {
     offDate: string,
   ): Promise<ProviderAvailabilitySchedule> {
     return this.availabilityServiceClient.removeDayOff(providerId, offDate);
+  }
+
+  addTimeOffWindow(
+    providerId: string,
+    input: AddProviderTimeOffWindowInput,
+  ): Promise<ProviderAvailabilitySchedule> {
+    return this.availabilityServiceClient.addTimeOffWindow(providerId, input);
+  }
+
+  removeTimeOffWindow(
+    providerId: string,
+    id: string,
+  ): Promise<ProviderAvailabilitySchedule> {
+    return this.availabilityServiceClient.removeTimeOffWindow(providerId, id);
   }
 }

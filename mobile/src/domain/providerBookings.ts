@@ -1,5 +1,5 @@
 import { ProviderBookingTab } from '../constants/appContent';
-import { BookingSummary } from '../../services/serveaseApi';
+import { BookingSummary } from '../shared/models/types';
 
 export function filterProviderBookings(
   bookings: BookingSummary[],

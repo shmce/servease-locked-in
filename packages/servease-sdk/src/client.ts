@@ -1,6 +1,7 @@
 import { ServEaseApiError } from './errors.js';
 import {
   AddProviderDayOffInput,
+  AddProviderTimeOffInput,
   ProviderAvailabilitySchedule,
   ReplaceAvailabilityWindowsInput,
 } from './types/availability.js';
@@ -135,6 +136,14 @@ export interface ServEaseClient {
     ): Promise<ProviderAvailabilitySchedule>;
     removeDayOff(
       offDate: string,
+      options?: ServEaseRequestOptions,
+    ): Promise<ProviderAvailabilitySchedule>;
+    addTimeOff(
+      input: AddProviderTimeOffInput,
+      options?: ServEaseRequestOptions,
+    ): Promise<ProviderAvailabilitySchedule>;
+    removeTimeOff(
+      windowId: string,
       options?: ServEaseRequestOptions,
     ): Promise<ProviderAvailabilitySchedule>;
   };
@@ -387,6 +396,20 @@ export function createServEaseClient(
       removeDayOff: (offDate, requestOptions) =>
         request<ProviderAvailabilitySchedule>(
           `/v1/provider/availability/days-off/${encodeURIComponent(offDate)}`,
+          {
+            method: 'DELETE',
+            auth: requestOptions,
+          },
+        ),
+      addTimeOff: (input, requestOptions) =>
+        request<ProviderAvailabilitySchedule>('/v1/provider/availability/time-off', {
+          method: 'POST',
+          body: input,
+          auth: requestOptions,
+        }),
+      removeTimeOff: (windowId, requestOptions) =>
+        request<ProviderAvailabilitySchedule>(
+          `/v1/provider/availability/time-off/${encodeURIComponent(windowId)}`,
           {
             method: 'DELETE',
             auth: requestOptions,

@@ -21,7 +21,7 @@ const suites = [
     commands: [
       ['npm', ['run', 'typecheck']],
       ['npm', ['run', 'lint']],
-      ['npm', ['test']],
+      ['npm', ['run', 'test:cov']],
       ['npm', ['audit', '--omit=dev']],
     ],
   },

@@ -10,14 +10,17 @@ ServEase uses the internal GitHub Packages npm package `@implementsprint/sdk` fo
 | GitHub package | `ImplementSprint/packages/npm/sdk` |
 | Registry | `https://npm.pkg.github.com` |
 | Visibility | Internal |
-| Latest verified version | `1.1.2` |
+| Latest verified version | `1.2.0` |
 | Used by | `backend/package.json` |
 
-Verified versions on 2026-05-18:
+Verified versions on 2026-05-19:
 
+- `1.2.0`
 - `1.1.2`
 - `1.1.0`
 - `1.0.3`
+
+SDK 1.2.0 keeps the existing shared-service helpers used by ServEase and adds optional `APICENTER_SERVICE_ID` / `sourceServiceId` support for backend service attribution.
 
 ## Required GitHub Access
 

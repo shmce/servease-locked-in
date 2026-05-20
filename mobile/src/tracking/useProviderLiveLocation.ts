@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Location from 'expo-location';
+import { updateBookingLiveLocation } from '../shared/models/apiService';
 import {
   ApiOptions,
   BookingTrackingLocation,
-  updateBookingLiveLocation,
-} from '../../services/serveaseApi';
+} from '../shared/models/types';
 
-const MIN_SEND_INTERVAL_MS = 10000;
-const MIN_SEND_DISTANCE_METERS = 15;
+const MIN_SEND_INTERVAL_MS = 3000;
+const MIN_SEND_DISTANCE_METERS = 10;
 
 interface ProviderLiveLocationOptions {
   enabled: boolean;

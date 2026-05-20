@@ -1,6 +1,6 @@
 {
   "name": "@implementsprint/servease-sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed ServEase public API contracts and client helpers.",
   "type": "module",
   "main": "dist/index.js",

@@ -488,10 +488,19 @@ export interface ProviderDayOff {
   reason: string | null;
 }
 
+export interface ProviderTimeOffWindow {
+  id: string;
+  offDate: string;
+  startTime: string;
+  endTime: string;
+  reason: string | null;
+}
+
 export interface ProviderAvailabilitySchedule {
   providerId: string;
   windows: AvailabilityWindow[];
   daysOff: ProviderDayOff[];
+  timeOffWindows: ProviderTimeOffWindow[];
 }
 
 export type UserRole = 'customer' | 'provider' | 'admin';
@@ -888,10 +897,20 @@ export interface ApiOptions {
   baseUrl?: string;
   token?: string;
   fetcher?: (url: string, init?: RequestInit) => Promise<Response>;
+  xhrFactory?: () => XMLHttpRequest;
 }
 
 export interface IdempotentApiOptions extends ApiOptions {
   idempotencyKey?: string | null;
+}
+
+export interface BookingTrackingStreamHandlers {
+  onSnapshot: (snapshot: BookingTrackingSnapshot) => void;
+  onError?: (error: Error) => void;
+}
+
+export interface BookingTrackingStreamSubscription {
+  close: () => void;
 }
 
 let generatedIdempotencyCounter = 0;
@@ -1302,6 +1321,103 @@ export function getBookingTrackingSnapshot(
       requiresAuth: true,
     },
   );
+}
+
+export function subscribeBookingTrackingSnapshots(
+  bookingId: string,
+  options: ApiOptions,
+  handlers: BookingTrackingStreamHandlers,
+): BookingTrackingStreamSubscription {
+  if (!options.token?.trim()) {
+    throw new Error('Paste an access token before using booking routes.');
+  }
+
+  const resolvedBaseUrl =
+    options.baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
+  const streamUrl = `${resolvedBaseUrl}/v1/bookings/${encodeURIComponent(
+    bookingId,
+  )}/tracking/stream`;
+  const xhrFactory =
+    options.xhrFactory ?? (() => new globalThis.XMLHttpRequest());
+  const reconnectDelayMs = 2500;
+  let closed = false;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let xhr: XMLHttpRequest | null = null;
+
+  const clearReconnectTimer = () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  };
+
+  const scheduleReconnect = () => {
+    if (closed || reconnectTimer) {
+      return;
+    }
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      connect();
+    }, reconnectDelayMs);
+  };
+
+  const reportError = (message: string) => {
+    handlers.onError?.(new Error(message));
+  };
+
+  const connect = () => {
+    if (closed) {
+      return;
+    }
+
+    let readOffset = 0;
+    let pending = '';
+    const request = xhrFactory();
+    xhr = request;
+    request.open('GET', streamUrl, true);
+    request.setRequestHeader('accept', 'text/event-stream');
+    request.setRequestHeader('authorization', `Bearer ${options.token!.trim()}`);
+
+    const drainEvents = () => {
+      const nextChunk = request.responseText.slice(readOffset);
+      readOffset = request.responseText.length;
+      pending += nextChunk.replace(/\r\n/g, '\n');
+
+      const events = pending.split('\n\n');
+      pending = events.pop() ?? '';
+      events.forEach((rawEvent) => readTrackingStreamEvent(rawEvent, handlers));
+    };
+
+    request.onprogress = drainEvents;
+    request.onload = () => {
+      if (closed) {
+        return;
+      }
+      drainEvents();
+      if (request.status >= 400 && request.status < 500) {
+        reportError(`Tracking stream failed with ${request.status}.`);
+        return;
+      }
+      scheduleReconnect();
+    };
+    request.onerror = () => {
+      if (!closed) {
+        reportError('Tracking stream disconnected.');
+        scheduleReconnect();
+      }
+    };
+    request.send();
+  };
+
+  connect();
+
+  return {
+    close: () => {
+      closed = true;
+      clearReconnectTimer();
+      xhr?.abort();
+    },
+  };
 }
 
 export function updateBookingLiveLocation(
@@ -1965,6 +2081,37 @@ export function removeProviderDayOff(
   );
 }
 
+export function addProviderTimeOffWindow(
+  body: {
+    offDate: string;
+    startTime: string;
+    endTime: string;
+    reason?: string | null;
+  },
+  options: ApiOptions = {},
+): Promise<ProviderAvailabilitySchedule> {
+  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/time-off', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function removeProviderTimeOffWindow(
+  id: string,
+  options: ApiOptions = {},
+): Promise<ProviderAvailabilitySchedule> {
+  return request<ProviderAvailabilitySchedule>(
+    `/v1/provider/availability/time-off/${encodeURIComponent(id)}`,
+    {
+      ...options,
+      method: 'DELETE',
+      requiresAuth: true,
+    },
+  );
+}
+
 export async function uploadMedia(
   body: UploadMediaRequest,
   {
@@ -2058,6 +2205,33 @@ async function request<T>(
   }
 
   return payload.data as T;
+}
+
+function readTrackingStreamEvent(
+  rawEvent: string,
+  handlers: BookingTrackingStreamHandlers,
+): void {
+  const lines = rawEvent.split('\n');
+  let eventType = 'message';
+  const dataLines: string[] = [];
+
+  lines.forEach((line) => {
+    if (line.startsWith('event:')) {
+      eventType = line.slice('event:'.length).trim();
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice('data:'.length).trimStart());
+    }
+  });
+
+  if (eventType !== 'tracking' || !dataLines.length) {
+    return;
+  }
+
+  try {
+    handlers.onSnapshot(JSON.parse(dataLines.join('\n')) as BookingTrackingSnapshot);
+  } catch {
+    handlers.onError?.(new Error('Tracking stream sent invalid data.'));
+  }
 }
 
 async function readGatewayResponse<T>(response: Response): Promise<T> {

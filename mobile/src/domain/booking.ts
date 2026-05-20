@@ -4,7 +4,7 @@ import {
   PaymentSummary,
   ProviderAvailabilitySchedule,
   UserRole,
-} from '../../services/serveaseApi';
+} from '../shared/models/types';
 
 const MANILA_TIME_ZONE = 'Asia/Manila';
 const MANILA_UTC_OFFSET = '+08:00';
@@ -26,6 +26,36 @@ export interface BookingSlot {
   label: string;
   value: string;
 }
+
+export interface CustomerBookingDateOption {
+  value: string;
+  weekday: string;
+  day: number;
+  month: string;
+  isToday: boolean;
+  isTomorrow: boolean;
+  isAvailable: boolean;
+  unavailableLabel?: string;
+}
+
+export interface CustomerBookingTimeOption {
+  time: string;
+  isAvailable: boolean;
+  unavailableLabel?: string;
+}
+
+export interface CustomerBookingAvailability {
+  dateOptions: CustomerBookingDateOption[];
+  timeOptions: CustomerBookingTimeOption[];
+}
+
+export interface CustomerBookingCalendarState {
+  disabledDates: Set<string>;
+  markers: Record<string, 'partial'>;
+}
+
+export const providerUnavailableSlotPickerCopy =
+  'This slot was just taken or blocked. Please pick another.';
 
 export interface StatusChipModel {
   label: string;
@@ -290,11 +320,36 @@ export function pricingConfidenceLabel(
 }
 
 export function formatMoney(value: number | null): string {
-  if (value === null || !Number.isFinite(value)) {
+  if (value === null) {
+    return 'PHP 0';
+  }
+
+  if (!Number.isFinite(value)) {
     return 'Price pending';
   }
 
   return `PHP ${value.toLocaleString('en-PH')}`;
+}
+
+export function promotionNotice(input: {
+  valid: boolean;
+  discountAmount: number;
+  message: string;
+}): string {
+  return input.valid
+    ? `Promo applied: ${formatMoney(input.discountAmount)} off.`
+    : input.message;
+}
+
+export function addressVerifiedNotice(input: {
+  latitude: number;
+  longitude: number;
+}): string {
+  return `Address verified near ${input.latitude.toFixed(4)}, ${input.longitude.toFixed(4)}.`;
+}
+
+export function paymentNotice(input: { status: string; amount: number }): string {
+  return `Payment ${input.status} for ${formatMoney(input.amount)}.`;
 }
 
 export function formatDateTime(value: string | null): string {
@@ -332,6 +387,24 @@ export function toManilaBookingIso(value: string): string | null {
   return date.toISOString();
 }
 
+export function formatManilaDateInput(date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-PH', {
+    timeZone: MANILA_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+
+  if (!year || !month || !day) {
+    return formatDateInput(date);
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
 export function buildProviderBookingSlots(
   schedule: ProviderAvailabilitySchedule | null,
   durationHours: number,
@@ -344,6 +417,18 @@ export function buildProviderBookingSlots(
 
   const safeDuration = Math.max(1, Math.floor(durationHours) || 1);
   const offDates = new Set(schedule.daysOff.map((dayOff) => dayOff.offDate));
+  const timeOffWindowsByDate = new Map<
+    string,
+    { startTime: string; endTime: string }[]
+  >();
+  (schedule.timeOffWindows ?? []).forEach((window) => {
+    const windows = timeOffWindowsByDate.get(window.offDate) ?? [];
+    windows.push({
+      startTime: window.startTime,
+      endTime: window.endTime,
+    });
+    timeOffWindowsByDate.set(window.offDate, windows);
+  });
   const slots: BookingSlot[] = [];
 
   for (let offset = 0; offset < 14; offset += 1) {
@@ -365,8 +450,11 @@ export function buildProviderBookingSlots(
       const fitsWindow = windows.some(
         (window) => window.startTime <= time && window.endTime >= endTime,
       );
+      const overlapsTimeOff = (timeOffWindowsByDate.get(dateValue) ?? []).some(
+        (window) => time < window.endTime && endTime > window.startTime,
+      );
 
-      if (fitsWindow) {
+      if (fitsWindow && !overlapsTimeOff) {
         slots.push({
           label: `${date.toLocaleDateString('en-PH', {
             month: 'short',
@@ -379,6 +467,205 @@ export function buildProviderBookingSlots(
   }
 
   return slots.slice(0, 12);
+}
+
+export function buildCustomerBookingAvailability(
+  schedule: ProviderAvailabilitySchedule | null,
+  durationHours: number,
+  timeSlots: string[],
+  startDate = new Date(),
+  selectedDateValue = formatDateInput(startDate),
+): CustomerBookingAvailability {
+  const safeDuration = Math.max(1, Math.floor(durationHours) || 1);
+  const today = new Date(startDate);
+  today.setHours(0, 0, 0, 0);
+  const offDates = new Set(schedule?.daysOff.map((dayOff) => dayOff.offDate) ?? []);
+  const unavailableLabel = 'Provider unavailable';
+
+  const dateOptions = Array.from({ length: 14 }, (_, offset) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() + offset);
+    const value = formatDateInput(date);
+    const { hasAvailableSlot } = customerDateSlotState(
+      schedule,
+      value,
+      safeDuration,
+      timeSlots,
+    );
+    const isAvailable = !offDates.has(value) && hasAvailableSlot;
+
+    return {
+      value,
+      weekday: date.toLocaleDateString('en-PH', { weekday: 'short' }),
+      day: date.getDate(),
+      month: date.toLocaleDateString('en-PH', { month: 'short' }),
+      isToday: offset === 0,
+      isTomorrow: offset === 1,
+      isAvailable,
+      unavailableLabel: isAvailable ? undefined : unavailableLabel,
+    };
+  });
+
+  const selectedDate = dateFromInputValue(selectedDateValue) ?? today;
+  const selectedWindows = activeWindowsForDate(schedule, selectedDate);
+  const selectedDateOff = offDates.has(selectedDateValue);
+  const selectedTimeOffWindows =
+    schedule?.timeOffWindows.filter((window) => window.offDate === selectedDateValue) ?? [];
+  const timeOptions = timeSlots.map((time) => {
+    const endTime = addHoursToTime(time, safeDuration);
+    const fitsWindow = selectedWindows.some(
+      (window) => window.startTime <= time && window.endTime >= endTime,
+    );
+    const overlapsTimeOff = selectedTimeOffWindows.some(
+      (window) => time < window.endTime && endTime > window.startTime,
+    );
+    const isAvailable = !selectedDateOff && fitsWindow && !overlapsTimeOff;
+
+    return {
+      time,
+      isAvailable,
+      unavailableLabel: isAvailable ? undefined : unavailableLabel,
+    };
+  });
+
+  return { dateOptions, timeOptions };
+}
+
+export function buildCustomerBookingCalendarState(
+  schedule: ProviderAvailabilitySchedule | null,
+  durationHours: number,
+  timeSlots: string[],
+  month: string,
+): CustomerBookingCalendarState {
+  const safeDuration = Math.max(1, Math.floor(durationHours) || 1);
+  const disabledDates = new Set<string>();
+  const markers: Record<string, 'partial'> = {};
+  const monthDate = dateFromMonthInput(month);
+  const daysInMonth = new Date(
+    monthDate.getFullYear(),
+    monthDate.getMonth() + 1,
+    0,
+  ).getDate();
+  const offDates = new Set(schedule?.daysOff.map((dayOff) => dayOff.offDate) ?? []);
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const value = formatDateInput(
+      new Date(monthDate.getFullYear(), monthDate.getMonth(), day),
+    );
+    const { hasAvailableSlot, hasBlockedSlot } = customerDateSlotState(
+      schedule,
+      value,
+      safeDuration,
+      timeSlots,
+    );
+
+    if (offDates.has(value) || !hasAvailableSlot) {
+      disabledDates.add(value);
+      continue;
+    }
+
+    if (hasBlockedSlot) {
+      markers[value] = 'partial';
+    }
+  }
+
+  return { disabledDates, markers };
+}
+
+export function providerUnavailableSlotPickerMessage(
+  error: unknown,
+  message: string,
+): string | null {
+  const apiErrorCode = (error as { code?: unknown })?.code;
+  const normalizedMessage = message.toLowerCase();
+
+  if (
+    apiErrorCode === 'provider_unavailable' ||
+    normalizedMessage.includes('provider is unavailable')
+  ) {
+    return providerUnavailableSlotPickerCopy;
+  }
+
+  return null;
+}
+
+function activeWindowsForDate(
+  schedule: ProviderAvailabilitySchedule | null,
+  date: Date,
+): ProviderAvailabilitySchedule['windows'] {
+  if (!schedule) {
+    return [];
+  }
+
+  const dayOfWeek = dayKeys[date.getDay()];
+
+  return schedule.windows.filter(
+    (window) => window.isActive && window.dayOfWeek === dayOfWeek,
+  );
+}
+
+function customerDateSlotState(
+  schedule: ProviderAvailabilitySchedule | null,
+  dateValue: string,
+  durationHours: number,
+  timeSlots: string[],
+): { hasAvailableSlot: boolean; hasBlockedSlot: boolean } {
+  const date = dateFromInputValue(dateValue);
+  if (!schedule || !date) {
+    return { hasAvailableSlot: false, hasBlockedSlot: false };
+  }
+
+  const windows = activeWindowsForDate(schedule, date);
+  const timeOffWindows = schedule.timeOffWindows.filter(
+    (window) => window.offDate === dateValue,
+  );
+  let hasAvailableSlot = false;
+  let hasBlockedSlot = false;
+
+  for (const time of timeSlots) {
+    const endTime = addHoursToTime(time, durationHours);
+    const fitsWindow = windows.some(
+      (window) => window.startTime <= time && window.endTime >= endTime,
+    );
+    const overlapsTimeOff = timeOffWindows.some(
+      (window) => time < window.endTime && endTime > window.startTime,
+    );
+
+    if (fitsWindow && !overlapsTimeOff) {
+      hasAvailableSlot = true;
+    }
+
+    if (fitsWindow && overlapsTimeOff) {
+      hasBlockedSlot = true;
+    }
+  }
+
+  return { hasAvailableSlot, hasBlockedSlot };
+}
+
+function dateFromMonthInput(value: string): Date {
+  const [rawYear, rawMonth] = value.slice(0, 7).split('-');
+  const year = Number(rawYear);
+  const month = Number(rawMonth);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  }
+
+  return new Date(year, month - 1, 1);
+}
+
+function dateFromInputValue(value: string): Date | null {
+  const [rawYear, rawMonth, rawDay] = value.split('-');
+  const year = Number(rawYear);
+  const month = Number(rawMonth);
+  const day = Number(rawDay);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+
+  return new Date(year, month - 1, day);
 }
 
 function formatDateInput(date: Date): string {

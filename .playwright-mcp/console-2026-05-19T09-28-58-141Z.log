@@ -1,0 +1,133 @@
+[   16324ms] [INFO] %cDownload the React DevTools for a better development experience: https://reactjs.org/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_react-dom_cjs_react-dom_development_07i0ttg.js:25055
+[   16465ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1226
+[   16578ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1226
+[   16741ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/login:0
+[   16884ms] [LOG] [Fast Refresh] done in 406ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1226
+[  267926ms] [ERROR] Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?%s%s 
+
+Check the render method of `SlotClone`. 
+    at Button (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:822:19)
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:96:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:69:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:480:17
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:96:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:69:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:480:17
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:2512:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:4910:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:5807:13
+    at DropdownMenuTrigger (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:3232:35)
+    at Provider (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:232:21)
+    at Provider (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:232:21)
+    at Provider (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:232:21)
+    at Popper (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:2500:13)
+    at Menu (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:4842:13)
+    at Provider (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:232:21)
+    at DropdownMenu (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:5771:13)
+    at DropdownMenu (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:3210:28)
+    at td
+    at TableCell (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:2478:22)
+    at tr
+    at TableRow (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:2454:21)
+    at tbody
+    at TableBody (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:2430:22)
+    at table
+    at div
+    at Table (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:2398:18)
+    at div
+    at CardContent (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:2335:24)
+    at div
+    at Card (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:2275:17)
+    at div
+    at AdminRolesComponent (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:3811:210)
+    at AdminRoles
+    at RenderedRoute (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:5698:26)
+    at Outlet (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:6700:28)
+    at div
+    at main
+    at div
+    at div
+    at RootLayout (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:1669:210)
+    at ProtectedRoute (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:1758:27)
+    at ProtectedRootLayout
+    at RenderedRoute (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:5698:26)
+    at RenderErrorBoundary (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:5613:9)
+    at DataRoutes2 (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:6600:24)
+    at Router (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:6712:29)
+    at RouterProvider (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:6298:27)
+    at AuthProvider (http://localhost:3000/_next/static/chunks/src_app_0po6izm._.js:29:25)
+    at App
+    at LoadableComponent (http://localhost:3000/_next/static/chunks/node_modules_next_dist_shared_lib_0lcrpsc._.js:5983:9)
+    at AdminCatchAllPage
+    at AdminNextApp (http://localhost:3000/_next/static/chunks/%5Broot-of-the-server%5D__02s_gi3._.js:479:25)
+    at PathnameContextProviderAdapter (http://localhost:3000/_next/static/chunks/node_modules_next_dist_shared_lib_0n1wg2c._.js:5506:43)
+    at PagesDevOverlayErrorBoundary (http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1137:9)
+    at PagesDevOverlayBridge (http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1919:34)
+    at Container (http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_0pe1dg-._.js:3158:1)
+    at AppContainer (http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_0pe1dg-._.js:3257:25)
+    at Root (http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_0pe1dg-._.js:3465:17) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1945
+[  267931ms] [ERROR] Warning: Function components cannot be given refs. Attempts to access this ref will fail. Did you mean to use React.forwardRef()?%s%s 
+
+Check the render method of `SlotClone`. 
+    at Button (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:822:19)
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:96:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:69:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:480:17
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:96:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:69:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:480:17
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:2512:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:4910:13
+    at http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:5807:13
+    at DropdownMenuTrigger (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:3232:35)
+    at Provider (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:232:21)
+    at Provider (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:232:21)
+    at Provider (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:232:21)
+    at Popper (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:2500:13)
+    at Menu (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:4842:13)
+    at Provider (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:232:21)
+    at DropdownMenu (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:5771:13)
+    at DropdownMenu (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:3210:28)
+    at Provider (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:232:21)
+    at Dialog (http://localhost:3000/_next/static/chunks/node_modules_%40radix-ui_0s7tdju._.js:1466:13)
+    at Sheet (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:3503:21)
+    at div
+    at div
+    at CardContent (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:2335:24)
+    at div
+    at Card (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:2275:17)
+    at div
+    at div
+    at AdminRolesComponent (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:3811:210)
+    at AdminRoles
+    at RenderedRoute (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:5698:26)
+    at Outlet (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:6700:28)
+    at div
+    at main
+    at div
+    at div
+    at RootLayout (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:1669:210)
+    at ProtectedRoute (http://localhost:3000/_next/static/chunks/src_app_components_02v~1jp._.js:1758:27)
+    at ProtectedRootLayout
+    at RenderedRoute (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:5698:26)
+    at RenderErrorBoundary (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:5613:9)
+    at DataRoutes2 (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:6600:24)
+    at Router (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:6712:29)
+    at RouterProvider (http://localhost:3000/_next/static/chunks/node_modules_react-router_dist_development_chunk-4N6VE7H7_mjs_11h-~nv._.js:6298:27)
+    at AuthProvider (http://localhost:3000/_next/static/chunks/src_app_0po6izm._.js:29:25)
+    at App
+    at LoadableComponent (http://localhost:3000/_next/static/chunks/node_modules_next_dist_shared_lib_0lcrpsc._.js:5983:9)
+    at AdminCatchAllPage
+    at AdminNextApp (http://localhost:3000/_next/static/chunks/%5Broot-of-the-server%5D__02s_gi3._.js:479:25)
+    at PathnameContextProviderAdapter (http://localhost:3000/_next/static/chunks/node_modules_next_dist_shared_lib_0n1wg2c._.js:5506:43)
+    at PagesDevOverlayErrorBoundary (http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1137:9)
+    at PagesDevOverlayBridge (http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1919:34)
+    at Container (http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_0pe1dg-._.js:3158:1)
+    at AppContainer (http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_0pe1dg-._.js:3257:25)
+    at Root (http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_0pe1dg-._.js:3465:17) @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1945
+[  268075ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1226
+[  268138ms] [LOG] [Fast Refresh] done in 163ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1226
+[ 2886399ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1226
+[11159349ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1226
+[12752242ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1226
+[12763552ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_0k8zr~w._.js:1226

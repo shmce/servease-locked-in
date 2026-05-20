@@ -7,7 +7,7 @@ import {
   Sparkles,
   Wrench,
 } from 'lucide-react-native';
-import { BookingStatus } from '../../services/serveaseApi';
+import { BookingStatus } from '../shared/models/types';
 import { palette } from '../theme/serveaseDesign';
 import { AppScreen, CustomerTab, ProviderTab } from './types';
 
@@ -24,6 +24,9 @@ export function getCustomerTab(screen: AppScreen): CustomerTab {
     screen === 'customerTrackServiceProvider'
   ) {
     return 'bookings';
+  }
+  if (screen === 'calendar') {
+    return 'calendar';
   }
   if (screen === 'messages') {
     return 'messages';
@@ -42,6 +45,7 @@ export function getCustomerTab(screen: AppScreen): CustomerTab {
     screen === 'providerPortfolio' ||
     screen === 'providerPayoutManagement' ||
     screen === 'providerRequestPayout' ||
+    screen === 'providerEarnings' ||
     screen === 'providerServices' ||
     screen === 'providerSecurity' ||
     screen === 'providerSettings'
@@ -66,7 +70,7 @@ export function getProviderTab(screen: AppScreen): ProviderTab {
   ) {
     return 'bookings';
   }
-  if (screen === 'calendar') {
+  if (screen === 'calendar' || screen === 'providerSetAvailability') {
     return 'calendar';
   }
   if (screen === 'messages') {
@@ -79,6 +83,7 @@ export function getProviderTab(screen: AppScreen): ProviderTab {
     screen === 'providerPortfolio' ||
     screen === 'providerPayoutManagement' ||
     screen === 'providerRequestPayout' ||
+    screen === 'providerEarnings' ||
     screen === 'providerNotifications' ||
     screen === 'providerInsights' ||
     screen === 'providerHelp' ||

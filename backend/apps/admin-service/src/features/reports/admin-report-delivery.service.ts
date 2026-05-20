@@ -97,6 +97,9 @@ export class AdminReportDeliveryService
     const client = createApicenterClient({
       APICENTER_URL: this.configService.get<string>('APICENTER_URL'),
       APICENTER_TRIBE_ID: this.configService.get<string>('APICENTER_TRIBE_ID'),
+      APICENTER_SERVICE_ID: this.configService.get<string>(
+        'APICENTER_SERVICE_ID',
+      ),
       APICENTER_TRIBE_SECRET: this.configService.get<string>(
         'APICENTER_TRIBE_SECRET',
       ),
