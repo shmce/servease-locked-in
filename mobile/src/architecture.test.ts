@@ -1,10 +1,14 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 function readProjectFile(path: string): string {
   return readFileSync(join(process.cwd(), path), 'utf8');
+}
+
+function toProjectPath(path: string): string {
+  return relative(process.cwd(), path).split(sep).join('/');
 }
 
 function featureViewFiles(): string[] {
@@ -16,8 +20,8 @@ function featureViewFiles(): string[] {
       const fullPath = join(directory, entry);
       if (statSync(fullPath).isDirectory()) {
         walk(fullPath);
-      } else if (fullPath.includes('/views/') && fullPath.endsWith('.tsx')) {
-        files.push(fullPath.replace(`${process.cwd()}/`, ''));
+      } else if (toProjectPath(fullPath).includes('/views/') && fullPath.endsWith('.tsx')) {
+        files.push(toProjectPath(fullPath));
       }
     }
   }
@@ -36,10 +40,10 @@ function featureViewModelFiles(): string[] {
       if (statSync(fullPath).isDirectory()) {
         walk(fullPath);
       } else if (
-        fullPath.includes('/viewModels/') &&
+        toProjectPath(fullPath).includes('/viewModels/') &&
         /^use.*ViewModel\.ts$/.test(entry)
       ) {
-        files.push(fullPath.replace(`${process.cwd()}/`, ''));
+        files.push(toProjectPath(fullPath));
       }
     }
   }
@@ -58,7 +62,7 @@ function sourceFiles(): string[] {
       if (statSync(fullPath).isDirectory()) {
         walk(fullPath);
       } else if (/\.(ts|tsx)$/.test(entry)) {
-        files.push(fullPath.replace(`${process.cwd()}/`, ''));
+        files.push(toProjectPath(fullPath));
       }
     }
   }
@@ -204,23 +208,39 @@ test('app shell imports model interfaces from shared model types', () => {
 
 test('app shell lazy-loads feature page components', () => {
   const appSource = readProjectFile('src/App.tsx');
+  const appShellSource = readProjectFile('src/app/AppShell.tsx');
 
   assert.match(appSource, /\blazy\(/);
-  assert.match(appSource, /\bSuspense\b/);
+  assert.match(appShellSource, /\bSuspense\b/);
   assert.doesNotMatch(
     appSource,
     /import\s*\{[^}]*Screen[^}]*\}\s*from ['"]\.\/features\/[^'"]*\/views\//,
   );
 });
 
+test('app shell delegates route framing to the app router', () => {
+  const appSource = readProjectFile('src/App.tsx');
+  const routerSource = readProjectFile('src/app/AppRouter.tsx');
+
+  assert.match(appSource, /<AppRouter/);
+  assert.match(appSource, /<AppShell/);
+  assert.doesNotMatch(appSource, /BottomNavigation|PhoneFrame|StatusStrip/);
+  assert.match(routerSource, /function CustomerRouteFrame/);
+  assert.match(routerSource, /function ProviderRouteFrame/);
+  assert.match(routerSource, /label: 'Calendar'/);
+});
+
 test('app shell delegates display notice formatting to domain helpers', () => {
   const appSource = readProjectFile('src/App.tsx');
+  const bookingFlowSource = readProjectFile(
+    'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+  );
   const domainSource = readProjectFile('src/domain/booking.ts');
 
   assert.doesNotMatch(appSource, /formatMoney/);
   assert.doesNotMatch(appSource, /\.toFixed\(4\)/);
-  assert.match(appSource, /promotionNotice/);
-  assert.match(appSource, /addressVerifiedNotice/);
+  assert.match(bookingFlowSource, /promotionNotice/);
+  assert.match(bookingFlowSource, /addressVerifiedNotice/);
   assert.match(appSource, /paymentNotice/);
   assert.match(domainSource, /function promotionNotice/);
   assert.match(domainSource, /function addressVerifiedNotice/);
@@ -241,7 +261,6 @@ test('app shell stabilizes effect callbacks instead of omitting hook dependencie
     'loadCatalog',
     'completeGoogleSignIn',
     'reconcilePendingCheckout',
-    'markRead',
     'routeFromNotificationPayload',
     'refreshBookingTracking',
     'refreshProviderDirections',
@@ -267,6 +286,13 @@ test('app shell stabilizes effect callbacks instead of omitting hook dependencie
   assert.match(hookSource, /useRef/);
   assert.match(hookSource, /useEffect/);
   assert.match(hookSource, /useMemo/);
+
+  const notificationsFlowSource = readProjectFile(
+    'src/features/notifications/viewModels/useNotificationsFlowViewModel.ts',
+  );
+  assert.match(appSource, /useNotificationsFlowViewModel/);
+  assert.match(notificationsFlowSource, /markNotificationRead/);
+  assert.match(notificationsFlowSource, /useCallback/);
 });
 
 test('tracking map preview keeps webview update callbacks hook-safe', () => {

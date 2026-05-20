@@ -10,7 +10,7 @@
     "smoke:demo-api": "tsx scripts/smoke-demo-api.ts",
     "env:prod": "node scripts/check-production-env.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test $(find services src -name '*.test.ts' -print)",
+    "test": "node scripts/run-tests.mjs",
     "test:cov": "node scripts/run-tests-with-coverage.mjs",
     "e2e:build:ios": "detox build --configuration ios.sim.debug",
     "e2e:build:android": "detox build --configuration android.emu.debug",

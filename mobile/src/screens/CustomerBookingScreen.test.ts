@@ -4,7 +4,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 test('customer booking flow renders blocked slots as unavailable and refreshes after server backstop', () => {
-  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const bookingFlowViewModel = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+    ),
+    'utf8',
+  );
   const bookingFormView = readFileSync(
     join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
     'utf8',
@@ -37,17 +43,20 @@ test('customer booking flow renders blocked slots as unavailable and refreshes a
   assert.match(scheduleView, /minDate=\{data\.customerCalendarMinDate\}/);
   assert.match(scheduleView, /Provider unavailable/);
   assert.match(scheduleView, /disabled=\{!isAvailable\}/);
-  assert.match(source, /providerUnavailableSlotPickerMessage\(error, message\)/);
+  assert.match(
+    bookingFlowViewModel,
+    /providerUnavailableSlotPickerMessage\(error, message\)/,
+  );
   assert.match(
     bookingDomain,
     /This slot was just taken or blocked\. Please pick another\./,
   );
   assert.match(bookingDomain, /provider_unavailable/);
-  assert.match(source, /refreshSelectedProviderAvailability\(selectedProvider\.providerId\)/);
-  const backstopBranchStart = source.indexOf(
+  assert.match(bookingFlowViewModel, /onRefreshProviderAvailability\(selectedProvider\.providerId\)/);
+  const backstopBranchStart = bookingFlowViewModel.indexOf(
     'providerUnavailableSlotPickerMessage(error, message)',
   );
-  const backstopBranchEnd = source.indexOf('} else {', backstopBranchStart);
-  const backstopBranch = source.slice(backstopBranchStart, backstopBranchEnd);
-  assert.match(backstopBranch, /navigate\('customerBookingForm', 'customer'\)/);
+  const backstopBranchEnd = bookingFlowViewModel.indexOf('} else {', backstopBranchStart);
+  const backstopBranch = bookingFlowViewModel.slice(backstopBranchStart, backstopBranchEnd);
+  assert.match(backstopBranch, /screen: 'customerBookingForm'/);
 });

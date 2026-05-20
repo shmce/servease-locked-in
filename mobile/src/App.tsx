@@ -1,65 +1,39 @@
-import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import {
-  Calendar,
-  Clock,
-  FolderKanban,
-  Home,
-  Menu,
-  MessageCircle,
-  Search,
-} from 'lucide-react-native';
-import {
   lazy,
   ReactNode,
-  Suspense,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import {
-  ActivityIndicator,
   AppState,
   Linking,
   Platform,
-  SafeAreaView,
   StyleSheet,
-  Text,
-  View,
 } from 'react-native';
-import {
-  BottomNavigation,
-  PhoneFrame,
-  StatusStrip,
-  TopBar,
-} from './components/DesignKit';
-import { ScreenTransition } from './components/Motion';
+import { TopBar } from './components/DesignKit';
+import { AppRouter, type AppRouterRenderers } from './app/AppRouter';
+import { AppShell } from './app/AppShell';
 import {
   MissingSelection,
 } from './components/AppDisplay';
 import {
-  addressVerifiedNotice,
   buildCalendarExportUrl,
   buildBookingTransitionRequest,
   paymentNotice,
-  promotionNotice,
   providerPayoutTotal,
   roleLabel,
   statusLabel,
-  toManilaBookingIso,
-  providerUnavailableSlotPickerMessage,
 } from './domain/booking';
 import {
   bookingTimeSlots,
   defaultScheduledAt,
-  hiddenProviderBottomNavScreens,
   type ProviderBookingTab,
 } from './constants/appContent';
 import {
-  getCustomerTab,
-  getProviderTab,
   readError,
 } from './navigation/routeHelpers';
 import { resolveNotificationRoute } from './navigation/notificationRouting';
@@ -73,7 +47,11 @@ import { useStableCallback } from './shared/hooks/useStableCallback';
 import type { CustomerProviderProfileTab } from './features/customer-provider-profile/viewModels/useCustomerProviderProfileViewModel';
 import type { CustomerTrackingSheetLevel } from './features/customer-track-provider/viewModels/useCustomerTrackProviderViewModel';
 import type { ProviderNavigationSheetLevel } from './features/provider-navigation-mode/viewModels/useProviderNavigationModeViewModel';
-import type { ProviderStartChecklistKey } from './features/provider-start-service/viewModels/useProviderStartServiceViewModel';
+import { useCustomerBookingFlowViewModel } from './features/customer-booking/viewModels/useCustomerBookingFlowViewModel';
+import { useMessagesFlowViewModel } from './features/messages/viewModels/useMessagesFlowViewModel';
+import { useNotificationsFlowViewModel } from './features/notifications/viewModels/useNotificationsFlowViewModel';
+import { useProviderServiceFlowViewModel } from './features/provider-service-flow/viewModels/useProviderServiceFlowViewModel';
+import { useSupportFlowViewModel } from './features/support/viewModels/useSupportFlowViewModel';
 import { useProviderLiveLocation } from './tracking/useProviderLiveLocation';
 import { AppRole, AppScreen, RouteState } from './navigation/types';
 import { palette, radius, spacing, type } from './theme/serveaseDesign';
@@ -86,17 +64,10 @@ import type {
   BookingTrackingSnapshot,
   CatalogCategory,
   CatalogServiceItem,
-  ConversationMessage,
-  ConversationMessageAttachment,
-  ConversationSummary,
   CurrentUserProfile,
-  CreateBookingRequest,
   CustomerPaymentMethodSummary,
   CustomerPaymentMethodType,
-  NotificationSummary,
   PaymentSummary,
-  PricingQuoteSummary,
-  PromotionValidationSummary,
   PayoutAccountSummary,
   PayoutMethodSummary,
   PayoutMethodType,
@@ -113,33 +84,22 @@ import type {
   ProviderPortfolioMediaSummary,
   ReviewSummary,
   SharedPaymentMethod,
-  SupportTicketReplySummary,
-  SupportTicketSummary,
   UploadKind,
   UploadSummary,
-  GeoAddressResult,
   GeoDirectionsRoute,
   GeoRouteLocation,
 } from './shared/models/types';
 import {
   addProviderPortfolioMedia,
-  createBooking,
-  createBookingAttachment,
-  createBookingServiceUpdate,
   createCheckoutSession,
-  createConversationMessage,
   createPayment,
-  createPricingQuote,
   createProviderPayoutIdempotencyKey,
   createReview,
-  createSupportTicket,
-  createSupportTicketReply,
   deleteBookingAttachment,
   deleteCurrentUserAccount,
   disableCurrentUserTwoFactor,
   enableCurrentUserTwoFactor,
   exchangeGoogleCode,
-  listSupportTicketReplies,
   replyToReview,
   flagReview,
   getMyProviderApplication,
@@ -147,7 +107,6 @@ import {
   getCheckoutStatus,
   getDirections,
   getGoogleAuthorizationUrl,
-  geocodeAddress,
   generateOtp,
   listProviderOwnedServices,
   replaceProviderServices,
@@ -164,7 +123,6 @@ import {
   listCatalogCategories,
   listCatalogServices,
   listConversations,
-  listConversationMessages,
   listCustomerBookings,
   listCustomerPaymentMethods,
   listNotifications,
@@ -179,14 +137,10 @@ import {
   listBookingTimelineEvents,
   listCurrentUserSessions,
   listSupportTickets,
-  markNotificationRead,
-  openConversation,
   registerAccount,
-  raiseBookingDispute,
   reorderProviderPortfolio,
   requestPasswordReset,
   requestProviderPayout,
-  reverseGeocode,
   updateProviderPortfolioMedia,
   upsertProviderPayoutMethod,
   transitionBookingStatus,
@@ -202,7 +156,6 @@ import {
   signInWithPassword,
   syncExpoPushRegistration,
 } from './shared/models/apiService';
-import { isInternalTestNotification } from './shared/utils/notifications';
 
 const AuthScreens = lazy(() =>
   import('./features/auth/views/AuthScreens').then((module) => ({
@@ -513,8 +466,6 @@ export default function App() {
   const [services, setServices] = useState<CatalogServiceItem[]>([]);
   const [providers, setProviders] = useState<ProviderListing[]>([]);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [payments, setPayments] = useState<PaymentSummary[]>([]);
   const [pendingCheckout, setPendingCheckout] = useState<{
     checkoutId: string;
@@ -533,8 +484,6 @@ export default function App() {
     CurrentUserSessionSummary[]
   >([]);
   const [reviews, setReviews] = useState<ReviewSummary[]>([]);
-  const [supportTickets, setSupportTickets] = useState<SupportTicketSummary[]>([]);
-  const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
   const [selectedBookingServiceUpdates, setSelectedBookingServiceUpdates] = useState<
     BookingServiceUpdateSummary[]
   >([]);
@@ -569,40 +518,12 @@ export default function App() {
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [selectedProviderCalendarDate, setSelectedProviderCalendarDate] =
     useState(defaultScheduledAt.slice(0, 10));
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
-    null,
-  );
   const [bookingFilter, setBookingFilter] = useState<'active' | 'completed'>('active');
-  const [bookingSlotError, setBookingSlotError] = useState('');
   const [customerGuideStep, setCustomerGuideStep] = useState(0);
   const [customerGuideDismissed, setCustomerGuideDismissed] = useState(false);
-  const [address, setAddress] = useState('Unit 12B Greenfield Residences');
-  const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt);
-  const [hoursRequired, setHoursRequired] = useState('2');
-  const [notes, setNotes] = useState('');
-  const [bookingReferencePhotoUri, setBookingReferencePhotoUri] = useState<string | null>(null);
-  const [bookingReferencePhotoUrl, setBookingReferencePhotoUrl] = useState<string | null>(null);
-  const [bookingReferenceUpload, setBookingReferenceUpload] = useState<UploadSummary | null>(null);
-  const [addressGeoResult, setAddressGeoResult] = useState<GeoAddressResult | null>(null);
-  const [promoCode, setPromoCode] = useState('');
-  const [promotionValidation, setPromotionValidation] =
-    useState<PromotionValidationSummary | null>(null);
-  const [pricingQuote, setPricingQuote] = useState<PricingQuoteSummary | null>(null);
-  const [messageDraft, setMessageDraft] = useState('');
   const [reviewText, setReviewText] = useState('');
   const [rating, setRating] = useState('5');
-  const [supportSubject, setSupportSubject] = useState('');
-  const [supportMessage, setSupportMessage] = useState('');
-  const [expandedSupportTicketId, setExpandedSupportTicketId] = useState<string | null>(null);
-  const [supportReplies, setSupportReplies] = useState<
-    Record<string, SupportTicketReplySummary[]>
-  >({});
-  const [supportReplyDraft, setSupportReplyDraft] = useState('');
   const [cancelReason, setCancelReason] = useState('');
-  const [desiredResolution, setDesiredResolution] = useState('');
-  const [reportEvidencePhotoUri, setReportEvidencePhotoUri] = useState<string | null>(null);
-  const [reportEvidencePhotoUrl, setReportEvidencePhotoUrl] = useState<string | null>(null);
-  const [reportEvidenceUpload, setReportEvidenceUpload] = useState<UploadSummary | null>(null);
   const [providerBookingTab, setProviderBookingTab] =
     useState<ProviderBookingTab>('upcoming');
   const [providerSearchQuery, setProviderSearchQuery] = useState('');
@@ -611,29 +532,14 @@ export default function App() {
     useState<CustomerProviderProfileTab>('About');
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
-  const [providerChecklist, setProviderChecklist] = useState({
-    scopeConfirmed: false,
-    toolsReady: false,
-    instructionsReviewed: false,
-  });
   const lastPushRegistrationKey = useRef<string | null>(null);
-  const handledPushNotificationIds = useRef<Set<string>>(new Set());
   const reconcilingCheckoutRef = useRef(false);
   const payoutIdempotencyKeyRef = useRef<string | null>(null);
-  const [providerPhotoCaption, setProviderPhotoCaption] = useState('');
-  const [providerBeforePhotoUri, setProviderBeforePhotoUri] = useState<string | null>(null);
-  const [providerBeforePhotoUrl, setProviderBeforePhotoUrl] = useState<string | null>(null);
-  const [providerProgressPhotoUri, setProviderProgressPhotoUri] = useState<string | null>(null);
-  const [providerProgressPhotoUrl, setProviderProgressPhotoUrl] = useState<string | null>(null);
-  const [providerCompletionPhotoUri, setProviderCompletionPhotoUri] = useState<string | null>(null);
-  const [providerCompletionPhotoUrl, setProviderCompletionPhotoUrl] = useState<string | null>(null);
   const [providerPortfolioPhotoUri, setProviderPortfolioPhotoUri] = useState<string | null>(null);
   const [providerPortfolioPhotoUrl, setProviderPortfolioPhotoUrl] = useState<string | null>(null);
   const [editingPortfolioCaptionId, setEditingPortfolioCaptionId] =
     useState<string | null>(null);
   const [portfolioCaptionDraft, setPortfolioCaptionDraft] = useState('');
-  const [providerProgressMessage, setProviderProgressMessage] = useState('');
-  const [completionNotes, setCompletionNotes] = useState('');
   const [ownReviews, setOwnReviews] = useState<ReviewSummary[]>([]);
   const [reviewReplyText, setReviewReplyText] = useState('');
   const [replyingToReviewId, setReplyingToReviewId] = useState<string | null>(null);
@@ -647,8 +553,6 @@ export default function App() {
   const [newServicePricingMode, setNewServicePricingMode] = useState<'flat' | 'hourly'>('flat');
   const [showAddServiceForm, setShowAddServiceForm] = useState(false);
   const [providerCancelReason, setProviderCancelReason] = useState('');
-  const [providerReportReason, setProviderReportReason] = useState('');
-  const [providerReportDetails, setProviderReportDetails] = useState('');
   const [requestPayoutAmount, setRequestPayoutAmount] = useState('');
   const [selectedPayoutMethodId, setSelectedPayoutMethodId] = useState<string | null>(
     null,
@@ -669,9 +573,6 @@ export default function App() {
     (provider) => provider.providerId === selectedProviderId,
   );
   const selectedBooking = bookings.find((booking) => booking.id === selectedBookingId);
-  const selectedConversation = conversations.find(
-    (conversation) => conversation.id === selectedConversationId,
-  );
   const selectedPayment = selectedBooking
     ? payments.find((payment) => payment.bookingId === selectedBooking.id)
     : null;
@@ -685,10 +586,6 @@ export default function App() {
     customerPaymentMethods.find((method) => method.isDefault) ??
     customerPaymentMethods[0] ??
     null;
-  const visibleNotifications = notifications.filter(
-    (notification) => !isInternalTestNotification(notification),
-  );
-  const unreadCount = visibleNotifications.filter((notification) => !notification.isRead).length;
   const role = profile?.user.role ?? 'customer';
   const appRole: AppRole = role === 'provider' ? 'provider' : 'customer';
   const payoutTotal =
@@ -702,6 +599,45 @@ export default function App() {
     }),
     [apiBaseUrl, session?.accessToken],
   );
+  const customerBookingFlow = useCustomerBookingFlowViewModel({
+    apiOptions,
+    hasSession: Boolean(session),
+    onBookingCreated: (booking) => {
+      setBookings((current) => [booking, ...current]);
+      setSelectedBookingId(booking.id);
+      void refreshBookingTimelineEvents(booking.id);
+    },
+    onRefreshProviderAvailability: (providerId) => {
+      void refreshSelectedProviderAvailability(providerId);
+    },
+    selectedBooking: selectedBooking ?? null,
+    selectedCustomerPaymentMethod,
+    selectedProvider: selectedProvider ?? null,
+    selectedService: selectedService ?? null,
+    setBusyAction,
+    setNotice,
+    setRoute,
+  });
+  const messagesFlow = useMessagesFlowViewModel({
+    apiOptions,
+    appRole,
+    hasSession: Boolean(session),
+    isMessagesScreen: route.screen === 'messages',
+    selectedBooking: selectedBooking ?? null,
+    setBusyAction,
+    setNotice,
+    setRoute: (nextRoute) => setRoute(nextRoute),
+    uploadMessageAttachment: (onUploaded) =>
+      pickAndUploadImage('message_attachment', onUploaded),
+  });
+  const supportFlow = useSupportFlowViewModel({
+    apiOptions,
+    hasSession: Boolean(session),
+    selectedBooking: selectedBooking ?? null,
+    setBusyAction,
+    setNotice,
+    setRoute,
+  });
   const providerLiveLocation = useProviderLiveLocation({
     enabled: Boolean(
       session?.accessToken &&
@@ -716,23 +652,43 @@ export default function App() {
   const reconcilePendingCheckout = useStableCallback(
     reconcilePendingCheckoutImpl,
   );
-  const markRead = useStableCallback(markReadImpl);
   const routeFromNotificationPayload = useStableCallback(
     routeFromNotificationPayloadImpl,
   );
+  const notificationsFlow = useNotificationsFlowViewModel({
+    apiOptions,
+    appRole,
+    hasSession: Boolean(session),
+    onRouteFromPayload: routeFromNotificationPayload,
+    setBusyAction,
+    setNotice,
+  });
+  const replaceNotifications = notificationsFlow.actions.replaceNotifications;
   const refreshBookingTracking = useStableCallback(refreshBookingTrackingImpl);
   const refreshProviderDirections = useStableCallback(
     refreshProviderDirectionsImpl,
   );
+  const providerServiceFlow = useProviderServiceFlowViewModel({
+    apiOptions,
+    onBookingUpdated: replaceBooking,
+    onRefreshBookingTimelineEvents: (bookingId) => {
+      void refreshBookingTimelineEvents(bookingId);
+    },
+    onRefreshBookingTracking: (bookingId) => {
+      void refreshBookingTracking(bookingId);
+    },
+    onServiceUpdateCreated: upsertBookingServiceUpdate,
+    selectedBooking: selectedBooking ?? null,
+    setBusyAction,
+    setNotice,
+    setProviderRoute: (screen) => setRoute({ role: 'provider', screen }),
+    uploadProviderJobPhoto: (onUploaded) =>
+      pickAndUploadImage('provider_progress', onUploaded),
+  });
 
   useEffect(() => {
     void loadCatalog();
   }, [loadCatalog]);
-
-  useEffect(() => {
-    setPromoCode('');
-    setPromotionValidation(null);
-  }, [selectedBookingId]);
 
   useEffect(() => {
     const liveLocation = providerLiveLocation.location;
@@ -787,7 +743,7 @@ export default function App() {
             ? listProviderBookings(apiOptions)
             : listCustomerBookings(apiOptions),
         ]);
-        setNotifications(nextNotifications);
+        replaceNotifications(nextNotifications);
         setBookings(nextBookings);
       } catch {
         // ignore poll errors to avoid noisy notices
@@ -795,7 +751,7 @@ export default function App() {
     };
     const interval = setInterval(() => void tick(), 30000);
     return () => clearInterval(interval);
-  }, [session?.accessToken, appRole, apiOptions]);
+  }, [session?.accessToken, appRole, apiOptions, replaceNotifications]);
 
   useEffect(() => {
     if (!session?.accessToken || !userPreferences) {
@@ -881,116 +837,6 @@ export default function App() {
       appStateSubscription.remove();
     };
   }, [session?.accessToken, pendingCheckout, reconcilePendingCheckout]);
-
-  useEffect(() => {
-    if (!session?.accessToken || !appRole) {
-      return undefined;
-    }
-
-    let isMounted = true;
-    const subscriptions: { remove: () => void }[] = [];
-
-    const handleResponse = (response: unknown) => {
-      const data =
-        (response as {
-          notification?: {
-            request?: {
-              content?: {
-                data?: Record<string, unknown>;
-              };
-            };
-          };
-        })?.notification?.request?.content?.data ?? {};
-      const notificationId =
-        typeof data.notificationId === 'string' ? data.notificationId : null;
-
-      if (
-        notificationId &&
-        handledPushNotificationIds.current.has(notificationId)
-      ) {
-        return;
-      }
-      if (notificationId) {
-        handledPushNotificationIds.current.add(notificationId);
-        void markRead(notificationId);
-      }
-
-      routeFromNotificationPayload(data);
-    };
-
-    void import('expo-notifications')
-      .then(async (notifications) => {
-        if (!isMounted) {
-          return;
-        }
-        notifications.setNotificationHandler?.({
-          handleNotification: async () => ({
-            shouldShowBanner: true,
-            shouldShowList: true,
-            shouldPlaySound: false,
-            shouldSetBadge: true,
-          }),
-        });
-
-        subscriptions.push(
-          notifications.addNotificationResponseReceivedListener(handleResponse),
-        );
-        if (notifications.addNotificationReceivedListener) {
-          subscriptions.push(
-            notifications.addNotificationReceivedListener(() => {
-              void listNotifications(apiOptions)
-                .then(setNotifications)
-                .catch(() => undefined);
-            }),
-          );
-        }
-
-        const initialResponse =
-          notifications.getLastNotificationResponse?.() ??
-          (await notifications.getLastNotificationResponseAsync?.());
-        if (initialResponse && isMounted) {
-          handleResponse(initialResponse);
-          notifications.clearLastNotificationResponse?.();
-        }
-      })
-      .catch(() => {
-        // Notification listeners are best-effort on unsupported runtimes.
-      });
-
-    return () => {
-      isMounted = false;
-      subscriptions.forEach((subscription) => subscription.remove());
-    };
-  }, [
-    session?.accessToken,
-    appRole,
-    apiOptions,
-    markRead,
-    routeFromNotificationPayload,
-  ]);
-
-  useEffect(() => {
-    if (!session?.accessToken || route.screen !== 'messages') {
-      return undefined;
-    }
-    const tick = async () => {
-      try {
-        const nextConversations = await listConversations(apiOptions);
-        setConversations(nextConversations);
-        if (selectedConversationId) {
-          const nextMessages = await listConversationMessages(
-            selectedConversationId,
-            apiOptions,
-          );
-          setMessages(nextMessages);
-        }
-      } catch {
-        // swallow poll errors
-      }
-    };
-    const interval = setInterval(() => void tick(), 8000);
-    return () => clearInterval(interval);
-  }, [session?.accessToken, route.screen, selectedConversationId, apiOptions]);
 
   useEffect(() => {
     const trackingScreens: AppScreen[] = [
@@ -1401,8 +1247,7 @@ export default function App() {
     setProfile(null);
     setProviderApplication(null);
     setBookings([]);
-    setConversations([]);
-    setMessages([]);
+    messagesFlow.actions.clear();
     setPayments([]);
     setCustomerPaymentMethods([]);
     setPayoutAccount(null);
@@ -1411,20 +1256,20 @@ export default function App() {
     setReferralSummary(null);
     setUserPreferences(null);
     setActiveSessions([]);
-    setSupportTickets([]);
-    setNotifications([]);
+    supportFlow.actions.clear();
+    notificationsFlow.actions.clear();
+    providerServiceFlow.actions.clear();
     setSelectedBookingServiceUpdates([]);
     setSelectedBookingTimelineEvents([]);
     setSelectedProviderPortfolioMedia([]);
     setProviderPortfolioMedia([]);
     setAvailability(null);
     setSelectedBookingId(null);
-    setSelectedConversationId(null);
     setSelectedCustomerPaymentMethodId(null);
     setPendingCheckout(null);
-    setAddressGeoResult(null);
-    setPromoCode('');
-    setPromotionValidation(null);
+    customerBookingFlow.actions.setAddress('');
+    customerBookingFlow.actions.setPromoCode('');
+    customerBookingFlow.actions.setPromotionValidation(null);
     setCurrentPassword('');
     setNewPassword('');
     setRoute({ role: null, screen: 'authGate' });
@@ -1685,7 +1530,7 @@ export default function App() {
       ]);
 
       setBookings(nextBookings);
-      setConversations(nextConversations);
+      messagesFlow.actions.replaceConversations(nextConversations);
       setPayments(nextPayments);
       setCustomerPaymentMethods(nextCustomerPaymentMethods);
       setPayoutAccount(nextPayoutAccount);
@@ -1726,146 +1571,13 @@ export default function App() {
           null
         );
       });
-      setSupportTickets(nextTickets);
-      setNotifications(nextNotifications);
+      supportFlow.actions.replaceTickets(nextTickets);
+      notificationsFlow.actions.replaceNotifications(nextNotifications);
       setAvailability(nextAvailability);
       setSelectedBookingId((current) => current ?? nextBookings[0]?.id ?? null);
-      setSelectedConversationId(
-        (current) => current ?? nextConversations[0]?.id ?? null,
-      );
       setNotice(`${nextBookings.length} booking${nextBookings.length === 1 ? '' : 's'} loaded.`);
     } catch (error) {
       setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function submitBooking() {
-    if (!session) {
-      setNotice('Sign in before creating a booking.');
-      setRoute({ role: null, screen: 'loginRole' });
-      return;
-    }
-
-    const scheduledAtIso = toManilaBookingIso(scheduledAt);
-
-    if (!selectedProvider || !address.trim() || !scheduledAtIso) {
-      setNotice('Choose a service provider, address, and schedule.');
-      return;
-    }
-
-    setBusyAction('create-booking');
-    try {
-      const serviceId = selectedService?.id ?? selectedProvider.serviceId;
-      const quote =
-        serviceId && selectedProvider.providerId
-          ? await createPricingQuote(
-              {
-                providerId: selectedProvider.providerId,
-                serviceId,
-                serviceAddress: address.trim(),
-                scheduledAt: scheduledAtIso,
-                hoursRequired: Number(hoursRequired) || 1,
-                bookingUrgency: 'standard',
-                region: 'default',
-                destination: addressGeoResult
-                  ? {
-                      latitude: addressGeoResult.latitude,
-                      longitude: addressGeoResult.longitude,
-                    }
-                  : null,
-              },
-              apiOptions,
-            )
-          : null;
-      setPricingQuote(quote);
-      const request: CreateBookingRequest = {
-        providerId: selectedProvider.providerId,
-        serviceId,
-        serviceTitle: selectedProvider.title,
-        serviceName: selectedService?.name ?? selectedProvider.title,
-        serviceDescription: selectedProvider.description,
-        serviceAddress: address.trim(),
-        scheduledAt: scheduledAtIso,
-        hoursRequired: Number(hoursRequired) || 1,
-        serviceAmount: quote?.estimatedTotal ?? selectedProvider.price ?? selectedService?.price ?? 0,
-        pricingMode: selectedProvider.pricingMode,
-        acceptedQuoteId: quote?.quoteId ?? null,
-        paymentMethod: selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service',
-        customerNotes: notes.trim() || null,
-        attachments: bookingReferenceUpload
-          ? [
-              {
-                ...mediaAttachmentFromUpload(bookingReferenceUpload),
-                mediaKind: 'booking_reference',
-              },
-            ]
-          : [],
-      };
-      const booking = await createBooking(request, apiOptions);
-      setBookings((current) => [booking, ...current]);
-      setSelectedBookingId(booking.id);
-      void refreshBookingTimelineEvents(booking.id);
-      setBookingReferencePhotoUri(null);
-      setBookingReferencePhotoUrl(null);
-      setBookingReferenceUpload(null);
-      setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
-      setNotice(`Booking ${booking.bookingReference} created.`);
-    } catch (error) {
-      const message = readError(error);
-      const slotMessage = providerUnavailableSlotPickerMessage(error, message);
-      if (slotMessage) {
-        setBookingSlotError(slotMessage);
-        setNotice(slotMessage);
-        void refreshSelectedProviderAvailability(selectedProvider.providerId);
-        navigate('customerBookingForm', 'customer');
-      } else {
-        setNotice(message);
-      }
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function previewPricingQuote() {
-    if (!session) {
-      setNotice('Sign in before requesting a fair estimate.');
-      return null;
-    }
-
-    const scheduledAtIso = toManilaBookingIso(scheduledAt);
-    const serviceId = selectedService?.id ?? selectedProvider?.serviceId ?? null;
-    if (!selectedProvider || !serviceId || !address.trim() || !scheduledAtIso) {
-      setNotice('Choose a service provider, address, and schedule first.');
-      return null;
-    }
-
-    setBusyAction('pricing-quote');
-    try {
-      const quote = await createPricingQuote(
-        {
-          providerId: selectedProvider.providerId,
-          serviceId,
-          serviceAddress: address.trim(),
-          scheduledAt: scheduledAtIso,
-          hoursRequired: Number(hoursRequired) || 1,
-          bookingUrgency: 'standard',
-          region: 'default',
-          destination: addressGeoResult
-            ? {
-                latitude: addressGeoResult.latitude,
-                longitude: addressGeoResult.longitude,
-              }
-            : null,
-        },
-        apiOptions,
-      );
-      setPricingQuote(quote);
-      return quote;
-    } catch (error) {
-      setNotice(readError(error));
-      return null;
     } finally {
       setBusyAction(null);
     }
@@ -1900,138 +1612,6 @@ export default function App() {
     }
   }
 
-  async function openSelectedConversation() {
-    if (!selectedBooking) {
-      setNotice('Select a booking first.');
-      return null;
-    }
-
-    setBusyAction('open-conversation');
-    try {
-      const conversation = await openConversation(selectedBooking.id, apiOptions);
-      upsertConversation(conversation);
-      setSelectedConversationId(conversation.id);
-      setMessages(await listConversationMessages(conversation.id, apiOptions));
-      setRoute({ role: appRole, screen: 'messages' });
-      setNotice('Conversation opened.');
-      return conversation;
-    } catch (error) {
-      setNotice(readError(error));
-      return null;
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function startSelectedService() {
-    if (!selectedBooking) {
-      setNotice('Select a booking first.');
-      return;
-    }
-
-    setBusyAction('service-start');
-    try {
-      const update = await createBookingServiceUpdate(
-        selectedBooking.id,
-        {
-          updateType: 'checklist',
-          message: providerPhotoCaption.trim() || 'Pre-service checklist completed.',
-          checklist: providerChecklist,
-        },
-        apiOptions,
-      );
-      upsertBookingServiceUpdate(update);
-      if (selectedBooking.status !== 'in_progress') {
-        const updated = await transitionBookingStatus(
-          selectedBooking.id,
-          {
-            currentStatus: selectedBooking.status,
-            nextStatus: 'in_progress',
-          },
-          apiOptions,
-        );
-        replaceBooking(updated);
-        void refreshBookingTracking(updated.id);
-        void refreshBookingTimelineEvents(updated.id);
-      }
-      setNotice('Service started.');
-      setRoute({ role: 'provider', screen: 'providerServiceInProgress' });
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function completeSelectedService() {
-    if (!selectedBooking) {
-      setNotice('Select a booking first.');
-      return;
-    }
-
-    setBusyAction('service-complete');
-    try {
-      const update = await createBookingServiceUpdate(
-        selectedBooking.id,
-        {
-          updateType: 'completion',
-          message: completionNotes.trim() || 'Service marked completed.',
-        },
-        apiOptions,
-      );
-      upsertBookingServiceUpdate(update);
-      const updated = await transitionBookingStatus(
-        selectedBooking.id,
-        {
-          currentStatus: selectedBooking.status,
-          nextStatus: 'completed',
-        },
-        apiOptions,
-      );
-      replaceBooking(updated);
-      void refreshBookingTracking(updated.id);
-      setCompletionNotes('');
-      setNotice('Service completed.');
-      setRoute({ role: 'provider', screen: 'providerServiceCompleted' });
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function submitProviderProgressUpdate() {
-    if (!selectedBooking) {
-      setNotice('Select a booking first.');
-      return;
-    }
-
-    const message = providerProgressMessage.trim();
-    if (!message) {
-      setNotice('Write a progress update first.');
-      return;
-    }
-
-    setBusyAction('service-progress');
-    try {
-      const update = await createBookingServiceUpdate(
-        selectedBooking.id,
-        {
-          updateType: 'progress',
-          message,
-        },
-        apiOptions,
-      );
-      upsertBookingServiceUpdate(update);
-      setProviderProgressMessage('');
-      setNotice('Progress update sent.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
   async function cancelSelectedProviderBooking() {
     const cancelled = await transitionSelectedBooking(
       'cancelled',
@@ -2041,102 +1621,6 @@ export default function App() {
       setProviderCancelReason('');
       setRoute({ role: 'provider', screen: 'bookings' });
     }
-  }
-
-  async function submitProviderIssue() {
-    if (!selectedBooking) {
-      setNotice('Select a booking first.');
-      return;
-    }
-    const reason = providerReportReason.trim();
-    const details = providerReportDetails.trim();
-    if (!reason || !details) {
-      setNotice('Enter the issue subject and details.');
-      return;
-    }
-
-    setBusyAction('dispute');
-    try {
-      const dispute = await raiseSelectedBookingDispute(reason, details);
-      await submitSupportTicket(
-        reason,
-        [
-          `Booking: ${selectedBooking.bookingReference}`,
-          details,
-          `Dispute: ${dispute?.id}`,
-        ]
-          .filter(Boolean)
-          .join('\n\n'),
-        reportEvidenceUpload ? [mediaAttachmentFromUpload(reportEvidenceUpload)] : [],
-      );
-      setProviderReportReason('');
-      setProviderReportDetails('');
-      setReportEvidencePhotoUri(null);
-      setReportEvidencePhotoUrl(null);
-      setReportEvidenceUpload(null);
-      setRoute({ role: 'provider', screen: 'providerBookingDetail' });
-      setNotice('Dispute submitted.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function pickProviderPhoto(
-    kind: 'before' | 'progress' | 'completion',
-  ) {
-    if (!selectedBooking) {
-      setNotice('Select a booking before attaching job photos.');
-      return;
-    }
-
-    await pickAndUploadImage('provider_progress', async (uri, uploaded) => {
-      const attachment = await createBookingAttachment(
-        selectedBooking?.id ?? '',
-        {
-          ...mediaAttachmentFromUpload(uploaded, providerPhotoCaption),
-          mediaKind: 'provider_progress',
-        },
-        apiOptions,
-      );
-      if (selectedBooking) {
-        replaceBooking({
-          ...selectedBooking,
-          attachments: [attachment, ...(selectedBooking.attachments ?? [])],
-        });
-      }
-      const update = await createBookingServiceUpdate(
-        selectedBooking.id,
-        {
-          updateType:
-            kind === 'before'
-              ? 'checklist'
-              : kind === 'completion'
-                ? 'completion'
-                : 'progress',
-          message:
-            kind === 'before'
-              ? providerPhotoCaption.trim() || 'Starting condition photo added.'
-              : kind === 'completion'
-                ? 'Completion photo added.'
-                : 'Progress photo added.',
-          attachmentId: attachment.id,
-        },
-        apiOptions,
-      );
-      upsertBookingServiceUpdate(update);
-      if (kind === 'before') {
-        setProviderBeforePhotoUri(uri);
-        setProviderBeforePhotoUrl(uploaded.publicUrl);
-      } else if (kind === 'progress') {
-        setProviderProgressPhotoUri(uri);
-        setProviderProgressPhotoUrl(uploaded.publicUrl);
-      } else {
-        setProviderCompletionPhotoUri(uri);
-        setProviderCompletionPhotoUrl(uploaded.publicUrl);
-      }
-    });
   }
 
   function mediaAttachmentFromUpload(upload: UploadSummary, caption?: string | null) {
@@ -2276,140 +1760,6 @@ export default function App() {
     await Linking.openURL(calendarUrl);
   }
 
-  async function sendMessage(attachment?: ConversationMessageAttachment | null) {
-    const trimmed = messageDraft.trim();
-    if (!trimmed && !attachment) {
-      setNotice('Write a message or attach an image before sending.');
-      return;
-    }
-
-    const conversation =
-      selectedConversation ??
-      conversations.find((item) => item.bookingId === selectedBooking?.id) ??
-      (await openSelectedConversation());
-
-    if (!conversation) {
-      return;
-    }
-
-    setBusyAction('send-message');
-    try {
-      const message = await createConversationMessage(
-        conversation.id,
-        trimmed || (attachment ? 'Sent an attachment' : ''),
-        attachment ?? null,
-        apiOptions,
-      );
-      setMessages((current) => [...current, message]);
-      setMessageDraft('');
-      setNotice('Message sent.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function attachAndSendMessageImage() {
-    await pickAndUploadImage('message_attachment', async (_uri, uploaded) => {
-      await sendMessage({
-        fileUrl: uploaded.publicUrl,
-        fileName: uploaded.path.split('/').pop() ?? null,
-        mimeType: uploaded.contentType,
-        storagePath: uploaded.path,
-        fileSize: uploaded.size,
-      });
-    });
-  }
-
-  async function applyPromotionCode() {
-    if (!selectedBooking) {
-      setNotice('Select a booking first.');
-      return false;
-    }
-
-    const code = promoCode.trim();
-    if (!code) {
-      setPromotionValidation(null);
-      setNotice('Enter a promo code first.');
-      return false;
-    }
-
-    setBusyAction('promo');
-    try {
-      const promotion = await validatePromotion(
-        selectedBooking.id,
-        code,
-        apiOptions,
-      );
-      setPromotionValidation(promotion);
-      setNotice(promotionNotice(promotion));
-      return promotion.valid;
-    } catch (error) {
-      setNotice(readError(error));
-      return false;
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function verifyServiceAddress(): Promise<void> {
-    const trimmed = address.trim();
-    if (!trimmed) {
-      setNotice('Enter a service address first.');
-      return;
-    }
-
-    setBusyAction('geo-address');
-    try {
-      const result = await geocodeAddress(trimmed, {
-        ...apiOptions,
-        language: 'en',
-        region: 'PH',
-      });
-      setAddress(result.formattedAddress);
-      setAddressGeoResult(result);
-      setNotice(addressVerifiedNotice(result));
-    } catch (error) {
-      setAddressGeoResult(null);
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function handleCurrentServiceLocation(): Promise<void> {
-    setBusyAction('geo-current-location');
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== Location.PermissionStatus.GRANTED) {
-        setNotice('Location permission is required to use your current address.');
-        return;
-      }
-
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const result = await reverseGeocode(
-        position.coords.latitude,
-        position.coords.longitude,
-        {
-          ...apiOptions,
-          language: 'en',
-        },
-      );
-
-      setAddress(result.formattedAddress);
-      setAddressGeoResult(result);
-      setNotice('Current location added as your service address.');
-    } catch (error) {
-      setAddressGeoResult(null);
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
   async function reconcilePendingCheckoutImpl(
     checkout = pendingCheckout,
   ): Promise<void> {
@@ -2461,7 +1811,7 @@ export default function App() {
 
     setBusyAction('payment');
     try {
-      const code = promoCode.trim();
+      const code = customerBookingFlow.data.promoCode.trim();
       let promoCodeForPayment: string | null = null;
 
       if (code) {
@@ -2470,7 +1820,7 @@ export default function App() {
           code,
           apiOptions,
         );
-        setPromotionValidation(promotion);
+        customerBookingFlow.actions.setPromotionValidation(promotion);
 
         if (!promotion.valid) {
           setNotice(promotion.message);
@@ -2992,124 +2342,6 @@ export default function App() {
     }
   }
 
-  async function submitSupportTicket(
-    subject = supportSubject,
-    body = supportMessage,
-    attachments = reportEvidenceUpload ? [mediaAttachmentFromUpload(reportEvidenceUpload)] : [],
-  ) {
-    if (!subject.trim()) {
-      setNotice('Enter a support subject.');
-      return false;
-    }
-
-    setBusyAction('support');
-    try {
-      const ticket = await createSupportTicket(
-        {
-          subject: subject.trim(),
-          message: body.trim() || null,
-          category: 'booking',
-          attachments,
-        },
-        apiOptions,
-      );
-      setSupportTickets((current) => [ticket, ...current]);
-      setSupportSubject('');
-      setSupportMessage('');
-      setReportEvidencePhotoUri(null);
-      setReportEvidencePhotoUrl(null);
-      setNotice('Support ticket opened.');
-      return true;
-    } catch (error) {
-      setNotice(readError(error));
-      return false;
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function raiseSelectedBookingDispute(
-    category: string,
-    reason: string,
-    description?: string | null,
-  ) {
-    if (!selectedBooking) {
-      setNotice('Select a booking first.');
-      return null;
-    }
-
-    return raiseBookingDispute(
-      selectedBooking.id,
-      {
-        category,
-        reason,
-        description: description?.trim() || null,
-      },
-      apiOptions,
-    );
-  }
-
-  async function submitCustomerIssue() {
-    const subject = supportSubject.trim();
-    const body = supportMessage.trim();
-
-    if (!subject || !body || !desiredResolution) {
-      setNotice('Choose an issue type, description, and desired resolution.');
-      return;
-    }
-
-    setBusyAction('dispute');
-    try {
-      const dispute = await raiseSelectedBookingDispute(
-        subject,
-        body,
-        `Desired resolution: ${desiredResolution}`,
-      );
-      await submitSupportTicket(
-        subject,
-        [
-          body,
-          `Desired resolution: ${desiredResolution}`,
-          dispute ? `Dispute: ${dispute.id}` : null,
-        ]
-          .filter(Boolean)
-          .join('\n\n'),
-      );
-      setDesiredResolution('');
-      setRoute({ role: 'customer', screen: 'customerBookingDetail' });
-      setNotice('Dispute submitted.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function markReadImpl(notificationId: string) {
-    setBusyAction(`notification-${notificationId}`);
-    try {
-      const notification = await markNotificationRead(notificationId, apiOptions);
-      setNotifications((current) =>
-        current.map((item) => (item.id === notification.id ? notification : item)),
-      );
-      setNotice('Notification marked read.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function openNotification(notification: NotificationSummary) {
-    if (!notification.isRead) {
-      void markRead(notification.id);
-    }
-    routeFromNotificationPayload({
-      type: notification.type,
-      metadata: metadataRecord(notification.metadata),
-    });
-  }
-
   function routeFromNotificationPayloadImpl(input: {
     type?: string | null;
     metadata?: Record<string, unknown> | null;
@@ -3123,18 +2355,11 @@ export default function App() {
     });
 
     if (intent.ticketId) {
-      setExpandedSupportTicketId(intent.ticketId);
-      setSupportReplyDraft('');
-      if (!supportReplies[intent.ticketId]) {
-        void loadSupportTicketReplies(intent.ticketId);
-      }
+      supportFlow.actions.openTicketFromNotification(intent.ticketId);
     }
 
     if (intent.conversationId) {
-      setSelectedConversationId(intent.conversationId);
-      void listConversationMessages(intent.conversationId, apiOptions)
-        .then(setMessages)
-        .catch((error) => setNotice(readError(error)));
+      void messagesFlow.actions.openConversationById(intent.conversationId);
     }
 
     if (intent.bookingId) {
@@ -3148,13 +2373,6 @@ export default function App() {
     }
 
     navigate(intent.screen, intent.role);
-  }
-
-  function metadataRecord(value: unknown): Record<string, unknown> | null {
-    if (!value || Array.isArray(value) || typeof value !== 'object') {
-      return null;
-    }
-    return value as Record<string, unknown>;
   }
 
   function replaceBooking(booking: BookingSummary) {
@@ -3256,13 +2474,6 @@ export default function App() {
     ]);
   }
 
-  function upsertConversation(conversation: ConversationSummary) {
-    setConversations((current) => [
-      conversation,
-      ...current.filter((item) => item.id !== conversation.id),
-    ]);
-  }
-
   function navigate(screen: AppScreen, nextRole = route.role) {
     setNotice('');
     setRoute({ role: nextRole, screen });
@@ -3310,167 +2521,6 @@ export default function App() {
     );
   }
 
-  function renderCustomer() {
-    const activeTab = getCustomerTab(route.screen);
-    const routeKey = `${route.role ?? 'customer'}-${route.screen}`;
-    const screenContent = (
-      <>
-        {route.screen === 'customerBookingDetail' ? renderCustomerBookingDetail() : null}
-        {route.screen === 'customerBookingReview' ? renderBookingReview() : null}
-        {route.screen === 'customerReservePayment' ? renderReservePayment() : null}
-        {route.screen === 'customerBookingConfirmation' ? renderBookingConfirmation() : null}
-        {route.screen === 'customerBookingManage' ? renderManageBooking() : null}
-        {route.screen === 'customerBookingCancel' ? renderCancelBooking() : null}
-        {route.screen === 'customerBookingReport' ? renderReportIssue() : null}
-        {route.screen === 'customerTrackServiceProvider' ? renderCustomerTrackServiceProvider() : null}
-        {route.screen === 'customerCategory' ? renderCustomerCategory() : null}
-        {route.screen === 'customerAllServices' ? renderCustomerAllServices('All Services') : null}
-        {route.screen === 'customerRecommendedServices' ? renderCustomerAllServices('Recommended Services') : null}
-        {route.screen === 'customerTopProviders' ? renderCustomerTopProviders() : null}
-        {route.screen === 'customerProviderProfile' ? renderCustomerProviderProfile() : null}
-        {route.screen === 'customerBookingForm' ? renderCustomerBookingForm() : null}
-        {route.screen === 'customerSearchResults' ? renderCustomerAllServices('Search Results') : null}
-        {route.screen === 'customerProfile' ? renderCustomerProfile() : null}
-        {route.screen === 'customerSettings' ? renderCustomerSettings() : null}
-        {route.screen === 'customerPaymentMethods' ? renderCustomerPaymentMethods() : null}
-        {route.screen === 'customerHelp' ? renderCustomerHelp() : null}
-        {route.screen === 'customerServiceHistory' ? renderCustomerServiceHistory() : null}
-        {route.screen === 'customerNotifications' ? renderCustomerNotifications() : null}
-        {route.screen === 'customerReferral' ? renderCustomerReferral() : null}
-        {route.screen === 'customerTerms' ? renderCustomerTerms() : null}
-        {activeTab === 'explore' && route.screen === 'explore'
-          ? renderCustomerExplore()
-          : null}
-        {activeTab === 'bookings' && route.screen === 'bookings' ? renderBookings() : null}
-        {activeTab === 'calendar' && route.screen === 'calendar' ? renderCustomerCalendar() : null}
-        {activeTab === 'messages' && route.screen === 'messages' ? renderMessages() : null}
-        {activeTab === 'more' && route.screen === 'more' ? renderMore() : null}
-      </>
-    );
-
-    return (
-      <PhoneFrame>
-        <StatusStrip />
-        <ScreenTransition routeKey={routeKey}>
-          <Suspense fallback={<RouteLoading />}>{screenContent}</Suspense>
-        </ScreenTransition>
-        <BottomNavigation
-          tabs={[
-            {
-              key: 'explore',
-              label: 'Explore',
-              icon: <Search color={activeTab === 'explore' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-            {
-              key: 'bookings',
-              label: 'Bookings',
-              icon: <FolderKanban color={activeTab === 'bookings' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-            {
-              key: 'calendar',
-              label: 'Calendar',
-              icon: <Calendar color={activeTab === 'calendar' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-            {
-              key: 'messages',
-              label: 'Messages',
-              icon: <MessageCircle color={activeTab === 'messages' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-            {
-              key: 'more',
-              label: 'More',
-              icon: <Menu color={activeTab === 'more' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-          ]}
-          active={activeTab}
-          unreadCount={unreadCount}
-          onChange={(tab) => navigate(tab, 'customer')}
-        />
-      </PhoneFrame>
-    );
-  }
-
-  function renderProvider() {
-    const activeTab = getProviderTab(route.screen);
-    const hideBottomNav = hiddenProviderBottomNavScreens.includes(route.screen);
-    const routeKey = `${route.role ?? 'provider'}-${route.screen}`;
-    const screenContent = (
-      <>
-        {route.screen === 'providerBookingDetail' ? renderProviderBookingDetail() : null}
-        {route.screen === 'providerNavigationMode' ? renderProviderNavigationMode() : null}
-        {route.screen === 'providerStartService' ? renderProviderStartService() : null}
-        {route.screen === 'providerServiceInProgress' ? renderProviderServiceInProgress() : null}
-        {route.screen === 'providerCompleteService' ? renderProviderCompleteService() : null}
-        {route.screen === 'providerServiceCompleted' ? renderProviderServiceCompleted() : null}
-        {route.screen === 'providerCancelBooking' ? renderProviderCancelBooking() : null}
-        {route.screen === 'providerReportIssue' ? renderProviderReportIssue() : null}
-        {route.screen === 'providerServiceReceipt' ? renderProviderServiceReceipt() : null}
-        {route.screen === 'providerProfileView' ? renderProviderProfileView() : null}
-        {route.screen === 'providerEditProfile' ? renderProviderEditProfile() : null}
-        {route.screen === 'providerPortfolio' ? renderProviderPortfolio() : null}
-        {route.screen === 'providerPayoutManagement' ? renderProviderPayoutManagement() : null}
-        {route.screen === 'providerRequestPayout' ? renderProviderRequestPayout() : null}
-        {route.screen === 'providerNotifications' ? renderProviderNotifications() : null}
-        {route.screen === 'providerInsights' || route.screen === 'providerEarnings'
-          ? renderProviderInsights()
-          : null}
-        {route.screen === 'providerHelp' ? renderProviderHelp() : null}
-        {route.screen === 'providerServices' ? renderProviderServices() : null}
-        {route.screen === 'providerSecurity' ? renderProviderSecurity() : null}
-        {route.screen === 'providerSettings' ? renderProviderSettings() : null}
-        {route.screen === 'providerSetAvailability' ? renderProviderSetAvailability() : null}
-        {activeTab === 'home' && route.screen === 'home' ? renderProviderHome() : null}
-        {activeTab === 'bookings' && route.screen === 'bookings' ? renderProviderBookings() : null}
-        {activeTab === 'calendar' && route.screen === 'calendar' ? renderProviderCalendar() : null}
-        {activeTab === 'messages' && route.screen === 'messages' ? renderMessages() : null}
-        {activeTab === 'more' && route.screen === 'more' ? renderProviderMore() : null}
-      </>
-    );
-
-    return (
-      <PhoneFrame>
-        <StatusStrip />
-        <ScreenTransition routeKey={routeKey}>
-          <Suspense fallback={<RouteLoading />}>{screenContent}</Suspense>
-        </ScreenTransition>
-        {hideBottomNav ? null : (
-          <BottomNavigation
-          tabs={[
-            {
-              key: 'home',
-              label: 'Home',
-              icon: <Home color={activeTab === 'home' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-            {
-              key: 'bookings',
-              label: 'Bookings',
-              icon: <Calendar color={activeTab === 'bookings' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-            {
-              key: 'calendar',
-              label: 'Calendar',
-              icon: <Clock color={activeTab === 'calendar' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-            {
-              key: 'messages',
-              label: 'Messages',
-              icon: <MessageCircle color={activeTab === 'messages' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-            {
-              key: 'more',
-              label: 'More',
-              icon: <Menu color={activeTab === 'more' ? palette.mint : '#B0A89E'} size={20} strokeWidth={2.4} />,
-            },
-          ]}
-          active={activeTab}
-          unreadCount={unreadCount}
-          onChange={(tab) => navigate(tab, 'provider')}
-        />
-        )}
-      </PhoneFrame>
-    );
-  }
-
   function renderCustomerExplore() {
     return (
       <CustomerExploreScreen
@@ -3484,7 +2534,7 @@ export default function App() {
         selectedProviderId={selectedProviderId}
         selectedServiceId={selectedServiceId}
         services={services}
-        unreadCount={unreadCount}
+        unreadCount={notificationsFlow.data.unreadCount}
         onDismissGuide={() => setCustomerGuideDismissed(true)}
         onNextGuideStep={() =>
           setCustomerGuideStep((current) => (current + 1) % 3)
@@ -3525,19 +2575,19 @@ export default function App() {
       <CustomerBookingReviewScreen
         provider={selectedProvider}
         selectedService={selectedService ?? null}
-        hoursRequired={hoursRequired}
-        scheduledAt={scheduledAt}
-        address={address}
-        notes={notes}
-        bookingReferencePhotoUrl={bookingReferencePhotoUrl}
-        pricingQuote={pricingQuote}
-        promotionValidation={promotionValidation}
-        promoCode={promoCode}
+        hoursRequired={customerBookingFlow.data.hoursRequired}
+        scheduledAt={customerBookingFlow.data.scheduledAt}
+        address={customerBookingFlow.data.address}
+        notes={customerBookingFlow.data.notes}
+        bookingReferencePhotoUrl={customerBookingFlow.data.bookingReferencePhotoUrl}
+        pricingQuote={customerBookingFlow.data.pricingQuote}
+        promotionValidation={customerBookingFlow.data.promotionValidation}
+        promoCode={customerBookingFlow.data.promoCode}
         busyAction={busyAction}
         onBack={() => navigate('customerBookingForm', 'customer')}
         onViewProvider={() => navigate('customerProviderProfile', 'customer')}
-        onConfirm={() => void submitBooking()}
-        onPreviewEstimate={() => void previewPricingQuote()}
+        onConfirm={() => void customerBookingFlow.actions.submitBooking()}
+        onPreviewEstimate={() => void customerBookingFlow.actions.previewPricingQuote()}
         onEditBooking={() => navigate('customerBookingForm', 'customer')}
       />
     );
@@ -3607,7 +2657,7 @@ export default function App() {
         busyAction={busyAction}
         onBack={() => navigate('customerTopProviders', 'customer')}
         onBook={() => navigate('customerBookingForm', 'customer')}
-        onMessage={() => void openSelectedConversation()}
+        onMessage={() => void messagesFlow.actions.openSelectedBookingConversation()}
         onTabChange={setProviderProfileTab}
         onFlagReview={(reviewId) => void submitFlagReview(reviewId)}
       />
@@ -3623,38 +2673,38 @@ export default function App() {
       <CustomerBookingFormScreen
         provider={selectedProvider}
         providerAvailability={selectedProviderAvailability}
-        scheduledAt={scheduledAt}
-        hoursRequired={hoursRequired}
+        scheduledAt={customerBookingFlow.data.scheduledAt}
+        hoursRequired={customerBookingFlow.data.hoursRequired}
         timeSlots={bookingTimeSlots}
-        bookingSlotError={bookingSlotError}
+        bookingSlotError={customerBookingFlow.data.bookingSlotError}
         defaultScheduledAt={defaultScheduledAt}
-        address={address}
-        addressGeoResult={addressGeoResult}
-        notes={notes}
-        bookingReferencePhotoUri={bookingReferencePhotoUri}
-        bookingReferencePhotoUrl={bookingReferencePhotoUrl}
+        address={customerBookingFlow.data.address}
+        addressGeoResult={customerBookingFlow.data.addressGeoResult}
+        notes={customerBookingFlow.data.notes}
+        bookingReferencePhotoUri={customerBookingFlow.data.bookingReferencePhotoUri}
+        bookingReferencePhotoUrl={customerBookingFlow.data.bookingReferencePhotoUrl}
         busyAction={busyAction}
         onBack={() => navigate('customerProviderProfile', 'customer')}
         onContinue={() => navigate('customerBookingReview', 'customer')}
         onBackToProvider={() => navigate('customerProviderProfile', 'customer')}
-        onScheduledAtChange={setScheduledAt}
-        onBookingSlotErrorChange={setBookingSlotError}
+        onScheduledAtChange={customerBookingFlow.actions.setScheduledAt}
+        onBookingSlotErrorChange={customerBookingFlow.actions.setBookingSlotError}
         onUnavailableSlotPress={() =>
           setNotice('That time is outside the provider schedule.')
         }
-        onAddressChange={(value) => {
-          setAddress(value);
-          setAddressGeoResult(null);
-        }}
-        onHoursRequiredChange={setHoursRequired}
-        onNotesChange={setNotes}
-        onUseCurrentLocation={() => void handleCurrentServiceLocation()}
-        onVerifyAddress={() => void verifyServiceAddress()}
+        onAddressChange={customerBookingFlow.actions.setAddress}
+        onHoursRequiredChange={customerBookingFlow.actions.setHoursRequired}
+        onNotesChange={customerBookingFlow.actions.setNotes}
+        onUseCurrentLocation={() =>
+          void customerBookingFlow.actions.useCurrentServiceLocation()
+        }
+        onVerifyAddress={() => void customerBookingFlow.actions.verifyServiceAddress()}
         onUploadReferencePhoto={() =>
           void pickAndUploadImage('booking_reference', (uri, uploaded) => {
-            setBookingReferencePhotoUri(uri);
-            setBookingReferencePhotoUrl(uploaded.publicUrl);
-            setBookingReferenceUpload(uploaded);
+            customerBookingFlow.actions.setBookingReferenceUploadResult(
+              uri,
+              uploaded,
+            );
           })
         }
       />
@@ -3671,17 +2721,17 @@ export default function App() {
         customerPaymentMethods={customerPaymentMethods}
         selectedMethodId={selectedCustomerPaymentMethod?.id ?? null}
         selectedPayment={selectedPayment ?? null}
-        promotionValidation={promotionValidation}
-        promoCode={promoCode}
+        promotionValidation={customerBookingFlow.data.promotionValidation}
+        promoCode={customerBookingFlow.data.promoCode}
         busyAction={busyAction}
         onBack={() => navigate('customerBookingDetail', 'customer')}
         onSelectPaymentMethod={setSelectedCustomerPaymentMethodId}
         onSavePaymentMethod={saveCustomerPaymentMethod}
         onPromoCodeChange={(value) => {
-          setPromoCode(value.toUpperCase());
-          setPromotionValidation(null);
+          customerBookingFlow.actions.setPromoCode(value.toUpperCase());
+          customerBookingFlow.actions.setPromotionValidation(null);
         }}
-        onApplyPromotionCode={applyPromotionCode}
+        onApplyPromotionCode={customerBookingFlow.actions.applyPromotionCode}
         onReservePayment={reservePayment}
       />
     );
@@ -3762,7 +2812,7 @@ export default function App() {
           navigate('customerTrackServiceProvider', 'customer');
         }}
         onManageBooking={() => navigate('customerBookingManage', 'customer')}
-        onMessage={() => void openSelectedConversation()}
+        onMessage={() => void messagesFlow.actions.openSelectedBookingConversation()}
         onReservePayment={() => navigate('customerReservePayment', 'customer')}
         onRatingChange={setRating}
         onReviewTextChange={setReviewText}
@@ -3784,7 +2834,7 @@ export default function App() {
         onSheetLevelChange={setCustomerTrackingSheetLevel}
         onClose={() => navigate('customerBookingDetail', 'customer')}
         onRefresh={() => void refreshBookingTracking(selectedBooking.id)}
-        onMessage={() => void openSelectedConversation()}
+        onMessage={() => void messagesFlow.actions.openSelectedBookingConversation()}
       />
     );
   }
@@ -3794,7 +2844,7 @@ export default function App() {
       <CustomerManageBookingScreen
         status={selectedBooking?.status}
         onBack={() => navigate('customerBookingDetail', 'customer')}
-        onMessage={() => void openSelectedConversation()}
+        onMessage={() => void messagesFlow.actions.openSelectedBookingConversation()}
         onTrack={() => {
           if (selectedBooking) {
             void refreshBookingTracking(selectedBooking.id);
@@ -3830,23 +2880,21 @@ export default function App() {
       <CustomerReportIssueScreen
         bookingReference={selectedBooking?.bookingReference ?? 'No booking selected'}
         busyAction={busyAction}
-        desiredResolution={desiredResolution}
-        reportEvidencePhotoUri={reportEvidencePhotoUri}
-        reportEvidencePhotoUrl={reportEvidencePhotoUrl}
-        supportMessage={supportMessage}
-        supportSubject={supportSubject}
+        desiredResolution={supportFlow.data.desiredResolution}
+        reportEvidencePhotoUri={supportFlow.data.reportEvidencePhotoUri}
+        reportEvidencePhotoUrl={supportFlow.data.reportEvidencePhotoUrl}
+        supportMessage={supportFlow.data.supportMessage}
+        supportSubject={supportFlow.data.supportSubject}
         onBack={() => navigate('customerBookingManage', 'customer')}
-        onDesiredResolutionChange={setDesiredResolution}
+        onDesiredResolutionChange={supportFlow.actions.setDesiredResolution}
         onPickEvidence={() =>
           void pickAndUploadImage('support_evidence', (uri, uploaded) => {
-            setReportEvidencePhotoUri(uri);
-            setReportEvidencePhotoUrl(uploaded.publicUrl);
-            setReportEvidenceUpload(uploaded);
+            supportFlow.actions.setReportEvidenceUploadResult(uri, uploaded);
           })
         }
-        onSubmitIssue={submitCustomerIssue}
-        onSupportMessageChange={setSupportMessage}
-        onIssueTypeChange={setSupportSubject}
+        onSubmitIssue={supportFlow.actions.submitCustomerIssue}
+        onSupportMessageChange={supportFlow.actions.setSupportMessage}
+        onIssueTypeChange={supportFlow.actions.setSupportSubject}
       />
     );
   }
@@ -3854,21 +2902,21 @@ export default function App() {
   function renderMessages() {
     return (
       <MessagesScreen
-        conversations={conversations}
+        conversations={messagesFlow.data.conversations}
         bookings={bookings}
-        messages={messages}
-        selectedConversationId={selectedConversationId}
+        messages={messagesFlow.data.messages}
+        selectedConversationId={messagesFlow.data.selectedConversationId}
         appRole={appRole}
         apiOptions={apiOptions}
-        messageDraft={messageDraft}
+        messageDraft={messagesFlow.data.messageDraft}
         busyAction={busyAction}
         hasSession={Boolean(session)}
-        onMessageDraftChange={setMessageDraft}
-        onAttachImage={attachAndSendMessageImage}
-        onMessagesLoaded={setMessages}
+        onMessageDraftChange={messagesFlow.actions.setMessageDraft}
+        onAttachImage={messagesFlow.actions.attachAndSendMessageImage}
+        onMessagesLoaded={messagesFlow.actions.setMessages}
         onNotice={setNotice}
-        onSelectConversation={setSelectedConversationId}
-        onSendMessage={sendMessage}
+        onSelectConversation={messagesFlow.actions.setSelectedConversationId}
+        onSendMessage={messagesFlow.actions.sendMessage}
       />
     );
   }
@@ -3881,7 +2929,7 @@ export default function App() {
           profile={profile}
           navigate={navigate}
           signOut={signOut}
-          unreadNotificationCount={unreadCount}
+          unreadNotificationCount={notificationsFlow.data.unreadCount}
         />
       </>
     );
@@ -4005,9 +3053,9 @@ export default function App() {
     return (
       <NotificationsScreen
         role={role}
-        notifications={notifications}
+        notifications={notificationsFlow.data.notifications}
         navigate={navigate}
-        openNotification={openNotification}
+        openNotification={notificationsFlow.actions.openNotification}
       />
     );
   }
@@ -4038,7 +3086,7 @@ export default function App() {
         providerDashboard={providerDashboard}
         providerApplication={providerApplication}
         payoutTotal={payoutTotal}
-        unreadCount={unreadCount}
+        unreadCount={notificationsFlow.data.unreadCount}
         navigate={navigate}
         openBooking={openBooking}
         busyAction={busyAction}
@@ -4098,7 +3146,7 @@ export default function App() {
         }
         onBack={() => navigate('bookings', 'provider')}
         onCallCustomer={callSelectedBookingCustomer}
-        onMessage={openSelectedConversation}
+        onMessage={messagesFlow.actions.openSelectedBookingConversation}
         onStatusAction={(action) => {
           switch (action) {
             case 'confirm':
@@ -4154,7 +3202,7 @@ export default function App() {
         onArrived={() => navigate('providerStartService', 'provider')}
         onCall={() => void callSelectedBookingCustomer()}
         onClose={() => navigate('providerBookingDetail', 'provider')}
-        onMessage={() => void openSelectedConversation()}
+        onMessage={() => void messagesFlow.actions.openSelectedBookingConversation()}
         onRefreshRoute={() => void refreshProviderDirections(selectedBooking.id)}
         onSheetLevelChange={setProviderNavigationSheetLevel}
       />
@@ -4168,21 +3216,18 @@ export default function App() {
     return (
       <ProviderStartServiceScreen
         booking={selectedBooking}
-        checklist={providerChecklist}
-        photoCaption={providerPhotoCaption}
-        beforePhotoUri={providerBeforePhotoUri}
-        beforePhotoUrl={providerBeforePhotoUrl}
+        checklist={providerServiceFlow.data.providerChecklist}
+        photoCaption={providerServiceFlow.data.providerPhotoCaption}
+        beforePhotoUri={providerServiceFlow.data.providerBeforePhotoUri}
+        beforePhotoUrl={providerServiceFlow.data.providerBeforePhotoUrl}
         busyAction={busyAction}
         onBack={() => navigate('providerBookingDetail', 'provider')}
-        onToggleChecklist={(key: ProviderStartChecklistKey) =>
-          setProviderChecklist((current) => ({
-            ...current,
-            [key]: !current[key],
-          }))
+        onToggleChecklist={providerServiceFlow.actions.toggleChecklist}
+        onPickBeforePhoto={() =>
+          void providerServiceFlow.actions.pickProviderPhoto('before')
         }
-        onPickBeforePhoto={() => void pickProviderPhoto('before')}
-        onPhotoCaptionChange={setProviderPhotoCaption}
-        onStartService={startSelectedService}
+        onPhotoCaptionChange={providerServiceFlow.actions.setProviderPhotoCaption}
+        onStartService={providerServiceFlow.actions.startSelectedService}
       />
     );
   }
@@ -4196,16 +3241,18 @@ export default function App() {
         booking={selectedBooking}
         busyAction={busyAction}
         nowTick={nowTick}
-        progressMessage={providerProgressMessage}
-        progressPhotoUri={providerProgressPhotoUri}
-        progressPhotoUrl={providerProgressPhotoUrl}
+        progressMessage={providerServiceFlow.data.providerProgressMessage}
+        progressPhotoUri={providerServiceFlow.data.providerProgressPhotoUri}
+        progressPhotoUrl={providerServiceFlow.data.providerProgressPhotoUrl}
         timelineEvents={selectedBookingTimelineEvents}
         onBack={() => navigate('providerBookingDetail', 'provider')}
         onCompleteService={() => navigate('providerCompleteService', 'provider')}
-        onPickProgressPhoto={() => void pickProviderPhoto('progress')}
-        onProgressMessageChange={setProviderProgressMessage}
+        onPickProgressPhoto={() =>
+          void providerServiceFlow.actions.pickProviderPhoto('progress')
+        }
+        onProgressMessageChange={providerServiceFlow.actions.setProviderProgressMessage}
         onReportIssue={() => navigate('providerReportIssue', 'provider')}
-        onSendProgressUpdate={submitProviderProgressUpdate}
+        onSendProgressUpdate={providerServiceFlow.actions.submitProviderProgressUpdate}
       />
     );
   }
@@ -4218,14 +3265,16 @@ export default function App() {
       <ProviderCompleteServiceScreen
         booking={selectedBooking}
         busyAction={busyAction}
-        completionNotes={completionNotes}
-        completionPhotoUri={providerCompletionPhotoUri}
-        completionPhotoUrl={providerCompletionPhotoUrl}
+        completionNotes={providerServiceFlow.data.completionNotes}
+        completionPhotoUri={providerServiceFlow.data.providerCompletionPhotoUri}
+        completionPhotoUrl={providerServiceFlow.data.providerCompletionPhotoUrl}
         payment={selectedPayment ?? null}
         onBack={() => navigate('providerServiceInProgress', 'provider')}
-        onCompleteService={completeSelectedService}
-        onCompletionNotesChange={setCompletionNotes}
-        onPickCompletionPhoto={() => void pickProviderPhoto('completion')}
+        onCompleteService={providerServiceFlow.actions.completeSelectedService}
+        onCompletionNotesChange={providerServiceFlow.actions.setCompletionNotes}
+        onPickCompletionPhoto={() =>
+          void providerServiceFlow.actions.pickProviderPhoto('completion')
+        }
       />
     );
   }
@@ -4270,21 +3319,19 @@ export default function App() {
       <ProviderReportIssueScreen
         bookingReference={selectedBooking.bookingReference}
         busyAction={busyAction}
-        providerReportDetails={providerReportDetails}
-        providerReportReason={providerReportReason}
-        reportEvidencePhotoUri={reportEvidencePhotoUri}
-        reportEvidencePhotoUrl={reportEvidencePhotoUrl}
+        providerReportDetails={supportFlow.data.providerReportDetails}
+        providerReportReason={supportFlow.data.providerReportReason}
+        reportEvidencePhotoUri={supportFlow.data.reportEvidencePhotoUri}
+        reportEvidencePhotoUrl={supportFlow.data.reportEvidencePhotoUrl}
         onBack={() => navigate('providerBookingDetail', 'provider')}
         onPickEvidence={() =>
           void pickAndUploadImage('support_evidence', (uri, uploaded) => {
-            setReportEvidencePhotoUri(uri);
-            setReportEvidencePhotoUrl(uploaded.publicUrl);
-            setReportEvidenceUpload(uploaded);
+            supportFlow.actions.setReportEvidenceUploadResult(uri, uploaded);
           })
         }
-        onProviderReportDetailsChange={setProviderReportDetails}
-        onProviderReportReasonChange={setProviderReportReason}
-        onSubmitReport={submitProviderIssue}
+        onProviderReportDetailsChange={supportFlow.actions.setProviderReportDetails}
+        onProviderReportReasonChange={supportFlow.actions.setProviderReportReason}
+        onSubmitReport={supportFlow.actions.submitProviderIssue}
       />
     );
   }
@@ -4520,131 +3567,102 @@ export default function App() {
     );
   }
 
-  async function loadSupportTicketReplies(ticketId: string) {
-    if (!session) {
-      return;
-    }
-    try {
-      const replies = await listSupportTicketReplies(ticketId, apiOptions);
-      setSupportReplies((current) => ({ ...current, [ticketId]: replies }));
-    } catch (error) {
-      setNotice(readError(error));
-    }
-  }
-
-  function toggleSupportTicket(ticketId: string) {
-    if (expandedSupportTicketId === ticketId) {
-      setExpandedSupportTicketId(null);
-      return;
-    }
-    setExpandedSupportTicketId(ticketId);
-    setSupportReplyDraft('');
-    if (!supportReplies[ticketId]) {
-      void loadSupportTicketReplies(ticketId);
-    }
-  }
-
-  async function submitSupportReply(ticketId: string) {
-    const message = supportReplyDraft.trim();
-    if (!message || !session) {
-      return;
-    }
-    setBusyAction(`support-reply-${ticketId}`);
-    try {
-      const reply = await createSupportTicketReply(ticketId, message, apiOptions);
-      setSupportReplies((current) => {
-        const existing = current[ticketId] ?? [];
-        return { ...current, [ticketId]: [...existing, reply] };
-      });
-      setSupportReplyDraft('');
-      setNotice('Reply sent.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
   const supportPanel = (
     <SupportPanel
       busyAction={busyAction}
       currentUserId={profile?.user.id ?? null}
-      expandedTicketId={expandedSupportTicketId}
+      expandedTicketId={supportFlow.data.expandedSupportTicketId}
       isSignedIn={Boolean(session)}
-      supportMessage={supportMessage}
-      supportReplies={supportReplies}
-      supportReplyDraft={supportReplyDraft}
-      supportSubject={supportSubject}
-      supportTickets={supportTickets}
-      onMessageChange={setSupportMessage}
-      onOpenTicket={() => void submitSupportTicket()}
-      onReplyDraftChange={setSupportReplyDraft}
-      onSubmitReply={(ticketId) => void submitSupportReply(ticketId)}
-      onSubjectChange={setSupportSubject}
-      onToggleTicket={toggleSupportTicket}
+      supportMessage={supportFlow.data.supportMessage}
+      supportReplies={supportFlow.data.supportReplies}
+      supportReplyDraft={supportFlow.data.supportReplyDraft}
+      supportSubject={supportFlow.data.supportSubject}
+      supportTickets={supportFlow.data.supportTickets}
+      onMessageChange={supportFlow.actions.setSupportMessage}
+      onOpenTicket={() => void supportFlow.actions.submitSupportTicket()}
+      onReplyDraftChange={supportFlow.actions.setSupportReplyDraft}
+      onSubmitReply={(ticketId) => void supportFlow.actions.submitSupportReply(ticketId)}
+      onSubjectChange={supportFlow.actions.setSupportSubject}
+      onToggleTicket={supportFlow.actions.toggleSupportTicket}
     />
   );
 
-  const isAuthScreen =
-    route.screen === 'authGate' ||
-    route.screen === 'loginRole' ||
-    route.screen === 'customerLogin' ||
-    route.screen === 'providerLogin' ||
-    route.screen === 'signupRole' ||
-    route.screen === 'customerRegistration' ||
-    route.screen === 'providerRegistration';
-
-  if (isAuthScreen) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar style="light" />
-        <Suspense fallback={<RouteLoading />}>{renderAuth()}</Suspense>
-        {busyAction ? (
-          <View style={styles.busyPill}>
-            <ActivityIndicator color={palette.white} />
-            <Text style={styles.busyText}>{notice}</Text>
-          </View>
-        ) : null}
-      </SafeAreaView>
-    );
-  }
+  const routeRenderers: AppRouterRenderers = {
+    auth: renderAuth,
+    customer: {
+      bookingConfirmation: renderBookingConfirmation,
+      bookingDetail: renderCustomerBookingDetail,
+      bookingForm: renderCustomerBookingForm,
+      bookingReview: renderBookingReview,
+      bookings: renderBookings,
+      calendar: renderCustomerCalendar,
+      cancelBooking: renderCancelBooking,
+      category: renderCustomerCategory,
+      customerAllServices: () => renderCustomerAllServices('All Services'),
+      customerExplore: renderCustomerExplore,
+      customerProviderProfile: renderCustomerProviderProfile,
+      customerTopProviders: renderCustomerTopProviders,
+      help: renderCustomerHelp,
+      manageBooking: renderManageBooking,
+      messages: renderMessages,
+      more: renderMore,
+      notifications: renderCustomerNotifications,
+      paymentMethods: renderCustomerPaymentMethods,
+      profile: renderCustomerProfile,
+      referral: renderCustomerReferral,
+      reportIssue: renderReportIssue,
+      reservePayment: renderReservePayment,
+      serviceHistory: renderCustomerServiceHistory,
+      settings: renderCustomerSettings,
+      terms: renderCustomerTerms,
+      trackServiceProvider: renderCustomerTrackServiceProvider,
+    },
+    customerAllServices: renderCustomerAllServices,
+    provider: {
+      bookingDetail: renderProviderBookingDetail,
+      bookings: renderProviderBookings,
+      calendar: renderProviderCalendar,
+      cancelBooking: renderProviderCancelBooking,
+      completeService: renderProviderCompleteService,
+      editProfile: renderProviderEditProfile,
+      help: renderProviderHelp,
+      home: renderProviderHome,
+      insights: renderProviderInsights,
+      messages: renderMessages,
+      more: renderProviderMore,
+      navigationMode: renderProviderNavigationMode,
+      notifications: renderProviderNotifications,
+      payoutManagement: renderProviderPayoutManagement,
+      portfolio: renderProviderPortfolio,
+      profileView: renderProviderProfileView,
+      reportIssue: renderProviderReportIssue,
+      requestPayout: renderProviderRequestPayout,
+      security: renderProviderSecurity,
+      serviceCompleted: renderProviderServiceCompleted,
+      serviceInProgress: renderProviderServiceInProgress,
+      serviceReceipt: renderProviderServiceReceipt,
+      services: renderProviderServices,
+      setAvailability: renderProviderSetAvailability,
+      settings: renderProviderSettings,
+      startService: renderProviderStartService,
+    },
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      {route.role === 'provider' || (session && appRole === 'provider')
-        ? renderProvider()
-        : renderCustomer()}
-      {busyAction ? (
-        <View style={styles.busyPill}>
-          <ActivityIndicator color={palette.white} />
-          <Text style={styles.busyText}>{notice}</Text>
-        </View>
-      ) : null}
-    </SafeAreaView>
+    <AppShell busyAction={busyAction} notice={notice}>
+      <AppRouter
+        appRole={appRole}
+        navigate={navigate}
+        renderers={routeRenderers}
+        route={route}
+        session={session}
+        unreadCount={notificationsFlow.data.unreadCount}
+      />
+    </AppShell>
   );
 }
 
-function RouteLoading() {
-  return (
-    <View style={styles.routeLoading}>
-      <ActivityIndicator color={palette.mint} />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: palette.white,
-    flex: 1,
-  },
-  routeLoading: {
-    alignItems: 'center',
-    backgroundColor: palette.cream,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 420,
-  },
+export const legacyAppStyles = StyleSheet.create({
   profileHero: {
     alignItems: 'center',
   },
@@ -6236,22 +5254,5 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: palette.muted,
     textAlign: 'center',
-  },
-  busyPill: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: palette.mint,
-    borderRadius: radius.pill,
-    bottom: 112,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-    position: 'absolute',
-  },
-  busyText: {
-    color: palette.white,
-    fontSize: 12,
-    fontWeight: '800',
   },
 });
