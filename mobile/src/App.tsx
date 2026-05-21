@@ -393,6 +393,11 @@ const ProviderSecurityScreen = lazy(() =>
     default: module.ProviderSecurityScreen,
   })),
 );
+const CustomerSecurityScreen = lazy(() =>
+  import('./features/customer-security/views/CustomerSecurity').then((module) => ({
+    default: module.CustomerSecurityScreen,
+  })),
+);
 const ProviderCompleteServiceScreen = lazy(() =>
   import('./features/provider-complete-service/views/ProviderCompleteService').then((module) => ({
     default: module.ProviderCompleteServiceScreen,
@@ -3344,23 +3349,32 @@ export default function App() {
         profileEmail={profile?.user.email}
         currentPassword={currentPassword}
         newPassword={newPassword}
-        twoFactorEnabled={twoFactorEnabled}
-        twoFactorSecret={twoFactorSecret}
-        twoFactorCode={twoFactorCode}
         deleteConfirmText={deleteConfirmText}
         busyAction={busyAction}
         onBack={() => goBack({ role: 'customer', screen: 'more' })}
         setNotice={setNotice}
         setCurrentPassword={setCurrentPassword}
         setNewPassword={setNewPassword}
-        setTwoFactorCode={setTwoFactorCode}
         setDeleteConfirmText={setDeleteConfirmText}
         savePreferences={savePreferences}
         savePassword={savePassword}
+        deleteMyAccount={deleteMyAccount}
+      />
+    );
+  }
+
+  function renderCustomerSecurity() {
+    return (
+      <CustomerSecurityScreen
+        busyAction={busyAction}
+        onBack={() => goBack({ role: 'customer', screen: 'more' })}
+        twoFactorCode={twoFactorCode}
+        twoFactorEnabled={twoFactorEnabled}
+        twoFactorSecret={twoFactorSecret}
+        setTwoFactorCode={setTwoFactorCode}
         startTwoFactorSetup={startTwoFactorSetup}
         verifyTwoFactorSetup={verifyTwoFactorSetup}
         disableTwoFactorSetup={disableTwoFactorSetup}
-        deleteMyAccount={deleteMyAccount}
       />
     );
   }
@@ -3989,6 +4003,7 @@ export default function App() {
       referral: renderCustomerReferral,
       reportIssue: renderReportIssue,
       reservePayment: renderReservePayment,
+      security: renderCustomerSecurity,
       serviceHistory: renderCustomerServiceHistory,
       settings: renderCustomerSettings,
       terms: renderCustomerTerms,

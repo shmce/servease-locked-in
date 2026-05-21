@@ -30,6 +30,7 @@ export type DetailScreen =
   | 'customerSearchResults'
   | 'customerProfile'
   | 'customerSettings'
+  | 'customerSecurity'
   | 'customerHelp'
   | 'customerServiceHistory'
   | 'customerNotifications'

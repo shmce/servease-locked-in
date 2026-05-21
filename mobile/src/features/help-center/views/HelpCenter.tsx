@@ -4,6 +4,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 import {
@@ -16,7 +17,6 @@ import {
 } from 'lucide-react-native';
 import {
   EmptyState,
-  Field,
   Pill,
   Section,
   TopBar,
@@ -33,18 +33,18 @@ type HelpCenterScreenProps = {
 
 function HelpFaqIcon({ kind }: { kind: string }) {
   if (kind === 'payment') {
-    return <CreditCard color={palette.amber} size={16} />;
+    return <CreditCard color={palette.mint} size={16} />;
   }
   if (kind === 'safety' || kind === 'account') {
-    return <ShieldCheck color={palette.violet} size={16} />;
+    return <ShieldCheck color={palette.mint} size={16} />;
   }
   if (kind === 'payout') {
     return <Wallet color={palette.mint} size={16} />;
   }
   if (kind === 'profile') {
-    return <User color={palette.amber} size={16} />;
+    return <User color={palette.mint} size={16} />;
   }
-  return <Calendar color={palette.blue} size={16} />;
+  return <Calendar color={palette.mint} size={16} />;
 }
 
 export function HelpCenterScreen({
@@ -60,12 +60,15 @@ export function HelpCenterScreen({
       <View style={styles.helpHeader}>
         <TopBar title="Help Center" green onBack={onBack} />
         <View style={styles.helpSearch}>
-          <Search color={palette.faint} size={20} />
-          <Field
-            label=""
+          <Search color="rgba(255,255,255,0.7)" size={16} strokeWidth={2.2} />
+          <TextInput
+            style={styles.searchInput}
             value={help.data.query}
             onChangeText={help.setQuery}
             placeholder={help.data.searchPlaceholder}
+            placeholderTextColor="rgba(255,255,255,0.55)"
+            returnKeyType="search"
+            autoCapitalize="none"
           />
         </View>
       </View>
@@ -126,13 +129,21 @@ const styles = StyleSheet.create({
   },
   helpSearch: {
     alignItems: 'center',
-    backgroundColor: palette.white,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     borderRadius: radius.md,
     flexDirection: 'row',
     gap: spacing.sm,
     marginBottom: spacing.md,
     marginHorizontal: spacing.md,
-    paddingLeft: spacing.base,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+  },
+  searchInput: {
+    color: palette.white,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    paddingVertical: 0,
   },
   withBottomNav: {
     backgroundColor: palette.cream,
@@ -148,21 +159,16 @@ const styles = StyleSheet.create({
     paddingRight: spacing.md,
   },
   faqCard: {
-    backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: 14,
-    borderWidth: 2,
     gap: spacing.md,
-    padding: spacing.base,
-    boxShadow: '0 4px 8px rgba(0,0,0,0.04)',
+    paddingVertical: spacing.md,
   },
   faqCardOpen: {
-    backgroundColor: '#FAFFFE',
-    borderColor: palette.mint,
+    borderBottomColor: palette.mintSoft,
+    borderBottomWidth: 1,
   },
   faqIcon: {
     alignItems: 'center',
-    backgroundColor: '#EFF7FE',
+    backgroundColor: palette.mintSoft,
     borderRadius: radius.sm,
     height: 32,
     justifyContent: 'center',
@@ -174,7 +180,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     color: palette.mint,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     marginTop: spacing.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -191,7 +197,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: palette.ink,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   cardBody: {
     color: palette.muted,

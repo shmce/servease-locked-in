@@ -27,8 +27,6 @@ export type CustomerSettingsViewModelInput = {
   activeSessions: CurrentUserSessionSummary[];
   profileEmail?: string | null;
   deleteConfirmText: string;
-  twoFactorEnabled: boolean;
-  twoFactorSecret: string;
   savePreferences: (patch: CustomerSettingsPreferencePatch) => void | Promise<void>;
 };
 
@@ -46,8 +44,6 @@ export function useCustomerSettingsViewModel({
   activeSessions,
   profileEmail,
   deleteConfirmText,
-  twoFactorEnabled,
-  twoFactorSecret,
   savePreferences,
 }: CustomerSettingsViewModelInput) {
   return useMemo(() => {
@@ -100,10 +96,7 @@ export function useCustomerSettingsViewModel({
         languageLabel: language === 'fil' ? 'Filipino' : 'English',
         nextLanguage: language === 'fil' ? 'en' : 'fil',
         activeSessionRows,
-        twoFactor: {
-          isEnabled: twoFactorEnabled,
-          secret: twoFactorSecret,
-        },
+        twoFactor: null,
         profileEmail: profileEmail ?? null,
         canConfirmAccountDeletion:
           Boolean(profileEmail) && deleteConfirmText.trim() === profileEmail,
@@ -132,8 +125,6 @@ export function useCustomerSettingsViewModel({
     profileEmail,
     pushNotificationsEnabled,
     savePreferences,
-    twoFactorEnabled,
-    twoFactorSecret,
     userPreferences,
   ]);
 }

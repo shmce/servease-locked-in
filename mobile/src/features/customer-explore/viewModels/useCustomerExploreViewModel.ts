@@ -25,6 +25,8 @@ type CustomerExploreViewModelInput = {
   selectedProviderId: string | null;
   selectedServiceId: string | null;
   services: CatalogServiceItem[];
+  sheetCategoryId?: string | null;
+  sheetSearchQuery?: string;
   unreadCount: number;
 };
 
@@ -64,6 +66,8 @@ export function useCustomerExploreViewModel({
   selectedProviderId,
   selectedServiceId,
   services,
+  sheetCategoryId,
+  sheetSearchQuery,
   unreadCount,
 }: CustomerExploreViewModelInput) {
   return useMemo(() => buildCustomerExploreViewModel({
@@ -78,6 +82,8 @@ export function useCustomerExploreViewModel({
     selectedProviderId,
     selectedServiceId,
     services,
+    sheetCategoryId,
+    sheetSearchQuery,
     unreadCount,
   }), [
     bookings,
@@ -91,6 +97,8 @@ export function useCustomerExploreViewModel({
     selectedProviderId,
     selectedServiceId,
     services,
+    sheetCategoryId,
+    sheetSearchQuery,
     unreadCount,
   ]);
 }
@@ -107,6 +115,8 @@ export function buildCustomerExploreViewModel({
   selectedProviderId,
   selectedServiceId,
   services,
+  sheetCategoryId,
+  sheetSearchQuery,
   unreadCount,
 }: CustomerExploreViewModelInput) {
   const safeGuideStep = customerGuideStep % guideSteps.length;
@@ -137,7 +147,7 @@ export function buildCustomerExploreViewModel({
     id: category.id,
     isPopular: category.id === popularCategoryId,
     isSelected: category.id === selectedCategoryId,
-    subtitle: category.description ?? 'Tap to view services',
+    subtitle: category.description ?? 'Tap to browse services',
     title: category.name,
   }));
 
@@ -147,6 +157,17 @@ export function buildCustomerExploreViewModel({
     popularityScoresByCategory,
     ratingScoresByCategory,
   );
+
+  // Sheet — services for the tapped category, with search applied
+  const sheetCategoryServices = sheetCategoryId
+    ? services.filter(s => s.categoryId === sheetCategoryId)
+    : [];
+  const sheetQuery = (sheetSearchQuery ?? '').trim().toLowerCase();
+  const filteredSheetServices = sheetQuery
+    ? sheetCategoryServices.filter(s =>
+        [s.name, s.description ?? ''].some(v => v.toLowerCase().includes(sheetQuery)),
+      )
+    : sheetCategoryServices;
 
   return {
     data: {
@@ -168,21 +189,6 @@ export function buildCustomerExploreViewModel({
         unreadCount > 0
           ? `Notifications, ${unreadCount} unread`
           : 'Notifications',
-      providerRows: providers.map((provider) => ({
-        description: provider.description ?? 'Ready to book.',
-        id: provider.id,
-        isSelected: provider.providerId === selectedProviderId,
-        priceLabel: formatMoney(provider.price),
-        provider,
-        providerBusinessName: provider.providerBusinessName ?? 'Service provider',
-        ratingLabel: `${provider.averageRating.toFixed(1)} rating - ${
-          provider.reviewCount
-        } reviews`,
-        title: provider.title,
-        verificationStatus: provider.verificationStatus,
-        verificationTone:
-          provider.verificationStatus === 'approved' ? 'success' as const : 'warning' as const,
-      })),
       serviceRows: services.map((service) => ({
         description: service.description ?? 'Bookable service',
         id: service.id,
@@ -191,6 +197,22 @@ export function buildCustomerExploreViewModel({
         service,
         title: service.name,
       })),
+      providerRows: providers.map((provider) => ({
+        id: provider.id,
+        isSelected: provider.id === selectedProviderId,
+        priceLabel: formatMoney(provider.price),
+        provider,
+        ratingLabel: provider.averageRating.toFixed(1),
+        title: provider.providerBusinessName ?? provider.title,
+      })),
+      sheetServiceRows: filteredSheetServices.map((service) => ({
+        id: service.id,
+        name: service.name,
+        description: service.description ?? 'Bookable service',
+        priceLabel: formatMoney(service.price),
+        service,
+      })),
+      sheetTotalServiceCount: sheetCategoryServices.length,
       unreadCount,
     },
     isLoading: false,

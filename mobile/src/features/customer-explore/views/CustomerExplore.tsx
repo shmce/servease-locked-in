@@ -23,6 +23,7 @@ import {
   CategoryFilter,
   useCustomerExploreViewModel,
 } from '../viewModels/useCustomerExploreViewModel';
+import { CategorySheet } from './CategorySheet';
 
 type CustomerExploreScreenProps = {
   bookings: BookingSummary[];
@@ -86,6 +87,8 @@ export function CustomerExploreScreen({
   onViewTopProviders,
 }: CustomerExploreScreenProps) {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [sheetCategory, setSheetCategory] = useState<CatalogCategory | null>(null);
+  const [sheetSearchQuery, setSheetSearchQuery] = useState('');
 
   const explore = useCustomerExploreViewModel({
     bookings,
@@ -99,8 +102,25 @@ export function CustomerExploreScreen({
     selectedProviderId,
     selectedServiceId,
     services,
+    sheetCategoryId: sheetCategory?.id ?? null,
+    sheetSearchQuery,
     unreadCount,
   });
+
+  function openSheet(category: CatalogCategory) {
+    setSheetCategory(category);
+    setSheetSearchQuery('');
+  }
+
+  function closeSheet() {
+    setSheetCategory(null);
+    setSheetSearchQuery('');
+  }
+
+  function handleSeeAll() {
+    if (sheetCategory) onSelectCategory(sheetCategory);
+    closeSheet();
+  }
   const { data } = explore;
   const GuideIcon = guideIcons[data.guide.iconKey];
 
@@ -256,12 +276,27 @@ export function CustomerExploreScreen({
                 subtitle={category.subtitle}
                 selected={category.isSelected}
                 tag={category.isPopular ? 'Popular' : undefined}
-                onPress={() => onSelectCategory(category.category)}
+                onPress={() => openSheet(category.category)}
               />
             ))}
           </View>
         </Section>
+
       </View>
+
+      <CategorySheet
+        category={sheetCategory}
+        serviceRows={data.sheetServiceRows}
+        totalServiceCount={data.sheetTotalServiceCount}
+        searchQuery={sheetSearchQuery}
+        onSearchChange={setSheetSearchQuery}
+        onSelectService={(service) => {
+          closeSheet();
+          onSelectService(service);
+        }}
+        onSeeAll={handleSeeAll}
+        onClose={closeSheet}
+      />
     </ScrollView>
   );
 }

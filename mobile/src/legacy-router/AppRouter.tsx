@@ -47,6 +47,7 @@ type CustomerRendererName =
   | 'referral'
   | 'reportIssue'
   | 'reservePayment'
+  | 'security'
   | 'serviceHistory'
   | 'settings'
   | 'terms'
@@ -294,6 +295,8 @@ function renderCustomerRoute(
       return renderers.customer.profile();
     case 'customerSettings':
       return renderers.customer.settings();
+    case 'customerSecurity':
+      return renderers.customer.security();
     case 'customerPaymentMethods':
       return renderers.customer.paymentMethods();
     case 'customerHelp':

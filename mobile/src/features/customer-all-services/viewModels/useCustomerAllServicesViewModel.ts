@@ -40,9 +40,7 @@ export function buildCustomerAllServicesViewModel({
     data: {
       visibleServices: visibleServices.map((service) => ({
         service,
-        initial: service.name.slice(0, 1),
         description: service.description ?? 'Bookable service',
-        ratingLabel: '4.8',
         priceLabel: `From ${formatMoney(service.price)}`,
       })),
       hasVisibleServices: visibleServices.length > 0,
