@@ -1,16 +1,25 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import {
-  Card,
-  MetricCard,
+  BarChart2,
+  CheckCircle2,
+  Clock,
+  Star,
+  TrendingUp,
+  Users,
+} from 'lucide-react-native';
+import {
   PrimaryButton,
-  Section,
   TopBar,
 } from '../../../components/DesignKit';
 import {
   BookingSummary,
   ProviderDashboardSummary,
 } from '../../../shared/models/types';
-import { palette, spacing } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { useProviderInsightsViewModel } from '../viewModels/useProviderInsightsViewModel';
 
 type ProviderInsightsScreenProps = {
@@ -26,15 +35,12 @@ export function ProviderInsightsScreen({
   onBack,
   refreshWorkspace,
 }: ProviderInsightsScreenProps) {
-  const insights = useProviderInsightsViewModel({
-    providerDashboard,
-    bookings,
-  });
+  const insights = useProviderInsightsViewModel({ providerDashboard, bookings });
 
   return (
     <>
       <TopBar
-        title="Performance Insights"
+        title="Insights"
         subtitle="How your business is performing"
         onBack={onBack}
         right={
@@ -45,121 +51,243 @@ export function ProviderInsightsScreen({
           />
         }
       />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <MetricCard
-            label="Total Earnings"
-            value={insights.data.totalEarnings}
-            featured
-          />
-          <View style={styles.metricGrid}>
-            <MetricCard
-              label="Overall Rating"
-              value={insights.data.overallRating}
-            />
-            <MetricCard
-              label="Total Reviews"
-              value={insights.data.totalReviews}
-            />
-            <MetricCard
-              label="Today's Earnings"
-              value={insights.data.todayEarnings}
-            />
+      <ScreenScroll>
+        <ScreenContent>
+
+          {/* Featured earnings */}
+          <View style={styles.featuredCard}>
+            <TrendingUp color={palette.white} size={22} strokeWidth={2.2} />
+            <Text style={styles.featuredLabel}>Total Earnings</Text>
+            <Text style={styles.featuredValue}>{insights.data.totalEarnings}</Text>
+            <Text style={styles.featuredSub}>Today: {insights.data.todayEarnings}</Text>
           </View>
 
-          <Section title="Service performance">
-            <Card>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Acceptance rate</Text>
-                <Text style={styles.infoValue}>{insights.data.acceptanceRateLabel}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Completion rate</Text>
-                <Text style={styles.infoValue}>{insights.data.completionRateLabel}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Average response time</Text>
-                <Text style={styles.infoValue}>{insights.data.responseTimeLabel}</Text>
-              </View>
-            </Card>
-          </Section>
-
-          <Section title="Booking activity">
-            <View style={styles.metricGrid}>
-              <MetricCard label="Total Bookings" value={insights.data.totalBookings} />
-              <MetricCard label="Completed" value={insights.data.completedCount} />
-              <MetricCard label="Cancelled" value={insights.data.cancelledCount} />
+          {/* Rating + Reviews */}
+          <View style={styles.statRow}>
+            <View style={styles.statCard}>
+            <Star color={palette.mint} fill={palette.mint} size={20} />
+              <Text style={styles.statValue}>{insights.data.overallRating}</Text>
+              <Text style={styles.statLabel}>Rating</Text>
             </View>
-            <Card>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Repeat customers</Text>
-                <Text style={styles.infoValue}>{insights.data.repeatCustomers}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>New booking requests</Text>
-                <Text style={styles.infoValue}>{insights.data.newRequests}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Today&apos;s bookings</Text>
-                <Text style={styles.infoValue}>{insights.data.todayBookings}</Text>
-              </View>
-            </Card>
-          </Section>
+            <View style={styles.statDivider} />
+            <View style={styles.statCard}>
+              <Users color={palette.mint} size={20} strokeWidth={2.2} />
+              <Text style={styles.statValue}>{insights.data.totalReviews}</Text>
+              <Text style={styles.statLabel}>Reviews</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statCard}>
+              <BarChart2 color={palette.mint} size={20} strokeWidth={2.2} />
+              <Text style={styles.statValue}>{insights.data.totalBookings}</Text>
+              <Text style={styles.statLabel}>Bookings</Text>
+            </View>
+          </View>
 
-          <Section title="Tips to grow">
+          {/* Service performance */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Service Performance</Text>
+            <View style={styles.metricPanel}>
+              <View style={styles.metricRow}>
+                <View style={styles.metricIcon}>
+                  <CheckCircle2 color={palette.mint} size={16} strokeWidth={2.2} />
+                </View>
+                <Text style={styles.metricName}>Acceptance rate</Text>
+                <Text style={styles.metricValue}>{insights.data.acceptanceRateLabel}</Text>
+              </View>
+              <View style={[styles.metricRow, styles.metricRowDivider]}>
+                <View style={styles.metricIcon}>
+                  <CheckCircle2 color={palette.mint} size={16} strokeWidth={2.2} />
+                </View>
+                <Text style={styles.metricName}>Completion rate</Text>
+                <Text style={styles.metricValue}>{insights.data.completionRateLabel}</Text>
+              </View>
+              <View style={[styles.metricRow, styles.metricRowDivider]}>
+                <View style={styles.metricIcon}>
+                  <Clock color={palette.mint} size={16} strokeWidth={2.2} />
+                </View>
+                <Text style={styles.metricName}>Avg. response time</Text>
+                <Text style={styles.metricValue}>{insights.data.responseTimeLabel}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Booking activity */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Booking Activity</Text>
+            <View style={styles.bookingRow}>
+              <View style={styles.bookingCard}>
+                <Text style={styles.bookingValue}>{insights.data.completedCount}</Text>
+                <Text style={styles.bookingLabel}>Completed</Text>
+              </View>
+              <View style={styles.bookingCard}>
+                <Text style={styles.bookingValue}>{insights.data.cancelledCount}</Text>
+                <Text style={styles.bookingLabel}>Cancelled</Text>
+              </View>
+              <View style={styles.bookingCard}>
+                <Text style={styles.bookingValue}>{insights.data.todayBookings}</Text>
+                <Text style={styles.bookingLabel}>Today</Text>
+              </View>
+            </View>
+            <View style={styles.metricPanel}>
+              <View style={styles.metricRow}>
+                <Text style={styles.metricName}>Repeat customers</Text>
+                <Text style={styles.metricValue}>{insights.data.repeatCustomers}</Text>
+              </View>
+              <View style={[styles.metricRow, styles.metricRowDivider]}>
+                <Text style={styles.metricName}>New booking requests</Text>
+                <Text style={styles.metricValue}>{insights.data.newRequests}</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Growth tips */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Tips to Grow</Text>
             {insights.data.growthTips.map((tip) => (
-              <Card key={tip}>
-                <Text style={styles.cardBody}>{tip}</Text>
-              </Card>
+              <View key={tip} style={styles.tipCard}>
+                <TrendingUp color={palette.mint} size={14} strokeWidth={2.2} />
+                <Text style={styles.tipText}>{tip}</Text>
+              </View>
             ))}
-          </Section>
-        </View>
-      </ScrollView>
+          </View>
+
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
-  metricGrid: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  infoRow: {
+  featuredCard: {
     alignItems: 'center',
-    borderBottomColor: palette.lineSoft,
-    borderBottomWidth: 1,
+    backgroundColor: palette.mint,
+    borderRadius: radius.lg,
+    gap: spacing.xs,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.base,
+  },
+  featuredLabel: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  featuredValue: {
+    color: palette.white,
+    fontSize: 32,
+    fontWeight: '900',
+  },
+  featuredSub: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+
+  statRow: {
+    alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
+  },
+  statCard: {
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.xs,
+    paddingVertical: spacing.md,
+  },
+  statDivider: {
+    backgroundColor: palette.lineSoft,
+    height: 48,
+    width: 1,
+  },
+  statValue: {
+    color: palette.ink,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  statLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+
+  sectionBlock: {
+    gap: spacing.sm,
+  },
+  sectionLabel: {
+    color: palette.faint,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    paddingHorizontal: spacing.xs,
+    textTransform: 'uppercase',
+  },
+
+  metricRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
     minHeight: 48,
     paddingVertical: spacing.sm,
   },
-  infoLabel: {
-    color: palette.faint,
+  metricPanel: {
+    gap: 0,
+  },
+  metricRowDivider: {
+    borderTopColor: palette.lineSoft,
+    borderTopWidth: 1,
+  },
+  metricIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.lineSoft,
+    borderRadius: radius.sm,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  metricName: {
+    color: palette.muted,
     flex: 1,
     fontSize: 13,
+    fontWeight: '500',
+  },
+  metricValue: {
+    color: palette.ink,
+    fontSize: 14,
     fontWeight: '700',
   },
-  infoValue: {
-    color: palette.ink,
-    flex: 1.4,
-    fontSize: 13,
-    fontWeight: '800',
-    textAlign: 'right',
+
+  bookingRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
   },
-  cardBody: {
+  bookingCard: {
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.xs,
+    paddingVertical: spacing.base,
+  },
+  bookingValue: {
+    color: palette.ink,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  bookingLabel: {
     color: palette.muted,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+
+  tipCard: {
+    alignItems: 'flex-start',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.base,
+  },
+  tipText: {
+    color: palette.mintDeep,
+    flex: 1,
     fontSize: 13,
     fontWeight: '500',
-    lineHeight: 18,
+    lineHeight: 19,
   },
 });

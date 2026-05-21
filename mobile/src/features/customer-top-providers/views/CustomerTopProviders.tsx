@@ -29,7 +29,7 @@ export function CustomerTopProvidersScreen({
 
   return (
     <>
-      <TopBar title="Top-rated Providers" onBack={onBack} />
+      <TopBar title="Choose a Provider" onBack={onBack} />
       <ScreenScroll>
         <ScreenContent>
           <View style={styles.searchBar}>

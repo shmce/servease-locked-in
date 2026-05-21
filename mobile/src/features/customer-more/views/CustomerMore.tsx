@@ -1,11 +1,19 @@
+import {
+  Bell,
+  ChevronRight,
+  CreditCard,
+  FileText,
+  Gift,
+  HelpCircle,
+  LogOut,
+  Settings as SettingsIcon,
+  ShieldCheck,
+  User,
+} from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LogOut } from 'lucide-react-native';
-import { QuickAction } from '../../../components/AppDisplay';
-import { TopBar } from '../../../components/DesignKit';
 import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { CurrentUserProfile } from '../../../shared/models/types';
-import { ActionRow } from '../../../shared/components/ScreenLayout';
 import { useCustomerMoreViewModel } from '../viewModels/useCustomerMoreViewModel';
 
 type CustomerMoreScreenProps = {
@@ -15,6 +23,23 @@ type CustomerMoreScreenProps = {
   unreadNotificationCount?: number;
 };
 
+const itemIcon: Record<string, typeof User> = {
+  'My Profile': User,
+  'Notifications': Bell,
+  'Refer a Friend': Gift,
+  'Payment Methods': CreditCard,
+  'Security': ShieldCheck,
+  'Settings': SettingsIcon,
+  'Help & Support': HelpCircle,
+  'Terms & Privacy': FileText,
+};
+
+const menuGroups = [
+  { title: 'Account', labels: ['My Profile', 'Refer a Friend', 'Payment Methods'] },
+  { title: 'Preferences', labels: ['Notifications', 'Security', 'Settings'] },
+  { title: 'Support', labels: ['Help & Support', 'Terms & Privacy'] },
+];
+
 export function CustomerMoreScreen({
   profile,
   navigate,
@@ -23,72 +48,106 @@ export function CustomerMoreScreen({
 }: CustomerMoreScreenProps) {
   const more = useCustomerMoreViewModel({ profile, unreadNotificationCount });
   const { data } = more;
+  const allItems = data.actionRows.flat();
 
   return (
-    <>
-      <TopBar title="More" subtitle="Account and preferences" />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+    <ScrollView contentContainerStyle={styles.scrollContent}>
+      <View style={styles.content}>
 
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{data.initial}</Text>
-            </View>
-            <View style={styles.flex}>
-              <Text style={styles.name}>{data.displayName}</Text>
-              <Text style={styles.email}>{data.displayEmail}</Text>
-            </View>
+        <View style={styles.profileCard}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{data.initial}</Text>
           </View>
-
-          {data.actionRows.map((row) => (
-            <ActionRow key={row.map((a) => a.label).join('-')}>
-              {row.map((action) => (
-                <QuickAction
-                  key={action.label}
-                  label={action.label}
-                  badge={action.badge}
-                  onPress={() => navigate(action.screen, 'customer')}
-                />
-              ))}
-            </ActionRow>
-          ))}
-
-          <Pressable style={styles.logoutButton} onPress={() => void signOut()}>
-            <LogOut color={palette.red} size={20} strokeWidth={2.2} />
-            <Text style={styles.logoutText}>Log out</Text>
+          <View style={styles.flex}>
+            <Text style={styles.profileName}>{data.displayName}</Text>
+            <Text style={styles.profileEmail}>{data.displayEmail}</Text>
+          </View>
+          <Pressable
+            style={styles.editBadge}
+            onPress={() => navigate('customerProfile', 'customer')}
+            accessibilityRole="button"
+            accessibilityLabel="Edit profile"
+          >
+            <Text style={styles.editBadgeText}>Edit</Text>
           </Pressable>
-
-          <Text style={styles.versionText}>ServEase v1.0.0</Text>
-
         </View>
-      </ScrollView>
-    </>
+
+        {menuGroups.map((group) => {
+          const groupItems = allItems.filter((i) => group.labels.includes(i.label));
+          if (groupItems.length === 0) return null;
+          return (
+            <View key={group.title} style={styles.menuGroup}>
+              <Text style={styles.groupTitle}>{group.title}</Text>
+              <View style={styles.menuCard}>
+                {groupItems.map((item, index) => {
+                  const Icon = itemIcon[item.label] ?? ChevronRight;
+                  return (
+                    <Pressable
+                      key={item.label}
+                      style={[
+                        styles.menuRow,
+                        index < groupItems.length - 1 && styles.menuRowDivider,
+                      ]}
+                      onPress={() => navigate(item.screen, 'customer')}
+                      accessibilityRole="button"
+                      accessibilityLabel={item.label}
+                    >
+                      <View style={styles.menuIconBg}>
+                        <Icon color={palette.mint} size={18} strokeWidth={2.2} />
+                      </View>
+                      <Text style={styles.menuLabel}>{item.label}</Text>
+                      {item.badge ? (
+                        <View style={styles.menuBadge}>
+                          <Text style={styles.menuBadgeText}>
+                            {item.badge > 99 ? '99+' : item.badge}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <ChevronRight color={palette.line} size={16} />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })}
+
+        <Pressable
+          style={styles.logoutButton}
+          onPress={() => void signOut()}
+          accessibilityRole="button"
+        >
+          <LogOut color={palette.red} size={18} strokeWidth={2.2} />
+          <Text style={styles.logoutText}>Log out</Text>
+        </Pressable>
+
+        <Text style={styles.versionText}>ServEase v1.0.0</Text>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
+  scrollContent: {
     backgroundColor: palette.cream,
     flexGrow: 1,
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.md,
-    padding: spacing.md,
+    gap: spacing.lg,
+    padding: spacing.base,
+    paddingTop: spacing.lg,
   },
-  flex: {
-    flex: 1,
-  },
+  flex: { flex: 1 },
 
-  profileRow: {
+  profileCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     flexDirection: 'row',
     gap: spacing.base,
     padding: spacing.base,
-    marginBottom: spacing.xs,
-    boxShadow: '0 4px 8px rgba(0,0,0,0.06)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
   },
   avatar: {
     alignItems: 'center',
@@ -103,34 +162,100 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
   },
-  name: {
+  profileName: {
     color: palette.ink,
     fontSize: 16,
     fontWeight: '700',
   },
-  email: {
+  profileEmail: {
     color: palette.muted,
     fontSize: 13,
     fontWeight: '500',
     marginTop: 2,
   },
+  editBadge: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.xs,
+  },
+  editBadgeText: {
+    color: palette.mintDeep,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  menuGroup: {
+    gap: spacing.xs,
+  },
+  groupTitle: {
+    color: palette.faint,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    paddingHorizontal: spacing.xs,
+    textTransform: 'uppercase',
+  },
+  menuCard: {
+    backgroundColor: palette.white,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+  },
+  menuRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.base,
+    minHeight: 58,
+    paddingHorizontal: spacing.base,
+  },
+  menuRowDivider: {
+    borderBottomColor: palette.lineSoft,
+    borderBottomWidth: 1,
+  },
+  menuIconBg: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.sm,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  menuLabel: {
+    color: palette.ink,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  menuBadge: {
+    alignItems: 'center',
+    backgroundColor: palette.red,
+    borderRadius: radius.pill,
+    height: 20,
+    justifyContent: 'center',
+    minWidth: 20,
+    paddingHorizontal: 4,
+  },
+  menuBadgeText: {
+    color: palette.white,
+    fontSize: 11,
+    fontWeight: '700',
+  },
 
   logoutButton: {
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
     justifyContent: 'center',
     minHeight: 52,
-    marginTop: spacing.xs,
   },
   logoutText: {
     color: palette.red,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
   },
-
   versionText: {
     color: palette.faint,
     fontSize: 12,

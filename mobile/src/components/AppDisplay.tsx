@@ -546,8 +546,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   settingsSectionBody: {
-    backgroundColor: palette.white,
-    borderRadius: radius.md,
     overflow: 'hidden',
   },
   settingsRow: {
@@ -557,7 +555,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     minHeight: 56,
-    paddingHorizontal: spacing.base,
+    paddingHorizontal: 0,
   },
   settingsRowLeft: {
     alignItems: 'center',
@@ -571,8 +569,8 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     color: palette.ink,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
   },
   switchTrack: {
     backgroundColor: palette.line,

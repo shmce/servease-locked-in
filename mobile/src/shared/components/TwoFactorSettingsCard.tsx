@@ -1,10 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
 import {
-  Card,
   Field,
   PrimaryButton,
 } from '../../components/DesignKit';
-import { palette, spacing, type } from '../../theme/serveaseDesign';
+import { palette, spacing } from '../../theme/serveaseDesign';
 
 type TwoFactorSettingsCardProps = {
   busyAction: string | null;
@@ -28,7 +27,7 @@ export function TwoFactorSettingsCard({
   disableTwoFactorSetup,
 }: TwoFactorSettingsCardProps) {
   return (
-    <Card>
+    <View style={styles.securityPanel}>
       <Text style={styles.cardTitle}>Two-Factor Authentication</Text>
       <Text style={styles.cardMeta}>
         {twoFactorEnabled
@@ -79,23 +78,28 @@ export function TwoFactorSettingsCard({
           }
         />
       </View>
-    </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  securityPanel: {
+    gap: spacing.md,
+  },
   twoButtons: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   cardTitle: {
     color: palette.ink,
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   cardMeta: {
-    ...type.caption,
     color: palette.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   monoText: {
     fontFamily: 'SpaceMono',

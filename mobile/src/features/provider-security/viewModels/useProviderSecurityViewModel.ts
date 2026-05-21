@@ -5,7 +5,7 @@ export function useProviderSecurityViewModel() {
     () => ({
       pageTitle: 'Security',
       pageSubtitle: 'Protect your provider account',
-      sectionTitle: 'Two-factor authentication',
+      sectionTitle: 'Account protection',
     }),
     [],
   );
