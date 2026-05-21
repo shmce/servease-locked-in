@@ -83,6 +83,23 @@ export class PaymentController {
     }
   }
 
+  @Post('bookings/:bookingId/cash-on-service/confirm')
+  async confirmCashOnServicePayment(
+    @Param('bookingId') bookingId: string,
+    @Body() body: { providerId?: string | null },
+  ): Promise<{ data: PaymentSummary }> {
+    try {
+      return {
+        data: await this.paymentService.confirmCashOnServicePayment({
+          bookingId,
+          providerId: body.providerId ?? null,
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Post('promotions/validate')
   async validatePromotion(
     @Body()
@@ -120,19 +137,6 @@ export class PaymentController {
     }
   }
 
-  @Get('checkout-sessions/:checkoutId/status')
-  async checkoutStatus(
-    @Param('checkoutId') checkoutId: string,
-  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
-    try {
-      return {
-        data: await this.sharedPaymentService.getCheckoutStatus(checkoutId),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
   @Post('checkout-sessions/webhook')
   async checkoutWebhook(
     @Body() body: ApicenterCheckoutWebhookInput,
@@ -140,6 +144,19 @@ export class PaymentController {
     try {
       return {
         data: await this.sharedPaymentService.syncCheckoutWebhook(body),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('checkout-sessions/:checkoutId/status')
+  async checkoutStatus(
+    @Param('checkoutId') checkoutId: string,
+  ): Promise<{ data: PaymentCheckoutSessionSummary }> {
+    try {
+      return {
+        data: await this.sharedPaymentService.getCheckoutStatus(checkoutId),
       };
     } catch (error) {
       throw this.toHttpException(error);

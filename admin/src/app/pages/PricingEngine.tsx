@@ -7,6 +7,7 @@ import {
   Gauge,
   Pencil,
   Plus,
+  RefreshCw,
   Save,
   Settings2,
   TrendingUp,
@@ -31,6 +32,7 @@ import {
   listAdminPricingQuoteAudits,
   listAdminPricingRules,
   saveAdminPricingRule,
+  syncAdminPricingFuelIndexFromGasWatch,
   type AdminPricingCategoryRuleSummary,
   type AdminPricingFuelIndexSummary,
   type AdminPricingMode,
@@ -82,6 +84,13 @@ function formatPeso(value: number) {
 
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleString() : "N/A";
+}
+
+function formatFuelSource(value: string | null) {
+  if (!value) return "Unknown source";
+  if (value.startsWith("gaswatch-ph")) return "GasWatch PH";
+  if (value === "admin") return "Manual admin entry";
+  return value;
 }
 
 function defaultDraft(): PricingRuleDraft {
@@ -307,6 +316,7 @@ export function PricingEngine() {
   const [audits, setAudits] = useState<AdminPricingQuoteAuditSummary[]>([]);
   const [fuelPrice, setFuelPrice] = useState("68");
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncingFuel, setIsSyncingFuel] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>(null);
   const [wizardStep, setWizardStep] = useState<WizardStep>(0);
   const [draft, setDraft] = useState<PricingRuleDraft>(defaultDraft);
@@ -415,6 +425,25 @@ export function PricingEngine() {
     }
   }
 
+  async function handleSyncFuel() {
+    if (!accessToken) return;
+    setIsSyncingFuel(true);
+    try {
+      const row = await syncAdminPricingFuelIndexFromGasWatch(accessToken);
+      setFuelIndex((current) => [row, ...current.filter((item) => item.id !== row.id)]);
+      setFuelPrice(String(row.fuelPricePerLiter));
+      toast.success("Fuel index synced from GasWatch PH.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not refresh GasWatch PH fuel price. The current fuel index is still being used.",
+      );
+    } finally {
+      setIsSyncingFuel(false);
+    }
+  }
+
   function nextStep(step: WizardStep) {
     const validationError = validateDraft(draft);
     if (step > 0 && validationError) {
@@ -455,7 +484,10 @@ export function PricingEngine() {
             </CardTitle>
           </CardHeader>
           <CardContent className="text-2xl font-bold">
-            {latestFuel ? `₱${latestFuel.fuelPricePerLiter}/L` : "N/A"}
+            <div>{latestFuel ? `₱${latestFuel.fuelPricePerLiter}/L` : "N/A"}</div>
+            <div className="mt-1 text-sm font-normal text-gray-500">
+              {latestFuel ? formatFuelSource(latestFuel.source) : "No source yet"}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -515,8 +547,10 @@ export function PricingEngine() {
                 draft={draft}
                 fuelPrice={fuelPrice}
                 latestFuel={latestFuel}
+                isSyncingFuel={isSyncingFuel}
                 onFuelPriceChange={setFuelPrice}
                 onSaveFuel={() => void handleSaveFuel()}
+                onSyncFuel={() => void handleSyncFuel()}
                 updateDraft={updateDraft}
               />
             ) : null}
@@ -818,16 +852,20 @@ function WizardLabor({
 function WizardTravel({
   draft,
   fuelPrice,
+  isSyncingFuel,
   latestFuel,
   onFuelPriceChange,
   onSaveFuel,
+  onSyncFuel,
   updateDraft,
 }: {
   draft: PricingRuleDraft;
   fuelPrice: string;
+  isSyncingFuel: boolean;
   latestFuel: AdminPricingFuelIndexSummary | null;
   onFuelPriceChange: (value: string) => void;
   onSaveFuel: () => void;
+  onSyncFuel: () => void;
   updateDraft: (key: keyof PricingRuleDraft, value: string | boolean) => void;
 }) {
   return (
@@ -874,14 +912,20 @@ function WizardTravel({
             onChange={onFuelPriceChange}
             help={
               latestFuel
-                ? `Current snapshot from ${formatDate(latestFuel.effectiveAt)}.`
+                ? `${formatFuelSource(latestFuel.source)} · ${formatDate(latestFuel.effectiveAt)}.`
                 : "No fuel snapshot loaded yet."
             }
           />
-          <Button onClick={onSaveFuel}>
-            <Save size={16} />
-            Update Fuel Index
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row md:flex-col">
+            <Button onClick={onSyncFuel} disabled={isSyncingFuel}>
+              <RefreshCw size={16} className={isSyncingFuel ? "animate-spin" : ""} />
+              {isSyncingFuel ? "Syncing..." : "Sync from GasWatch PH"}
+            </Button>
+            <Button variant="outline" onClick={onSaveFuel}>
+              <Save size={16} />
+              Manual update
+            </Button>
+          </div>
         </div>
       </div>
     </section>

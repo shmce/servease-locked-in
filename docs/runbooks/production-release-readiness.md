@@ -13,11 +13,14 @@ Use this runbook when cutting a production release for `backend`, `mobile`, `Lan
 - `APICENTER_TRIBE_ID`
 - `APICENTER_SERVICE_ID`
 - `APICENTER_TRIBE_SECRET`
-- `APICENTER_WEBHOOK_SECRET`
 - `OPENROUTESERVICE_API_KEY`
 - `ADMIN_SMOKE_EMAIL`
 - `ADMIN_SMOKE_PASSWORD`
 - `EAS_TOKEN`
+
+Optional when APICenter webhook delivery is registered:
+
+- `APICENTER_WEBHOOK_SECRET`
 
 ## Required GitHub Production Variables
 

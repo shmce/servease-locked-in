@@ -72,7 +72,7 @@ export function CustomerBookingReviewPanel({
 const styles = StyleSheet.create({
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {

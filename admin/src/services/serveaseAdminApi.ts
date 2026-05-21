@@ -149,6 +149,7 @@ export interface RecordPaymentFailureRequest {
 
 export interface AdminPayoutSummary {
   id: string
+  paymentId: string | null
   providerId: string
   amount: number
   processingFee: number
@@ -395,8 +396,12 @@ export interface AdminProviderSummary {
   verificationStatus: string
   averageRating: number
   reviewCount: number
+  totalBookings: number | null
+  completionRate: number | null
   isActive: boolean
   createdAt: string | null
+  approvedByUserId?: string | null
+  approvedByName?: string | null
   userEmail: string | null
   userFullName: string | null
   userContactNumber?: string | null
@@ -718,6 +723,28 @@ export async function signInWithPassword(
   email: string,
   password: string,
 ): Promise<SupabaseAuthSession> {
+  return requestSupabaseToken('password', {
+    email: email.trim(),
+    password,
+  })
+}
+
+export async function refreshSupabaseSession(
+  refreshToken: string,
+): Promise<SupabaseAuthSession> {
+  if (!refreshToken.trim()) {
+    throw new Error('Refresh token is required.')
+  }
+
+  return requestSupabaseToken('refresh_token', {
+    refresh_token: refreshToken.trim(),
+  })
+}
+
+async function requestSupabaseToken(
+  grantType: 'password' | 'refresh_token',
+  body: Record<string, string>,
+): Promise<SupabaseAuthSession> {
   const normalizedUrl = SUPABASE_URL?.replace(/\/$/, '')
   const normalizedKey = SUPABASE_PUBLISHABLE_KEY?.trim()
 
@@ -728,17 +755,14 @@ export async function signInWithPassword(
   }
 
   const response = await fetch(
-    `${normalizedUrl}/auth/v1/token?grant_type=password`,
+    `${normalizedUrl}/auth/v1/token?grant_type=${grantType}`,
     {
       method: 'POST',
       headers: {
         apikey: normalizedKey,
         'content-type': 'application/json',
       },
-      body: JSON.stringify({
-        email: email.trim(),
-        password,
-      }),
+      body: JSON.stringify(body),
     },
   )
   const payload = (await response.json()) as SupabaseTokenResponse
@@ -938,6 +962,21 @@ export function syncAdminPaymentWithApicenter(
     {
       method: 'POST',
       token,
+    },
+  )
+}
+
+export function releaseAdminPaymentToProvider(
+  token: string,
+  paymentId: string,
+  note?: string | null,
+): Promise<AdminPayoutSummary> {
+  return request<AdminPayoutSummary>(
+    `/v1/admin/payments/${encodeURIComponent(paymentId)}/release`,
+    {
+      method: 'POST',
+      token,
+      body: { note: note ?? null },
     },
   )
 }
@@ -1481,19 +1520,6 @@ export function addAdminProviderApplicationReviewNote(
       method: 'POST',
       token,
       body: { note },
-    },
-  )
-}
-
-export function runAdminProviderApplicationOcr(
-  token: string,
-  applicationId: string,
-): Promise<AdminProviderApplicationReview> {
-  return request<AdminProviderApplicationReview>(
-    `/v1/admin/provider-applications/${encodeURIComponent(applicationId)}/ocr`,
-    {
-      method: 'POST',
-      token,
     },
   )
 }
@@ -2145,6 +2171,16 @@ export function createAdminPricingFuelIndex(
     method: 'POST',
     token,
     body,
+  })
+}
+
+export function syncAdminPricingFuelIndexFromGasWatch(
+  token: string,
+): Promise<AdminPricingFuelIndexSummary> {
+  return request<AdminPricingFuelIndexSummary>('/v1/admin/pricing/fuel-index/sync', {
+    method: 'POST',
+    token,
+    body: {},
   })
 }
 

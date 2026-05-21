@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import {
   Badge,
   Card,
@@ -6,14 +6,17 @@ import {
   Field,
   Pill,
   PrimaryButton,
-  Section,
   TopBar,
 } from '../../../components/DesignKit';
-import { palette, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
   BookingPricingMode,
   ProviderOwnedServiceSummary,
 } from '../../../shared/models/types';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { useProviderServicesViewModel } from '../viewModels/useProviderServicesViewModel';
 
 type ProviderServicesScreenProps = {
@@ -79,81 +82,87 @@ export function ProviderServicesScreen({
     <>
       <TopBar
         title="Services"
-        subtitle="Manage marketplace listings"
+        subtitle="Manage your marketplace listings"
         onBack={onBack}
       />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <Section title="My Services">
-            {data.serviceRows.map((row) => (
-              <Card key={row.id}>
-                {row.isEditing ? (
-                  <>
-                    <Field
-                      label="Title"
-                      value={editServiceTitle}
-                      onChangeText={onEditServiceTitleChange}
-                    />
-                    <Field
-                      label="Price"
-                      value={editServicePrice}
-                      onChangeText={onEditServicePriceChange}
-                      keyboardType="decimal-pad"
-                    />
-                    <View style={styles.twoButtons}>
-                      <PrimaryButton
-                        label={data.saveEditButtonLabel}
-                        onPress={onSaveOwnedServiceEdit}
-                        disabled={data.isSaveEditDisabled}
+      <ScreenScroll>
+        <ScreenContent>
+
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>My Services</Text>
+            {data.hasServices ? (
+              data.serviceRows.map((row) => (
+                <Card key={row.id}>
+                  {row.isEditing ? (
+                    <>
+                      <Field
+                        label="Title"
+                        value={editServiceTitle}
+                        onChangeText={onEditServiceTitleChange}
                       />
-                      <PrimaryButton
-                        label="Cancel"
-                        variant="secondary"
-                        onPress={onCancelEditService}
+                      <Field
+                        label="Price"
+                        value={editServicePrice}
+                        onChangeText={onEditServicePriceChange}
+                        keyboardType="decimal-pad"
                       />
-                    </View>
-                  </>
-                ) : (
-                  <>
-                    <View style={styles.rowBetween}>
-                      <View style={styles.flex}>
-                        <Text style={styles.cardTitle}>{row.title}</Text>
-                        <Text style={styles.cardMeta}>{row.metaLabel}</Text>
+                      <View style={styles.actionRow}>
+                        <PrimaryButton
+                          label={data.saveEditButtonLabel}
+                          onPress={onSaveOwnedServiceEdit}
+                          disabled={data.isSaveEditDisabled}
+                        />
+                        <PrimaryButton
+                          label="Cancel"
+                          variant="secondary"
+                          onPress={onCancelEditService}
+                        />
                       </View>
-                      <Badge label={row.statusLabel} tone={row.statusTone} />
-                    </View>
-                    <View style={styles.serviceActionRow}>
+                    </>
+                  ) : (
+                    <>
+                      <View style={styles.serviceHeader}>
+                        <View style={styles.flex}>
+                          <Text style={styles.serviceTitle}>{row.title}</Text>
+                          <Text style={styles.serviceMeta}>{row.metaLabel}</Text>
+                        </View>
+                        <Badge label={row.statusLabel} tone={row.statusTone} />
+                      </View>
+                      <View style={styles.actionRow}>
+                        <PrimaryButton
+                          label="Edit"
+                          variant="secondary"
+                          onPress={() => onStartEditService(row.service)}
+                        />
+                        <PrimaryButton
+                          label={row.toggleButtonLabel}
+                          variant="secondary"
+                          onPress={() => onToggleOwnedServiceActive(row.id)}
+                          disabled={row.isToggleDisabled}
+                        />
+                      </View>
                       <PrimaryButton
-                        label="Edit"
-                        variant="secondary"
-                        onPress={() => onStartEditService(row.service)}
+                        label={row.removeButtonLabel}
+                        variant="danger"
+                        onPress={() => onRemoveOwnedService(row.id)}
+                        disabled={row.isRemoveDisabled}
                       />
-                      <PrimaryButton
-                        label={row.toggleButtonLabel}
-                        variant="secondary"
-                        onPress={() => onToggleOwnedServiceActive(row.id)}
-                        disabled={row.isToggleDisabled}
-                      />
-                    </View>
-                    <PrimaryButton
-                      label={row.removeButtonLabel}
-                      variant="danger"
-                      onPress={() => onRemoveOwnedService(row.id)}
-                      disabled={row.isRemoveDisabled}
-                    />
-                  </>
-                )}
-              </Card>
-            ))}
-            {!data.hasServices ? (
+                    </>
+                  )}
+                </Card>
+              ))
+            ) : (
               <EmptyState
                 title="No services yet"
-                body="Add services to appear in marketplace listings."
+                body="Add a service below to start appearing in marketplace listings."
               />
-            ) : null}
+            )}
+          </View>
+
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Add a Service</Text>
             {showAddServiceForm ? (
               <Card>
-                <Text style={styles.cardTitle}>Add new service</Text>
                 <Field
                   label="Service title"
                   value={newServiceTitle}
@@ -167,7 +176,7 @@ export function ProviderServicesScreen({
                   keyboardType="decimal-pad"
                   placeholder="1500"
                 />
-                <View style={styles.wrap}>
+                <View style={styles.pillRow}>
                   {data.pricingModeOptions.map((option) => (
                     <Pill
                       key={option.value}
@@ -177,7 +186,7 @@ export function ProviderServicesScreen({
                     />
                   ))}
                 </View>
-                <View style={styles.twoButtons}>
+                <View style={styles.actionRow}>
                   <PrimaryButton
                     label={data.saveNewServiceButtonLabel}
                     onPress={onSaveNewService}
@@ -196,50 +205,52 @@ export function ProviderServicesScreen({
                 onPress={onShowAddServiceForm}
               />
             )}
-          </Section>
-        </View>
-      </ScrollView>
+          </View>
+
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
+  flex: { flex: 1 },
+
+  sectionBlock: {
+    gap: spacing.sm,
   },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+  sectionLabel: {
+    color: palette.faint,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    paddingHorizontal: spacing.xs,
+    textTransform: 'uppercase',
   },
-  rowBetween: {
+
+  serviceHeader: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.base,
     justifyContent: 'space-between',
   },
-  flex: {
-    flex: 1,
-  },
-  cardTitle: {
-    ...type.section,
+  serviceTitle: {
     color: palette.ink,
+    fontSize: 15,
+    fontWeight: '700',
   },
-  cardMeta: {
-    ...type.caption,
+  serviceMeta: {
     color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
   },
-  twoButtons: {
+
+  actionRow: {
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
-  serviceActionRow: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: 12,
-  },
-  wrap: {
+  pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,

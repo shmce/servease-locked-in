@@ -6,6 +6,7 @@ import {
   PricingCategoryRuleSummary,
   PricingFuelIndexSummary,
   PricingQuoteAuditSummary,
+  SyncPricingFuelIndexRequest,
   UpsertPricingCategoryRuleRequest,
 } from './admin-payment.types';
 
@@ -48,6 +49,19 @@ export class AdminPricingController {
   ): Promise<{ data: PricingFuelIndexSummary }> {
     try {
       return { data: await this.adminPricingService.createFuelIndex(body) };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('fuel-index/sync')
+  async syncFuelIndexFromGasWatch(
+    @Body() body: SyncPricingFuelIndexRequest,
+  ): Promise<{ data: PricingFuelIndexSummary }> {
+    try {
+      return {
+        data: await this.adminPricingService.syncFuelIndexFromGasWatch(body ?? {}),
+      };
     } catch (error) {
       throw this.toHttpException(error);
     }

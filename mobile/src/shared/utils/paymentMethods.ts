@@ -5,7 +5,11 @@ export function paymentMethodMeta(method: CustomerPaymentMethodSummary): string 
     return method.isDefault ? 'Default method' : 'Available method';
   }
 
-  const suffix = method.last4 ? ` ending ${method.last4}` : '';
-  const label = method.brand ?? method.methodType.toUpperCase();
-  return `${label}${suffix}${method.isDefault ? ' · Default' : ''}`;
+  const labels: Record<string, string> = {
+    card: 'Card details entered in secure checkout',
+    gcash: 'GCash login happens in secure checkout',
+    paymaya: 'Maya login happens in secure checkout',
+  };
+  const label = labels[method.methodType] ?? 'Secure checkout';
+  return `${label}${method.isDefault ? ' · Default' : ''}`;
 }

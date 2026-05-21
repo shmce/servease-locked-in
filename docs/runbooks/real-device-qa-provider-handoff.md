@@ -457,8 +457,9 @@ Do not call the external-provider stack production-ready until:
 - APICenter SMS returns a real provider status beyond `mock_sent` and the phone
   receives a message.
 - APICenter Google OAuth works through the chosen production redirect strategy.
-- APICenter payment webhook is registered and verified in a non-local
-  environment.
+- APICenter checkout status polling is verified in a non-local environment.
+- APICenter payment webhook is registered and verified only if APICenter
+  provides a webhook secret.
 - PayMongo checkout cancellation behavior is clarified.
 - OpenRouteService quota and rate limits are accepted.
 - iOS and Android real-device QA recordings are captured.

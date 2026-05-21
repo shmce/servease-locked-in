@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend services, the API Gateway, the Expo mobile app, the admin dashboard, the provider dashboard, the landing page, Supabase changes, and documentation-only changes.
+This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend services, the API Gateway, the Expo mobile app, the admin dashboard, the provider dashboard, the landing page, the public SDK package, Supabase changes, and documentation-only changes.
 
 ## Standard Feature Lifecycle
 
@@ -73,6 +73,14 @@ This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend se
 - Browser apps should use gateway routes or their own Next.js API proxy routes.
 - Use `NEXT_PUBLIC_*` only for values safe to expose to browsers.
 - Keep Supabase service-role keys in backend environment files only.
+
+## SDK Workflow
+
+- Keep the public SDK under `packages/servease-sdk/`.
+- Export only public `/v1/...` Gateway contracts.
+- Do not expose internal `/internal/...` routes, Supabase service-role keys, direct database access, or backend service DTOs.
+- Keep SDK README method lists aligned with `packages/servease-sdk/src/client.ts`.
+- Run typecheck, tests, and build before publishing or handing off SDK changes.
 
 ## Supabase Workflow
 

@@ -17,12 +17,14 @@ type CustomerBookingDetailViewModelInput = {
   booking: BookingSummary;
   selectedProvider: ProviderListing | null;
   selectedPayment: PaymentSummary | null;
+  showReservePaymentAction?: boolean;
 };
 
 export function useCustomerBookingDetailViewModel({
   booking,
   selectedProvider,
   selectedPayment,
+  showReservePaymentAction,
 }: CustomerBookingDetailViewModelInput) {
   return useMemo(
     () =>
@@ -30,8 +32,9 @@ export function useCustomerBookingDetailViewModel({
         booking,
         selectedProvider,
         selectedPayment,
+        showReservePaymentAction,
       }),
-    [booking, selectedPayment, selectedProvider],
+    [booking, selectedPayment, selectedProvider, showReservePaymentAction],
   );
 }
 
@@ -39,6 +42,7 @@ export function buildCustomerBookingDetailViewModel({
   booking,
   selectedProvider,
   selectedPayment,
+  showReservePaymentAction = true,
 }: CustomerBookingDetailViewModelInput) {
   const serviceDetailRows = [
     {
@@ -69,10 +73,15 @@ export function buildCustomerBookingDetailViewModel({
         label:
           selectedPayment.status === 'paid'
             ? 'Paid'
+            : selectedPayment.paymentMethod === 'cash_on_service'
+              ? 'Cash due on service'
             : `Payment ${selectedPayment.status}`,
         value: formatMoney(selectedPayment.amount),
       }
     : null;
+  const isOnlinePaymentPending =
+    selectedPayment?.status === 'pending' &&
+    selectedPayment.paymentMethod !== 'cash_on_service';
 
   return {
     data: {
@@ -84,15 +93,24 @@ export function buildCustomerBookingDetailViewModel({
         booking.providerBusinessName ??
         selectedProvider?.providerBusinessName ??
         'Provider details unavailable',
-      reservePaymentDisabled: Boolean(selectedPayment),
-      reservePaymentLabel: selectedPayment ? 'Payment reserved' : 'Reserve payment',
+      reservePaymentDisabled: Boolean(selectedPayment) && !isOnlinePaymentPending,
+      reservePaymentLabel: selectedPayment
+        ? isOnlinePaymentPending
+          ? 'Check payment status'
+          : selectedPayment.status === 'paid'
+            ? 'Payment paid'
+            : selectedPayment.paymentMethod === 'cash_on_service'
+              ? 'Cash due on service'
+              : 'Payment reserved'
+        : 'Reserve payment',
       scheduleLabel: `The service provider will start - ${formatDateTime(
         booking.scheduledAt,
       )}`,
       serviceDetailRows,
       serviceTitle: booking.serviceTitle ?? 'Service booking',
       showPaymentSummary: booking.status === 'completed' && Boolean(paymentSummary),
-      showReservePayment: booking.status !== 'completed',
+      showReservePayment:
+        showReservePaymentAction && booking.status !== 'completed',
       showReviewPanel: booking.status === 'completed',
       showTrackProvider: ['confirmed', 'in_progress'].includes(booking.status),
       statusChip: bookingStatusChip(booking.status),

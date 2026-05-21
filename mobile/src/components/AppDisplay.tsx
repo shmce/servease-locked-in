@@ -8,6 +8,8 @@ import {
   CheckCircle,
   ChevronRight,
   CircleDollarSign,
+  FileText,
+  Gift,
   HelpCircle,
   Image as ImageIcon,
   Lock,
@@ -16,6 +18,7 @@ import {
   Star,
   User,
   Wallet,
+  WalletCards,
 } from 'lucide-react-native';
 import { Badge, Card, EmptyState, TopBar } from './DesignKit';
 import {
@@ -225,11 +228,13 @@ export function CategoryTile({
   title,
   subtitle,
   selected,
+  tag,
   onPress,
 }: {
   title: string;
   subtitle: string;
   selected: boolean;
+  tag?: string;
   onPress: () => void;
 }) {
   const Icon = categoryIconFor(title);
@@ -246,7 +251,18 @@ export function CategoryTile({
       </View>
       <View style={styles.flex}>
         <Text style={styles.categoryTitle} numberOfLines={2}>{title}</Text>
-        <Text style={styles.categorySub} numberOfLines={2}>{subtitle}</Text>
+        {tag ? (
+          <View style={styles.categorySubRow}>
+            <Text style={[styles.categorySub, styles.flex, { marginTop: 0 }]} numberOfLines={1}>
+              {subtitle}
+            </Text>
+            <View style={styles.categoryTag}>
+              <Text style={styles.categoryTagText}>{tag}</Text>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.categorySub} numberOfLines={2}>{subtitle}</Text>
+        )}
       </View>
       <ChevronRight color={selected ? palette.mint : palette.faint} size={18} />
     </Pressable>
@@ -304,9 +320,22 @@ const quickActionIcons: Record<string, typeof User> = {
   Settings,
   'Set Availability': Calendar,
   'Help Center': HelpCircle,
+  'My Profile': User,
+  'Refer a Friend': Gift,
+  'Payment Methods': WalletCards,
+  'Help & Support': HelpCircle,
+  'Terms & Privacy': FileText,
 };
 
-export function QuickAction({ label, onPress }: { label: string; onPress: () => void }) {
+export function QuickAction({
+  label,
+  badge,
+  onPress,
+}: {
+  label: string;
+  badge?: number;
+  onPress: () => void;
+}) {
   const Icon = quickActionIcons[label] ?? ChevronRight;
 
   return (
@@ -318,6 +347,11 @@ export function QuickAction({ label, onPress }: { label: string; onPress: () => 
     >
       <View style={styles.quickIcon}>
         <Icon color={palette.mint} size={20} strokeWidth={2.4} />
+        {badge ? (
+          <View style={styles.quickBadge}>
+            <Text style={styles.quickBadgeText}>{badge > 99 ? '99+' : badge}</Text>
+          </View>
+        ) : null}
       </View>
       <Text style={styles.cardTitle}>{label}</Text>
     </Pressable>
@@ -371,6 +405,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   cardBody: {
     ...type.body,
@@ -379,6 +414,7 @@ const styles = StyleSheet.create({
   cardMeta: {
     ...type.caption,
     color: palette.muted,
+    fontWeight: '500',
   },
   label: {
     color: palette.body,
@@ -388,7 +424,7 @@ const styles = StyleSheet.create({
   priceText: {
     color: palette.mint,
     fontSize: 14,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   serviceListItem: {
     alignItems: 'center',
@@ -412,7 +448,7 @@ const styles = StyleSheet.create({
   serviceThumbText: {
     color: palette.mint,
     fontSize: 38,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   providerListItem: {
     alignItems: 'center',
@@ -436,7 +472,7 @@ const styles = StyleSheet.create({
   providerListAvatarText: {
     color: palette.white,
     fontSize: 20,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   providerMetaRow: {
     alignItems: 'center',
@@ -482,8 +518,8 @@ const styles = StyleSheet.create({
   infoValue: {
     color: palette.ink,
     flex: 1.4,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     textAlign: 'right',
   },
   profileInfoRow: {
@@ -506,12 +542,10 @@ const styles = StyleSheet.create({
   settingsSectionTitle: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
     textTransform: 'uppercase',
   },
   settingsSectionBody: {
-    backgroundColor: palette.white,
-    borderRadius: radius.md,
     overflow: 'hidden',
   },
   settingsRow: {
@@ -521,7 +555,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     minHeight: 56,
-    paddingHorizontal: spacing.base,
+    paddingHorizontal: 0,
   },
   settingsRowLeft: {
     alignItems: 'center',
@@ -535,8 +569,8 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     color: palette.ink,
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
   },
   switchTrack: {
     backgroundColor: palette.line,
@@ -583,7 +617,7 @@ const styles = StyleSheet.create({
   categoryTitle: {
     color: palette.ink,
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   categorySub: {
     color: palette.muted,
@@ -591,6 +625,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     lineHeight: 17,
     marginTop: spacing.xs,
+  },
+  categorySubRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+  },
+  categoryTag: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+  },
+  categoryTagText: {
+    color: palette.mintDeep,
+    fontSize: 10,
+    fontWeight: '700',
   },
   providerBookingRow: {
     flexDirection: 'row',
@@ -603,12 +654,12 @@ const styles = StyleSheet.create({
   tableLabel: {
     color: palette.muted,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '500',
   },
   tableValue: {
     color: palette.ink,
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   bookingCardHeader: {
     alignItems: 'flex-start',
@@ -628,7 +679,7 @@ const styles = StyleSheet.create({
   providerName: {
     color: palette.ink,
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
     marginTop: spacing.xxs,
   },
   bookingActionButton: {
@@ -640,7 +691,7 @@ const styles = StyleSheet.create({
   bookingActionText: {
     color: palette.white,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   quickAction: {
     backgroundColor: palette.white,
@@ -661,7 +712,24 @@ const styles = StyleSheet.create({
   quickIconText: {
     color: palette.mint,
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '700',
+  },
+  quickBadge: {
+    alignItems: 'center',
+    backgroundColor: palette.red,
+    borderRadius: radius.pill,
+    height: 18,
+    justifyContent: 'center',
+    minWidth: 18,
+    paddingHorizontal: 4,
+    position: 'absolute',
+    right: -4,
+    top: -4,
+  },
+  quickBadgeText: {
+    color: palette.white,
+    fontSize: 10,
+    fontWeight: '700',
   },
   roleCard: {
     alignItems: 'center',
@@ -683,11 +751,11 @@ const styles = StyleSheet.create({
   roleMark: {
     color: palette.mint,
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   chevron: {
     color: palette.faint,
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '700',
   },
 });

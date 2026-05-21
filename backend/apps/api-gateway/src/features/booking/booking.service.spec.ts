@@ -5,6 +5,7 @@ import { InvalidBookingTransitionError } from './booking.errors';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import { GeoServiceClient } from '../geo/clients/geo-service.client';
+import { PaymentGatewayService } from '../payments/payment.service';
 import { firstValueFrom } from 'rxjs';
 
 describe('BookingGatewayService', () => {
@@ -129,6 +130,41 @@ describe('BookingGatewayService', () => {
     ).resolves.toMatchObject({
       id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
       providerBusinessName: 'GreenFix Home Services',
+    });
+  });
+
+  it('reserves a pending cash payment when a cash booking is created', async () => {
+    const client = {
+      createBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        totalAmount: 1200,
+      })),
+    } as unknown as BookingServiceClient;
+    const paymentGatewayService = {
+      createPayment: jest.fn().mockResolvedValue({ id: 'payment-1' }),
+    } as unknown as PaymentGatewayService;
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      paymentGatewayService,
+    );
+
+    await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+      providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      serviceAddress: '123 Test St',
+      scheduledAt: '2026-05-20T08:00:00.000Z',
+      paymentMethod: 'cash_on_service',
+    });
+
+    expect(paymentGatewayService.createPayment).toHaveBeenCalledWith({
+      bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      customerId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      amount: 1200,
+      paymentMethod: 'cash_on_service',
     });
   });
 
@@ -503,6 +539,94 @@ describe('BookingGatewayService', () => {
       undefined,
     );
     expect(booking.status).toBe('confirmed');
+  });
+
+  it('marks cash-on-service payment paid when the provider completes the booking', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'in_progress',
+      })),
+      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'completed',
+      })),
+    } as unknown as BookingServiceClient;
+    const paymentGatewayService = {
+      listPayments: jest.fn().mockResolvedValue([
+        {
+          id: 'payment-1',
+          bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          paymentMethod: 'cash_on_service',
+          status: 'pending',
+        },
+      ]),
+      confirmCashOnServicePayment: jest.fn().mockResolvedValue({
+        id: 'payment-1',
+        status: 'paid',
+      }),
+    } as unknown as PaymentGatewayService;
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      paymentGatewayService,
+    );
+
+    const booking = await service.transitionStatus(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      'in_progress',
+      'completed',
+    );
+
+    expect(paymentGatewayService.confirmCashOnServicePayment).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    );
+    expect(booking.status).toBe('completed');
+  });
+
+  it('rejects completing an online-payment booking until the payment is paid', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'in_progress',
+      })),
+      transitionStatus: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const paymentGatewayService = {
+      listPayments: jest.fn().mockResolvedValue([
+        {
+          id: 'payment-1',
+          bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          paymentMethod: 'gcash',
+          status: 'pending',
+        },
+      ]),
+    } as unknown as PaymentGatewayService;
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      paymentGatewayService,
+    );
+
+    await expect(
+      service.transitionStatus(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        'provider-user-1',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        'in_progress',
+        'completed',
+      ),
+    ).rejects.toBeInstanceOf(InvalidBookingTransitionError);
+
+    expect(client.transitionStatus).not.toHaveBeenCalled();
   });
 
   it('creates a customer notification when a provider changes booking status', async () => {

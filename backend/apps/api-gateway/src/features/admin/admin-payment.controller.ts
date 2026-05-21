@@ -354,6 +354,44 @@ export class AdminPaymentController {
     }
   }
 
+  @Post(':paymentId/release')
+  async releasePaymentToProvider(
+    @Headers('authorization') authorization: string | undefined,
+    @Req()
+    request: {
+      headers?: Record<string, string | string[] | undefined>;
+      socket?: { remoteAddress?: string };
+    },
+    @Param('paymentId') paymentId: string,
+    @Body() body: { note?: string | null },
+  ): Promise<{ data: PayoutSummary }> {
+    try {
+      const admin = await this.requireAdmin(authorization);
+      const payout =
+        await this.adminPaymentGatewayService.releasePaymentToProvider(
+          paymentId,
+          admin.user.id,
+          body.note ?? null,
+        );
+      void this.recordAudit(admin, request, {
+        action: 'Released payment to provider payout',
+        actionType: 'approve',
+        entityType: 'Payment',
+        entityId: paymentId,
+        details: `Payment ${paymentId} released as payout ${payout.reference ?? payout.id}.`,
+        metadata: {
+          paymentId,
+          payoutId: payout.id,
+          providerId: payout.providerId,
+          status: payout.status,
+        },
+      });
+      return { data: payout };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private async requireAdmin(
     authorization: string | undefined,
   ): Promise<CurrentUserProfile> {

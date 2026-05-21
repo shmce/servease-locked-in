@@ -32,6 +32,46 @@ export class SupportController {
     }
   }
 
+  @Post()
+  async create(
+    @Headers('authorization') authorization: string | undefined,
+    @Body()
+    body: {
+      subject?: string;
+      message?: string | null;
+      category?: string | null;
+      attachments?: Array<{
+        fileUrl: string;
+        fileName?: string | null;
+        mimeType?: string | null;
+        storagePath?: string | null;
+        fileSize?: number | null;
+      }>;
+    },
+  ): Promise<{ data: SupportTicketSummary }> {
+    try {
+      if (
+        !body.subject?.trim() ||
+        body.attachments?.some((attachment) => !attachment.fileUrl?.trim())
+      ) {
+        throw new InvalidSupportTicketRequestError();
+      }
+
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.supportGatewayService.createTicket({
+          userId,
+          subject: body.subject,
+          message: body.message ?? null,
+          category: body.category ?? null,
+          attachments: body.attachments ?? [],
+        }),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get(':ticketId/replies')
   async listReplies(
     @Headers('authorization') authorization: string | undefined,
@@ -79,46 +119,6 @@ export class SupportController {
       const userId = await this.authTokenService.authenticate(authorization);
       return {
         data: await this.supportGatewayService.getTicket(userId, ticketId),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
-  @Post()
-  async create(
-    @Headers('authorization') authorization: string | undefined,
-    @Body()
-    body: {
-      subject?: string;
-      message?: string | null;
-      category?: string | null;
-      attachments?: Array<{
-        fileUrl: string;
-        fileName?: string | null;
-        mimeType?: string | null;
-        storagePath?: string | null;
-        fileSize?: number | null;
-      }>;
-    },
-  ): Promise<{ data: SupportTicketSummary }> {
-    try {
-      if (
-        !body.subject?.trim() ||
-        body.attachments?.some((attachment) => !attachment.fileUrl?.trim())
-      ) {
-        throw new InvalidSupportTicketRequestError();
-      }
-
-      const userId = await this.authTokenService.authenticate(authorization);
-      return {
-        data: await this.supportGatewayService.createTicket({
-          userId,
-          subject: body.subject,
-          message: body.message ?? null,
-          category: body.category ?? null,
-          attachments: body.attachments ?? [],
-        }),
       };
     } catch (error) {
       throw this.toHttpException(error);

@@ -7,6 +7,7 @@ erDiagram
   PROVIDER_PROFILE ||--o{ PROVIDER_SERVICE : lists
   PROVIDER_PROFILE ||--o{ AVAILABILITY_WINDOW : defines
   PROVIDER_PROFILE ||--o{ PROVIDER_DAY_OFF : blocks
+  PROVIDER_PROFILE ||--o{ PROVIDER_TIME_OFF_WINDOW : blocks
   USER ||--o{ BOOKING : requests
   PROVIDER_PROFILE ||--o{ BOOKING : receives
   SERVICE ||--o{ BOOKING : references
@@ -84,6 +85,15 @@ erDiagram
     uuid id PK
     uuid provider_id FK
     date off_date
+    text reason
+  }
+
+  PROVIDER_TIME_OFF_WINDOW {
+    uuid id PK
+    uuid provider_id FK
+    date off_date
+    time start_time
+    time end_time
     text reason
   }
 

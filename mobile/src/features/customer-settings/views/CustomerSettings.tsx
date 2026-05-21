@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import {
   Bell,
   Calendar,
@@ -22,8 +22,10 @@ import {
   CurrentUserSessionSummary,
   UserPreferenceSummary,
 } from '../../../shared/models/types';
-import { TwoFactorSettingsCard } from '../../../shared/components/TwoFactorSettingsCard';
-import { AppScreen } from '../../../navigation/types';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import {
   CustomerSettingsIcon,
@@ -39,22 +41,15 @@ type CustomerSettingsScreenProps = {
   profileEmail?: string | null;
   currentPassword: string;
   newPassword: string;
-  twoFactorEnabled: boolean;
-  twoFactorSecret: string;
-  twoFactorCode: string;
   deleteConfirmText: string;
   busyAction: string | null;
-  navigate: (screen: AppScreen, nextRole?: 'customer') => void;
+  onBack: () => void;
   setNotice: (notice: string) => void;
   setCurrentPassword: (value: string) => void;
   setNewPassword: (value: string) => void;
-  setTwoFactorCode: (value: string) => void;
   setDeleteConfirmText: (value: string) => void;
   savePreferences: (patch: CustomerSettingsPreferencePatch) => void | Promise<void>;
   savePassword: () => void | Promise<void>;
-  startTwoFactorSetup: () => void | Promise<void>;
-  verifyTwoFactorSetup: () => void | Promise<void>;
-  disableTwoFactorSetup: () => void | Promise<void>;
   deleteMyAccount: () => void | Promise<void>;
 };
 
@@ -76,22 +71,15 @@ export function CustomerSettingsScreen({
   profileEmail,
   currentPassword,
   newPassword,
-  twoFactorEnabled,
-  twoFactorSecret,
-  twoFactorCode,
   deleteConfirmText,
   busyAction,
-  navigate,
+  onBack,
   setNotice,
   setCurrentPassword,
   setNewPassword,
-  setTwoFactorCode,
   setDeleteConfirmText,
   savePreferences,
   savePassword,
-  startTwoFactorSetup,
-  verifyTwoFactorSetup,
-  disableTwoFactorSetup,
   deleteMyAccount,
 }: CustomerSettingsScreenProps) {
   const settings = useCustomerSettingsViewModel({
@@ -101,17 +89,16 @@ export function CustomerSettingsScreen({
     activeSessions,
     profileEmail,
     deleteConfirmText,
-    twoFactorEnabled,
-    twoFactorSecret,
     savePreferences,
   });
   const { data, actions } = settings;
 
   return (
     <>
-      <TopBar title="Settings" onBack={() => navigate('more', 'customer')} />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+      <TopBar title="Settings" onBack={onBack} />
+      <ScreenScroll>
+        <ScreenContent>
+
           <SettingsSection title="Notifications">
             <SettingsRow
               icon={Bell}
@@ -134,40 +121,33 @@ export function CustomerSettingsScreen({
           </SettingsSection>
 
           <SettingsSection title="Security">
+            {/* TwoFactorSettingsCard is rendered by the dedicated Security screen. */}
             <SettingsRow
               icon={Lock}
               label="Change Password"
               onPress={() => setNotice('Enter your current and new password below.')}
             />
-            <Field
-              label="Current Password"
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              secureTextEntry
-              placeholder="Current password"
-            />
-            <Field
-              label="New Password"
-              value={newPassword}
-              onChangeText={setNewPassword}
-              secureTextEntry
-              placeholder="New password"
-            />
-            <PrimaryButton
-              label={busyAction === 'password-change' ? 'Saving...' : 'Save Password'}
-              onPress={() => void savePassword()}
-              disabled={busyAction === 'password-change'}
-            />
-            <TwoFactorSettingsCard
-              busyAction={busyAction}
-              twoFactorCode={twoFactorCode}
-              twoFactorEnabled={twoFactorEnabled}
-              twoFactorSecret={twoFactorSecret}
-              onCodeChange={setTwoFactorCode}
-              startTwoFactorSetup={startTwoFactorSetup}
-              verifyTwoFactorSetup={verifyTwoFactorSetup}
-              disableTwoFactorSetup={disableTwoFactorSetup}
-            />
+            <View style={styles.settingsPanel}>
+              <Field
+                label="Current Password"
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+                placeholder="Current password"
+              />
+              <Field
+                label="New Password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                placeholder="New password"
+              />
+              <PrimaryButton
+                label={busyAction === 'password-change' ? 'Saving...' : 'Save Password'}
+                onPress={() => void savePassword()}
+                disabled={busyAction === 'password-change'}
+              />
+            </View>
           </SettingsSection>
 
           <SettingsSection title="Preferences">
@@ -185,9 +165,9 @@ export function CustomerSettingsScreen({
             />
           </SettingsSection>
 
-          <SettingsSection title="Active sessions">
+          <SettingsSection title="Active Sessions">
             {data.activeSessionRows.length === 0 ? (
-              <SettingsRow icon={Lock} label="No active session detected." />
+              <SettingsRow icon={Lock} label="No active sessions detected." />
             ) : (
               data.activeSessionRows.map((session) => (
                 <SettingsRow
@@ -201,55 +181,45 @@ export function CustomerSettingsScreen({
           </SettingsSection>
 
           <SettingsSection title="Danger Zone">
-            <Text style={styles.cardMeta}>
-              Type {data.profileEmail ?? 'your email'} to enable account deletion.
-            </Text>
-            <Field
-              label="Confirm email"
-              value={deleteConfirmText}
-              onChangeText={setDeleteConfirmText}
-              placeholder={data.profileEmail ?? 'email@example.com'}
-              keyboardType="email-address"
-            />
-            <PrimaryButton
-              label={busyAction === 'delete-account' ? 'Deleting...' : 'Delete Account'}
-              variant="danger"
-              onPress={() => void deleteMyAccount()}
-              disabled={busyAction === 'delete-account' || !data.canConfirmAccountDeletion}
-            />
+            <View style={styles.settingsPanel}>
+              <Text style={styles.dangerHint}>
+                Type <Text style={styles.dangerEmail}>{data.profileEmail ?? 'your email'}</Text> to
+                confirm account deletion.
+              </Text>
+              <Field
+                label="Confirm email"
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                placeholder={data.profileEmail ?? 'email@example.com'}
+                keyboardType="email-address"
+              />
+              <PrimaryButton
+                label={busyAction === 'delete-account' ? 'Deleting...' : 'Delete My Account'}
+                variant="danger"
+                onPress={() => void deleteMyAccount()}
+                disabled={busyAction === 'delete-account' || !data.canConfirmAccountDeletion}
+              />
+            </View>
           </SettingsSection>
-        </View>
-      </ScrollView>
+
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
+  settingsPanel: {
+    gap: spacing.md,
   },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  cardTitle: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  cardMeta: {
-    color: palette.faint,
+  dangerHint: {
+    color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     lineHeight: 19,
   },
-  monoText: {
-    fontFamily: 'monospace',
-  },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
+  dangerEmail: {
+    color: palette.ink,
+    fontWeight: '700',
   },
 });

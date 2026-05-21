@@ -50,6 +50,7 @@ import {
   PayoutSummary,
   RefundSummary,
   RecordPayoutEventRequest,
+  SyncPricingFuelIndexRequest,
   UpsertPricingCategoryRuleRequest,
   UpsertPromotionRequest,
   UpdateCommissionRuleRequest,
@@ -360,6 +361,21 @@ export class AdminServiceClient {
     );
   }
 
+  releasePaymentToProvider(
+    paymentId: string,
+    adminUserId: string,
+    note?: string | null,
+  ): Promise<PayoutSummary> {
+    return this.request<PayoutSummary>(
+      `/internal/admin/payments/${paymentId}/release`,
+      'POST',
+      {
+        adminUserId,
+        note: note ?? null,
+      },
+    );
+  }
+
   listPayoutEvents(payoutId: string): Promise<PayoutEventSummary[]> {
     return this.request<PayoutEventSummary[]>(
       `/internal/admin/payments/payouts/${payoutId}/events`,
@@ -492,6 +508,16 @@ export class AdminServiceClient {
   ): Promise<PricingFuelIndexSummary> {
     return this.request<PricingFuelIndexSummary>(
       '/internal/admin/pricing/fuel-index',
+      'POST',
+      input,
+    );
+  }
+
+  syncPricingFuelIndexFromGasWatch(
+    input: SyncPricingFuelIndexRequest,
+  ): Promise<PricingFuelIndexSummary> {
+    return this.request<PricingFuelIndexSummary>(
+      '/internal/admin/pricing/fuel-index/sync',
       'POST',
       input,
     );

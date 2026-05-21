@@ -17,9 +17,7 @@ import {
   AdminProviderApplicationInfoRequestResult,
   AdminProviderApplicationReview,
   AdminProviderApplicationSummary,
-  ProviderApplicationReviewOcrData,
   ProviderApplicationStatus,
-  ProviderApplicationVerificationRecord,
   UpdateProviderApplicationReviewInput,
 } from './admin-provider-application.types';
 import { AuthTokenService } from '../current-user/auth-token.service';
@@ -167,40 +165,6 @@ export class AdminProviderApplicationController {
         });
       void this.recordReviewNoteAudit(admin, request, application, note);
       return { data };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
-  @Post(':applicationId/ocr')
-  async runOcr(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('applicationId') applicationId: string,
-  ): Promise<{ data: AdminProviderApplicationReview }> {
-    try {
-      const admin = await this.requireAdmin(authorization);
-      const [application, review] = await Promise.all([
-        this.providerApplicationService.getProviderApplication(applicationId),
-        this.providerApplicationService.getProviderApplicationReview(applicationId),
-      ]);
-      const extracted = await this.extractDocumentOcr(application);
-
-      return {
-        data: await this.providerApplicationService.updateProviderApplicationReview({
-          applicationId,
-          adminUserId: admin.user.id,
-          kycChecklist: review.kycChecklist,
-          businessChecklist: review.businessChecklist,
-          verificationRecords: this.mergeOcrVerificationRecords(
-            review.verificationRecords,
-            extracted,
-          ),
-          ocrData: {
-            ...review.ocrData,
-            ...extracted,
-          },
-        }),
-      };
     } catch (error) {
       throw this.toHttpException(error);
     }
@@ -459,145 +423,6 @@ export class AdminProviderApplicationController {
         },
       })
       .catch(() => undefined);
-  }
-
-  private async extractDocumentOcr(
-    application: AdminProviderApplicationSummary,
-  ): Promise<ProviderApplicationReviewOcrData> {
-    const documentText = await Promise.all(
-      application.documents.map((document) =>
-        this.extractTextWithLocalOcr(
-          document.previewUrl ?? document.downloadUrl ?? document.fileUrl,
-        ),
-      ),
-    );
-    const text = [
-      ...application.documents.map((document) =>
-        [
-          document.documentType,
-          document.fileUrl,
-          document.storagePath,
-          document.previewUrl,
-          document.downloadUrl,
-        ]
-          .filter(Boolean)
-          .join(' '),
-      ),
-      ...documentText,
-    ].join(' ');
-    const governmentId = application.documents.find((document) =>
-      /government|national|passport|driver|license|id/i.test(document.documentType),
-    );
-
-    return {
-      governmentIdType: governmentId
-        ? this.humanizeDocumentType(governmentId.documentType)
-        : application.documents[0]
-          ? this.humanizeDocumentType(application.documents[0].documentType)
-          : null,
-      governmentIdNumber: this.extractGovernmentIdNumber(text),
-      tinNumber: this.firstMatch(
-        text,
-        /\b(?:TIN)[-_\s:]*([0-9]{3}[-\s]?[0-9]{3}[-\s]?[0-9]{3}(?:[-\s]?[0-9]{3})?)\b/i,
-      ),
-      nbiNumber: this.firstMatch(
-        text,
-        /\b(?:NBI)[-_\s:]*([A-Z0-9-]{4,32})\b/i,
-      ),
-      prcNumber: this.firstMatch(
-        text,
-        /\b(?:PRC)[-_\s:]*([A-Z0-9-]{4,32})\b/i,
-      ),
-    };
-  }
-
-  private extractGovernmentIdNumber(text: string): string | null {
-    return (
-      this.firstMatch(
-        text,
-        /\b(PSN[-_\s:]*[A-Z0-9][A-Z0-9-]{3,31})\b/i,
-      ) ??
-      this.firstMatch(
-        text,
-        /\b(DL[-_\s:]*[A-Z0-9][A-Z0-9-]{3,31})\b/i,
-      ) ??
-      this.firstMatch(
-        text,
-        /\b(PASS(?:PORT)?[-_\s:]*[A-Z0-9][A-Z0-9-]{3,31})\b/i,
-      ) ??
-      this.firstMatch(
-        text,
-        /\b(?:ID\s*(?:NO|NUMBER|#)|IDNO)[-_\s:]*([A-Z0-9][A-Z0-9-]{3,31})\b/i,
-      )
-    );
-  }
-
-  private mergeOcrVerificationRecords(
-    records: ProviderApplicationVerificationRecord[],
-    extracted: ProviderApplicationReviewOcrData,
-  ): ProviderApplicationVerificationRecord[] {
-    const now = new Date().toISOString();
-    const next = [...records];
-    const upsert = (
-      id: 'nbi' | 'prc' | 'tin',
-      label: string,
-      reference: string | null | undefined,
-    ) => {
-      const index = next.findIndex((record) => record.id === id);
-      const previous = index >= 0 ? next[index] : null;
-      const record: ProviderApplicationVerificationRecord = {
-        id,
-        label: previous?.label ?? label,
-        status: previous?.status ?? 'pending',
-        reference: reference ?? previous?.reference ?? null,
-        checkedAt: reference ? now : previous?.checkedAt ?? null,
-        details: reference
-          ? 'Reference extracted by internal OCR and awaiting admin verification.'
-          : previous?.details ?? null,
-      };
-
-      if (index >= 0) {
-        next[index] = record;
-      } else {
-        next.push(record);
-      }
-    };
-
-    upsert('nbi', 'NBI Clearance', extracted.nbiNumber);
-    upsert('prc', 'PRC License', extracted.prcNumber);
-    upsert('tin', 'TIN/BIR Record', extracted.tinNumber);
-    return next;
-  }
-
-  private firstMatch(text: string, pattern: RegExp): string | null {
-    return (
-      pattern
-        .exec(text)?.[1]
-        ?.replace(/[_\s]+/g, '-')
-        .replace(/-(?:NBI|PRC|TIN).*$/i, '') ?? null
-    );
-  }
-
-  private humanizeDocumentType(value: string): string {
-    return value
-      .replace(/[_-]+/g, ' ')
-      .replace(/\b\w/g, (letter) => letter.toUpperCase());
-  }
-
-  private async extractTextWithLocalOcr(
-    documentUrl: string | null | undefined,
-  ): Promise<string> {
-    if (!documentUrl) {
-      return '';
-    }
-
-    try {
-      const tesseract = await import('tesseract.js');
-      const result = await tesseract.recognize(documentUrl, 'eng');
-      return result.data.text ?? '';
-    } catch {
-      return '';
-    }
   }
 
   private getClientIp(request: {

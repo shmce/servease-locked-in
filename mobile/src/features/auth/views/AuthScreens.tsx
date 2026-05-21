@@ -11,6 +11,7 @@ import {
 import { RoleCard } from '../../../components/AppDisplay';
 import { AppRole, AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { providerSignupRequirements } from '../../../domain/providerRegistration';
 import { useAuthViewModel } from '../viewModels/useAuthViewModel';
 
 const claireImage2 = require('../../../../assets/image 2.png');
@@ -29,6 +30,7 @@ type AuthScreensProps = {
   signupBusinessName: string;
   signupServiceArea: string;
   signupServiceDescription: string;
+  signupExperienceYears: string;
   notice: string;
   busyAction: string | null;
   setEmail: Dispatch<SetStateAction<string>>;
@@ -39,6 +41,7 @@ type AuthScreensProps = {
   setSignupBusinessName: Dispatch<SetStateAction<string>>;
   setSignupServiceArea: Dispatch<SetStateAction<string>>;
   setSignupServiceDescription: Dispatch<SetStateAction<string>>;
+  setSignupExperienceYears: Dispatch<SetStateAction<string>>;
   setNotice: Dispatch<SetStateAction<string>>;
   navigate: (screen: AppScreen, nextRole?: AppRole | null) => void;
   signIn: (role: AppRole) => Promise<void>;
@@ -59,6 +62,7 @@ export function AuthScreens({
   signupBusinessName,
   signupServiceArea,
   signupServiceDescription,
+  signupExperienceYears,
   notice,
   busyAction,
   setEmail,
@@ -69,6 +73,7 @@ export function AuthScreens({
   setSignupBusinessName,
   setSignupServiceArea,
   setSignupServiceDescription,
+  setSignupExperienceYears,
   setNotice,
   navigate,
   signIn,
@@ -179,6 +184,7 @@ export function AuthScreens({
           />
           {isProvider ? (
             <>
+              <ProviderRequirementsCard />
               <Field
                 label="Business Name"
                 value={signupBusinessName}
@@ -190,6 +196,13 @@ export function AuthScreens({
                 value={signupServiceArea}
                 onChangeText={setSignupServiceArea}
                 placeholder="Metro Manila"
+              />
+              <Field
+                label="Years of Experience"
+                value={signupExperienceYears}
+                onChangeText={setSignupExperienceYears}
+                keyboardType="numeric"
+                placeholder="3"
               />
               <Field
                 label="Service Description"
@@ -346,32 +359,28 @@ export function AuthScreens({
   return (
     <PhoneFrame>
       <View style={styles.authGate}>
-        <View style={styles.claireTopLeftWrap}>
-          <Image
-            source={claireImage2}
-            style={styles.claireTopLeftAsset}
-            resizeMode="stretch"
-            accessible={false}
-          />
-        </View>
+        <Image
+          source={claireImage2}
+          style={styles.claireTopLeftAsset}
+          resizeMode="contain"
+          accessible={false}
+        />
         <Image
           source={claireImg0157}
           style={styles.claireTopRightAsset}
-          resizeMode="stretch"
+          resizeMode="contain"
           accessible={false}
         />
-        <View style={styles.claireBottomLeftWrap}>
-          <Image
-            source={claireImage3}
-            style={styles.claireBottomLeftAsset}
-            resizeMode="stretch"
-            accessible={false}
-          />
-        </View>
+        <Image
+          source={claireImage3}
+          style={styles.claireBottomLeftAsset}
+          resizeMode="contain"
+          accessible={false}
+        />
         <Image
           source={claireImage4}
           style={styles.claireBottomRightAsset}
-          resizeMode="stretch"
+          resizeMode="contain"
           accessible={false}
         />
 
@@ -465,6 +474,26 @@ export function AuthScreens({
   );
 }
 
+function ProviderRequirementsCard() {
+  return (
+    <View style={styles.requirementsCard}>
+      <Text style={styles.requirementsTitle}>Required for admin approval</Text>
+      {providerSignupRequirements.map((requirement) => (
+        <View key={requirement} style={styles.requirementRow}>
+          <View style={styles.requirementIcon}>
+            <Check color={palette.mint} size={12} strokeWidth={3} />
+          </View>
+          <Text style={styles.requirementText}>{requirement}</Text>
+        </View>
+      ))}
+      <Text style={styles.requirementNote}>
+        You can upload the government ID from the provider home screen after the
+        account is created.
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   authGate: {
     backgroundColor: palette.mint,
@@ -472,52 +501,42 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
-  claireTopLeftWrap: {
-    height: 166,
-    left: -48,
-    position: 'absolute',
-    top: -4,
-    width: 160,
-  },
   claireTopLeftAsset: {
-    height: 166,
-    transform: [{ rotate: '180deg' }],
+    height: 254,
+    left: -55,
+    position: 'absolute',
+    top: -50,
     width: 160,
   },
   claireTopRightAsset: {
-    height: 264,
-    left: 266,
+    height: 316,
     position: 'absolute',
-    top: -4,
-    width: 160,
-  },
-  claireBottomLeftWrap: {
-    alignItems: 'center',
-    height: 230,
-    justifyContent: 'center',
-    left: -82,
-    position: 'absolute',
-    top: 655,
-    width: 247,
+    right: -35,
+    top: -50,
+    width: 150,
   },
   claireBottomLeftAsset: {
-    height: 171,
-    transform: [{ rotate: '159.59deg' }],
-    width: 200,
+    bottom: -55,
+    height: 232,
+    left: -45,
+    position: 'absolute',
+    transform: [{ rotate: '180deg' }],
+    width: 180,
   },
   claireBottomRightAsset: {
-    height: 154,
-    left: 247,
+    bottom: -30,
+    height: 198,
     position: 'absolute',
-    top: 684,
+    right: -45,
     width: 200,
   },
   claireLogoWrap: {
     alignItems: 'center',
     justifyContent: 'center',
+    left: 0,
     position: 'absolute',
+    right: 0,
     top: 285,
-    width: '100%',
   },
   claireLogoImage: {
     height: 53,
@@ -525,7 +544,7 @@ const styles = StyleSheet.create({
   },
   claireTagline: {
     color: palette.white,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '500',
     left: 27,
     lineHeight: 23,
@@ -553,7 +572,7 @@ const styles = StyleSheet.create({
   },
   claireSignupText: {
     color: palette.mint,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
     lineHeight: 21,
   },
@@ -573,7 +592,7 @@ const styles = StyleSheet.create({
   },
   claireLoginText: {
     color: palette.white,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
     lineHeight: 21,
   },
@@ -626,9 +645,9 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   authContent: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-    paddingBottom: spacing.xxl,
+    gap: spacing.md,
+    padding: spacing.md,
+    paddingBottom: spacing.md,
   },
   authHero: {
     ...type.hero,
@@ -639,9 +658,50 @@ const styles = StyleSheet.create({
     color: palette.muted,
     marginTop: -spacing.md,
   },
+  requirementsCard: {
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  requirementsTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 18,
+  },
+  requirementRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  requirementIcon: {
+    alignItems: 'center',
+    backgroundColor: '#E9F9F0',
+    borderRadius: radius.pill,
+    height: 20,
+    justifyContent: 'center',
+    width: 20,
+  },
+  requirementText: {
+    color: palette.ink,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  requirementNote: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+    marginTop: spacing.xs,
+  },
   forgotLink: {
     color: palette.mint,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     textAlign: 'right',
   },
@@ -658,7 +718,7 @@ const styles = StyleSheet.create({
   dividerText: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   methodTabs: {
     backgroundColor: '#F3F4F6',
@@ -704,18 +764,18 @@ const styles = StyleSheet.create({
   },
   phoneMark: {
     color: palette.ink,
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '900',
   },
   socialText: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
   },
   noticeText: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
     lineHeight: 18,
     textAlign: 'center',
   },

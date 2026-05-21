@@ -195,13 +195,6 @@ async function main() {
     ),
     'admin provider application review note missing after create',
   )
-  const ocrProviderApplicationReview =
-    await adminApi.runAdminProviderApplicationOcr(token, expected.providerId)
-  assert(
-    ocrProviderApplicationReview.applicationId === expected.providerId,
-    'admin provider application OCR review mismatch',
-  )
-
   const resolvedDispute = await adminApi.resolveAdminDispute(token, expected.disputeId)
   assert(resolvedDispute.status === 'resolved', 'admin dispute resolve failed')
   const escalatedBooking = await adminApi.escalateAdminBooking(token, expected.bookingId, {

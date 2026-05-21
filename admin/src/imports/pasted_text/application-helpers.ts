@@ -71,7 +71,7 @@ const buildApplication = (
   riskLevel,
   flags,
   govIdNumber: "PSN-2026-" + applicationId.slice(-4),
-  ocrConfidence: 92,
+  documentConfidence: 92,
   govIdType: "PhilSys National ID",
   notes: [
     {
@@ -183,7 +183,7 @@ export function ProviderApplicationReview() {
   const [requestMessage, setRequestMessage] = useState("");
   const [govIdType, setGovIdType] = useState(application?.govIdType || "PhilSys National ID");
   const [govIdNumber, setGovIdNumber] = useState(application?.govIdNumber || "");
-  const [ocrRunning, setOcrRunning] = useState(false);
+  const [documentReviewRunning, setDocumentReviewRunning] = useState(false);
 
   if (!application) {
     return (
@@ -405,12 +405,12 @@ export function ProviderApplicationReview() {
               </CardContent>
             </Card>
 
-            {/* OCR Extracted Data Card */}
+            {/* Document Extracted Data Card */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <ScanLine className="w-4 h-4 text-[#16A34A]" />
-                  OCR Extracted Data
+                  Document Extracted Data
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 pt-0">
@@ -442,16 +442,16 @@ export function ProviderApplicationReview() {
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <p className="text-xs text-gray-500">OCR Confidence Score</p>
+                    <p className="text-xs text-gray-500">Document Confidence Score</p>
                     <div className="flex items-center gap-2">
                       <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#16A34A] rounded-full" style={{ width: `${application.ocrConfidence}%` }} />
+                        <div className="h-full bg-[#16A34A] rounded-full" style={{ width: `${application.documentConfidence}%` }} />
                       </div>
-                      <span className="text-sm font-semibold text-[#16A34A]">{application.ocrConfidence}%</span>
+                      <span className="text-sm font-semibold text-[#16A34A]">{application.documentConfidence}%</span>
                     </div>
                   </div>
-                  <Button size="sm" variant="outline" className="gap-2 text-xs" onClick={() => { setOcrRunning(true); setTimeout(() => setOcrRunning(false), 2000); }} disabled={ocrRunning}>
-                    {ocrRunning ? <><RefreshCw className="w-3 h-3 animate-spin" />Running…</> : <><ScanLine className="w-3 h-3" />Run OCR Again</>}
+                  <Button size="sm" variant="outline" className="gap-2 text-xs" onClick={() => { setDocumentReviewRunning(true); setTimeout(() => setDocumentReviewRunning(false), 2000); }} disabled={documentReviewRunning}>
+                    {documentReviewRunning ? <><RefreshCw className="w-3 h-3 animate-spin" />Running…</> : <><ScanLine className="w-3 h-3" />Review Again</>}
                   </Button>
                 </div>
               </CardContent>
@@ -674,7 +674,7 @@ export function ProviderApplicationReview() {
                   </div>
                 </div>
                 <div className="space-y-2 min-w-0">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">OCR Data + Manual Input</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Document Data + Manual Input</p>
                   <div className="bg-gray-50 rounded-xl p-4 space-y-3 overflow-y-auto" style={{ height: "280px" }}>
                     <div className="p-2 bg-white rounded-lg border border-gray-200">
                       <p className="text-xs text-gray-500">ID Type</p>

@@ -1,20 +1,17 @@
 // Theme discipline: only palette.mint*, palette.alert, and palette.{ink,body,muted,faint,line,lineSoft,input,white,surface,cream} are allowed.
 // Spacing/radius/type must use the exported theme tokens.
-import { ReactNode } from 'react';
 import {
   Bell,
-  CalendarOff,
   ChevronRight,
-  MessageCircle,
   Navigation,
   Play,
-  Share2,
+  Search,
   Star,
-  Wallet,
+  User,
 } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { AppRole, AppScreen } from '../../../navigation/types';
-import { homeTokens, palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
 import { useProviderHomeViewModel } from '../viewModels/useProviderHomeViewModel';
 import {
   ProviderHomeActiveBooking,
@@ -86,18 +83,30 @@ export function ProviderHomeScreen({
     navigate(screen, 'provider');
   }
 
+  const agendaItems = model.hero.kind === 'job'
+    ? [
+        { type: 'next' as const, hero: model.hero },
+        ...model.activeBookings.map((item) => ({ type: 'booking' as const, item })),
+      ]
+    : model.activeBookings.map((item) => ({ type: 'booking' as const, item }));
+
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <View style={styles.content}>
-        <View style={styles.topBar}>
-          <View style={styles.flex}>
-            <Text style={styles.eyebrow}>Today, {model.todayLabel}</Text>
-            <Text style={styles.topTitle} numberOfLines={1}>
-              Hi, {model.businessName}
-            </Text>
+      <View style={styles.providerHero}>
+        <View style={styles.heroRow}>
+          <View style={styles.heroIdentity}>
+            <View style={styles.heroAvatar}>
+              <User color={palette.white} size={20} strokeWidth={2.4} />
+            </View>
+            <View style={styles.flex}>
+              <Text style={styles.heroMuted}>Today, {model.todayLabel}</Text>
+              <Text style={styles.heroName} numberOfLines={1}>
+                Hi, {model.businessName}
+              </Text>
+            </View>
           </View>
           <Pressable
-            style={styles.iconButton}
+            style={styles.notificationButton}
             onPress={() => navigate('providerNotifications', 'provider')}
             accessibilityRole="button"
             accessibilityLabel={
@@ -106,76 +115,81 @@ export function ProviderHomeScreen({
                 : 'Notifications'
             }
           >
-            <Bell color={palette.ink} size={spacing.lg} strokeWidth={2.2} />
-            {unreadCount > 0 ? <View style={styles.unreadDot} /> : null}
+            <Bell color={palette.white} size={20} strokeWidth={2.2} />
+            {unreadCount > 0 ? <View style={styles.heroUnreadDot} /> : null}
           </Pressable>
         </View>
-
-        <ActionHero hero={model.hero} onOpen={openHeroAction} />
-
-        <View style={styles.quickRow}>
-          <HomePill
-            icon={<Wallet color={model.payoutAction.disabled ? palette.faint : palette.mint} size={spacing.lg} />}
-            label="Request Payout"
-            detail={model.payoutAction.helperLabel}
-            disabled={model.payoutAction.disabled}
-            accessibilityLabel={model.payoutAction.accessibilityLabel}
-            onPress={() => navigate('providerRequestPayout', 'provider')}
-          />
-          <HomePill
-            icon={<CalendarOff color={palette.mint} size={spacing.lg} />}
-            label="Block Time"
-            detail="Calendar"
-            onPress={() => navigate('calendar', 'provider')}
-          />
-          <HomePill
-            icon={<MessageCircle color={palette.mint} size={spacing.lg} />}
-            label="Messages"
-            detail={unreadCount > 0 ? `${unreadCount} unread` : 'Inbox'}
-            badge={unreadCount}
-            onPress={() => navigate('messages', 'provider')}
-          />
-        </View>
-
         <Pressable
-          style={styles.earningsStrip}
-          onPress={() => navigate('providerEarnings', 'provider')}
+          style={styles.searchBar}
+          onPress={() => navigate('bookings', 'provider')}
           accessibilityRole="button"
-          accessibilityLabel="Open provider earnings"
+          accessibilityLabel="Search provider bookings"
         >
-          <StatItem label="Today" value={model.todayEarningsLabel} />
-          <StatItem label="This week" value={model.weekEarningsLabel} />
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Rating</Text>
-            <View style={styles.ratingRow}>
-              <Star color={palette.mint} fill={palette.mint} size={spacing.base} />
-              <Text style={styles.statValue}>{model.ratingLabel}</Text>
-            </View>
-          </View>
+          <Search color={palette.faint} size={18} strokeWidth={2.2} />
+          <Text style={styles.searchText}>Search bookings, requests...</Text>
         </Pressable>
+      </View>
 
+      <View style={styles.content}>
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Active</Text>
+            <Text style={styles.sectionTitle}>{"Today's Agenda"}</Text>
             <Text style={styles.linkText} onPress={() => navigate('bookings', 'provider')}>
               View all
             </Text>
           </View>
-          {model.activeBookings.map((booking) => (
-            <ActiveBookingRow
-              key={booking.id}
-              item={booking}
-              onPress={() => openBooking(booking.booking, 'providerBookingDetail')}
-            />
-          ))}
-          {!model.activeBookings.length ? (
+          {agendaItems.map((item, index) =>
+            item.type === 'next' ? (
+              <NextAgendaRow
+                key={item.hero.bookingId}
+                hero={item.hero}
+                onOpen={openHeroAction}
+              />
+            ) : (
+              <AgendaBookingRow
+                key={item.item.id}
+                item={item.item}
+                isFirst={index === 0}
+                onPress={() => openBooking(item.item.booking, 'providerBookingDetail')}
+              />
+            ),
+          )}
+          {model.hero.kind === 'requests' ? (
+            <PendingRequestsRow hero={model.hero} onOpen={openHeroAction} />
+          ) : null}
+          {!agendaItems.length && model.hero.kind !== 'requests' ? (
             <View style={styles.emptyBlock}>
-              <Text style={styles.emptyTitle}>No active bookings</Text>
+              <Text style={styles.emptyTitle}>No appointments today</Text>
               <Text style={styles.emptyCopy}>
                 Confirmed and in-progress jobs appear here.
               </Text>
             </View>
           ) : null}
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Performance</Text>
+            <Text style={styles.linkText} onPress={() => navigate('providerEarnings', 'provider')}>
+              View earnings
+            </Text>
+          </View>
+          <Pressable
+            style={styles.earningsStrip}
+            onPress={() => navigate('providerEarnings', 'provider')}
+            accessibilityRole="button"
+            accessibilityLabel="Open provider earnings"
+          >
+            <StatItem label="Today" value={model.todayEarningsLabel} />
+            <StatItem label="This week" value={model.weekEarningsLabel} />
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Rating</Text>
+              <View style={styles.ratingRow}>
+                <Star color={palette.mint} fill={palette.mint} size={spacing.base} />
+                <Text style={styles.statValue}>{model.ratingLabel}</Text>
+              </View>
+            </View>
+          </Pressable>
         </View>
 
         <ProviderApplicationBanner
@@ -190,104 +204,45 @@ export function ProviderHomeScreen({
   );
 }
 
-function ActionHero({
+function NextAgendaRow({
   hero,
   onOpen,
 }: {
-  hero: ProviderHomeHero;
+  hero: Extract<ProviderHomeHero, { kind: 'job' }>;
   onOpen: (hero: ProviderHomeHero, screen: AppScreen) => void;
 }) {
-  const icon =
-    hero.kind === 'job' && hero.primaryActionLabel === 'Start Service' ? (
-      <Play color={palette.white} fill={palette.white} size={spacing.lg} />
-    ) : hero.kind === 'job' ? (
-      <Navigation color={palette.white} size={spacing.lg} />
-    ) : hero.kind === 'requests' ? (
-      <ChevronRight color={palette.white} size={spacing.lg} />
-    ) : null;
+  const icon = hero.primaryActionLabel === 'Start Service' ? (
+    <Play color={palette.white} fill={palette.white} size={spacing.lg} />
+  ) : (
+    <Navigation color={palette.white} size={spacing.lg} />
+  );
 
   return (
-    <View style={styles.actionHero}>
-      <View style={styles.heroCopy}>
-        <Text style={styles.heroMeta} numberOfLines={1}>
+    <View style={styles.nextAgendaRow}>
+      <View style={styles.agendaTopLine}>
+        <View style={styles.nowDot} />
+        <Text style={styles.agendaLabel}>Next appointment</Text>
+      </View>
+      <View style={styles.agendaCopy}>
+        <Text style={styles.agendaMeta} numberOfLines={1}>
           {hero.meta}
         </Text>
-        <Text style={styles.heroTitle} numberOfLines={2}>
+        <Text style={styles.agendaTitle} numberOfLines={2}>
           {hero.title}
         </Text>
-        <Text style={styles.heroSubtitle} numberOfLines={1}>
+        <Text style={styles.agendaSubtitle} numberOfLines={1}>
           {hero.subtitle}
         </Text>
       </View>
-      {hero.kind === 'caught-up' ? (
-        <View style={styles.caughtUpActions}>
-          <Pressable
-            style={styles.secondaryPill}
-            onPress={() => onOpen(hero, hero.primaryActionScreen)}
-            accessibilityRole="button"
-          >
-            <CalendarOff color={palette.mint} size={spacing.base} />
-            <Text style={styles.secondaryPillText}>{hero.primaryActionLabel}</Text>
-          </Pressable>
-          <Pressable
-            style={styles.secondaryPill}
-            onPress={() => onOpen(hero, hero.secondaryActionScreen)}
-            accessibilityRole="button"
-          >
-            <Share2 color={palette.mint} size={spacing.base} />
-            <Text style={styles.secondaryPillText}>{hero.secondaryActionLabel}</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <Pressable
-          style={styles.primaryAction}
-          onPress={() => onOpen(hero, hero.primaryActionScreen)}
-          accessibilityRole="button"
-        >
-          {icon}
-          <Text style={styles.primaryActionText}>{hero.primaryActionLabel}</Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-function HomePill({
-  icon,
-  label,
-  detail,
-  badge = 0,
-  disabled = false,
-  accessibilityLabel,
-  onPress,
-}: {
-  icon: ReactNode;
-  label: string;
-  detail: string;
-  badge?: number;
-  disabled?: boolean;
-  accessibilityLabel?: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      style={[styles.homePill, disabled && styles.homePillDisabled]}
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-    >
-      <View style={styles.pillIconWrap}>
+      <Pressable
+        style={styles.primaryAction}
+        onPress={() => onOpen(hero, hero.primaryActionScreen)}
+        accessibilityRole="button"
+      >
         {icon}
-        {badge > 0 ? <View style={styles.pillBadge} /> : null}
-      </View>
-      <Text style={[styles.pillLabel, disabled && styles.disabledText]} numberOfLines={2}>
-        {label}
-      </Text>
-      <Text style={styles.pillDetail} numberOfLines={2}>
-        {detail}
-      </Text>
-    </Pressable>
+        <Text style={styles.primaryActionText}>{hero.primaryActionLabel}</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -302,102 +257,189 @@ function StatItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function ActiveBookingRow({
+function AgendaBookingRow({
   item,
+  isFirst,
   onPress,
 }: {
   item: ProviderHomeActiveBooking;
+  isFirst: boolean;
   onPress: () => void;
 }) {
   return (
     <Pressable
-      style={styles.activeRow}
+      style={[styles.agendaRow, !isFirst && styles.agendaRowWithDivider]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Open ${item.summary}`}
     >
-      <Text style={styles.activeText} numberOfLines={1}>
+      <View style={styles.agendaBullet} />
+      <Text style={styles.agendaText} numberOfLines={2}>
         {item.summary}
       </Text>
-      <ChevronRight color={palette.faint} size={spacing.lg} />
+      <ChevronRight color={palette.faint} size={18} />
+    </Pressable>
+  );
+}
+
+function PendingRequestsRow({
+  hero,
+  onOpen,
+}: {
+  hero: Extract<ProviderHomeHero, { kind: 'requests' }>;
+  onOpen: (hero: ProviderHomeHero, screen: AppScreen) => void;
+}) {
+  return (
+    <Pressable
+      style={styles.pendingRow}
+      onPress={() => onOpen(hero, hero.primaryActionScreen)}
+      accessibilityRole="button"
+    >
+      <View style={styles.agendaBullet} />
+      <View style={styles.flex}>
+        <Text style={styles.agendaTitle} numberOfLines={1}>
+          {hero.title}
+        </Text>
+        <Text style={styles.agendaSubtitle} numberOfLines={2}>
+          {hero.subtitle}
+        </Text>
+      </View>
+      <ChevronRight color={palette.mint} size={18} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
-    backgroundColor: palette.surface,
+    backgroundColor: palette.cream,
     flexGrow: 1,
-    paddingBottom: 108,
+    paddingBottom: 96,
   },
   content: {
-    gap: homeTokens.sectionGap,
-    padding: homeTokens.heroPadding,
-  },
-  topBar: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: homeTokens.cardGap,
-    justifyContent: 'space-between',
-    paddingVertical: spacing.sm,
+    gap: spacing.lg,
+    padding: spacing.base,
+    paddingTop: spacing.lg,
   },
   flex: {
     flex: 1,
   },
-  eyebrow: {
-    ...type.caption,
-    color: palette.muted,
-    textTransform: 'uppercase',
+  providerHero: {
+    backgroundColor: palette.mint,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    gap: spacing.base,
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.base,
   },
-  topTitle: {
-    ...type.section,
-    color: palette.ink,
+  heroRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  iconButton: {
+  heroIdentity: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  heroAvatar: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    borderRadius: radius.lg,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  heroMuted: {
+    color: 'rgba(255,255,255,0.82)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  heroName: {
+    color: palette.white,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  notificationButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    borderColor: 'rgba(255,255,255,0.28)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    height: 40,
+    justifyContent: 'center',
+    position: 'relative',
+    width: 40,
+  },
+  heroUnreadDot: {
+    backgroundColor: palette.alert,
+    borderColor: 'rgba(86,196,144,0.8)',
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    height: 8,
+    position: 'absolute',
+    right: 8,
+    top: 7,
+    width: 8,
+  },
+  searchBar: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: spacing.xxl,
-    minWidth: spacing.xxl,
-    position: 'relative',
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 48,
+    paddingHorizontal: spacing.base,
+    boxShadow: '0 4px 14px rgba(44,90,60,0.12)',
   },
-  unreadDot: {
-    backgroundColor: palette.alert,
-    borderColor: palette.white,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    height: spacing.sm,
-    position: 'absolute',
-    right: spacing.xs,
-    top: spacing.xs,
-    width: spacing.sm,
+  searchText: {
+    color: palette.faint,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
   },
-  actionHero: {
-    backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    boxShadow: '0 8px 18px rgba(44,42,40,0.08)',
-    gap: homeTokens.cardGap,
-    padding: homeTokens.heroPadding,
+  nextAgendaRow: {
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
   },
-  heroCopy: {
+  agendaTopLine: {
+    alignItems: 'center',
+    flexDirection: 'row',
     gap: spacing.xs,
   },
-  heroMeta: {
+  nowDot: {
+    backgroundColor: palette.mint,
+    borderRadius: radius.pill,
+    height: 8,
+    width: 8,
+  },
+  agendaLabel: {
     ...type.caption,
-    color: palette.mintDark,
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '700',
   },
-  heroTitle: {
-    ...type.title,
+  agendaCopy: {
+    gap: spacing.xs,
+  },
+  agendaMeta: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+  },
+  agendaTitle: {
     color: palette.ink,
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 23,
   },
-  heroSubtitle: {
-    ...type.body,
-    color: palette.body,
+  agendaSubtitle: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   primaryAction: {
     alignItems: 'center',
@@ -407,103 +449,37 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
-    minHeight: spacing.xxl,
+    minHeight: 48,
     paddingHorizontal: spacing.base,
   },
   primaryActionText: {
-    ...type.action,
     color: palette.white,
-  },
-  caughtUpActions: {
-    flexDirection: 'row',
-    gap: homeTokens.pillGap,
-  },
-  secondaryPill: {
-    alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderColor: palette.line,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    flex: 1,
-    flexDirection: 'row',
-    gap: spacing.xs,
-    justifyContent: 'center',
-    minHeight: spacing.xxl,
-    paddingHorizontal: spacing.sm,
-  },
-  secondaryPillText: {
-    ...type.caption,
-    color: palette.mintDark,
-    fontWeight: '800',
-  },
-  quickRow: {
-    flexDirection: 'row',
-    gap: homeTokens.pillGap,
-  },
-  homePill: {
-    alignItems: 'flex-start',
-    backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flex: 1,
-    gap: spacing.xs,
-    minHeight: spacing.xxl * 3,
-    padding: spacing.md,
-  },
-  homePillDisabled: {
-    backgroundColor: palette.lineSoft,
-  },
-  pillIconWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  pillBadge: {
-    backgroundColor: palette.alert,
-    borderColor: palette.white,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    height: spacing.sm,
-    position: 'absolute',
-    right: -spacing.xs,
-    top: -spacing.xs,
-    width: spacing.sm,
-  },
-  pillLabel: {
-    ...type.caption,
-    color: palette.ink,
-    fontWeight: '800',
-    flexShrink: 1,
-  },
-  pillDetail: {
-    ...type.caption,
-    color: palette.muted,
-  },
-  disabledText: {
-    color: palette.faint,
+    fontSize: 15,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   earningsStrip: {
     alignItems: 'center',
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'space-between',
-    padding: spacing.md,
+    paddingVertical: spacing.xs,
   },
   statItem: {
     flex: 1,
     gap: spacing.xxs,
   },
   statLabel: {
-    ...type.caption,
     color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
   },
   statValue: {
-    ...type.section,
     color: palette.ink,
+    fontSize: 16,
+    fontWeight: '700',
+    lineHeight: 22,
   },
   ratingRow: {
     alignItems: 'center',
@@ -511,7 +487,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   section: {
-    gap: homeTokens.cardGap,
+    gap: spacing.md,
   },
   sectionHeader: {
     alignItems: 'center',
@@ -521,42 +497,59 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   linkText: {
     ...type.caption,
     color: palette.mintDark,
-    fontWeight: '800',
+    fontWeight: '700',
   },
-  activeRow: {
+  agendaRow: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-    minHeight: spacing.xxl,
-    paddingHorizontal: spacing.md,
+    minHeight: 50,
+    paddingVertical: spacing.sm,
   },
-  activeText: {
-    ...type.body,
+  agendaRowWithDivider: {
+    borderTopColor: palette.lineSoft,
+    borderTopWidth: 1,
+  },
+  pendingRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 58,
+    paddingVertical: spacing.sm,
+  },
+  agendaBullet: {
+    backgroundColor: palette.mintSoft,
+    borderColor: palette.mint,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    height: 12,
+    width: 12,
+  },
+  agendaText: {
     color: palette.body,
     flex: 1,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   emptyBlock: {
-    backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderWidth: 1,
     gap: spacing.xs,
-    padding: spacing.md,
+    paddingVertical: spacing.sm,
   },
   emptyTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   emptyCopy: {
-    ...type.body,
     color: palette.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
 });

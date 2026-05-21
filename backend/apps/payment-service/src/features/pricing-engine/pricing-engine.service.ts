@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   InvalidPricingQuoteRequestError,
   InvalidPricingRuleRequestError,
+  PricingFuelSyncUnavailableError,
   PricingQuoteExpiredError,
 } from './pricing-engine.errors';
+import { GasWatchFuelPriceProvider } from './gaswatch-fuel-price.provider';
 import { PricingEngineRepository } from './pricing-engine.repository';
 import {
   CreatePricingFuelIndexInput,
@@ -17,6 +19,9 @@ import {
   PricingQuoteSignals,
   PricingQuoteSummary,
   PricingQuoteValidationResult,
+  PricingFuelPriceCandidate,
+  PricingFuelPriceProvider,
+  SyncPricingFuelIndexInput,
   UpsertPricingCategoryRuleInput,
 } from './pricing-engine.types';
 
@@ -41,7 +46,13 @@ const DEFAULT_RULE: PricingCategoryRuleSummary = {
 
 @Injectable()
 export class PricingEngineService {
-  constructor(private readonly pricingRepository: PricingEngineRepository) {}
+  constructor(
+    private readonly pricingRepository: PricingEngineRepository,
+    @Optional()
+    @Inject(GasWatchFuelPriceProvider)
+    private readonly fuelPriceProvider: PricingFuelPriceProvider =
+      new GasWatchFuelPriceProvider(),
+  ) {}
 
   async createQuote(input: CreatePricingQuoteInput): Promise<PricingQuoteSummary> {
     this.assertValidQuoteInput(input);
@@ -120,8 +131,71 @@ export class PricingEngineService {
     });
   }
 
+  async syncFuelIndexFromGasWatch(
+    input: SyncPricingFuelIndexInput = {},
+  ): Promise<PricingFuelIndexSummary> {
+    const candidate = await this.getGasWatchFuelPrice();
+    const region = (input.region ?? candidate.region ?? 'default')
+      .trim()
+      .toLowerCase();
+
+    if (!region || !this.isValidSyncedFuelPrice(candidate)) {
+      throw new PricingFuelSyncUnavailableError();
+    }
+
+    const existing = await this.findExistingFuelIndexSnapshot(
+      region,
+      candidate,
+    );
+    if (existing) {
+      return existing;
+    }
+
+    return this.pricingRepository.createFuelIndex({
+      region,
+      fuelPricePerLiter: candidate.pricePerLiter,
+      source: candidate.source,
+      effectiveAt: candidate.effectiveAt,
+      adminUserId: input.adminUserId ?? null,
+    });
+  }
+
   listQuoteAudits(): Promise<PricingQuoteAuditSummary[]> {
     return this.pricingRepository.listQuoteAudits();
+  }
+
+  private async getGasWatchFuelPrice(): Promise<PricingFuelPriceCandidate> {
+    try {
+      return await this.fuelPriceProvider.getLatestFuelPrice();
+    } catch {
+      throw new PricingFuelSyncUnavailableError();
+    }
+  }
+
+  private async findExistingFuelIndexSnapshot(
+    region: string,
+    candidate: PricingFuelPriceCandidate,
+  ): Promise<PricingFuelIndexSummary | null> {
+    const rows = await this.pricingRepository.listFuelIndex();
+    return (
+      rows.find(
+        (row) =>
+          row.region.toLowerCase() === region &&
+          row.source === candidate.source &&
+          row.effectiveAt === candidate.effectiveAt &&
+          row.fuelPricePerLiter === candidate.pricePerLiter,
+      ) ?? null
+    );
+  }
+
+  private isValidSyncedFuelPrice(candidate: PricingFuelPriceCandidate): boolean {
+    return (
+      Number.isFinite(candidate.pricePerLiter) &&
+      candidate.pricePerLiter >= 20 &&
+      candidate.pricePerLiter <= 250 &&
+      Boolean(candidate.source?.trim()) &&
+      Number.isFinite(new Date(candidate.effectiveAt).getTime())
+    );
   }
 
   private calculateQuote(

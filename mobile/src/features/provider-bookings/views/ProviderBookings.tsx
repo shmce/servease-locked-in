@@ -1,10 +1,15 @@
 import { Dispatch, SetStateAction } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Filter, Search } from 'lucide-react-native';
-import { EmptyState, Field, PrimaryButton, TopBar } from '../../../components/DesignKit';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Search } from 'lucide-react-native';
+import {
+  EmptyState,
+  Pill,
+  PrimaryButton,
+  TopBar,
+} from '../../../components/DesignKit';
 import { BookingCard } from '../../../components/AppDisplay';
 import { providerBookingTabs, ProviderBookingTab } from '../../../constants/appContent';
-import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import { palette, spacing } from '../../../theme/serveaseDesign';
 import { BookingSummary } from '../../../shared/models/types';
 import { useProviderBookingsViewModel } from '../viewModels/useProviderBookingsViewModel';
 
@@ -36,7 +41,7 @@ export function ProviderBookingsScreen({
   return (
     <>
       <TopBar
-        title="My Bookings"
+        title="Bookings"
         subtitle="Review requests and update booking status"
         right={
           <PrimaryButton
@@ -48,38 +53,26 @@ export function ProviderBookingsScreen({
       />
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.content}>
-          <View style={styles.providerTabBar}>
+          <View style={styles.segmentRow}>
             {providerBookingTabs.map((tab) => (
-              <Pressable
+              <Pill
                 key={tab.key}
-                style={styles.providerTab}
+                label={tab.label}
+                selected={providerBookingTab === tab.key}
                 onPress={() => setProviderBookingTab(tab.key)}
-              >
-                <Text
-                  style={[
-                    styles.providerTabText,
-                    providerBookingTab === tab.key && styles.providerTabTextActive,
-                  ]}
-                >
-                  {tab.label}
-                </Text>
-                {providerBookingTab === tab.key ? (
-                  <View style={styles.providerTabIndicator} />
-                ) : null}
-              </Pressable>
+              />
             ))}
           </View>
           <View style={styles.searchInputShell}>
-            <Search color={palette.faint} size={18} />
-            <Field
-              label=""
+            <Search color={palette.faint} size={18} strokeWidth={2.2} />
+            <TextInput
+              style={styles.searchInput}
               value={providerSearchQuery}
               onChangeText={setProviderSearchQuery}
               placeholder="Search bookings"
+              placeholderTextColor={palette.faint}
+              accessibilityLabel="Search provider bookings"
             />
-            <View style={styles.filterButton}>
-              <Filter color={palette.ink} size={20} />
-            </View>
           </View>
           {providerBookings.data.map((booking) => (
             <BookingCard
@@ -108,48 +101,31 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
-  providerTabBar: {
-    borderBottomColor: palette.lineSoft,
-    borderBottomWidth: 1,
+  segmentRow: {
     flexDirection: 'row',
-  },
-  providerTab: {
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 48,
-    position: 'relative',
-  },
-  providerTabText: {
-    color: palette.faint,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  providerTabTextActive: {
-    color: palette.mint,
-  },
-  providerTabIndicator: {
-    backgroundColor: palette.mint,
-    bottom: 0,
-    height: 2,
-    left: 0,
-    position: 'absolute',
-    right: 0,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   searchInputShell: {
     alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: 12,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
   },
-  filterButton: {
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-    borderRadius: radius.md,
-    height: 48,
-    justifyContent: 'center',
-    width: 48,
+  searchInput: {
+    color: palette.ink,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    paddingVertical: spacing.sm,
   },
 });

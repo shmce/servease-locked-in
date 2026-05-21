@@ -73,10 +73,25 @@ Run `npm run dev` and inspect affected pages for visual or interaction changes.
 From `Landing Page/`:
 
 ```sh
+npm run typecheck
+npm run lint
+npm test
 npm run build
 ```
 
 Run `npm run dev` and inspect affected public/account pages when routes, forms, or proxy handlers change.
+
+## SDK Checks
+
+From `packages/servease-sdk/`:
+
+```sh
+npm run typecheck
+npm test
+npm run build
+```
+
+Run these checks when public SDK methods, exported contract types, package metadata, or package documentation changes.
 
 ## Supabase Checks
 
@@ -126,6 +141,7 @@ For documentation-only changes:
 - Confirm commands match the package structure.
 - Confirm package names, environment variables, and ports match the checked-in config files.
 - Confirm historical specs and audits remain clearly separate from current source-of-truth docs.
+- Confirm contract inventories still cover Gateway and internal service controller routes when API docs change.
 
 ## Handoff Format
 

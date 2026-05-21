@@ -281,7 +281,6 @@ export function BottomNavigation<T extends string>({
           );
         })}
       </View>
-      <View style={styles.homeIndicator} />
     </View>
   );
 }
@@ -404,10 +403,7 @@ const styles = StyleSheet.create({
   phoneFrame: {
     backgroundColor: palette.white,
     flex: 1,
-    maxWidth: 393,
-    overflow: 'hidden',
     width: '100%',
-    alignSelf: 'center',
   },
   statusStrip: {
     alignItems: 'center',
@@ -430,7 +426,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.md,
     minHeight: 69,
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
   greenTopBar: {
@@ -450,6 +446,7 @@ const styles = StyleSheet.create({
   topTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   topSubtitle: {
     ...type.caption,
@@ -473,6 +470,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   card: {
     backgroundColor: palette.white,
@@ -480,8 +478,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     gap: spacing.sm,
-    padding: spacing.lg,
-    boxShadow: '0 4px 8px rgba(0,0,0,0.06)',
+    padding: spacing.base,
+    boxShadow: '0 3px 6px rgba(0,0,0,0.05)',
   },
   selectedCard: {
     borderColor: palette.mint,
@@ -494,9 +492,9 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     borderWidth: 2,
     justifyContent: 'center',
-    minHeight: 54,
-    paddingHorizontal: spacing.lg,
-    boxShadow: '0 5px 12px rgba(86,196,144,0.2)',
+    minHeight: 48,
+    paddingHorizontal: spacing.base,
+    boxShadow: '0 4px 10px rgba(86,196,144,0.18)',
   },
   secondaryButton: {
     backgroundColor: palette.white,
@@ -511,6 +509,7 @@ const styles = StyleSheet.create({
   buttonText: {
     ...type.action,
     color: palette.white,
+    fontWeight: '700',
   },
   secondaryButtonText: {
     color: palette.mint,
@@ -519,19 +518,21 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   label: {
-    ...type.body,
     color: palette.body,
+    fontSize: 13,
+    fontWeight: '500',
   },
   input: {
-    ...type.body,
     backgroundColor: palette.input,
     borderColor: 'transparent',
     borderRadius: radius.md,
     borderWidth: 2,
     color: palette.ink,
-    minHeight: 52,
+    fontSize: 13,
+    fontWeight: '500',
+    minHeight: 48,
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.sm,
   },
   multiline: {
     minHeight: 96,
@@ -553,7 +554,7 @@ const styles = StyleSheet.create({
   pillText: {
     ...type.caption,
     color: palette.body,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   pillTextSelected: {
     color: palette.mintDeep,
@@ -565,15 +566,15 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     ...type.caption,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   metricCard: {
     backgroundColor: palette.white,
     borderRadius: radius.md,
     flex: 1,
     gap: spacing.xs,
-    padding: spacing.md,
-    boxShadow: '0 4px 8px rgba(0,0,0,0.08)',
+    padding: spacing.base,
+    boxShadow: '0 3px 6px rgba(0,0,0,0.06)',
   },
   featuredMetric: {
     borderRadius: radius.lg,
@@ -589,7 +590,7 @@ const styles = StyleSheet.create({
   metricValue: {
     color: palette.ink,
     fontSize: 24,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   featuredMetricValue: {
     color: palette.mint,
@@ -602,11 +603,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     gap: spacing.xs,
-    padding: spacing.xl,
+    padding: spacing.md,
   },
   emptyTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
     textAlign: 'center',
   },
   emptyBody: {
@@ -619,9 +621,8 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(44, 42, 40, 0.07)',
     borderTopWidth: 1,
     boxShadow: '0 8px 20px rgba(0,0,0,0.08)',
-    maxWidth: 393,
+    paddingBottom: spacing.sm,
     width: '100%',
-    alignSelf: 'center',
   },
   bottomNavRow: {
     flexDirection: 'row',
@@ -647,7 +648,7 @@ const styles = StyleSheet.create({
   navMark: {
     color: '#B0A89E',
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   navMarkActive: {
     color: palette.mint,
@@ -659,7 +660,7 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: palette.mint,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   unreadDot: {
     backgroundColor: palette.coral,
@@ -671,15 +672,6 @@ const styles = StyleSheet.create({
     right: 8,
     top: 2,
     width: 10,
-  },
-  homeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.ink,
-    borderRadius: radius.pill,
-    height: 5,
-    marginBottom: spacing.sm,
-    marginTop: spacing.xs,
-    width: 134,
   },
   timeline: {
     paddingTop: spacing.sm,

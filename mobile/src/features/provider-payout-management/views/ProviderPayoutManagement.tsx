@@ -1,17 +1,15 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { CheckCircle, Wallet } from 'lucide-react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { CheckCircle, DollarSign, Wallet } from 'lucide-react-native';
 import {
   Badge,
   Card,
   EmptyState,
   Field,
-  MetricCard,
   Pill,
   PrimaryButton,
-  Section,
   TopBar,
 } from '../../../components/DesignKit';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
   PaymentSummary,
   PayoutAccountSummary,
@@ -19,6 +17,10 @@ import {
   PayoutMethodType,
   PayoutSummary,
 } from '../../../shared/models/types';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { useProviderPayoutManagementViewModel } from '../viewModels/useProviderPayoutManagementViewModel';
 
 type ProviderPayoutManagementScreenProps = {
@@ -93,63 +95,82 @@ export function ProviderPayoutManagementScreen({
           />
         }
       />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <MetricCard
-            label="Available Payout"
-            value={data.availablePayoutLabel}
-            featured
-          />
-          <View style={styles.metricGrid}>
+      <ScreenScroll>
+        <ScreenContent>
+
+          {/* Available balance hero */}
+          <View style={styles.heroCard}>
+            <View style={styles.heroIconBg}>
+              <DollarSign color={palette.white} size={20} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.heroLabel}>Available Payout</Text>
+            <Text style={styles.heroValue}>{data.availablePayoutLabel}</Text>
+            <PrimaryButton
+              label="Request Payout"
+              onPress={onRequestPayout}
+              disabled={!data.canRequestPayout}
+            />
+          </View>
+
+          {/* Summary metrics */}
+          <View style={styles.metricRow}>
             {data.metricCards.map((metric) => (
-              <MetricCard
-                key={metric.label}
-                label={metric.label}
-                value={metric.value}
-              />
+              <View key={metric.label} style={styles.metricCard}>
+                <Text style={styles.metricValue}>{metric.value}</Text>
+                <Text style={styles.metricLabel}>{metric.label}</Text>
+              </View>
             ))}
           </View>
 
-          <PrimaryButton
-            label="Request Payout"
-            onPress={onRequestPayout}
-            disabled={!data.canRequestPayout}
-          />
-
-          <Section title="Payout Methods">
-            {data.payoutMethodRows.map((method) => (
-              <Pressable
-                key={method.id}
-                style={styles.settingsRow}
-                onPress={() => onSelectPayoutMethod(method.id)}
-                accessibilityRole="button"
-              >
-                <View style={styles.settingsRowLeft}>
-                  <View style={styles.quickIcon}>
-                    <Wallet color={palette.mint} size={20} strokeWidth={2.5} />
-                  </View>
-                  <View>
-                    <Text style={styles.cardTitle}>{method.accountLabel}</Text>
-                    <Text style={styles.cardMeta}>{method.methodLabel}</Text>
-                  </View>
-                </View>
-                {method.isSelected ? (
-                  <CheckCircle color={palette.mint} size={20} strokeWidth={2.6} />
-                ) : null}
-              </Pressable>
-            ))}
-            {!data.hasPayoutMethods ? (
+          {/* Payout methods */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Payout Methods</Text>
+            {data.hasPayoutMethods ? (
+              <View style={styles.methodList}>
+                {data.payoutMethodRows.map((method) => (
+                  <Pressable
+                    key={method.id}
+                    style={[
+                      styles.methodCard,
+                      method.isSelected && styles.methodCardSelected,
+                    ]}
+                    onPress={() => onSelectPayoutMethod(method.id)}
+                    accessibilityRole="button"
+                  >
+                    <View style={[
+                      styles.methodIcon,
+                      method.isSelected && styles.methodIconSelected,
+                    ]}>
+                      <Wallet
+                        color={method.isSelected ? palette.mint : palette.muted}
+                        size={18}
+                        strokeWidth={2.2}
+                      />
+                    </View>
+                    <View style={styles.flex}>
+                      <Text style={styles.methodName}>{method.accountLabel}</Text>
+                      <Text style={styles.methodType}>{method.methodLabel}</Text>
+                    </View>
+                    {method.isSelected ? (
+                      <CheckCircle color={palette.mint} size={20} strokeWidth={2.2} />
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
               <EmptyState
                 title="No payout method"
                 body="Add a bank, GCash, or PayMaya account below to receive payouts."
               />
-            ) : null}
-          </Section>
+            )}
+          </View>
 
-          <Section title="Add Payout Method">
+          {/* Add payout method */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Add Payout Method</Text>
             <Card>
-              <Text style={styles.cardMeta}>Account type</Text>
-              <View style={styles.wrap}>
+              <Text style={styles.formHint}>Account type</Text>
+              <View style={styles.pillRow}>
                 {data.payoutMethodTypeOptions.map((option) => (
                   <Pill
                     key={option.type}
@@ -179,130 +200,222 @@ export function ProviderPayoutManagementScreen({
                 keyboardType="number-pad"
               />
               <PrimaryButton
-                label={
-                  busyAction === 'save-payout-method'
-                    ? 'Saving...'
-                    : 'Save Payout Method'
-                }
+                label={busyAction === 'save-payout-method' ? 'Saving...' : 'Save Payout Method'}
                 onPress={onSavePayoutMethod}
                 disabled={!data.canSavePayoutMethod}
               />
             </Card>
-          </Section>
+          </View>
 
-          <Section title="Monthly Earnings">
-            {data.monthlyEarnings.map((month) => (
-              <Card key={month.monthKey}>
-                <View style={styles.rowBetween}>
-                  <View style={styles.flex}>
-                    <Text style={styles.cardTitle}>{month.monthLabel}</Text>
-                    <Text style={styles.cardMeta}>{month.statusLabel}</Text>
-                    <Text style={styles.noticeText}>{month.platformFeeLabel}</Text>
+          {/* Monthly earnings */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Monthly Earnings</Text>
+            {data.hasMonthlyEarnings ? (
+              data.monthlyEarnings.map((month) => (
+                <Card key={month.monthKey}>
+                  <View style={styles.listRow}>
+                    <View style={styles.flex}>
+                      <Text style={styles.listTitle}>{month.monthLabel}</Text>
+                      <Text style={styles.listMeta}>{month.statusLabel}</Text>
+                      <Text style={styles.listFee}>{month.platformFeeLabel}</Text>
+                    </View>
+                    <Text style={styles.listAmount}>{month.payoutLabel}</Text>
                   </View>
-                  <Text style={styles.totalValue}>{month.payoutLabel}</Text>
-                </View>
-              </Card>
-            ))}
-            {!data.hasMonthlyEarnings ? (
+                </Card>
+              ))
+            ) : (
               <EmptyState
                 title="No earnings yet"
                 body="Completed bookings will show up here as monthly earnings."
               />
-            ) : null}
-          </Section>
+            )}
+          </View>
 
-          <Section title="Payout Requests">
-            {data.payoutRequests.map((payout) => (
-              <Card key={payout.id}>
-                <View style={styles.rowBetween}>
-                  <View style={styles.flex}>
-                    <Text style={styles.cardTitle}>{payout.amountLabel}</Text>
-                    <Text style={styles.cardMeta}>{payout.metaLabel}</Text>
-                    <Text style={styles.noticeText}>{payout.feeLabel}</Text>
+          {/* Payout requests */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Payout Requests</Text>
+            {data.hasPayoutRequests ? (
+              data.payoutRequests.map((payout) => (
+                <Card key={payout.id}>
+                  <View style={styles.listRow}>
+                    <View style={styles.flex}>
+                      <Text style={styles.listTitle}>{payout.amountLabel}</Text>
+                      <Text style={styles.listMeta}>{payout.metaLabel}</Text>
+                      <Text style={styles.listFee}>{payout.feeLabel}</Text>
+                    </View>
+                    <Badge label={payout.statusLabel} tone={payout.statusTone} />
                   </View>
-                  <Badge label={payout.statusLabel} tone={payout.statusTone} />
-                </View>
-              </Card>
-            ))}
-            {!data.hasPayoutRequests ? (
+                </Card>
+              ))
+            ) : (
               <EmptyState
                 title="No payout requests"
                 body="Requested payouts will appear here."
               />
-            ) : null}
-          </Section>
-        </View>
-      </ScrollView>
+            )}
+          </View>
+
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  metricGrid: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  settingsRow: {
+  flex: { flex: 1 },
+
+  /* ── Hero ── */
+  heroCard: {
     alignItems: 'center',
-    borderBottomColor: palette.lineSoft,
-    borderBottomWidth: 1,
+    backgroundColor: palette.mint,
+    borderRadius: radius.lg,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.xl,
+  },
+  heroIconBg: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: radius.pill,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  heroLabel: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  heroValue: {
+    color: palette.white,
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+    marginBottom: spacing.xs,
+  },
+
+  /* ── Metric strip ── */
+  metricRow: {
+    backgroundColor: palette.white,
+    borderRadius: radius.lg,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    minHeight: 56,
+  },
+  metricCard: {
+    alignItems: 'center',
+    borderRightColor: palette.lineSoft,
+    borderRightWidth: 1,
+    flex: 1,
+    gap: spacing.xxs,
     paddingVertical: spacing.base,
   },
-  settingsRowLeft: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.md,
+  metricValue: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '800',
   },
-  quickIcon: {
+  metricLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+
+  /* ── Section blocks ── */
+  sectionBlock: {
+    gap: spacing.sm,
+  },
+  sectionLabel: {
+    color: palette.faint,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    paddingHorizontal: spacing.xs,
+    textTransform: 'uppercase',
+  },
+
+  /* ── Payout method cards ── */
+  methodList: {
+    gap: spacing.sm,
+  },
+  methodCard: {
     alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    gap: spacing.base,
+    minHeight: 64,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+  },
+  methodCardSelected: {
     backgroundColor: palette.mintSoft,
-    borderRadius: radius.pill,
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
+    borderColor: palette.mint,
   },
-  rowBetween: {
+  methodIcon: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
+    backgroundColor: palette.lineSoft,
+    borderRadius: radius.sm,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
-  flex: {
-    flex: 1,
+  methodIconSelected: {
+    backgroundColor: palette.white,
   },
-  wrap: {
+  methodName: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  methodType: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+
+  /* ── Add method form ── */
+  formHint: {
+    color: palette.faint,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  cardTitle: {
-    ...type.section,
+
+  /* ── List rows (earnings + requests) ── */
+  listRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.base,
+    justifyContent: 'space-between',
+  },
+  listTitle: {
     color: palette.ink,
+    fontSize: 15,
+    fontWeight: '700',
   },
-  cardMeta: {
-    ...type.caption,
+  listMeta: {
     color: palette.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
   },
-  noticeText: {
-    ...type.caption,
-    color: palette.muted,
-    textAlign: 'center',
+  listFee: {
+    color: palette.faint,
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 2,
   },
-  totalValue: {
+  listAmount: {
     color: palette.ink,
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '800',
   },
 });

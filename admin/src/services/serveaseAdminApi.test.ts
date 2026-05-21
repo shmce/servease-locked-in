@@ -51,6 +51,38 @@ describe("serveaseAdminApi", () => {
     });
   });
 
+  it("refreshes Supabase sessions with the stored refresh token", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        access_token: "token-456",
+        refresh_token: "refresh-456",
+        expires_in: 3600,
+        token_type: "bearer",
+        user: { id: "user-1", email: "admin@example.com" },
+      }),
+    });
+
+    const { refreshSupabaseSession } = await import("./serveaseAdminApi");
+    const session = await refreshSupabaseSession(" refresh-123 ");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://supabase.test/auth/v1/token?grant_type=refresh_token",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          apikey: "public-key",
+          "content-type": "application/json",
+        }),
+        body: JSON.stringify({
+          refresh_token: "refresh-123",
+        }),
+      }),
+    );
+    expect(session.accessToken).toBe("token-456");
+    expect(session.refreshToken).toBe("refresh-456");
+  });
+
   it("fails fast when the production gateway URL is missing", async () => {
     const { resolveGatewayBaseUrl } = await import("./gatewayConfig");
 
@@ -133,6 +165,37 @@ describe("serveaseAdminApi", () => {
       }),
     );
     expect(payments[0].status).toBe("cancelled");
+  });
+
+  it("syncs the pricing fuel index from GasWatch PH through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "fuel-gaswatch-1",
+          region: "default",
+          fuelPricePerLiter: 89.84,
+          source: "gaswatch-ph:diesel:metro-manila-average",
+          effectiveAt: "2026-05-19T00:00:00.000Z",
+          createdBy: "admin-1",
+          createdAt: "2026-05-19T01:00:00.000Z",
+        },
+      }),
+    });
+
+    const { syncAdminPricingFuelIndexFromGasWatch } = await import("./serveaseAdminApi");
+    const row = await syncAdminPricingFuelIndexFromGasWatch("admin-token");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/pricing/fuel-index/sync",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          authorization: "Bearer admin-token",
+        }),
+      }),
+    );
+    expect(row.source).toBe("gaswatch-ph:diesel:metro-manila-average");
   });
 
   it("syncs payment status with APICenter through the gateway", async () => {
@@ -751,24 +814,11 @@ describe("serveaseAdminApi", () => {
             ],
           },
         }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: {
-            ...reviewPayload,
-            ocrData: {
-              ...reviewPayload.ocrData,
-              governmentIdNumber: "PSN-2026-9999",
-            },
-          },
-        }),
       });
 
     const {
       addAdminProviderApplicationReviewNote,
       getAdminProviderApplicationReview,
-      runAdminProviderApplicationOcr,
       updateAdminProviderApplicationReview,
     } = await import("./serveaseAdminApi");
 
@@ -794,10 +844,6 @@ describe("serveaseAdminApi", () => {
       "provider-1",
       "Manual check completed.",
     );
-    const ocr = await runAdminProviderApplicationOcr(
-      "admin-token",
-      "provider-1",
-    );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -817,15 +863,10 @@ describe("serveaseAdminApi", () => {
         body: JSON.stringify({ note: "Manual check completed." }),
       }),
     );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      4,
-      "http://gateway.test/v1/admin/provider-applications/provider-1/ocr",
-      expect.objectContaining({ method: "POST" }),
-    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(review.isComplete).toBe(false);
     expect(updated.isComplete).toBe(true);
     expect(noted.notes[0]?.note).toBe("Manual check completed.");
-    expect(ocr.ocrData.governmentIdNumber).toBe("PSN-2026-9999");
   });
 
   it("loads and moderates reviews through the gateway", async () => {
@@ -1477,6 +1518,7 @@ describe("serveaseAdminApi", () => {
       json: async () => ({
         data: {
           id: "payout-1",
+          paymentId: "payment-1",
           providerId: "provider-1",
           amount: 1000,
           processingFee: 20,
@@ -1507,6 +1549,48 @@ describe("serveaseAdminApi", () => {
     expect(payout.status).toBe("processing");
   });
 
+  it("releases paid payments to provider payouts through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "payout-1",
+          paymentId: "payment-1",
+          providerId: "provider-1",
+          amount: 850,
+          processingFee: 0,
+          netAmount: 850,
+          status: "processing",
+          payoutMethodId: "method-1",
+          methodType: "gcash",
+          accountLabel: "GCash **** 1234",
+          reference: "PO-ABC123",
+          periodStart: null,
+          periodEnd: null,
+          requestedAt: null,
+          paidAt: null,
+          createdAt: null,
+        },
+      }),
+    });
+
+    const { releaseAdminPaymentToProvider } = await import("./serveaseAdminApi");
+    const payout = await releaseAdminPaymentToProvider(
+      "admin-token",
+      "payment-1",
+      "Release completed service",
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/payments/payment-1/release",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ note: "Release completed service" }),
+      }),
+    );
+    expect(payout.status).toBe("processing");
+  });
+
   it("lists settlements through the gateway", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -1514,6 +1598,7 @@ describe("serveaseAdminApi", () => {
         data: [
           {
             id: "payout-1",
+            paymentId: null,
             providerId: "provider-1",
             amount: 1000,
             processingFee: 20,
@@ -1551,6 +1636,7 @@ describe("serveaseAdminApi", () => {
       json: async () => ({
         data: {
           id: "payout-1",
+          paymentId: null,
           providerId: "provider-1",
           amount: 1000,
           processingFee: 20,

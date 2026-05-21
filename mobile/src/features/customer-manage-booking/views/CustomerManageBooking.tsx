@@ -82,14 +82,14 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   manageCopy: {
     color: palette.muted,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 22,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   optionList: {
     backgroundColor: palette.white,
@@ -111,12 +111,12 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '800',
   },
   optionLabelDanger: {
     color: palette.red,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
 });

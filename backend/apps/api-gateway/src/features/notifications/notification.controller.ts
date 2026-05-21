@@ -43,24 +43,6 @@ export class NotificationController {
     }
   }
 
-  @Patch(':notificationId/read')
-  async markRead(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('notificationId') notificationId: string,
-  ): Promise<{ data: NotificationSummary }> {
-    try {
-      const userId = await this.authTokenService.authenticate(authorization);
-      return {
-        data: await this.notificationGatewayService.markRead(
-          notificationId,
-          userId,
-        ),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
   @Post('devices')
   async registerPushDevice(
     @Headers('authorization') authorization: string | undefined,
@@ -90,6 +72,24 @@ export class NotificationController {
         data: await this.notificationGatewayService.unregisterPushDevice(
           userId,
           decodeURIComponent(token),
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':notificationId/read')
+  async markRead(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('notificationId') notificationId: string,
+  ): Promise<{ data: NotificationSummary }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.notificationGatewayService.markRead(
+          notificationId,
+          userId,
         ),
       };
     } catch (error) {

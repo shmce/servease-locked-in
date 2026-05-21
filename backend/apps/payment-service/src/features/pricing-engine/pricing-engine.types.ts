@@ -2,6 +2,7 @@ export type PricingMode = 'flat' | 'hourly';
 export type PricingFairnessStatus = 'below_range' | 'within_range' | 'above_range';
 export type PricingConfidence = 'high' | 'medium' | 'low';
 export type PricingUrgency = 'standard' | 'priority' | 'emergency';
+export type PricingFuelSyncFuelType = 'average' | 'diesel' | 'unleaded';
 
 export interface PricingQuoteLineItem {
   code: 'labor' | 'travel_fuel' | 'urgency' | 'adjustment';
@@ -120,7 +121,24 @@ export interface CreatePricingFuelIndexInput {
   fuelPricePerLiter: number;
   source?: string | null;
   effectiveAt?: string | null;
-  adminUserId: string;
+  adminUserId?: string | null;
+}
+
+export interface SyncPricingFuelIndexInput {
+  adminUserId?: string | null;
+  region?: string | null;
+}
+
+export interface PricingFuelPriceCandidate {
+  region: string;
+  fuelType: PricingFuelSyncFuelType;
+  pricePerLiter: number;
+  source: string;
+  effectiveAt: string;
+}
+
+export interface PricingFuelPriceProvider {
+  getLatestFuelPrice(): Promise<PricingFuelPriceCandidate>;
 }
 
 export interface PricingQuoteAuditSummary {

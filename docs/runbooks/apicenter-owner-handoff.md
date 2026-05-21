@@ -1,9 +1,9 @@
 # APICenter Owner Handoff
 
-Copy this message to the APICenter owner when they are available.
+Copy this message to the APICenter owner if webhook support becomes available. ServEase works without this handoff by polling checkout status after the customer returns to the app.
 
 ```text
-Hey, ServEase is ready to receive APICenter payment checkout webhooks. Can you register or confirm the webhook contract below?
+Hey, ServEase can already reconcile APICenter payments through checkout status polling. If APICenter can also provide webhook delivery, can you register or confirm the optional webhook contract below?
 
 Webhook URL
 https://<servease-api-domain>/v1/payments/webhooks/apicenter

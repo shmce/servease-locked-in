@@ -39,6 +39,24 @@ export function buildMonthCalendarCells(
   return cells;
 }
 
+export function buildMonthCalendarRows(
+  cells: MonthCalendarCell[],
+): MonthCalendarCell[][] {
+  const rows: MonthCalendarCell[][] = [];
+
+  for (let index = 0; index < cells.length; index += 7) {
+    const row = cells.slice(index, index + 7);
+
+    while (row.length < 7) {
+      row.push({ date: null, isDisabled: true });
+    }
+
+    rows.push(row);
+  }
+
+  return rows;
+}
+
 export function formatApiDate(date: Date): string {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, '0');

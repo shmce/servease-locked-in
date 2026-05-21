@@ -42,6 +42,7 @@ export interface RecordPaymentFailureRequest {
 
 export interface PayoutSummary {
   id: string;
+  paymentId: string | null;
   providerId: string;
   amount: number;
   processingFee: number;
@@ -199,6 +200,11 @@ export interface CreatePricingFuelIndexRequest {
   source?: string | null;
   effectiveAt?: string | null;
   adminUserId: string;
+}
+
+export interface SyncPricingFuelIndexRequest {
+  adminUserId: string;
+  region?: string | null;
 }
 
 export interface PricingQuoteAuditSummary {

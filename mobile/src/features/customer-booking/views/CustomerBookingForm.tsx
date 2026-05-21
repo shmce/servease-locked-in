@@ -1,4 +1,4 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Navigation, Upload } from 'lucide-react-native';
 import {
   Card,
@@ -14,6 +14,10 @@ import {
   ProviderAvailabilitySchedule,
   ProviderListing,
 } from '../../../shared/models/types';
+import {
+  MediaUploadBox,
+  StickyFooter,
+} from '../../../shared/components/ScreenLayout';
 import { AddressVerificationPreview } from '../../../tracking/TrackingMapPreview';
 import { useCustomerBookingFormViewModel } from '../viewModels/useCustomerBookingFormViewModel';
 
@@ -117,6 +121,7 @@ export function CustomerBookingFormScreen({
             onScheduledAtChange={onScheduledAtChange}
             onBookingSlotErrorChange={onBookingSlotErrorChange}
             onUnavailableSlotPress={onUnavailableSlotPress}
+            onHoursRequiredChange={onHoursRequiredChange}
           />
 
           <Section
@@ -158,13 +163,6 @@ export function CustomerBookingFormScreen({
             {addressGeoResult ? (
               <AddressVerificationPreview result={addressGeoResult} />
             ) : null}
-            <Field
-              label="Duration (hours)"
-              value={hoursRequired}
-              onChangeText={onHoursRequiredChange}
-              keyboardType="number-pad"
-              placeholder="1"
-            />
           </Section>
 
           <Section title="Add details (optional)">
@@ -175,23 +173,19 @@ export function CustomerBookingFormScreen({
               placeholder="Example: Kitchen sink leak under cabinet"
               multiline
             />
-            <Pressable
-              style={styles.uploadBox}
+            <MediaUploadBox
+              imageUri={bookingReferencePhotoUri}
+              icon={<Upload color={palette.mint} size={28} />}
+              helper="Reference photo (optional)"
+              label={data.referencePhotoLabel}
               onPress={onUploadReferencePhoto}
-              accessibilityRole="button"
-            >
-              {bookingReferencePhotoUri ? (
-                <Image source={{ uri: bookingReferencePhotoUri }} style={styles.uploadPreview} />
-              ) : (
-                <Upload color={palette.mint} size={28} />
-              )}
-              <Text style={styles.cardMeta}>Reference photo (optional)</Text>
-              <Text style={styles.linkText}>{data.referencePhotoLabel}</Text>
-            </Pressable>
+              minHeight={132}
+              previewHeight={120}
+            />
           </Section>
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter>
         <View style={styles.footerTotalRow}>
           <View>
             <Text style={styles.footerTotalLabel}>Estimated total</Text>
@@ -212,8 +206,7 @@ export function CustomerBookingFormScreen({
         <Text style={styles.footerLink} onPress={onBackToProvider}>
           Back to provider
         </Text>
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
@@ -225,8 +218,8 @@ const styles = StyleSheet.create({
     paddingBottom: 132,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   providerSummaryRow: {
     alignItems: 'center',
@@ -244,7 +237,7 @@ const styles = StyleSheet.create({
   providerPhotoText: {
     color: palette.white,
     fontSize: 22,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   flex: {
     flex: 1,
@@ -269,26 +262,10 @@ const styles = StyleSheet.create({
   smallActionText: {
     color: palette.mint,
     fontSize: 12,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   faded: {
     opacity: 0.5,
-  },
-  uploadBox: {
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderStyle: 'dashed',
-    borderWidth: 2,
-    gap: spacing.sm,
-    minHeight: 160,
-    paddingVertical: spacing.xxl,
-  },
-  uploadPreview: {
-    borderRadius: radius.md,
-    height: 120,
-    width: '100%',
   },
   footerTotalRow: {
     alignItems: 'center',
@@ -302,55 +279,33 @@ const styles = StyleSheet.create({
   footerTotalLabel: {
     color: palette.ink,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   footerTotalValue: {
     color: palette.ink,
     fontSize: 18,
-    fontWeight: '900',
-  },
-  stickyFooter: {
-    alignSelf: 'center',
-    backgroundColor: palette.white,
-    borderTopColor: palette.lineSoft,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    maxWidth: 393,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    position: 'absolute',
-    right: 0,
-    width: '100%',
+    fontWeight: '700',
   },
   footerLink: {
     color: palette.mint,
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     textAlign: 'center',
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.ink,
-    borderRadius: radius.pill,
-    height: 5,
-    marginBottom: spacing.sm,
-    marginTop: spacing.xs,
-    width: 134,
   },
   cardTitle: {
     ...type.section,
     color: palette.ink,
   },
   cardMeta: {
-    ...type.caption,
     color: palette.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   linkText: {
     color: palette.mint,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   noticeText: {
     ...type.caption,

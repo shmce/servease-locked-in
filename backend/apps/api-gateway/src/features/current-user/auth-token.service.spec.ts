@@ -22,6 +22,26 @@ describe('AuthTokenService', () => {
     expect(service.authClient.auth.getUser).toHaveBeenCalledWith('valid-token');
   });
 
+  it('accepts bearer auth schemes case-insensitively with extra spacing', async () => {
+    const service = new AuthTokenService({
+      auth: {
+        getUser: jest.fn().mockResolvedValue({
+          data: {
+            user: {
+              id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+            },
+          },
+          error: null,
+        }),
+      },
+    });
+
+    await expect(service.authenticate(' bearer   valid-token  ')).resolves.toBe(
+      '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+    );
+    expect(service.authClient.auth.getUser).toHaveBeenCalledWith('valid-token');
+  });
+
   it('rejects requests without a bearer token', async () => {
     const service = new AuthTokenService({
       auth: {

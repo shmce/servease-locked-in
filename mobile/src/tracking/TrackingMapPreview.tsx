@@ -17,6 +17,7 @@ import Svg, {
   Path as SvgPath,
   Rect as SvgRect,
   Stop as SvgStop,
+  Text as SvgText,
 } from 'react-native-svg';
 import { MapPin, Navigation } from 'lucide-react-native';
 import {
@@ -50,8 +51,10 @@ interface TrackingMapPreviewProps {
   title: string;
   subtitle: string;
   directions?: GeoDirectionsRoute | null;
+  destinationMarkerLabel?: string;
   mode?: TrackingMapMode;
   navigationOrigin?: TrackingMapLocation | GeoRouteLocation | null;
+  providerMarkerLabel?: string;
 }
 
 export function TrackingMapPreview({
@@ -59,9 +62,13 @@ export function TrackingMapPreview({
   title,
   subtitle,
   directions,
+  destinationMarkerLabel = 'Service address',
   mode = 'tracking',
   navigationOrigin,
+  providerMarkerLabel,
 }: TrackingMapPreviewProps) {
+  const resolvedProviderMarkerLabel =
+    providerMarkerLabel ?? (navigationOrigin ? 'Your location' : 'Route preview');
   const destination = tracking?.destinationLocation ?? null;
   const routeGeometry = directions?.geometry?.length ? directions.geometry : null;
   const actualProvider =
@@ -73,6 +80,7 @@ export function TrackingMapPreview({
     actualProvider ??
     derivePreviewProviderLocation(destination, tracking?.distanceKm ?? null);
   const visibleProvider = actualProvider ?? previewProvider;
+  const hasMapLocation = Boolean(destination || visibleProvider);
   const points = projectTrackingPoints(visibleProvider, destination);
   const routePath =
     points.provider && points.destination
@@ -81,13 +89,20 @@ export function TrackingMapPreview({
 
   return (
     <View style={mapStyles.trackingMapCard}>
-      {destination ? (
+      {hasMapLocation ? (
         <View style={mapStyles.trackingMapWebViewFrame}>
           {Platform.OS === 'web' ? (
             createElement('iframe', {
-              srcDoc: buildTrackingMapHtml(visibleProvider, destination, routeGeometry, {
-                mode,
-              }),
+              srcDoc: buildTrackingMapHtml(
+                visibleProvider,
+                destination,
+                routeGeometry,
+                {
+                  destinationMarkerLabel,
+                  mode,
+                  providerMarkerLabel: resolvedProviderMarkerLabel,
+                },
+              ),
               style: trackingMapIframeStyle,
               title: 'Service tracking map',
             })
@@ -97,14 +112,46 @@ export function TrackingMapPreview({
               points={points}
               provider={visibleProvider}
               mode={mode}
+              providerLabel={resolvedProviderMarkerLabel}
               routeGeometry={routeGeometry}
               routePath={routePath}
+              destinationLabel={destinationMarkerLabel}
             />
           )}
         </View>
       ) : (
-        <TrackingMapSvgPreview routePath={routePath} points={points} />
+        <TrackingMapSvgPreview
+          destinationLabel={destinationMarkerLabel}
+          providerLabel={resolvedProviderMarkerLabel}
+          routePath={routePath}
+          points={points}
+        />
       )}
+      {mode === 'navigation' ? (
+        <View
+          pointerEvents="none"
+          style={mapStyles.trackingMapNavigationLegend}
+        >
+          <View style={mapStyles.trackingLegendItem}>
+            <View
+              style={[
+                mapStyles.trackingLegendDot,
+                mapStyles.trackingLegendDotProvider,
+              ]}
+            />
+            <Text style={mapStyles.cardMeta}>{resolvedProviderMarkerLabel}</Text>
+          </View>
+          <View style={mapStyles.trackingLegendItem}>
+            <View
+              style={[
+                mapStyles.trackingLegendDot,
+                mapStyles.trackingLegendDotDestination,
+              ]}
+            />
+            <Text style={mapStyles.cardMeta}>{destinationMarkerLabel}</Text>
+          </View>
+        </View>
+      ) : null}
       {mode === 'tracking' ? (
         <View style={mapStyles.trackingMapOverlay}>
           <View style={mapStyles.providerSummaryRow}>
@@ -125,7 +172,7 @@ export function TrackingMapPreview({
                 ]}
               />
               <Text style={mapStyles.cardMeta}>
-                {navigationOrigin ? 'Your location' : 'Route preview'}
+                {resolvedProviderMarkerLabel}
               </Text>
             </View>
             <View style={mapStyles.trackingLegendItem}>
@@ -135,7 +182,7 @@ export function TrackingMapPreview({
                   mapStyles.trackingLegendDotDestination,
                 ]}
               />
-              <Text style={mapStyles.cardMeta}>Service address</Text>
+              <Text style={mapStyles.cardMeta}>{destinationMarkerLabel}</Text>
             </View>
           </View>
         </View>
@@ -167,8 +214,10 @@ export function AddressVerificationPreview({
         ) : (
           <TrackingMapWebView
             destination={destination}
+            destinationLabel="Service address"
             points={points}
             provider={null}
+            providerLabel="Route preview"
             mode="tracking"
             routeGeometry={null}
             routePath={null}
@@ -196,18 +245,22 @@ export function AddressVerificationPreview({
 
 function TrackingMapWebView({
   destination,
+  destinationLabel,
   points,
   provider,
+  providerLabel,
   mode,
   routeGeometry,
   routePath,
 }: {
-  destination: TrackingMapLocation;
+  destination: TrackingMapLocation | null;
+  destinationLabel: string;
   points: {
     provider: { x: number; y: number } | null;
     destination: { x: number; y: number } | null;
   };
   provider: TrackingMapLocation | null;
+  providerLabel: string;
   mode: TrackingMapMode;
   routeGeometry: TrackingMapLocation[] | null;
   routePath: string | null;
@@ -222,33 +275,49 @@ function TrackingMapWebView({
     [routeGeometry],
   );
   const mapHtml = useMemo(
-    () => buildTrackingMapHtml(provider, destination, routeGeometry, { mode }),
-    [destination, mode, provider, routeGeometry],
+    () =>
+      buildTrackingMapHtml(provider, destination, routeGeometry, {
+        destinationMarkerLabel: destinationLabel,
+        mode,
+        providerMarkerLabel: providerLabel,
+      }),
+    [destination, destinationLabel, mode, provider, providerLabel, routeGeometry],
   );
 
   useEffect(() => {
     setMapFailed(false);
   }, [
-    destination.latitude,
-    destination.longitude,
+    destination?.latitude,
+    destination?.longitude,
     routeGeometryKey,
   ]);
 
   const injectProviderUpdate = useCallback(() => {
-    const updateScript = buildProviderLocationUpdateScript(provider, routeGeometry);
+    const updateScript = buildProviderLocationUpdateScript(
+      provider,
+      routeGeometry,
+      providerLabel,
+    );
     if (!updateScript) {
       return;
     }
 
     webViewRef.current?.injectJavaScript(updateScript);
-  }, [provider, routeGeometry]);
+  }, [provider, providerLabel, routeGeometry]);
 
   useEffect(() => {
     injectProviderUpdate();
   }, [injectProviderUpdate]);
 
   if (mapFailed) {
-    return <TrackingMapSvgPreview routePath={routePath} points={points} />;
+    return (
+      <TrackingMapSvgPreview
+        destinationLabel={destinationLabel}
+        providerLabel={providerLabel}
+        routePath={routePath}
+        points={points}
+      />
+    );
   }
 
   return (
@@ -270,9 +339,13 @@ function TrackingMapWebView({
 }
 
 function TrackingMapSvgPreview({
+  destinationLabel,
+  providerLabel,
   routePath,
   points,
 }: {
+  destinationLabel: string;
+  providerLabel: string;
   routePath: string | null;
   points: {
     provider: { x: number; y: number } | null;
@@ -334,6 +407,11 @@ function TrackingMapSvgPreview({
       ) : null}
       {points.provider ? (
         <SvgG>
+          <SvgMarkerLabel
+            label={providerLabel}
+            point={points.provider}
+            variant="provider"
+          />
           <SvgCircle
             cx={points.provider.x}
             cy={points.provider.y}
@@ -350,6 +428,11 @@ function TrackingMapSvgPreview({
       ) : null}
       {points.destination ? (
         <SvgG>
+          <SvgMarkerLabel
+            label={destinationLabel}
+            point={points.destination}
+            variant="destination"
+          />
           <SvgCircle
             cx={points.destination.x}
             cy={points.destination.y}
@@ -368,17 +451,65 @@ function TrackingMapSvgPreview({
   );
 }
 
+function SvgMarkerLabel({
+  label,
+  point,
+  variant,
+}: {
+  label: string;
+  point: { x: number; y: number };
+  variant: 'provider' | 'destination';
+}) {
+  const labelWidth = Math.max(68, Math.min(126, label.length * 7 + 20));
+  const labelX = Math.max(8, Math.min(320 - labelWidth - 8, point.x - labelWidth / 2));
+  const labelY = Math.max(14, point.y - 48);
+  const color = variant === 'provider' ? '#2563EB' : '#00BF63';
+
+  return (
+    <SvgG>
+      <SvgRect
+        x={labelX}
+        y={labelY}
+        width={labelWidth}
+        height="24"
+        rx="12"
+        fill="#FFFFFF"
+        stroke={color}
+        strokeWidth="2"
+      />
+      <SvgText
+        x={labelX + labelWidth / 2}
+        y={labelY + 16}
+        fill="#111827"
+        fontSize="11"
+        fontWeight="700"
+        textAnchor="middle"
+      >
+        {label}
+      </SvgText>
+    </SvgG>
+  );
+}
+
 function buildTrackingMapHtml(
   provider: TrackingMapLocation | null,
-  destination: TrackingMapLocation,
+  destination: TrackingMapLocation | null,
   routeGeometry: TrackingMapLocation[] | null = null,
-  options: { mode?: TrackingMapMode } = {},
+  options: {
+    destinationMarkerLabel?: string;
+    mode?: TrackingMapMode;
+    providerMarkerLabel?: string;
+  } = {},
 ): string {
   const mode = options.mode ?? 'tracking';
+  const destinationMarkerLabel = options.destinationMarkerLabel ?? 'Service address';
+  const providerMarkerLabel = options.providerMarkerLabel ?? 'Route preview';
   const providerCoordinate = provider
     ? [provider.longitude, provider.latitude]
     : null;
-  const destinationCoordinate = [destination.longitude, destination.latitude];
+  const destinationCoordinate = destination
+    ? [destination.longitude, destination.latitude]
+    : null;
   const routeCoordinates =
     routeGeometry?.map((point) => [point.longitude, point.latitude]) ?? null;
   const providerHeading = normalizeHeading(provider?.headingDegrees ?? null);
@@ -425,6 +556,23 @@ function buildTrackingMapHtml(
       inset: -11px;
       pointer-events: none;
       position: absolute;
+    }
+    .destination-marker::after {
+      background: rgba(255,255,255,0.96);
+      border: 2px solid #00BF63;
+      border-radius: 999px;
+      box-shadow: 0 8px 18px rgba(17,24,39,0.16);
+      color: #111827;
+      content: attr(data-label);
+      font-size: 12px;
+      font-weight: 800;
+      left: 50%;
+      line-height: 1;
+      padding: 7px 10px;
+      position: absolute;
+      top: -42px;
+      transform: translateX(-50%);
+      white-space: nowrap;
     }
     .destination-marker {
       background: #00BF63;
@@ -492,8 +640,10 @@ function buildTrackingMapHtml(
     let provider = ${JSON.stringify(providerCoordinate)};
     const destination = ${JSON.stringify(destinationCoordinate)};
     const route = ${JSON.stringify(routeCoordinates)};
+    const destinationMarkerLabel = ${JSON.stringify(destinationMarkerLabel)};
     const isNavigationMode = ${JSON.stringify(isNavigationMode)};
     let cameraBearing = ${JSON.stringify(cameraBearing)};
+    let providerMarkerLabel = ${JSON.stringify(providerMarkerLabel)};
     let providerHeading = ${JSON.stringify(providerHeading)};
     const fallback = document.getElementById('fallback');
     const recenterControl = document.getElementById('recenter-control');
@@ -504,6 +654,8 @@ function buildTrackingMapHtml(
     const marker = (kind) => {
       const element = document.createElement('div');
       element.className = kind === 'provider' ? 'provider-marker' : 'destination-marker';
+      element.dataset.label = kind === 'provider' ? providerMarkerLabel : destinationMarkerLabel;
+      element.setAttribute('aria-label', element.dataset.label);
       if (kind === 'provider' && providerHeading !== null) {
         element.style.rotate = providerHeading + 'deg';
       }
@@ -517,7 +669,7 @@ function buildTrackingMapHtml(
     try {
       const map = new maplibregl.Map({
         attributionControl: false,
-        center: provider && isNavigationMode ? provider : destination,
+        center: provider && isNavigationMode ? provider : destination || provider,
         container: 'map',
         interactive: isNavigationMode,
         bearing: provider && isNavigationMode ? cameraBearing : 0,
@@ -535,7 +687,7 @@ function buildTrackingMapHtml(
       let routeSourceReady = false;
       const providerFeature = () => ({
         type: 'Feature',
-        properties: {},
+        properties: { label: providerMarkerLabel },
         geometry: { type: 'Point', coordinates: provider || destination }
       });
       const addOrUpdateProviderIndicator = () => {
@@ -590,12 +742,32 @@ function buildTrackingMapHtml(
             'text-color': '#FFFFFF'
           }
         });
+        map.addLayer({
+          id: 'provider-location-label',
+          type: 'symbol',
+          source: 'provider-location',
+          layout: {
+            'text-allow-overlap': true,
+            'text-field': ['get', 'label'],
+            'text-ignore-placement': true,
+            'text-offset': [0, 2.2],
+            'text-size': 12
+          },
+          paint: {
+            'text-color': '#111827',
+            'text-halo-blur': 0.4,
+            'text-halo-color': '#FFFFFF',
+            'text-halo-width': 4
+          }
+        });
       }
-      new maplibregl.Marker({ element: marker('destination') }).setLngLat(destination).addTo(map);
+      if (destination) {
+        new maplibregl.Marker({ element: marker('destination') }).setLngLat(destination).addTo(map);
+      }
 
       map.on('load', () => {
         fallback.style.display = 'none';
-        const currentRouteLine = () => route || (provider ? [provider, destination] : null);
+        const currentRouteLine = () => route || (provider && destination ? [provider, destination] : null);
         const withProgrammaticCameraMove = (move) => {
           isProgrammaticCameraMove = true;
           move();
@@ -670,6 +842,7 @@ function buildTrackingMapHtml(
             return;
           }
           provider = payload.provider;
+          providerMarkerLabel = payload.providerMarkerLabel ?? providerMarkerLabel;
           providerHeading = payload.providerHeading ?? null;
           cameraBearing = payload.cameraBearing ?? cameraBearing;
           addOrUpdateProviderIndicator();
@@ -760,6 +933,7 @@ function buildTrackingMapHtml(
 function buildProviderLocationUpdateScript(
   provider: TrackingMapLocation | null,
   routeGeometry: TrackingMapLocation[] | null,
+  providerMarkerLabel: string,
 ): string | null {
   if (!provider) {
     return null;
@@ -773,6 +947,7 @@ function buildProviderLocationUpdateScript(
     cameraBearing: providerHeading ?? routeBearing ?? 0,
     provider: [provider.longitude, provider.latitude],
     providerHeading,
+    providerMarkerLabel,
   };
 
   return `window.__serveaseUpdateTracking?.(${JSON.stringify(payload)}); true;`;
@@ -920,7 +1095,7 @@ const mapStyles = StyleSheet.create({
   addressVerificationTitle: {
     color: palette.ink,
     fontSize: type.caption.fontSize,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   cardBody: {
     color: palette.body,
@@ -935,7 +1110,7 @@ const mapStyles = StyleSheet.create({
   cardTitle: {
     color: palette.ink,
     fontSize: type.body.fontSize,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   flex: {
     flex: 1,
@@ -978,6 +1153,22 @@ const mapStyles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.md,
     marginTop: spacing.xs,
+  },
+  trackingMapNavigationLegend: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: radius.pill,
+    boxShadow: '0 8px 18px rgba(17,24,39,0.14)',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.md,
+    left: spacing.md,
+    maxWidth: '72%',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    position: 'absolute',
+    top: 104,
+    zIndex: 3,
   },
   trackingMapOverlay: {
     backgroundColor: 'rgba(255,255,255,0.92)',

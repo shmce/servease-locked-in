@@ -1,13 +1,12 @@
 import {
-  ActivityIndicator,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { Trash2, Wallet } from 'lucide-react-native';
+import { CreditCard, PlusCircle, Trash2, Wallet } from 'lucide-react-native';
 import {
+  EmptyState,
   PrimaryButton,
   Section,
   TopBar,
@@ -16,15 +15,18 @@ import {
   CustomerPaymentMethodSummary,
   CustomerPaymentMethodType,
 } from '../../../shared/models/types';
-import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import {
+  ScreenContent,
+  ScreenScroll,
+} from '../../../shared/components/ScreenLayout';
 import { useCustomerPaymentMethodsViewModel } from '../viewModels/useCustomerPaymentMethodsViewModel';
 
 type CustomerPaymentMethodsScreenProps = {
   customerPaymentMethods: CustomerPaymentMethodSummary[];
   selectedMethodId: string | null;
   busyAction: string | null;
-  navigate: (screen: AppScreen, nextRole?: 'customer') => void;
+  onBack: () => void;
   setSelectedCustomerPaymentMethodId: (methodId: string) => void;
   saveCustomerPaymentMethod: (methodType: CustomerPaymentMethodType) => Promise<void>;
   removeCustomerPaymentMethod: (methodId: string) => Promise<void>;
@@ -34,7 +36,7 @@ export function CustomerPaymentMethodsScreen({
   customerPaymentMethods,
   selectedMethodId,
   busyAction,
-  navigate,
+  onBack,
   setSelectedCustomerPaymentMethodId,
   saveCustomerPaymentMethod,
   removeCustomerPaymentMethod,
@@ -53,102 +55,136 @@ export function CustomerPaymentMethodsScreen({
 
   return (
     <>
-      <TopBar title="Payment Methods" onBack={() => navigate('more', 'customer')} />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+      <TopBar title="Payment Methods" onBack={onBack} />
+      <ScreenScroll>
+        <ScreenContent>
+
           <Section title="Saved methods">
             {paymentMethods.data.hasMethods ? (
-              paymentMethods.data.methods.map((item) => (
-                <Pressable
-                  key={item.method.id}
-                  style={[
-                    styles.paymentMethodOption,
-                    item.selected && styles.paymentMethodSelected,
-                  ]}
-                  onPress={() => setSelectedCustomerPaymentMethodId(item.method.id)}
-                  accessibilityRole="button"
-                >
-                  <View
+              <View style={styles.methodList}>
+                {paymentMethods.data.methods.map((item) => (
+                  <Pressable
+                    key={item.method.id}
                     style={[
-                      styles.radioOuter,
-                      item.selected && styles.radioOuterSelected,
+                      styles.methodCard,
+                      item.selected && styles.methodCardSelected,
                     ]}
+                    onPress={() => setSelectedCustomerPaymentMethodId(item.method.id)}
+                    accessibilityRole="button"
                   >
-                    {item.selected ? <View style={styles.radioInner} /> : null}
-                  </View>
-                  <Wallet color={item.selected ? palette.mint : palette.muted} size={22} />
-                  <View style={styles.flex}>
-                    <Text style={styles.cardTitle}>{item.method.label}</Text>
-                    <Text style={styles.cardMeta}>{item.meta}</Text>
-                  </View>
-                  {item.canDelete ? (
-                    <Pressable
-                      style={styles.iconAction}
-                      onPress={() => void removeCustomerPaymentMethod(item.method.id)}
-                      disabled={item.deleting}
+                    <View
+                      style={[
+                        styles.radioOuter,
+                        item.selected && styles.radioOuterSelected,
+                      ]}
                     >
-                      <Trash2 color={palette.red} size={18} />
-                    </Pressable>
-                  ) : null}
-                </Pressable>
-              ))
+                      {item.selected ? <View style={styles.radioInner} /> : null}
+                    </View>
+                    <View style={[
+                      styles.methodIcon,
+                      item.selected && styles.methodIconSelected,
+                    ]}>
+                      <Wallet
+                        color={item.selected ? palette.mint : palette.muted}
+                        size={18}
+                        strokeWidth={2.2}
+                      />
+                    </View>
+                    <View style={styles.flex}>
+                      <Text style={styles.methodName}>{item.label}</Text>
+                      <Text style={styles.methodMeta}>{item.meta}</Text>
+                    </View>
+                    {item.canDelete ? (
+                      <Pressable
+                        style={styles.deleteButton}
+                        onPress={() => void removeCustomerPaymentMethod(item.method.id)}
+                        disabled={item.deleting}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${item.label}`}
+                      >
+                        <Trash2 color={palette.red} size={16} strokeWidth={2.2} />
+                      </Pressable>
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
             ) : (
-              <ActivityIndicator color={palette.mint} />
+              <EmptyState
+                title="No payment methods"
+                body="Add a wallet or card below to get started."
+              />
             )}
           </Section>
-          <View style={styles.twoButtons}>
-            {walletActions.map((action) => (
+
+          <Text style={styles.disclaimer}>
+            ServEase stores only your preferred checkout choice. Wallet and card
+            details are entered in secure checkout when you pay.
+          </Text>
+
+          <Section title="Add a method">
+            <View style={styles.addMethodRow}>
+              {walletActions.map((action) => (
+                <Pressable
+                  key={action.methodType}
+                  style={[styles.addMethodCard, action.disabled && styles.addMethodCardDisabled]}
+                  onPress={() => void saveCustomerPaymentMethod(action.methodType)}
+                  disabled={action.disabled}
+                  accessibilityRole="button"
+                >
+                  <Wallet color={action.disabled ? palette.faint : palette.mint} size={20} />
+                  <Text style={[
+                    styles.addMethodLabel,
+                    action.disabled && styles.addMethodLabelDisabled,
+                  ]}>
+                    {action.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {cardAction ? (
               <PrimaryButton
-                key={action.methodType}
-                label={action.label}
-                variant="secondary"
-                onPress={() => void saveCustomerPaymentMethod(action.methodType)}
-                disabled={action.disabled}
+                label={cardAction.label}
+                onPress={() => void saveCustomerPaymentMethod(cardAction.methodType)}
+                disabled={cardAction.disabled}
               />
-            ))}
-          </View>
-          {cardAction ? (
-            <PrimaryButton
-              label={cardAction.label}
-              onPress={() => void saveCustomerPaymentMethod(cardAction.methodType)}
-              disabled={cardAction.disabled}
-            />
+            ) : null}
+          </Section>
+
+          {paymentMethods.error ? (
+            <Text style={styles.errorText}>{paymentMethods.error}</Text>
           ) : null}
-          {paymentMethods.error ? <Text style={styles.cardMeta}>{paymentMethods.error}</Text> : null}
-        </View>
-      </ScrollView>
+
+        </ScreenContent>
+      </ScreenScroll>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
+  flex: { flex: 1 },
+
+  methodList: {
+    gap: spacing.sm,
   },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  paymentMethodOption: {
+  methodCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
+    borderColor: palette.line,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     flexDirection: 'row',
     gap: spacing.md,
+    minHeight: 68,
     padding: spacing.base,
   },
-  paymentMethodSelected: {
+  methodCardSelected: {
     backgroundColor: palette.mintSoft,
     borderColor: palette.mint,
   },
   radioOuter: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.mint,
+    borderColor: palette.line,
     borderRadius: radius.pill,
     borderWidth: 2,
     height: 20,
@@ -164,30 +200,79 @@ const styles = StyleSheet.create({
     height: 10,
     width: 10,
   },
-  iconAction: {
+  methodIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.lineSoft,
+    borderRadius: radius.sm,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  methodIconSelected: {
+    backgroundColor: palette.white,
+  },
+  methodName: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  methodMeta: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  deleteButton: {
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
-    borderRadius: radius.pill,
-    height: 34,
+    borderRadius: radius.sm,
+    height: 32,
     justifyContent: 'center',
-    width: 34,
+    width: 32,
   },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  flex: {
-    flex: 1,
-  },
-  cardTitle: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  cardMeta: {
+
+  disclaimer: {
     color: palette.faint,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
     lineHeight: 19,
+    textAlign: 'center',
+  },
+
+  addMethodRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  addMethodCard: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'center',
+    minHeight: 52,
+    paddingHorizontal: spacing.base,
+  },
+  addMethodCardDisabled: {
+    opacity: 0.5,
+  },
+  addMethodLabel: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  addMethodLabelDisabled: {
+    color: palette.faint,
+  },
+
+  errorText: {
+    color: palette.red,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 19,
+    textAlign: 'center',
   },
 });

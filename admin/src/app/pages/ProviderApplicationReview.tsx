@@ -17,7 +17,6 @@ import {
   getAdminProviderApplicationReview,
   rejectAdminProviderApplication,
   requestAdminProviderApplicationInfo,
-  runAdminProviderApplicationOcr,
   updateAdminProviderApplicationReview,
 } from "../../services/serveaseAdminApi";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
@@ -61,7 +60,6 @@ import {
   User,
   Send,
   Columns2,
-  ScanLine,
   ShieldCheck,
   Activity,
   Building2,
@@ -101,7 +99,6 @@ const buildApplication = (
   riskLevel,
   flags,
   govIdNumber: "PSN-2026-" + applicationId.slice(-4),
-  ocrConfidence: 92,
   govIdType: "PhilSys National ID",
   notes: [
     {
@@ -444,7 +441,6 @@ export function ProviderApplicationReview() {
   const [isSendingInfoRequest, setIsSendingInfoRequest] = useState(false);
   const [govIdType, setGovIdType] = useState(application?.govIdType || "PhilSys National ID");
   const [govIdNumber, setGovIdNumber] = useState(application?.govIdNumber || "");
-  const [ocrRunning, setOcrRunning] = useState(false);
 
   const buildVerificationRecords = (
     nextNbiResult = nbiResult,
@@ -693,37 +689,6 @@ export function ProviderApplicationReview() {
       }]);
     }
     setAdminNote("");
-  };
-
-  const handleRunOcr = async () => {
-    if (!accessToken || !applicationId) {
-      return;
-    }
-
-    setOcrRunning(true);
-    try {
-      const review = await runAdminProviderApplicationOcr(
-        accessToken,
-        applicationId,
-      );
-      setBackendReview(review);
-      setGovIdType(review.ocrData.governmentIdType ?? govIdType);
-      setGovIdNumber(review.ocrData.governmentIdNumber ?? govIdNumber);
-      setTinNumber(review.ocrData.tinNumber ?? tinNumber);
-      setNbiNumber(review.ocrData.nbiNumber ?? nbiNumber);
-      setPrcNumber(review.ocrData.prcNumber ?? prcNumber);
-      setNbiResult(toVerifStatus(review.verificationRecords, "nbi"));
-      setPrcResult(toVerifStatus(review.verificationRecords, "prc"));
-      setLoadError(null);
-    } catch (error) {
-      setLoadError(
-        error instanceof Error
-          ? error.message
-          : "Provider document OCR failed.",
-      );
-    } finally {
-      setOcrRunning(false);
-    }
   };
 
   const openDocModal = async (doc: ReviewDocument) => {
@@ -1211,12 +1176,12 @@ export function ProviderApplicationReview() {
               </CardContent>
             </Card>
 
-            {/* OCR Extracted Data Card */}
+            {/* Document review data */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
-                  <ScanLine className="w-4 h-4 text-[#16A34A]" />
-                  OCR Extracted Data
+                  <FileText className="w-4 h-4 text-[#16A34A]" />
+                  Document Review Data
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 pt-0">
@@ -1247,29 +1212,6 @@ export function ProviderApplicationReview() {
                       placeholder="e.g. PSN-2026-1234"
                     />
                   </div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <p className="text-xs text-gray-500">OCR Confidence Score</p>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#16A34A] rounded-full" style={{ width: `${application.ocrConfidence}%` }} />
-                      </div>
-                      <span className="text-sm font-semibold text-[#16A34A]">{application.ocrConfidence}%</span>
-                    </div>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-2 text-xs"
-                    onClick={() => void handleRunOcr()}
-                    disabled={ocrRunning}
-                  >
-                    {ocrRunning
-                      ? <><RefreshCw className="w-3 h-3 animate-spin" />Scanning...</>
-                      : <><ScanLine className="w-3 h-3" />Run OCR</>
-                    }
-                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -1667,7 +1609,7 @@ export function ProviderApplicationReview() {
                   </div>
                 </div>
                 <div className="space-y-2 min-w-0">
-                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">OCR Data + Manual Input</p>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Document Data + Manual Input</p>
                   <div className="bg-gray-50 rounded-xl p-4 space-y-3 overflow-y-auto" style={{ height: "280px" }}>
                     <div className="p-2 bg-white rounded-lg border border-gray-200">
                       <p className="text-xs text-gray-500">ID Type</p>

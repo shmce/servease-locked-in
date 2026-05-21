@@ -4,7 +4,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 test('booking form verifies service addresses through the APICenter geo gateway', () => {
-  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const bookingFlowViewModel = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+    ),
+    'utf8',
+  );
   const bookingFormSource = readFileSync(
     join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
     'utf8',
@@ -17,8 +23,8 @@ test('booking form verifies service addresses through the APICenter geo gateway'
     'utf8',
   );
 
-  assert.match(source, /geocodeAddress/);
-  assert.match(source, /verifyServiceAddress/);
+  assert.match(bookingFlowViewModel, /geocodeAddress/);
+  assert.match(bookingFlowViewModel, /verifyServiceAddress/);
   assert.match(bookingFormSource, /verifyAddressLabel/);
   assert.match(bookingFormSource, /AddressVerificationPreview/);
   assert.match(bookingFormViewModel, /Verify address/);
@@ -44,6 +50,35 @@ test('Google auth opens APICenter authorization in the system browser, not WebVi
   assert.match(oauthSource, /getGoogleAuthorizationUrl/);
   assert.match(oauthSource, /Linking\.openURL\(authorization\.authorizationUrl\)/);
   assert.doesNotMatch(oauthSource, /WebView/);
+});
+
+test('customer payment flow refreshes server payment state after booking and checkout creation', () => {
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const bookingCreatedStart = source.indexOf('onBookingCreated: (booking) => {');
+  const bookingCreatedEnd = source.indexOf(
+    'onRefreshProviderAvailability:',
+    bookingCreatedStart,
+  );
+  const checkoutStart = source.indexOf('const checkout = await createCheckoutSession');
+  const checkoutEnd = source.indexOf('await Linking.openURL(checkout.redirectUrl);', checkoutStart);
+  const checkStatusStart = source.indexOf('async function checkSelectedPaymentStatus');
+  const checkStatusEnd = source.indexOf('async function collectPayment', checkStatusStart);
+  assert.notEqual(bookingCreatedStart, -1);
+  assert.notEqual(bookingCreatedEnd, -1);
+  assert.notEqual(checkoutStart, -1);
+  assert.notEqual(checkoutEnd, -1);
+  assert.notEqual(checkStatusStart, -1);
+  assert.notEqual(checkStatusEnd, -1);
+
+  const bookingCreatedSource = source.slice(bookingCreatedStart, bookingCreatedEnd);
+  const checkoutSource = source.slice(checkoutStart, checkoutEnd);
+  const checkStatusSource = source.slice(checkStatusStart, checkStatusEnd);
+
+  assert.match(bookingCreatedSource, /refreshPayments\(\)/);
+  assert.match(checkoutSource, /listPayments\(apiOptions\)/);
+  assert.match(checkoutSource, /setPayments\(nextPayments\)/);
+  assert.match(checkStatusSource, /nextPayment\?\.apicenterCheckoutId/);
+  assert.match(checkStatusSource, /reconcilePendingCheckout\(checkout\)/);
 });
 
 test('mobile manifest registers the Google auth callback scheme', () => {
@@ -92,6 +127,19 @@ test('tracking screens subscribe to HTTP live tracking before polling fallback',
   assert.match(source, /TRACKING_STREAM_FALLBACK_DELAY_MS/);
   assert.match(source, /TRACKING_FALLBACK_POLL_INTERVAL_MS = 3000/);
   assert.match(source, /subscription\.close\(\)/);
+});
+
+test('customer catalog bootstrap loads full services and provider listings for browsing', () => {
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const loadCatalogStart = source.indexOf('async function loadCatalogImpl');
+  const loadServicesStart = source.indexOf('async function loadServices', loadCatalogStart);
+  assert.notEqual(loadCatalogStart, -1);
+  assert.notEqual(loadServicesStart, -1);
+
+  const loadCatalogSource = source.slice(loadCatalogStart, loadServicesStart);
+
+  assert.match(loadCatalogSource, /listCatalogServices\(null,\s*\{ baseUrl: apiBaseUrl \}\)/);
+  assert.match(loadCatalogSource, /listProviderListings\(null,\s*\{ baseUrl: apiBaseUrl \}\)/);
 });
 
 test('tracking navigation uses compact collapsible sheet states', () => {
@@ -180,7 +228,8 @@ test('tracking map uses MapLibre with OpenFreeMap through WebView and keeps fall
   assert.match(previewSource, /mode = 'tracking'/);
   assert.match(previewSource, /mode === 'tracking'/);
   assert.match(previewSource, /visibleProvider = actualProvider \?\? previewProvider/);
-  assert.match(previewSource, /buildTrackingMapHtml\(visibleProvider, destination, routeGeometry, \{/);
+  assert.match(previewSource, /hasMapLocation = Boolean\(destination \|\| visibleProvider\)/);
+  assert.match(previewSource, /buildTrackingMapHtml\(\s*visibleProvider,\s*destination,\s*routeGeometry,\s*\{/);
   assert.match(previewSource, /provider=\{visibleProvider\}/);
   assert.doesNotMatch(source, /@maplibre\/maplibre-react-native/);
   assert.doesNotMatch(source, /TurboModuleRegistry|MLRNCameraModule|MLRNMapViewModule/);
@@ -249,6 +298,103 @@ test('provider navigation uses first-person WebView drive mode', () => {
   assert.match(htmlSource, /deriveRouteBearing/);
   assert.doesNotMatch(appNavigationSource, /Linking\.openURL/);
   assert.doesNotMatch(providerNavigationSource, /Linking\.openURL/);
+});
+
+test('customer tracking uses the provider navigation map mode with route geometry', () => {
+  const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const customerTrackSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+    ),
+    'utf8',
+  );
+  const customerTrackViewModelSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-track-provider/viewModels/useCustomerTrackProviderViewModel.ts',
+    ),
+    'utf8',
+  );
+  const customerTrackStart = appSource.indexOf('function renderCustomerTrackServiceProvider');
+  const manageBookingStart = appSource.indexOf('function renderManageBooking');
+  const customerRouteStart = appSource.indexOf('async function refreshCustomerTrackingRouteImpl');
+  const providerRouteStart = appSource.indexOf('async function refreshProviderDirectionsImpl');
+  assert.notEqual(customerTrackStart, -1);
+  assert.notEqual(manageBookingStart, -1);
+  assert.notEqual(customerRouteStart, -1);
+  assert.notEqual(providerRouteStart, -1);
+
+  const renderSource = appSource.slice(customerTrackStart, manageBookingStart);
+  const routeSource = appSource.slice(customerRouteStart, providerRouteStart);
+
+  assert.match(renderSource, /directions=\{selectedBookingDirections\}/);
+  assert.match(renderSource, /navigationRouteLoading=\{navigationRouteLoading\}/);
+  assert.match(customerTrackSource, /mode="navigation"/);
+  assert.match(customerTrackSource, /directions=\{directions\}/);
+  assert.match(customerTrackSource, /navigationOrigin=\{data\.navigationOrigin\}/);
+  assert.match(customerTrackSource, /CustomerTrackingRouteStats/);
+  assert.match(customerTrackViewModelSource, /customerDirectionsLabel/);
+  assert.match(customerTrackViewModelSource, /navigationOrigin/);
+  assert.match(routeSource, /tracking\.providerLocation/);
+  assert.match(routeSource, /getDirections/);
+  assert.doesNotMatch(routeSource, /getCurrentNavigationLocation/);
+});
+
+test('customer tracking map labels provider and service address markers', () => {
+  const customerTrackSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+    ),
+    'utf8',
+  );
+  const mapSource = readFileSync(
+    join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
+    'utf8',
+  );
+  const htmlStart = mapSource.indexOf('function buildTrackingMapHtml');
+  const previewStart = mapSource.indexOf('function derivePreviewProviderLocation');
+  const svgStart = mapSource.indexOf('function TrackingMapSvgPreview');
+  const htmlSource = mapSource.slice(htmlStart, previewStart);
+  const svgSource = mapSource.slice(svgStart, htmlStart);
+
+  assert.match(customerTrackSource, /providerMarkerLabel="Provider"/);
+  assert.match(customerTrackSource, /destinationMarkerLabel="Service address"/);
+  assert.match(htmlSource, /provider-location-label/);
+  assert.match(htmlSource, /destinationMarkerLabel/);
+  assert.match(htmlSource, /data-label/);
+  assert.match(svgSource, /SvgMarkerLabel/);
+  assert.match(svgSource, /providerLabel/);
+  assert.match(svgSource, /destinationLabel/);
+});
+
+test('provider navigation uses the same map-bound origin marker as customer tracking', () => {
+  const providerNavigationSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/provider-navigation-mode/views/ProviderNavigationMode.tsx',
+    ),
+    'utf8',
+  );
+  const mapSource = readFileSync(
+    join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
+    'utf8',
+  );
+  const previewStart = mapSource.indexOf('export function TrackingMapPreview');
+  const addressStart = mapSource.indexOf('export function AddressVerificationPreview');
+  assert.notEqual(previewStart, -1);
+  assert.notEqual(addressStart, -1);
+
+  const previewSource = mapSource.slice(previewStart, addressStart);
+
+  assert.match(providerNavigationSource, /providerMarkerLabel="You"/);
+  assert.match(previewSource, /mode === 'navigation'/);
+  assert.match(previewSource, /trackingMapNavigationLegend/);
+  assert.match(previewSource, /resolvedProviderMarkerLabel/);
+  assert.match(previewSource, /destinationMarkerLabel/);
+  assert.doesNotMatch(providerNavigationSource, /showNavigationOriginPuck/);
+  assert.doesNotMatch(previewSource, /trackingMapNavigationOriginPuck/);
 });
 
 test('provider navigation map allows controlled route inspection', () => {
@@ -325,6 +471,7 @@ test('native tracking map renders APICenter coordinates through Expo Go WebView 
   assert.equal(manifest.expo?.android?.config?.googleMaps, undefined);
   assert.equal(manifest.expo?.ios?.config?.googleMapsApiKey, undefined);
   assert.match(nativeMapSource, /<WebView/);
+  assert.match(nativeMapSource, /destination: TrackingMapLocation \| null/);
   assert.match(nativeMapSource, /source=\{\{ html: mapHtml \}\}/);
   assert.match(nativeMapSource, /injectJavaScript/);
   assert.match(source, /pendingTrackingUpdate/);
@@ -341,6 +488,29 @@ test('native tracking map renders APICenter coordinates through Expo Go WebView 
   assert.doesNotMatch(nativeMapSource, /reverseGeocode/);
   assert.doesNotMatch(nativeMapSource, /getDirections/);
   assert.doesNotMatch(nativeMapSource, /googleMapsApiKey|androidGoogleMapsApiKey|iosGoogleMapsApiKey|PROVIDER_GOOGLE/);
+});
+
+test('tracking map can render provider location before destination coordinates exist', () => {
+  const source = readFileSync(
+    join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
+    'utf8',
+  );
+  const previewStart = source.indexOf('export function TrackingMapPreview');
+  const htmlStart = source.indexOf('function buildTrackingMapHtml');
+  const providerUpdateStart = source.indexOf('function buildProviderLocationUpdateScript');
+  assert.notEqual(previewStart, -1);
+  assert.notEqual(htmlStart, -1);
+  assert.notEqual(providerUpdateStart, -1);
+
+  const previewSource = source.slice(previewStart, htmlStart);
+  const htmlSource = source.slice(htmlStart, providerUpdateStart);
+
+  assert.match(previewSource, /hasMapLocation \? \(/);
+  assert.match(htmlSource, /destination: TrackingMapLocation \| null/);
+  assert.match(htmlSource, /destinationCoordinate = destination/);
+  assert.match(htmlSource, /center: provider && isNavigationMode \? provider : destination \|\| provider/);
+  assert.match(htmlSource, /if \(destination\) \{/);
+  assert.match(htmlSource, /provider && destination \? \[provider, destination\] : null/);
 });
 
 test('expo config cannot preserve stale native MapLibre plugins', () => {

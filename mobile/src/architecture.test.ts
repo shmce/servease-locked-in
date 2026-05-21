@@ -1,10 +1,14 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
 function readProjectFile(path: string): string {
   return readFileSync(join(process.cwd(), path), 'utf8');
+}
+
+function toProjectPath(path: string): string {
+  return relative(process.cwd(), path).split(sep).join('/');
 }
 
 function featureViewFiles(): string[] {
@@ -16,8 +20,8 @@ function featureViewFiles(): string[] {
       const fullPath = join(directory, entry);
       if (statSync(fullPath).isDirectory()) {
         walk(fullPath);
-      } else if (fullPath.includes('/views/') && fullPath.endsWith('.tsx')) {
-        files.push(fullPath.replace(`${process.cwd()}/`, ''));
+      } else if (toProjectPath(fullPath).includes('/views/') && fullPath.endsWith('.tsx')) {
+        files.push(toProjectPath(fullPath));
       }
     }
   }
@@ -36,10 +40,10 @@ function featureViewModelFiles(): string[] {
       if (statSync(fullPath).isDirectory()) {
         walk(fullPath);
       } else if (
-        fullPath.includes('/viewModels/') &&
+        toProjectPath(fullPath).includes('/viewModels/') &&
         /^use.*ViewModel\.ts$/.test(entry)
       ) {
-        files.push(fullPath.replace(`${process.cwd()}/`, ''));
+        files.push(toProjectPath(fullPath));
       }
     }
   }
@@ -58,7 +62,7 @@ function sourceFiles(): string[] {
       if (statSync(fullPath).isDirectory()) {
         walk(fullPath);
       } else if (/\.(ts|tsx)$/.test(entry)) {
-        files.push(fullPath.replace(`${process.cwd()}/`, ''));
+        files.push(toProjectPath(fullPath));
       }
     }
   }
@@ -88,6 +92,31 @@ test('mobile app exposes the MVVM entry and shared model structure', () => {
   assert.doesNotMatch(appSource, /from '\.\/screens\//);
   assert.doesNotMatch(modelTypesSource, /from 'react'|react-native/);
   assert.doesNotMatch(modelApiSource, /from 'react'|react-native/);
+});
+
+test('mobile app is wired through Expo Router layouts', () => {
+  const packageJson = JSON.parse(readProjectFile('package.json')) as {
+    main: string;
+    dependencies: Record<string, string>;
+  };
+  const appJson = JSON.parse(readProjectFile('app.json')) as {
+    expo: { plugins?: unknown[] };
+  };
+  const rootLayoutSource = readProjectFile('src/app/_layout.tsx');
+  const appIndexSource = readProjectFile('src/app/index.tsx');
+  const customerLayoutSource = readProjectFile('src/app/(customer)/_layout.tsx');
+  const providerLayoutSource = readProjectFile('src/app/(provider)/_layout.tsx');
+
+  assert.equal(packageJson.main, 'expo-router/entry');
+  assert.match(packageJson.dependencies['expo-router'], /\d/);
+  assert.match(packageJson.dependencies['react-native-safe-area-context'], /\d/);
+  assert.match(packageJson.dependencies['react-native-screens'], /\d/);
+  assert.deepEqual(appJson.expo.plugins?.[0], 'expo-router');
+  assert.match(rootLayoutSource, /from 'expo-router'/);
+  assert.match(rootLayoutSource, /<Stack/);
+  assert.match(appIndexSource, /from '\.\.\/App'/);
+  assert.match(customerLayoutSource, /<Tabs/);
+  assert.match(providerLayoutSource, /<Tabs/);
 });
 
 test('feature views depend on shared model types instead of the API model barrel', () => {
@@ -204,23 +233,49 @@ test('app shell imports model interfaces from shared model types', () => {
 
 test('app shell lazy-loads feature page components', () => {
   const appSource = readProjectFile('src/App.tsx');
+  const appShellSource = readProjectFile('src/legacy-router/AppShell.tsx');
 
   assert.match(appSource, /\blazy\(/);
-  assert.match(appSource, /\bSuspense\b/);
+  assert.match(appShellSource, /\bSuspense\b/);
   assert.doesNotMatch(
     appSource,
     /import\s*\{[^}]*Screen[^}]*\}\s*from ['"]\.\/features\/[^'"]*\/views\//,
   );
 });
 
+test('app shell delegates route framing to the app router', () => {
+  const appSource = readProjectFile('src/App.tsx');
+  const routerSource = readProjectFile('src/legacy-router/AppRouter.tsx');
+
+  assert.match(appSource, /<AppRouter/);
+  assert.match(appSource, /<AppShell/);
+  assert.doesNotMatch(appSource, /BottomNavigation|PhoneFrame|StatusStrip/);
+  assert.match(routerSource, /function CustomerRouteFrame/);
+  assert.match(routerSource, /function ProviderRouteFrame/);
+  assert.match(routerSource, /label: 'Calendar'/);
+});
+
+test('legacy route frame fills the native device viewport', () => {
+  const designKitSource = readProjectFile('src/components/DesignKit.tsx');
+  const appShellSource = readProjectFile('src/legacy-router/AppShell.tsx');
+
+  assert.doesNotMatch(designKitSource, /phoneFrame:[\s\S]*?maxWidth/);
+  assert.doesNotMatch(designKitSource, /styles\.homeIndicator/);
+  assert.match(appShellSource, /expo-navigation-bar/);
+  assert.match(appShellSource, /expo-system-ui/);
+});
+
 test('app shell delegates display notice formatting to domain helpers', () => {
   const appSource = readProjectFile('src/App.tsx');
+  const bookingFlowSource = readProjectFile(
+    'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+  );
   const domainSource = readProjectFile('src/domain/booking.ts');
 
   assert.doesNotMatch(appSource, /formatMoney/);
   assert.doesNotMatch(appSource, /\.toFixed\(4\)/);
-  assert.match(appSource, /promotionNotice/);
-  assert.match(appSource, /addressVerifiedNotice/);
+  assert.match(bookingFlowSource, /promotionNotice/);
+  assert.match(bookingFlowSource, /addressVerifiedNotice/);
   assert.match(appSource, /paymentNotice/);
   assert.match(domainSource, /function promotionNotice/);
   assert.match(domainSource, /function addressVerifiedNotice/);
@@ -241,7 +296,6 @@ test('app shell stabilizes effect callbacks instead of omitting hook dependencie
     'loadCatalog',
     'completeGoogleSignIn',
     'reconcilePendingCheckout',
-    'markRead',
     'routeFromNotificationPayload',
     'refreshBookingTracking',
     'refreshProviderDirections',
@@ -267,6 +321,13 @@ test('app shell stabilizes effect callbacks instead of omitting hook dependencie
   assert.match(hookSource, /useRef/);
   assert.match(hookSource, /useEffect/);
   assert.match(hookSource, /useMemo/);
+
+  const notificationsFlowSource = readProjectFile(
+    'src/features/notifications/viewModels/useNotificationsFlowViewModel.ts',
+  );
+  assert.match(appSource, /useNotificationsFlowViewModel/);
+  assert.match(notificationsFlowSource, /markNotificationRead/);
+  assert.match(notificationsFlowSource, /useCallback/);
 });
 
 test('tracking map preview keeps webview update callbacks hook-safe', () => {
@@ -1105,11 +1166,22 @@ test('provider more follows feature-level MVVM boundaries', () => {
   const viewModelSource = readProjectFile(viewModelPath);
 
   assert.match(appSource, /ProviderMoreScreen/);
+  assert.match(appSource, /profile=\{profile\}/);
+  assert.match(appSource, /signOut=\{signOut\}/);
+  assert.match(appSource, /unreadNotificationCount=\{notificationsFlow\.data\.unreadCount\}/);
   assert.match(viewSource, /useProviderMoreViewModel/);
+  assert.match(viewSource, /styles\.profileRow/);
+  assert.match(viewSource, /styles\.logoutButton/);
+  assert.match(viewSource, /typeof signOut === 'function'/);
+  assert.match(viewSource, /onPress=\{handleSignOut\}/);
+  assert.match(viewSource, /ServEase v1\.0\.0/);
+  assert.match(viewSource, /badge=\{action\.badge\}/);
   assert.doesNotMatch(viewSource, /providerPayoutManagement/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /providerPayoutManagement/);
   assert.match(viewModelSource, /actionRows/);
+  assert.match(viewModelSource, /providerProfile\?\.businessName/);
+  assert.match(viewModelSource, /providerNotifications/);
 });
 
 test('provider security follows feature-level MVVM boundaries', () => {

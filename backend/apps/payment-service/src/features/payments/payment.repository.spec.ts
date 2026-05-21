@@ -183,6 +183,54 @@ describe('SupabasePaymentRepository', () => {
     expect(checkoutId).toBe('checkout-1');
   });
 
+  it('lists visible payments with APICenter checkout metadata', async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'payment-1',
+          booking_id: 'booking-1',
+          customer_id: 'customer-1',
+          provider_id: 'provider-1',
+          amount: 1200,
+          platform_fee: 180,
+          provider_payout: 1020,
+          status: 'pending',
+          payment_method: 'gcash',
+          paid_at: null,
+          created_at: '2026-05-18T10:00:00.000Z',
+          failure_reason: null,
+          failure_code: null,
+          retry_count: 0,
+          last_retry_at: null,
+          dispute_id: null,
+          apicenter_checkout_id: 'checkout-1',
+          apicenter_checkout_status: 'created',
+          apicenter_provider: 'paymongo',
+          apicenter_provider_mode: 'test',
+        },
+      ],
+      error: null,
+    });
+    const repository = new SupabasePaymentRepository({ rpc });
+
+    const payments = await repository.listPayments({
+      customerId: 'customer-1',
+      providerId: null,
+    });
+
+    expect(rpc).toHaveBeenCalledWith('servease_list_visible_payments', {
+      p_customer_id: 'customer-1',
+      p_provider_id: null,
+    });
+    expect(payments[0]).toMatchObject({
+      id: 'payment-1',
+      apicenterCheckoutId: 'checkout-1',
+      apicenterCheckoutStatus: 'created',
+      apicenterProvider: 'paymongo',
+      apicenterProviderMode: 'test',
+    });
+  });
+
   it('lists admin promotions through the service RPC', async () => {
     const rpc = jest.fn().mockResolvedValue({
       data: [

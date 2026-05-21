@@ -39,6 +39,39 @@ describe('PaymentServiceClient', () => {
       );
     });
   });
+
+  it('calls the payment-owned GasWatch PH fuel sync endpoint', async () => {
+    await withFetchResponse(
+      200,
+      {
+        data: {
+          id: 'fuel-gaswatch-1',
+          region: 'default',
+          fuelPricePerLiter: 89.84,
+          source: 'gaswatch-ph:diesel:metro-manila-average',
+          effectiveAt: '2026-05-19T00:00:00.000Z',
+          createdBy: 'admin-1',
+          createdAt: '2026-05-19T01:00:00.000Z',
+        },
+      },
+      async () => {
+        const client = new PaymentServiceClient(configService());
+
+        const row = await client.syncPricingFuelIndexFromGasWatch({
+          adminUserId: 'admin-1',
+        });
+
+        expect(globalThis.fetch).toHaveBeenCalledWith(
+          'http://payment-service.test/internal/pricing/admin/fuel-index/sync',
+          expect.objectContaining({
+            method: 'POST',
+            body: JSON.stringify({ adminUserId: 'admin-1' }),
+          }),
+        );
+        expect(row.source).toBe('gaswatch-ph:diesel:metro-manila-average');
+      },
+    );
+  });
 });
 
 async function withFetchResponse(

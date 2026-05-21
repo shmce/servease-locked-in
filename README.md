@@ -11,6 +11,7 @@ ServEase is a service marketplace with an HTTP-only NestJS microservices backend
 | `admin/` | Next.js admin dashboard | `npm run dev`, `npm run typecheck`, `npm test`, `npm run build` |
 | `FE_Web(Provider)/` | Next.js provider dashboard | `npm run dev`, `npm run typecheck`, `npm run build` |
 | `Landing Page/` | Next.js public site and browser account flows | `npm run dev`, `npm run build` |
+| `packages/servease-sdk/` | Typed public API client package | `npm run typecheck`, `npm test`, `npm run build` |
 
 ## Documentation
 
@@ -19,7 +20,11 @@ ServEase is a service marketplace with an HTTP-only NestJS microservices backend
 - [docs/README.md](docs/README.md): canonical documentation index.
 - [docs/architecture.md](docs/architecture.md): runtime topology and service boundaries.
 - [docs/api-contracts.md](docs/api-contracts.md): public and internal API contract rules.
+- [docs/call-flows.md](docs/call-flows.md): end-to-end request flows.
+- [docs/internal-service-contracts.md](docs/internal-service-contracts.md): internal service route inventory.
+- [docs/app-surface-contracts.md](docs/app-surface-contracts.md): app-to-Gateway usage map.
 - [docs/testing.md](docs/testing.md): verification commands by app.
+- [docs/documentation-status.md](docs/documentation-status.md): current source-of-truth and historical docs map.
 - [docs/github-packages.md](docs/github-packages.md): GitHub Packages setup for private npm packages.
 
 ## Local Setup

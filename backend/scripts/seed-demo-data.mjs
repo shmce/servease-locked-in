@@ -50,6 +50,8 @@ async function main() {
   const admin = await ensureAuthUser(demo.admin.email, password);
 
   const seed = await seedDemoData(customer.id, provider.id, admin.id);
+  const liveLocation = await seedDemoLiveLocation(seed.bookingId, seed.providerId);
+  const rankingSeed = await seedDemoRankingCatalog();
   const disputeId = await seedDemoDispute(customer.id);
   const payoutMethodId = await seedDemoPayoutMethod(seed.providerId);
   const refundId = await seedDemoRefundRequest({
@@ -75,9 +77,11 @@ async function main() {
           adminUserId: admin.id,
           providerId: seed.providerId,
           bookingId: seed.bookingId,
+          liveLocation,
           refundId,
           disputeId,
           payoutMethodId,
+          ranking: rankingSeed,
         },
       },
       null,
@@ -105,6 +109,16 @@ async function seedDemoRefundRequest({ customerId, providerId, bookingId, paymen
   return data;
 }
 
+async function seedDemoRankingCatalog() {
+  const { data, error } = await serviceClient.rpc('servease_seed_demo_ranking_catalog');
+
+  if (error || !data) {
+    throw new Error(`Failed to seed demo ranking catalog: ${error?.message ?? 'missing ranking seed result'}`);
+  }
+
+  return data;
+}
+
 async function seedDemoDispute(customerId) {
   const { data, error } = await serviceClient.rpc('servease_seed_demo_dispute', {
     p_customer_id: customerId,
@@ -115,6 +129,33 @@ async function seedDemoDispute(customerId) {
   }
 
   return data;
+}
+
+async function seedDemoLiveLocation(bookingId, providerId) {
+  const { data, error } = await serviceClient.rpc('servease_upsert_booking_live_location', {
+    p_booking_id: bookingId,
+    p_provider_id: providerId,
+    p_latitude: 14.5816,
+    p_longitude: 121.0569,
+    p_accuracy_meters: 18,
+    p_heading_degrees: 42,
+    p_speed_mps: 1.2,
+  });
+
+  if (error || !data) {
+    throw new Error(`Failed to seed demo live location: ${error?.message ?? 'missing location'}`);
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) {
+    throw new Error('Failed to seed demo live location: missing location');
+  }
+
+  return {
+    latitude: row.latitude,
+    longitude: row.longitude,
+    updatedAt: row.updated_at,
+  };
 }
 
 async function seedDemoPayoutMethod(providerId) {

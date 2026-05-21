@@ -81,6 +81,8 @@ Adds a user reply to one visible support ticket.
 - Empty subjects are rejected.
 - Created tickets are scoped to the authenticated user.
 - Ticket listing only uses the authenticated user ID.
+- Ticket detail, reply listing, and reply creation use deployed Support Service RPCs instead of falling through to `support_dependency_unavailable`.
+- Admin support detail, replies, status updates, and assignment are exposed by the Admin Service and delegated to the Support Service over HTTP.
 
 ## Verification Commands
 

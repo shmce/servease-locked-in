@@ -34,28 +34,6 @@ const UUID_PATTERN =
 export class ProviderProfileController {
   constructor(private readonly providerProfileService: ProviderProfileService) {}
 
-  @Get('by-user/:userId')
-  async show(@Param('userId') userId: string): Promise<{
-    data: ProviderProfileSummary;
-  }> {
-    const data = await this.providerProfileService.findByUserId(userId);
-
-    if (!data) {
-      throw new HttpException(
-        {
-          error: {
-            code: 'provider_profile_not_found',
-            message: 'Provider profile was not found.',
-            details: {},
-          },
-        },
-        404,
-      );
-    }
-
-    return { data };
-  }
-
   @Post()
   async create(
     @Body() body: CreateProviderProfileInput,
@@ -94,6 +72,28 @@ export class ProviderProfileController {
         503,
       );
     }
+  }
+
+  @Get('by-user/:userId')
+  async show(@Param('userId') userId: string): Promise<{
+    data: ProviderProfileSummary;
+  }> {
+    const data = await this.providerProfileService.findByUserId(userId);
+
+    if (!data) {
+      throw new HttpException(
+        {
+          error: {
+            code: 'provider_profile_not_found',
+            message: 'Provider profile was not found.',
+            details: {},
+          },
+        },
+        404,
+      );
+    }
+
+    return { data };
   }
 
   @Patch('by-user/:userId')
@@ -161,26 +161,6 @@ export class ProviderProfileController {
     }
   }
 
-  @Get('applications/:applicationId')
-  async getApplication(
-    @Param('applicationId') applicationId: string,
-  ): Promise<{ data: AdminProviderApplicationSummary }> {
-    if (!UUID_PATTERN.test(applicationId)) {
-      throw this.invalidRequest();
-    }
-
-    try {
-      const data =
-        await this.providerProfileService.getProviderApplication(applicationId);
-      if (!data) {
-        throw new Error('provider_application_not_found');
-      }
-      return { data };
-    } catch {
-      throw this.dependencyError('Provider application lookup failed.');
-    }
-  }
-
   @Get('applications/by-user/:userId')
   async getApplicationByUser(
     @Param('userId') userId: string,
@@ -192,6 +172,52 @@ export class ProviderProfileController {
     try {
       const data =
         await this.providerProfileService.getProviderApplicationByUserId(userId);
+      if (!data) {
+        throw new Error('provider_application_not_found');
+      }
+      return { data };
+    } catch {
+      throw this.dependencyError('Provider application lookup failed.');
+    }
+  }
+
+  @Post('applications/documents')
+  async submitApplicationDocument(
+    @Body() body: SubmitProviderApplicationDocumentInput,
+  ) {
+    if (
+      !UUID_PATTERN.test(body.userId) ||
+      !body.documentType?.trim() ||
+      (!body.fileUrl?.trim() && !body.storagePath?.trim())
+    ) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      return {
+        data: await this.providerProfileService.submitProviderApplicationDocument({
+          userId: body.userId,
+          documentType: body.documentType,
+          fileUrl: body.fileUrl ?? null,
+          storagePath: body.storagePath ?? null,
+        }),
+      };
+    } catch {
+      throw this.dependencyError('Provider application document submission failed.');
+    }
+  }
+
+  @Get('applications/:applicationId')
+  async getApplication(
+    @Param('applicationId') applicationId: string,
+  ): Promise<{ data: AdminProviderApplicationSummary }> {
+    if (!UUID_PATTERN.test(applicationId)) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      const data =
+        await this.providerProfileService.getProviderApplication(applicationId);
       if (!data) {
         throw new Error('provider_application_not_found');
       }
@@ -225,32 +251,6 @@ export class ProviderProfileController {
         throw error;
       }
       throw this.dependencyError('Provider application document lookup failed.');
-    }
-  }
-
-  @Post('applications/documents')
-  async submitApplicationDocument(
-    @Body() body: SubmitProviderApplicationDocumentInput,
-  ) {
-    if (
-      !UUID_PATTERN.test(body.userId) ||
-      !body.documentType?.trim() ||
-      (!body.fileUrl?.trim() && !body.storagePath?.trim())
-    ) {
-      throw this.invalidRequest();
-    }
-
-    try {
-      return {
-        data: await this.providerProfileService.submitProviderApplicationDocument({
-          userId: body.userId,
-          documentType: body.documentType,
-          fileUrl: body.fileUrl ?? null,
-          storagePath: body.storagePath ?? null,
-        }),
-      };
-    } catch {
-      throw this.dependencyError('Provider application document submission failed.');
     }
   }
 
@@ -366,23 +366,6 @@ export class ProviderProfileController {
     }
   }
 
-  @Get(':providerId/portfolio')
-  async listPortfolio(
-    @Param('providerId') providerId: string,
-  ): Promise<{ data: ProviderPortfolioMediaSummary[] }> {
-    if (!UUID_PATTERN.test(providerId)) {
-      throw this.invalidRequest();
-    }
-
-    try {
-      return {
-        data: await this.providerProfileService.listPortfolioMedia(providerId),
-      };
-    } catch {
-      throw this.dependencyError('Provider portfolio lookup failed.');
-    }
-  }
-
   @Post('portfolio')
   async addPortfolio(
     @Body() body: ProviderPortfolioMediaInput,
@@ -397,23 +380,6 @@ export class ProviderProfileController {
       };
     } catch {
       throw this.dependencyError('Provider portfolio upload failed.');
-    }
-  }
-
-  @Delete('portfolio/:mediaId')
-  @HttpCode(204)
-  async deletePortfolio(
-    @Param('mediaId') mediaId: string,
-    @Body() body: { userId: string },
-  ): Promise<void> {
-    if (!UUID_PATTERN.test(body.userId) || !UUID_PATTERN.test(mediaId)) {
-      throw this.invalidRequest();
-    }
-
-    try {
-      await this.providerProfileService.deletePortfolioMedia(body.userId, mediaId);
-    } catch {
-      throw this.dependencyError('Provider portfolio delete failed.');
     }
   }
 
@@ -444,6 +410,40 @@ export class ProviderProfileController {
       };
     } catch {
       throw this.dependencyError('Provider portfolio reorder failed.');
+    }
+  }
+
+  @Get(':providerId/portfolio')
+  async listPortfolio(
+    @Param('providerId') providerId: string,
+  ): Promise<{ data: ProviderPortfolioMediaSummary[] }> {
+    if (!UUID_PATTERN.test(providerId)) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      return {
+        data: await this.providerProfileService.listPortfolioMedia(providerId),
+      };
+    } catch {
+      throw this.dependencyError('Provider portfolio lookup failed.');
+    }
+  }
+
+  @Delete('portfolio/:mediaId')
+  @HttpCode(204)
+  async deletePortfolio(
+    @Param('mediaId') mediaId: string,
+    @Body() body: { userId: string },
+  ): Promise<void> {
+    if (!UUID_PATTERN.test(body.userId) || !UUID_PATTERN.test(mediaId)) {
+      throw this.invalidRequest();
+    }
+
+    try {
+      await this.providerProfileService.deletePortfolioMedia(body.userId, mediaId);
+    } catch {
+      throw this.dependencyError('Provider portfolio delete failed.');
     }
   }
 

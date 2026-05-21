@@ -1,4 +1,4 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Upload } from 'lucide-react-native';
 import {
   Card,
@@ -10,7 +10,11 @@ import {
   BookingSummary,
   PaymentSummary,
 } from '../../../shared/models/types';
-import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import { palette, spacing } from '../../../theme/serveaseDesign';
+import {
+  MediaUploadBox,
+  StickyFooter,
+} from '../../../shared/components/ScreenLayout';
 import { useProviderCompleteServiceViewModel } from '../viewModels/useProviderCompleteServiceViewModel';
 
 type ProviderCompleteServiceScreenProps = {
@@ -64,6 +68,7 @@ export function ProviderCompleteServiceScreen({
           </Card>
           <Card>
             <Text style={styles.cardTitle}>Completion summary</Text>
+            <Text style={styles.noticeText}>{data.paymentNotice}</Text>
             {data.summaryRows.map((row) => (
               <View key={row.key} style={styles.infoRow}>
                 <Text style={styles.infoLabel}>{row.label}</Text>
@@ -79,35 +84,29 @@ export function ProviderCompleteServiceScreen({
               placeholder="What was completed?"
               multiline
             />
-            <Pressable
-              style={styles.uploadBox}
+            <MediaUploadBox
+              imageUri={completionPhotoUri}
+              icon={<Upload color={palette.mint} size={28} strokeWidth={2.5} />}
+              label={data.completionPhotoActionLabel}
               onPress={onPickCompletionPhoto}
-              accessibilityRole="button"
-            >
-              {completionPhotoUri ? (
-                <Image source={{ uri: completionPhotoUri }} style={styles.uploadPreview} />
-              ) : (
-                <Upload color={palette.mint} size={28} strokeWidth={2.5} />
-              )}
-              <Text style={styles.linkText}>{data.completionPhotoActionLabel}</Text>
-            </Pressable>
+              minHeight={132}
+            />
             {data.completionPhotoUploaded ? (
               <Text style={styles.noticeText}>Completion photo uploaded.</Text>
             ) : null}
           </Card>
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter maxWidth={420}>
         <PrimaryButton
-          label="Mark as Completed"
+          label={data.submitLabel}
           onPress={() => void onCompleteService()}
           disabled={data.submitDisabled}
         />
         <Text style={styles.footerLink} onPress={onBack}>
           Keep working
         </Text>
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
@@ -119,28 +118,8 @@ const styles = StyleSheet.create({
     paddingBottom: 132,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  stickyFooter: {
-    alignSelf: 'center',
-    backgroundColor: palette.white,
-    borderTopColor: palette.lineSoft,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    maxWidth: 420,
-    padding: spacing.lg,
-    position: 'absolute',
-    width: '100%',
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.line,
-    borderRadius: radius.pill,
-    height: 4,
-    marginTop: spacing.xs,
-    width: 88,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   operationalTitle: {
     color: palette.ink,
@@ -150,14 +129,14 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   infoRow: {
     flexDirection: 'row',
@@ -176,24 +155,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     textAlign: 'right',
-  },
-  uploadBox: {
-    alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.lg,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    gap: spacing.sm,
-    justifyContent: 'center',
-    minHeight: 136,
-    overflow: 'hidden',
-    padding: spacing.lg,
-  },
-  uploadPreview: {
-    borderRadius: radius.md,
-    height: 116,
-    width: '100%',
   },
   linkText: {
     color: palette.mint,

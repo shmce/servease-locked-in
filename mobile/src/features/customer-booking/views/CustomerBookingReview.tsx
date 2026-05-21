@@ -6,7 +6,6 @@ import {
   Section,
   TopBar,
 } from '../../../components/DesignKit';
-import { InfoRow } from '../../../components/AppDisplay';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
 import {
   CatalogServiceItem,
@@ -14,6 +13,7 @@ import {
   PromotionValidationSummary,
   ProviderListing,
 } from '../../../shared/models/types';
+import { StickyFooter } from '../../../shared/components/ScreenLayout';
 import { useCustomerBookingReviewViewModel } from '../viewModels/useCustomerBookingReviewViewModel';
 
 type CustomerBookingReviewScreenProps = {
@@ -75,56 +75,84 @@ export function CustomerBookingReviewScreen({
         subtitle="Step 2 of 2 - Confirm and send"
         onBack={onBack}
       />
-      <ScrollView contentContainerStyle={styles.withStickyFooter}>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
+
+          {/* Provider card */}
           <Card>
-            <View style={styles.providerSummaryRow}>
-              <View style={styles.providerPhoto}>
-                <Text style={styles.providerPhotoText}>{data.providerInitial}</Text>
+            <View style={styles.providerRow}>
+              <View style={styles.providerAvatar}>
+                <Text style={styles.providerInitial}>{data.providerInitial}</Text>
               </View>
               <View style={styles.flex}>
-                <Text style={styles.cardTitle}>{data.providerName}</Text>
-                <Text style={styles.cardMeta}>{data.providerRatingLabel}</Text>
+                <Text style={styles.providerName}>{data.providerName}</Text>
+                <Text style={styles.providerRating}>{data.providerRatingLabel}</Text>
                 <Pressable
-                  style={styles.profileLinkRow}
+                  style={styles.profileLink}
                   onPress={onViewProvider}
                   accessibilityRole="button"
                   accessibilityLabel="View provider profile"
                 >
                   <Text style={styles.linkText}>View Profile</Text>
-                  <ChevronRight color={palette.mint} size={18} />
+                  <ChevronRight color={palette.mint} size={15} strokeWidth={2.2} />
                 </Pressable>
               </View>
             </View>
           </Card>
 
+          {/* Service details */}
           <Section title="Service details">
-            {data.serviceRows.map((row) => (
-              <InfoRow key={row.label} label={row.label} value={row.value} />
-            ))}
+            <Card>
+              {data.serviceRows.map((row, i) => (
+                <ReviewRow
+                  key={row.label}
+                  label={row.label}
+                  value={row.value}
+                  last={i === data.serviceRows.length - 1}
+                />
+              ))}
+            </Card>
           </Section>
 
+          {/* Special instructions */}
           <Section title="Special instructions">
-            <InfoRow label="Your notes" value={data.notesLabel} />
+            <Card>
+              <Text style={styles.notesLabel}>Your notes</Text>
+              <Text style={styles.notesValue}>{data.notesLabel}</Text>
+            </Card>
           </Section>
 
+          {/* Price breakdown */}
           <Section title="Price breakdown">
-            {data.priceBreakdownRows.map((row) => (
-              <InfoRow key={row.key} label={row.label} value={row.value} />
-            ))}
-            <InfoRow label="Promo code" value={data.promoCodeLabel} />
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Booking Cost</Text>
-              <Text style={styles.totalValue}>{data.displayedTotalLabel}</Text>
-            </View>
+            <Card>
+              {data.priceBreakdownRows.map((row) => (
+                <ReviewRow
+                  key={row.key}
+                  label={row.label}
+                  value={row.value}
+                  last={false}
+                />
+              ))}
+              <ReviewRow
+                label="Promo code"
+                value={data.promoCodeLabel}
+                last={false}
+              />
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Booking Cost</Text>
+                <Text style={styles.totalValue}>{data.displayedTotalLabel}</Text>
+              </View>
+            </Card>
           </Section>
 
+          {/* Notice */}
           <View style={styles.noticeBox}>
             <Text style={styles.noticeText}>{data.quoteExplanation}</Text>
           </View>
+
         </View>
       </ScrollView>
-      <View style={styles.stickyFooter}>
+      <StickyFooter>
         <PrimaryButton
           label={data.confirmLabel}
           onPress={onConfirm}
@@ -136,28 +164,49 @@ export function CustomerBookingReviewScreen({
         <Text style={styles.footerLink} onPress={onEditBooking}>
           Edit booking
         </Text>
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
 
+function ReviewRow({
+  label,
+  value,
+  last,
+}: {
+  label: string;
+  value: string;
+  last: boolean;
+}) {
+  return (
+    <View style={[styles.reviewRow, !last && styles.reviewRowBorder]}>
+      <Text style={styles.reviewLabel}>{label}</Text>
+      <Text style={styles.reviewValue} numberOfLines={3}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  withStickyFooter: {
+  scrollContent: {
     backgroundColor: palette.cream,
     flexGrow: 1,
-    paddingBottom: 180,
+    paddingBottom: 200,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
-  providerSummaryRow: {
+  flex: {
+    flex: 1,
+  },
+
+  // Provider card
+  providerRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
   },
-  providerPhoto: {
+  providerAvatar: {
     alignItems: 'center',
     backgroundColor: palette.mintSoft,
     borderRadius: radius.lg,
@@ -165,86 +214,114 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 52,
   },
-  providerPhotoText: {
+  providerInitial: {
     color: palette.mint,
     fontSize: 20,
-    fontWeight: '900',
+    fontWeight: '700',
   },
-  flex: {
-    flex: 1,
+  providerName: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '700',
   },
-  profileLinkRow: {
+  providerRating: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  profileLink: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.xxs,
+    gap: 2,
     marginTop: spacing.xs,
   },
+  linkText: {
+    color: palette.mint,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // Review rows
+  reviewRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  reviewRowBorder: {
+    borderBottomColor: palette.line,
+    borderBottomWidth: 1,
+  },
+  reviewLabel: {
+    color: palette.muted,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+    paddingTop: 1,
+  },
+  reviewValue: {
+    color: palette.ink,
+    flex: 1.6,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+
+  // Notes
+  notesLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '500',
+    marginBottom: spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  notesValue: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 20,
+  },
+
+  // Total
   totalRow: {
     alignItems: 'center',
-    borderTopColor: palette.lineSoft,
+    borderTopColor: palette.line,
     borderTopWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: spacing.sm,
     paddingTop: spacing.md,
+    marginTop: spacing.xs,
   },
+  totalLabel: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  totalValue: {
+    color: palette.mint,
+    fontSize: 22,
+    fontWeight: '700',
+  },
+
+  // Notice
   noticeBox: {
     backgroundColor: palette.mintSoft,
     borderRadius: radius.lg,
     padding: spacing.md,
-  },
-  stickyFooter: {
-    backgroundColor: palette.white,
-    borderTopColor: palette.line,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    padding: spacing.lg,
-    position: 'absolute',
-    right: 0,
-  },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.ink,
-    borderRadius: radius.pill,
-    height: 4,
-    opacity: 0.18,
-    width: 118,
-  },
-  footerLink: {
-    ...type.caption,
-    color: palette.mint,
-    fontWeight: '900',
-    textAlign: 'center',
-  },
-  linkText: {
-    color: palette.mint,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  cardTitle: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  cardMeta: {
-    ...type.caption,
-    color: palette.muted,
   },
   noticeText: {
     ...type.caption,
     color: palette.muted,
     textAlign: 'center',
   },
-  totalLabel: {
-    color: palette.ink,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  totalValue: {
+
+  // Footer
+  footerLink: {
+    ...type.caption,
     color: palette.mint,
-    fontSize: 20,
-    fontWeight: '900',
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });

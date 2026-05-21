@@ -39,6 +39,39 @@ describe('PaymentService', () => {
     expect(promotion.finalAmount).toBe(1080);
   });
 
+  it('confirms cash-on-service payments by booking id', async () => {
+    const repository = {
+      confirmCashOnServicePayment: jest.fn().mockResolvedValue({
+        id: 'payment-1',
+        status: 'paid',
+      }),
+    } as unknown as SupabasePaymentRepository;
+    const service = new PaymentService(repository);
+
+    const payment = await service.confirmCashOnServicePayment({
+      bookingId: ' booking-1 ',
+      providerId: ' provider-1 ',
+    });
+
+    expect(repository.confirmCashOnServicePayment).toHaveBeenCalledWith({
+      bookingId: 'booking-1',
+      providerId: 'provider-1',
+    });
+    expect(payment.status).toBe('paid');
+  });
+
+  it('rejects cash confirmation without a booking id', async () => {
+    const repository = {
+      confirmCashOnServicePayment: jest.fn(),
+    } as unknown as SupabasePaymentRepository;
+    const service = new PaymentService(repository);
+
+    await expect(
+      service.confirmCashOnServicePayment({ bookingId: ' ' }),
+    ).rejects.toBeInstanceOf(InvalidPaymentRequestError);
+    expect(repository.confirmCashOnServicePayment).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid promotion validation before repository reads', async () => {
     const repository = {
       validatePromotion: jest.fn(),

@@ -1,19 +1,22 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckCircle, Wallet } from 'lucide-react-native';
 import {
   Card,
   EmptyState,
   Field,
-  MetricCard,
   PrimaryButton,
-  Section,
   TopBar,
 } from '../../../components/DesignKit';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
   PayoutAccountSummary,
   PayoutMethodSummary,
 } from '../../../shared/models/types';
+import {
+  ScreenContent,
+  ScreenScroll,
+  StickyFooter,
+} from '../../../shared/components/ScreenLayout';
 import { useProviderRequestPayoutViewModel } from '../viewModels/useProviderRequestPayoutViewModel';
 
 type ProviderRequestPayoutScreenProps = {
@@ -52,27 +55,30 @@ export function ProviderRequestPayoutScreen({
     <>
       <TopBar
         title="Request Payout"
-        subtitle="Withdraw available earnings"
+        subtitle="Withdraw your available earnings"
         onBack={onBack}
       />
-      <ScrollView contentContainerStyle={styles.withStickyFooter}>
-        <View style={styles.content}>
-          <MetricCard
-            label="Available Balance"
-            value={data.availableBalanceLabel}
-            featured
-          />
+      <ScreenScroll>
+        <ScreenContent>
+
+          {/* Balance hero */}
+          <View style={styles.balanceCard}>
+            <Text style={styles.balanceLabel}>Available Balance</Text>
+            <Text style={styles.balanceValue}>{data.availableBalanceLabel}</Text>
+          </View>
+
+          {/* Amount input + fee breakdown inside a Card */}
           <Card>
             <Field
-              label="Amount"
+              label="Withdrawal Amount"
               value={requestPayoutAmount}
               onChangeText={onAmountChange}
               keyboardType="decimal-pad"
               placeholder="0.00"
             />
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Processing fee</Text>
-              <Text style={styles.infoValue}>{data.processingFeeLabel}</Text>
+            <View style={styles.feeRow}>
+              <Text style={styles.feeLabel}>Processing fee</Text>
+              <Text style={styles.feeValue}>{data.processingFeeLabel}</Text>
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>You receive</Text>
@@ -80,155 +86,185 @@ export function ProviderRequestPayoutScreen({
             </View>
           </Card>
 
-          <Section title="Send To">
-            {data.payoutMethodRows.map((method) => (
-              <Pressable
-                key={method.id}
-                style={[
-                  styles.methodCard,
-                  method.isSelected && styles.methodCardSelected,
-                ]}
-                onPress={() => onSelectPayoutMethod(method.id)}
-                accessibilityRole="button"
-              >
-                <View style={styles.settingsRowLeft}>
-                  <Wallet color={palette.mint} size={20} strokeWidth={2.5} />
-                  <View>
-                    <Text style={styles.cardTitle}>{method.accountLabel}</Text>
-                    <Text style={styles.cardMeta}>{method.methodLabel}</Text>
-                  </View>
-                </View>
-                {method.isSelected ? (
-                  <CheckCircle color={palette.mint} size={20} strokeWidth={2.6} />
-                ) : null}
-              </Pressable>
-            ))}
-            {!data.hasPayoutMethods ? (
+          {/* Payout method selection */}
+          <View style={styles.sectionBlock}>
+            <Text style={styles.sectionLabel}>Send To</Text>
+            {data.hasPayoutMethods ? (
+              <View style={styles.methodList}>
+                {data.payoutMethodRows.map((method) => (
+                  <Pressable
+                    key={method.id}
+                    style={[
+                      styles.methodCard,
+                      method.isSelected && styles.methodCardSelected,
+                    ]}
+                    onPress={() => onSelectPayoutMethod(method.id)}
+                    accessibilityRole="button"
+                  >
+                    <View style={[
+                      styles.methodIcon,
+                      method.isSelected && styles.methodIconSelected,
+                    ]}>
+                      <Wallet
+                        color={method.isSelected ? palette.mint : palette.muted}
+                        size={18}
+                        strokeWidth={2.2}
+                      />
+                    </View>
+                    <View style={styles.flex}>
+                      <Text style={styles.methodName}>{method.accountLabel}</Text>
+                      <Text style={styles.methodMeta}>{method.methodLabel}</Text>
+                    </View>
+                    {method.isSelected ? (
+                      <CheckCircle color={palette.mint} size={20} strokeWidth={2.2} />
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
               <EmptyState
                 title="No payout method"
-                body="Set up a payout method before requesting funds."
+                body="Set up a payout method in Payouts before requesting funds."
               />
-            ) : null}
-          </Section>
-        </View>
-      </ScrollView>
-      <View style={styles.stickyFooter}>
+            )}
+          </View>
+
+        </ScreenContent>
+      </ScreenScroll>
+      <StickyFooter>
         <PrimaryButton
           label={data.submitLabel}
           onPress={onSubmitPayoutRequest}
           disabled={!data.canSubmit}
         />
-        <Text style={styles.footerLink} onPress={onBack}>
+        <Text style={styles.backLink} onPress={onBack}>
           Back to payouts
         </Text>
-        <View style={styles.footerHomeIndicator} />
-      </View>
+      </StickyFooter>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withStickyFooter: {
-    backgroundColor: palette.white,
-    flexGrow: 1,
-    paddingBottom: 132,
+  flex: { flex: 1 },
+
+  /* ── Balance hero ── */
+  balanceCard: {
+    alignItems: 'center',
+    backgroundColor: palette.mint,
+    borderRadius: radius.lg,
+    gap: spacing.xs,
+    paddingVertical: spacing.xl,
   },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+  balanceLabel: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+    fontWeight: '600',
   },
-  infoRow: {
+  balanceValue: {
+    color: palette.white,
+    fontSize: 36,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+
+  /* ── Fee breakdown (inside Card) ── */
+  feeRow: {
     alignItems: 'center',
     borderBottomColor: palette.lineSoft,
     borderBottomWidth: 1,
     flexDirection: 'row',
-    gap: spacing.md,
     justifyContent: 'space-between',
-    minHeight: 48,
+    minHeight: 44,
     paddingVertical: spacing.sm,
   },
-  infoLabel: {
+  feeLabel: {
     color: palette.faint,
-    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  feeValue: {
+    color: palette.ink,
     fontSize: 13,
     fontWeight: '700',
   },
-  infoValue: {
-    color: palette.ink,
-    flex: 1.4,
-    fontSize: 14,
-    fontWeight: '800',
-    textAlign: 'right',
-  },
   totalRow: {
     alignItems: 'center',
-    borderTopColor: palette.lineSoft,
-    borderTopWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
   },
   totalLabel: {
     color: palette.ink,
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '700',
   },
   totalValue: {
     color: palette.ink,
-    fontSize: 18,
+    fontSize: 22,
     fontWeight: '900',
+  },
+
+  /* ── Section ── */
+  sectionBlock: {
+    gap: spacing.sm,
+  },
+  sectionLabel: {
+    color: palette.faint,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    paddingHorizontal: spacing.xs,
+    textTransform: 'uppercase',
+  },
+
+  /* ── Method cards ── */
+  methodList: {
+    gap: spacing.sm,
   },
   methodCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
     borderColor: palette.line,
     borderRadius: radius.md,
-    borderWidth: 2,
+    borderWidth: 1.5,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: spacing.base,
     minHeight: 64,
-    padding: spacing.base,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
   },
   methodCardSelected: {
-    backgroundColor: '#F0FFF4',
+    backgroundColor: palette.mintSoft,
     borderColor: palette.mint,
   },
-  settingsRowLeft: {
+  methodIcon: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.md,
+    backgroundColor: palette.lineSoft,
+    borderRadius: radius.sm,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
   },
-  cardTitle: {
-    ...type.section,
-    color: palette.ink,
-  },
-  cardMeta: {
-    ...type.caption,
-    color: palette.muted,
-  },
-  stickyFooter: {
+  methodIconSelected: {
     backgroundColor: palette.white,
-    borderTopColor: palette.line,
-    borderTopWidth: 1,
-    bottom: 0,
-    gap: spacing.sm,
-    left: 0,
-    padding: spacing.xl,
-    position: 'absolute',
-    right: 0,
   },
-  footerLink: {
-    color: palette.mint,
+  methodName: {
+    color: palette.ink,
     fontSize: 14,
-    fontWeight: '900',
-    textAlign: 'center',
+    fontWeight: '700',
   },
-  footerHomeIndicator: {
-    alignSelf: 'center',
-    backgroundColor: palette.line,
-    borderRadius: radius.pill,
-    height: 4,
-    marginTop: spacing.xs,
-    width: 132,
+  methodMeta: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+
+  backLink: {
+    color: palette.mint,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });

@@ -9,6 +9,10 @@ test('customer calendar screen mirrors provider calendar for customer bookings',
     'utf8',
   );
   const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const appRouterSource = readFileSync(
+    join(process.cwd(), 'src/legacy-router/AppRouter.tsx'),
+    'utf8',
+  );
   const viewSource = readFileSync(
     join(process.cwd(), 'src/features/customer-calendar/views/CustomerCalendar.tsx'),
     'utf8',
@@ -20,17 +24,47 @@ test('customer calendar screen mirrors provider calendar for customer bookings',
     ),
     'utf8',
   );
+  const bookingDetailSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking-detail/views/CustomerBookingDetail.tsx',
+    ),
+    'utf8',
+  );
+  const bookingDetailViewModelSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking-detail/viewModels/useCustomerBookingDetailViewModel.ts',
+    ),
+    'utf8',
+  );
 
   assert.match(screenSource, /features\/customer-calendar\/views\/CustomerCalendar/);
-  assert.match(appSource, /label: 'Calendar'/);
-  assert.match(appSource, /route\.screen === 'calendar' \? renderCustomerCalendar\(\)/);
+  assert.match(appSource, /calendar: renderCustomerCalendar/);
+  assert.match(appRouterSource, /label: 'Calendar'/);
+  assert.match(appRouterSource, /renderers\.customer\.calendar\(\)/);
   assert.match(viewSource, /title="Calendar"/);
   assert.match(viewSource, /Your upcoming service schedule/);
   assert.match(viewSource, /MonthCalendar/);
   assert.match(viewSource, /openBooking\(booking\)/);
+  assert.match(viewSource, /View all/);
+  assert.match(viewSource, /onViewAllBookings/);
+  assert.match(
+    appSource,
+    /openBooking\(booking, 'customerBookingDetail', \{\s*hideReservePayment: true,\s*\}\)/,
+  );
+  assert.match(appSource, /showReservePaymentAction=\{!hideSelectedBookingReservePayment\}/);
+  assert.match(bookingDetailSource, /showReservePaymentAction\?: boolean/);
+  assert.match(bookingDetailViewModelSource, /showReservePaymentAction = true/);
+  assert.match(
+    bookingDetailViewModelSource,
+    /showReservePayment:\s*showReservePaymentAction && booking\.status !== 'completed'/,
+  );
   assert.match(viewModelSource, /activeBookingStatuses/);
   assert.match(viewModelSource, /pending/);
   assert.match(viewModelSource, /confirmed/);
   assert.match(viewModelSource, /in_progress/);
   assert.match(viewModelSource, /formatApiDate/);
+  assert.match(viewModelSource, /upcomingPreviewLimit = 3/);
+  assert.match(viewModelSource, /Next up/);
 });

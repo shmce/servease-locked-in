@@ -55,20 +55,6 @@ export class NotificationController {
     }
   }
 
-  @Patch(':notificationId/read')
-  async markRead(
-    @Param('notificationId') notificationId: string,
-    @Body() body: { userId: string },
-  ): Promise<{ data: NotificationSummary }> {
-    try {
-      return {
-        data: await this.notificationService.markRead(notificationId, body.userId),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
   @Post('devices')
   async registerPushDevice(
     @Body()
@@ -99,6 +85,20 @@ export class NotificationController {
           body.userId,
           decodeURIComponent(token),
         ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch(':notificationId/read')
+  async markRead(
+    @Param('notificationId') notificationId: string,
+    @Body() body: { userId: string },
+  ): Promise<{ data: NotificationSummary }> {
+    try {
+      return {
+        data: await this.notificationService.markRead(notificationId, body.userId),
       };
     } catch (error) {
       throw this.toHttpException(error);

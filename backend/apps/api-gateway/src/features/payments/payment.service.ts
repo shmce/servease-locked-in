@@ -24,6 +24,16 @@ export class PaymentGatewayService {
     return this.paymentServiceClient.createPayment(input);
   }
 
+  confirmCashOnServicePayment(
+    bookingId: string,
+    providerId?: string | null,
+  ): Promise<PaymentSummary> {
+    return this.paymentServiceClient.confirmCashOnServicePayment(
+      bookingId,
+      providerId ?? null,
+    );
+  }
+
   createCheckoutSession(
     input: CreateCheckoutSessionInput,
     idempotencyKey?: string | null,

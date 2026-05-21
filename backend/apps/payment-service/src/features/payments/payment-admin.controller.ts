@@ -35,8 +35,7 @@ export class PaymentAdminController {
     }
   }
 
-  // Static prefix routes MUST be declared BEFORE :paymentId routes so they
-  // don't get captured by `@Get(':paymentId')`. See feedback-route-order.
+  // Static prefix routes MUST be declared BEFORE paymentId routes.
 
   @Get('promotions')
   async listPromotions(
@@ -347,6 +346,24 @@ export class PaymentAdminController {
     try {
       return {
         data: await this.paymentAdminService.syncPaymentWithApicenter(paymentId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post(':paymentId/release')
+  async releasePaymentToProvider(
+    @Param('paymentId') paymentId: string,
+    @Body() body: { adminUserId?: string; note?: string | null },
+  ): Promise<{ data: PayoutSummary }> {
+    try {
+      return {
+        data: await this.paymentAdminService.releasePaymentToProvider({
+          paymentId,
+          adminUserId: body.adminUserId ?? '',
+          note: body.note ?? null,
+        }),
       };
     } catch (error) {
       throw this.toHttpException(error);

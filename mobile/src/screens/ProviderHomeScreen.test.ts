@@ -66,10 +66,16 @@ test('provider home is extracted from App into the action-first screen', () => {
     'utf8',
   );
   assert.match(viewSource, /export function ProviderHomeScreen/);
-  assert.match(viewSource, /ActionHero/);
-  assert.match(viewSource, /Request Payout/);
-  assert.match(viewSource, /Block Time/);
+  assert.match(viewSource, /providerHero/);
+  assert.match(viewSource, /Search bookings, requests/);
+  assert.match(viewSource, /Today's Agenda/);
+  assert.match(viewSource, /NextAgendaRow/);
+  assert.match(viewSource, /Next appointment/);
   assert.match(modelSource, /All caught up/);
+  assert.doesNotMatch(viewSource, /Provider tools/);
+  assert.doesNotMatch(viewSource, /ActionHero/);
+  assert.doesNotMatch(viewSource, /Request Payout/);
+  assert.doesNotMatch(viewSource, /Block Time/);
   assert.doesNotMatch(viewSource, /Available Payout/);
   assert.doesNotMatch(viewSource, /My Services/);
   assert.doesNotMatch(viewSource, /Quick Actions/);

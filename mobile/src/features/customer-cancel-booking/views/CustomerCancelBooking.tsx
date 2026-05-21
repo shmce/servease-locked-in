@@ -92,8 +92,8 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
   sorryTitle: {
     color: palette.ink,
@@ -103,9 +103,9 @@ const styles = StyleSheet.create({
   },
   pageCopy: {
     color: palette.muted,
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 22,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   radioGroup: {
     gap: spacing.sm,
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   },
   radioLabel: {
     color: palette.ink,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
   policyCard: {
@@ -153,7 +153,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {

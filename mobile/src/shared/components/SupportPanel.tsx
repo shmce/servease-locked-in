@@ -1,7 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Badge,
-  Card,
   Field,
   PrimaryButton,
   Section,
@@ -11,7 +10,7 @@ import {
   SupportTicketSummary,
 } from '../models/types';
 import { useSupportPanelViewModel } from '../hooks/useSupportPanelViewModel';
-import { palette, radius, spacing, type } from '../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../theme/serveaseDesign';
 
 type SupportPanelProps = {
   busyAction: string | null;
@@ -77,8 +76,14 @@ export function SupportPanel({
         onPress={onOpenTicket}
         disabled={!isSignedIn || !data.canOpenTicket}
       />
-      {data.ticketRows.map((ticket) => (
-        <Card key={ticket.id} onPress={() => onToggleTicket(ticket.id)}>
+      <View style={styles.ticketList}>
+      {data.ticketRows.map((ticket, index) => (
+        <Pressable
+          key={ticket.id}
+          style={[styles.ticketRow, index > 0 && styles.ticketRowDivider]}
+          onPress={() => onToggleTicket(ticket.id)}
+          accessibilityRole="button"
+        >
           <View style={styles.rowBetween}>
             <View style={styles.flex}>
               <Text style={styles.cardTitle}>{ticket.subject}</Text>
@@ -131,13 +136,24 @@ export function SupportPanel({
               )}
             </View>
           ) : null}
-        </Card>
+        </Pressable>
       ))}
+      </View>
     </Section>
   );
 }
 
 const styles = StyleSheet.create({
+  ticketList: {
+    gap: 0,
+  },
+  ticketRow: {
+    paddingVertical: spacing.md,
+  },
+  ticketRowDivider: {
+    borderTopColor: palette.lineSoft,
+    borderTopWidth: 1,
+  },
   rowBetween: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -156,7 +172,7 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     alignSelf: 'flex-start',
-    backgroundColor: '#F5F5F5',
+    backgroundColor: palette.lineSoft,
     borderRadius: radius.md,
     gap: spacing.xs,
     marginBottom: spacing.sm,
@@ -169,22 +185,26 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '700',
   },
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontWeight: '500',
+    lineHeight: 18,
   },
   cardMeta: {
-    ...type.caption,
     color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
   },
   noticeText: {
-    ...type.caption,
     color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
     textAlign: 'center',
   },
 });

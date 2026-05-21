@@ -1,0 +1,63 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e8]:
+      - generic [ref=e13]:
+        - heading "ServEase" [level=1] [ref=e14]
+        - paragraph [ref=e15]: Admin Portal
+      - generic [ref=e16]:
+        - heading "Connect. Work. Earn." [level=2] [ref=e17]
+        - paragraph [ref=e18]: Admin access for managing providers, bookings, and payments.
+        - generic [ref=e19]:
+          - img [ref=e21]
+          - img [ref=e24]
+          - img [ref=e27]
+        - generic [ref=e29]:
+          - generic [ref=e30]:
+            - img [ref=e31]
+            - generic [ref=e34]: Manage all service providers & bookings
+          - generic [ref=e35]:
+            - img [ref=e36]
+            - generic [ref=e39]: Track payments & commission in real-time
+          - generic [ref=e40]:
+            - img [ref=e41]
+            - generic [ref=e44]: Complete platform oversight & control
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - heading "Sign in" [level=2] [ref=e49]
+          - paragraph [ref=e50]: Use your admin account to continue.
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - generic [ref=e53]: Email Address
+            - textbox "Email Address" [active] [ref=e54]:
+              - /placeholder: e.g., juan@servease.ph
+          - generic [ref=e55]:
+            - generic [ref=e56]: Password
+            - generic [ref=e57]:
+              - textbox "Password" [ref=e58]:
+                - /placeholder: Enter your password
+              - button [ref=e59]:
+                - img [ref=e60]
+          - generic [ref=e63]:
+            - generic [ref=e64]:
+              - checkbox "Remember me" [ref=e65]
+              - checkbox
+              - generic [ref=e66] [cursor=pointer]: Remember me
+            - link "Forgot password?" [ref=e67] [cursor=pointer]:
+              - /url: /forgot-password
+          - button "Sign In" [ref=e68]
+          - paragraph [ref=e69]:
+            - text: No account?
+            - button "Contact a Super Admin" [ref=e70]
+            - text: for access.
+          - generic [ref=e71]:
+            - paragraph [ref=e72]: Backend Login
+            - generic [ref=e73]:
+              - paragraph [ref=e74]: Uses Supabase password auth, then validates admin access through the gateway.
+              - paragraph [ref=e75]: NEXT_PUBLIC_API_BASE_URL
+              - paragraph [ref=e76]: NEXT_PUBLIC_SUPABASE_URL
+              - paragraph [ref=e77]: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+      - paragraph [ref=e78]: © 2026 ServEase Platform. All rights reserved.
+  - button "Open Next.js Dev Tools" [ref=e84] [cursor=pointer]:
+    - img [ref=e85]
+  - alert [ref=e88]: /dashboard

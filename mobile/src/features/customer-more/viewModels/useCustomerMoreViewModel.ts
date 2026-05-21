@@ -2,29 +2,21 @@ import { useMemo } from 'react';
 import { AppScreen } from '../../../navigation/types';
 import { CurrentUserProfile } from '../../../shared/models/types';
 
-export type CustomerMoreMenuIcon =
-  | 'user'
-  | 'bell'
-  | 'gift'
-  | 'wallet'
-  | 'settings'
-  | 'help'
-  | 'file';
-
 export type CustomerMoreMenuItem = {
   label: string;
-  icon: CustomerMoreMenuIcon;
   screen: AppScreen;
+  badge?: number;
 };
 
-const menuItems: CustomerMoreMenuItem[] = [
-  { label: 'My Profile', icon: 'user', screen: 'customerProfile' },
-  { label: 'Notifications', icon: 'bell', screen: 'customerNotifications' },
-  { label: 'Refer a Friend', icon: 'gift', screen: 'customerReferral' },
-  { label: 'Payment Methods', icon: 'wallet', screen: 'customerPaymentMethods' },
-  { label: 'Settings', icon: 'settings', screen: 'customerSettings' },
-  { label: 'Help & Support', icon: 'help', screen: 'customerHelp' },
-  { label: 'Terms & Privacy', icon: 'file', screen: 'customerTerms' },
+const baseMenuItems: Omit<CustomerMoreMenuItem, 'badge'>[] = [
+  { label: 'My Profile', screen: 'customerProfile' },
+  { label: 'Notifications', screen: 'customerNotifications' },
+  { label: 'Refer a Friend', screen: 'customerReferral' },
+  { label: 'Payment Methods', screen: 'customerPaymentMethods' },
+  { label: 'Security', screen: 'customerSecurity' },
+  { label: 'Settings', screen: 'customerSettings' },
+  { label: 'Help & Support', screen: 'customerHelp' },
+  { label: 'Terms & Privacy', screen: 'customerTerms' },
 ];
 
 export function useCustomerMoreViewModel({
@@ -38,11 +30,23 @@ export function useCustomerMoreViewModel({
     const displayName = profile?.user.fullName ?? 'Customer';
     const displayEmail = profile?.user.email ?? 'customer@example.com';
 
+    const menuItems: CustomerMoreMenuItem[] = baseMenuItems.map((item) =>
+      item.screen === 'customerNotifications' && unreadNotificationCount > 0
+        ? { ...item, badge: unreadNotificationCount }
+        : item,
+    );
+
+    const actionRows: CustomerMoreMenuItem[][] = [];
+    for (let i = 0; i < menuItems.length; i += 2) {
+      actionRows.push(menuItems.slice(i, i + 2));
+    }
+
     return {
       data: {
         displayName,
         displayEmail,
-        menuItems,
+        initial: displayName.slice(0, 1).toUpperCase(),
+        actionRows,
         unreadNotificationCount,
       },
       isLoading: false,

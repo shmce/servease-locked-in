@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   listAdminPricingQuoteAudits: vi.fn(),
   listAdminPricingRules: vi.fn(),
   saveAdminPricingRule: vi.fn(),
+  syncAdminPricingFuelIndexFromGasWatch: vi.fn(),
 }));
 
 vi.mock("../contexts/AuthContext", () => ({
@@ -30,6 +31,7 @@ vi.mock("../../services/serveaseAdminApi", () => ({
   listAdminPricingQuoteAudits: mocks.listAdminPricingQuoteAudits,
   listAdminPricingRules: mocks.listAdminPricingRules,
   saveAdminPricingRule: mocks.saveAdminPricingRule,
+  syncAdminPricingFuelIndexFromGasWatch: mocks.syncAdminPricingFuelIndexFromGasWatch,
 }));
 
 const defaultRule = {
@@ -73,6 +75,15 @@ describe("PricingEngine guided rule editor", () => {
       fuelPricePerLiter: 70,
       source: "admin",
       effectiveAt: "2026-05-19T01:00:00.000Z",
+      createdBy: "admin-1",
+      createdAt: "2026-05-19T01:00:00.000Z",
+    });
+    mocks.syncAdminPricingFuelIndexFromGasWatch.mockResolvedValue({
+      id: "fuel-gaswatch-1",
+      region: "default",
+      fuelPricePerLiter: 89.84,
+      source: "gaswatch-ph:diesel:metro-manila-average",
+      effectiveAt: "2026-05-19T00:00:00.000Z",
       createdBy: "admin-1",
       createdAt: "2026-05-19T01:00:00.000Z",
     });
@@ -136,7 +147,7 @@ describe("PricingEngine guided rule editor", () => {
         }),
       );
     });
-  });
+  }, 10000);
 
   it("keeps an advanced editor for direct edits", async () => {
     const user = userEvent.setup();
@@ -159,5 +170,24 @@ describe("PricingEngine guided rule editor", () => {
         }),
       );
     });
+  });
+
+  it("lets admins sync the fuel index from GasWatch PH instead of typing it manually", async () => {
+    const user = userEvent.setup();
+    render(<PricingEngine />);
+
+    await screen.findByText("Default services");
+    await user.click(screen.getByRole("button", { name: /create rule/i }));
+    await user.click(screen.getByRole("button", { name: /next: labor baseline/i }));
+    await user.click(screen.getByRole("button", { name: /next: travel and fuel/i }));
+    await user.click(screen.getByRole("button", { name: /sync from gaswatch ph/i }));
+
+    await waitFor(() => {
+      expect(mocks.syncAdminPricingFuelIndexFromGasWatch).toHaveBeenCalledWith(
+        "admin-token",
+      );
+    });
+    expect(await screen.findByDisplayValue("89.84")).toBeInTheDocument();
+    expect(screen.getAllByText(/gaswatch ph/i).length).toBeGreaterThan(0);
   });
 });

@@ -1,7 +1,6 @@
 import { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
-import { InfoRow } from '../../../components/AppDisplay';
 import {
   Badge,
   Card,
@@ -15,7 +14,8 @@ import {
   ProviderListing,
   ReviewSummary,
 } from '../../../shared/models/types';
-import { palette, spacing, type } from '../../../theme/serveaseDesign';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerBookingDetailViewModel } from '../viewModels/useCustomerBookingDetailViewModel';
 import { CustomerBookingReviewPanel } from './CustomerBookingReviewPanel';
 
@@ -30,6 +30,7 @@ type CustomerBookingDetailScreenProps = {
   rating: string;
   reviewText: string;
   busyAction: string | null;
+  showReservePaymentAction?: boolean;
   onBack: () => void;
   onViewProviderProfile: () => void;
   onProviderProfileUnavailable: () => void;
@@ -53,6 +54,7 @@ export function CustomerBookingDetailScreen({
   rating,
   reviewText,
   busyAction,
+  showReservePaymentAction,
   onBack,
   onViewProviderProfile,
   onProviderProfileUnavailable,
@@ -68,6 +70,7 @@ export function CustomerBookingDetailScreen({
     booking,
     selectedProvider,
     selectedPayment,
+    showReservePaymentAction,
   });
   const { data } = bookingDetail;
 
@@ -80,49 +83,74 @@ export function CustomerBookingDetailScreen({
       />
       <ScrollView contentContainerStyle={styles.withBottomNav}>
         <View style={styles.content}>
+
+          {/* Hero card */}
           <Card>
             <Text style={styles.bookingReference}>{data.bookingReference}</Text>
             <Text style={styles.detailTitle}>{data.serviceTitle}</Text>
-            <Text style={styles.cardMeta}>{data.scheduleLabel}</Text>
+            <Text style={styles.scheduleLabel}>{data.scheduleLabel}</Text>
             <StatusTimeline steps={data.timelineSteps} />
-            <View style={styles.rowBetween}>
+            <View style={styles.priceRow}>
               <Text style={styles.priceText}>{data.totalAmountLabel}</Text>
               <Badge {...data.statusChip} />
             </View>
           </Card>
+
           {timelineEvents}
+
+          {/* Service details */}
           <Card>
-            <Text style={styles.cardTitle}>Service details</Text>
-            {data.serviceDetailRows.map((row) => (
-              <InfoRow key={row.key} label={row.label} value={row.value} />
+            <Text style={styles.sectionLabel}>Service details</Text>
+            {data.serviceDetailRows.map((row, i) => (
+              <DetailRow
+                key={row.key}
+                label={row.label}
+                value={row.value}
+                last={i === data.serviceDetailRows.length - 1}
+              />
             ))}
           </Card>
+
+          {/* Service provider */}
           <Card>
-            <Text style={styles.cardTitle}>Service provider</Text>
-            <Text style={styles.cardBody}>{data.providerName}</Text>
-            <Pressable
-              style={styles.profileLinkRow}
-              onPress={
-                data.canViewProviderProfile
-                  ? onViewProviderProfile
-                  : onProviderProfileUnavailable
-              }
-              accessibilityRole="button"
-              accessibilityLabel="View provider profile"
-            >
-              <Text style={styles.linkText}>View Profile</Text>
-              <ChevronRight color={palette.mint} size={18} />
-            </Pressable>
+            <Text style={styles.sectionLabel}>Service provider</Text>
+            <View style={styles.providerRow}>
+              <View style={styles.providerAvatar}>
+                <Text style={styles.providerInitial}>
+                  {data.providerName.slice(0, 1).toUpperCase()}
+                </Text>
+              </View>
+              <View style={styles.flex}>
+                <Text style={styles.providerName}>{data.providerName}</Text>
+                <Pressable
+                  style={styles.profileLinkRow}
+                  onPress={
+                    data.canViewProviderProfile
+                      ? onViewProviderProfile
+                      : onProviderProfileUnavailable
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="View provider profile"
+                >
+                  <Text style={styles.linkText}>View Profile</Text>
+                  <ChevronRight color={palette.mint} size={14} strokeWidth={2.2} />
+                </Pressable>
+              </View>
+            </View>
           </Card>
+
           {data.showTrackProvider ? (
             <PrimaryButton label="Track provider" onPress={onTrackProvider} />
           ) : null}
+
           {bookingMedia}
           {serviceUpdates}
-          <View style={styles.twoButtons}>
+
+          <ActionRow>
             <PrimaryButton label="Manage booking" onPress={onManageBooking} />
             <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
-          </View>
+          </ActionRow>
+
           {data.showReservePayment ? (
             <PrimaryButton
               label={data.reservePaymentLabel}
@@ -131,14 +159,18 @@ export function CustomerBookingDetailScreen({
               disabled={data.reservePaymentDisabled}
             />
           ) : null}
+
           {data.showPaymentSummary && data.paymentSummary ? (
             <Card>
-              <Text style={styles.cardTitle}>Payment</Text>
-              <Text style={styles.cardMeta}>
-                {data.paymentSummary.label} - {data.paymentSummary.value}
-              </Text>
+              <Text style={styles.sectionLabel}>Payment</Text>
+              <DetailRow
+                label={data.paymentSummary.label}
+                value={data.paymentSummary.value}
+                last
+              />
             </Card>
           ) : null}
+
           {data.showReviewPanel ? (
             <CustomerBookingReviewPanel
               selectedReview={selectedReview}
@@ -150,9 +182,27 @@ export function CustomerBookingDetailScreen({
               onSubmitReview={onSubmitReview}
             />
           ) : null}
+
         </View>
       </ScrollView>
     </>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  last,
+}: {
+  label: string;
+  value: string;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.detailRow, !last && styles.detailRowBorder]}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue} numberOfLines={3}>{value}</Text>
+    </View>
   );
 }
 
@@ -163,61 +213,114 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
+    gap: spacing.md,
+    padding: spacing.md,
   },
-  rowBetween: {
+  flex: {
+    flex: 1,
+  },
+
+  // Hero card
+  bookingReference: {
+    color: palette.mint,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  detailTitle: {
+    color: palette.ink,
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: spacing.xs,
+  },
+  scheduleLabel: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: spacing.xs,
+    marginBottom: spacing.sm,
+  },
+  priceRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.sm,
+  },
+  priceText: {
+    color: palette.mint,
+    fontSize: 20,
+    fontWeight: '700',
+  },
+
+  // Section label
+  sectionLabel: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+
+  // Detail rows
+  detailRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  detailRowBorder: {
+    borderBottomColor: palette.line,
+    borderBottomWidth: 1,
+  },
+  detailLabel: {
+    color: palette.muted,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+    paddingTop: 1,
+  },
+  detailValue: {
+    color: palette.ink,
+    flex: 1.6,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+
+  // Provider card
+  providerRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
-    justifyContent: 'space-between',
+    marginTop: spacing.xs,
   },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
+  providerAvatar: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  providerInitial: {
+    color: palette.mint,
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  providerName: {
+    color: palette.ink,
+    fontSize: 14,
+    fontWeight: '700',
   },
   profileLinkRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.xxs,
-    marginTop: spacing.sm,
-  },
-  bookingReference: {
-    color: palette.mint,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0,
-  },
-  detailTitle: {
-    color: palette.ink,
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 0,
+    gap: 2,
     marginTop: spacing.xs,
-  },
-  priceText: {
-    color: palette.mint,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  cardTitle: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  cardMeta: {
-    ...type.caption,
-    color: palette.muted,
-  },
-  cardBody: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
   },
   linkText: {
     color: palette.mint,
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

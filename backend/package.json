@@ -53,7 +53,7 @@
     "test:cov": "jest --coverage"
   },
   "dependencies": {
-    "@implementsprint/sdk": "^1.2.0",
+    "@implementsprint/sdk": "1.2.1",
     "@nestjs/common": "^11.1.21",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.21",
@@ -63,8 +63,7 @@
     "otplib": "^12.0.1",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1",
-    "tesseract.js": "^7.0.0"
+    "rxjs": "^7.8.1"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.1.21",

@@ -140,6 +140,50 @@ describe('PaymentAdminService', () => {
     expect(payment).toEqual({ id: 'payment-1', status: 'paid' });
   });
 
+  it('normalizes admin payment release requests before repository writes', async () => {
+    const repository = {
+      releasePaymentToProvider: jest.fn().mockResolvedValue({
+        id: 'payout-1',
+        status: 'processing',
+      }),
+    } as unknown as SupabasePaymentRepository;
+    const service = new PaymentAdminService(repository);
+
+    const payout = await service.releasePaymentToProvider({
+      paymentId: ' payment-1 ',
+      adminUserId: ' admin-1 ',
+      note: ' Release now ',
+    });
+
+    expect(repository.releasePaymentToProvider).toHaveBeenCalledWith({
+      paymentId: 'payment-1',
+      adminUserId: 'admin-1',
+      note: 'Release now',
+    });
+    expect(payout.status).toBe('processing');
+  });
+
+  it('rejects admin payment release without a payment or admin user', async () => {
+    const repository = {
+      releasePaymentToProvider: jest.fn(),
+    } as unknown as SupabasePaymentRepository;
+    const service = new PaymentAdminService(repository);
+
+    await expect(
+      service.releasePaymentToProvider({
+        paymentId: '',
+        adminUserId: 'admin-1',
+      }),
+    ).rejects.toBeInstanceOf(InvalidPaymentRequestError);
+    await expect(
+      service.releasePaymentToProvider({
+        paymentId: 'payment-1',
+        adminUserId: '',
+      }),
+    ).rejects.toBeInstanceOf(InvalidPaymentRequestError);
+    expect(repository.releasePaymentToProvider).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid commission rules before repository writes', async () => {
     const repository = {
       updateCommissionRule: jest.fn(),

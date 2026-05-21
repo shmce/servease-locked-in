@@ -1,11 +1,12 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { Upload } from 'lucide-react-native';
 import {
   Field,
   PrimaryButton,
   TopBar,
 } from '../../../components/DesignKit';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, spacing, type } from '../../../theme/serveaseDesign';
+import { MediaUploadBox } from '../../../shared/components/ScreenLayout';
 import { useProviderReportIssueViewModel } from '../viewModels/useProviderReportIssueViewModel';
 
 type ProviderReportIssueScreenProps = {
@@ -65,19 +66,14 @@ export function ProviderReportIssueScreen({
             placeholder="Describe the issue for support review."
             multiline
           />
-          <Pressable
-            style={styles.uploadBox}
+          <MediaUploadBox
+            imageUri={reportEvidencePhotoUri}
+            icon={<Upload color={palette.mint} size={32} strokeWidth={2} />}
+            helper="Upload photos or videos"
+            label={data.evidenceLabel}
             onPress={onPickEvidence}
-            accessibilityRole="button"
-          >
-            {reportEvidencePhotoUri ? (
-              <Image source={{ uri: reportEvidencePhotoUri }} style={styles.uploadPreview} />
-            ) : (
-              <Upload color={palette.mint} size={32} strokeWidth={2} />
-            )}
-            <Text style={styles.cardMeta}>Upload photos or videos</Text>
-            <Text style={styles.linkText}>{data.evidenceLabel}</Text>
-          </Pressable>
+            minHeight={132}
+          />
           <PrimaryButton
             label={data.submitLabel}
             onPress={() => void onSubmitReport()}
@@ -96,26 +92,8 @@ const styles = StyleSheet.create({
     paddingBottom: 108,
   },
   content: {
-    gap: spacing.lg,
-    padding: spacing.xl,
-  },
-  uploadBox: {
-    alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.lg,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    gap: spacing.sm,
-    justifyContent: 'center',
-    minHeight: 136,
-    overflow: 'hidden',
-    padding: spacing.lg,
-  },
-  uploadPreview: {
-    borderRadius: radius.md,
-    height: 116,
-    width: '100%',
+    gap: spacing.md,
+    padding: spacing.md,
   },
   cardMeta: {
     ...type.caption,

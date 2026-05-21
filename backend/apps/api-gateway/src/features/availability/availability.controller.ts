@@ -44,20 +44,6 @@ export class AvailabilityController {
     }
   }
 
-  @Get(':providerId')
-  async publicShow(
-    @Param('providerId') providerId: string,
-  ): Promise<{ data: ProviderAvailabilitySchedule }> {
-    try {
-      this.validateProviderId(providerId);
-      return {
-        data: await this.availabilityGatewayService.getSchedule(providerId),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
   @Put('windows')
   async replaceWindows(
     @Headers('authorization') authorization: string | undefined,
@@ -143,6 +129,20 @@ export class AvailabilityController {
           providerId,
           id,
         ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get(':providerId')
+  async publicShow(
+    @Param('providerId') providerId: string,
+  ): Promise<{ data: ProviderAvailabilitySchedule }> {
+    try {
+      this.validateProviderId(providerId);
+      return {
+        data: await this.availabilityGatewayService.getSchedule(providerId),
       };
     } catch (error) {
       throw this.toHttpException(error);

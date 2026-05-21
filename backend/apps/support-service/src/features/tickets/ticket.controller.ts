@@ -21,6 +21,32 @@ export class SupportTicketController {
     }
   }
 
+  @Post()
+  async create(
+    @Body()
+    body: {
+      userId: string;
+      subject: string;
+      message?: string | null;
+      category?: string | null;
+      attachments?: Array<{
+        fileUrl: string;
+        fileName?: string | null;
+        mimeType?: string | null;
+        storagePath?: string | null;
+        fileSize?: number | null;
+      }>;
+    },
+  ): Promise<{ data: SupportTicketSummary }> {
+    try {
+      return {
+        data: await this.ticketService.createTicket(body),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Get(':ticketId')
   async show(
     @Query('userId') userId: string,
@@ -61,32 +87,6 @@ export class SupportTicketController {
           ticketId,
           body.message ?? '',
         ),
-      };
-    } catch (error) {
-      throw this.toHttpException(error);
-    }
-  }
-
-  @Post()
-  async create(
-    @Body()
-    body: {
-      userId: string;
-      subject: string;
-      message?: string | null;
-      category?: string | null;
-      attachments?: Array<{
-        fileUrl: string;
-        fileName?: string | null;
-        mimeType?: string | null;
-        storagePath?: string | null;
-        fileSize?: number | null;
-      }>;
-    },
-  ): Promise<{ data: SupportTicketSummary }> {
-    try {
-      return {
-        data: await this.ticketService.createTicket(body),
       };
     } catch (error) {
       throw this.toHttpException(error);

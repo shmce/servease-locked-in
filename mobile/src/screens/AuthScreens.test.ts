@@ -25,3 +25,22 @@ test('auth screens use APICenter Google and OTP handlers instead of placeholders
   assert.doesNotMatch(viewSource, /needs native auth setup before enabling/);
   assert.doesNotMatch(viewSource, /needs OTP backend support before enabling/);
 });
+
+test('provider signup shows admin approval requirements before account creation', () => {
+  const viewSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/views/AuthScreens.tsx'),
+    'utf8',
+  );
+  const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const domainSource = readFileSync(
+    join(process.cwd(), 'src/domain/providerRegistration.ts'),
+    'utf8',
+  );
+
+  assert.match(viewSource, /Required for admin approval/);
+  assert.match(viewSource, /Years of Experience/);
+  assert.match(appSource, /validateProviderSignupRequirements/);
+  assert.match(appSource, /buildProviderServiceDescription/);
+  assert.match(domainSource, /providerSignupRequirements/);
+  assert.match(domainSource, /Government ID upload after account creation/);
+});

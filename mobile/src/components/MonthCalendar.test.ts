@@ -37,3 +37,17 @@ test('month calendar pure cell builder respects range and explicit disabled date
   assert.equal(cells.find((cell) => cell.date === '2026-05-31')?.isDisabled, true);
   assert.equal(cells.find((cell) => cell.date === '2026-05-21')?.isDisabled, false);
 });
+
+test('month calendar rows always preserve the saturday column', async () => {
+  const { buildMonthCalendarCells, buildMonthCalendarRows } = await import(
+    './MonthCalendarModel'
+  );
+  const rows = buildMonthCalendarRows(buildMonthCalendarCells('2026-05'));
+
+  assert.ok(rows.length > 0);
+  assert.equal(rows.every((row) => row.length === 7), true);
+  assert.deepEqual(
+    rows.map((row) => row[6].date).filter(Boolean),
+    ['2026-05-02', '2026-05-09', '2026-05-16', '2026-05-23', '2026-05-30'],
+  );
+});

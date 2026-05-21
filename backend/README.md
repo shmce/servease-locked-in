@@ -45,7 +45,7 @@ Optional APICenter integration probing uses:
 - `APICENTER_TRIBE_ID`
 - `APICENTER_SERVICE_ID`
 - `APICENTER_TRIBE_SECRET`
-- `APICENTER_WEBHOOK_SECRET` for the public APICenter payment webhook.
+- `APICENTER_WEBHOOK_SECRET` only when APICenter webhook delivery is registered.
 
 Optional provider navigation directions use:
 
@@ -58,9 +58,9 @@ APICenter-backed shared services are routed through the owning HTTP services:
 - notification-service: shared email and SMS delivery.
 - payment-service: checkout sessions, status sync, refunds, customers, products, prices, subscriptions, and invoices.
 
-Payment checkout sessions are persisted by payment-service in `payment.apicenter_checkout_sessions`. The gateway supplies booking/customer/provider context over HTTP, and payment-service reconciles APICenter checkout status into the local `payment.payments` row when status is checked or when `POST /v1/payments/webhooks/apicenter` receives a webhook with the configured shared secret.
+Payment checkout sessions are persisted by payment-service in `payment.apicenter_checkout_sessions`. The gateway supplies booking/customer/provider context over HTTP, and payment-service reconciles APICenter checkout status into the local `payment.payments` row when status is checked. If APICenter provides a webhook secret, `POST /v1/payments/webhooks/apicenter` can also reconcile the payment from webhook delivery.
 
-The webhook also requires `x-apicenter-webhook-timestamp` as Unix epoch milliseconds within a five-minute replay window. See [APICenter Payment Webhook Runbook](../docs/runbooks/apicenter-payment-webhook.md) before registering the webhook with APICenter.
+The webhook path also requires `x-apicenter-webhook-timestamp` as Unix epoch milliseconds within a five-minute replay window. See [APICenter Payment Reconciliation Runbook](../docs/runbooks/apicenter-payment-webhook.md) before registering the webhook with APICenter.
 
 Optional admin report delivery uses:
 
@@ -116,6 +116,11 @@ Seed local/shared demo users and data:
 ```sh
 npm run seed:demo
 ```
+
+The demo catalog includes ranking examples: Home Cleaning has the highest
+catalog-side volume for `Popular`, Repairs has the strongest Bayesian rating
+for `Top Rated`, and Specialty Assembly has a single 5.0 review to show how
+low sample sizes are dampened.
 
 Demo credentials default to:
 

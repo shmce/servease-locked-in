@@ -10,6 +10,7 @@ import {
 } from '../../../shared/models/types';
 import { TrackingMapPreview } from '../../../tracking/TrackingMapPreview';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { ActionRow } from '../../../shared/components/ScreenLayout';
 import {
   ProviderNavigationGuidance,
   ProviderNavigationSheetLevel,
@@ -92,7 +93,9 @@ export function ProviderNavigationModeScreen({
           title="Head to the service location"
           subtitle={data.routeLabel}
           directions={directions}
+          destinationMarkerLabel="Service address"
           navigationOrigin={data.navigationOrigin}
+          providerMarkerLabel="You"
         />
         <ProviderNavigationGuidanceBanner guidance={data.guidance} />
       </View>
@@ -132,16 +135,16 @@ export function ProviderNavigationModeScreen({
           </View>
         ) : null}
         <PrimaryButton label="I've Arrived" onPress={onArrived} />
-        <View style={styles.twoButtons}>
+        <ActionRow>
           <View style={styles.flex}>
             <PrimaryButton label="Call" variant="secondary" onPress={onCall} />
           </View>
           <View style={styles.flex}>
             <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
           </View>
-        </View>
+        </ActionRow>
         {data.isHalfSheet ? (
-          <View style={styles.twoButtons}>
+          <ActionRow>
             <View style={styles.flex}>
               <PrimaryButton
                 label={data.refreshRouteLabel}
@@ -153,7 +156,7 @@ export function ProviderNavigationModeScreen({
             <View style={styles.flex}>
               <PrimaryButton label="End" variant="danger" onPress={onClose} />
             </View>
-          </View>
+          </ActionRow>
         ) : null}
       </View>
     </View>
@@ -333,8 +336,8 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     backgroundColor: palette.white,
     borderRadius: radius.pill,
-    marginRight: spacing.xl,
-    marginTop: spacing.xl,
+    marginRight: spacing.md,
+    marginTop: spacing.md,
     minHeight: 44,
     minWidth: 64,
     justifyContent: 'center',
@@ -362,7 +365,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     position: 'absolute',
     right: 100,
-    top: spacing.xl,
+    top: spacing.md,
     zIndex: 4,
   },
   providerGuidanceIcon: {
@@ -404,8 +407,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     left: 0,
     overflow: 'hidden',
-    paddingBottom: spacing.xl,
-    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.md,
     paddingTop: spacing.base,
     position: 'absolute',
     right: 0,
@@ -505,7 +508,7 @@ const styles = StyleSheet.create({
   },
   providerDriveStatValue: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   providerDriveStatLabel: {
@@ -514,16 +517,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: spacing.xxs,
   },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
   flex: {
     flex: 1,
   },
   cardTitle: {
     color: palette.ink,
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '900',
   },
   cardMeta: {
@@ -533,7 +532,7 @@ const styles = StyleSheet.create({
   cardBody: {
     color: palette.muted,
     fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
+    fontWeight: '500',
+    lineHeight: 18,
   },
 });

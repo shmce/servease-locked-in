@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   Bell,
   ChevronRight,
@@ -9,7 +10,7 @@ import {
 } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CategoryTile } from '../../../components/AppDisplay';
-import { Badge, Card, Section } from '../../../components/DesignKit';
+import { Card, Pill, Section } from '../../../components/DesignKit';
 import {
   BookingSummary,
   CatalogCategory,
@@ -17,8 +18,12 @@ import {
   CurrentUserProfile,
   ProviderListing,
 } from '../../../shared/models/types';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
-import { useCustomerExploreViewModel } from '../viewModels/useCustomerExploreViewModel';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import {
+  CategoryFilter,
+  useCustomerExploreViewModel,
+} from '../viewModels/useCustomerExploreViewModel';
+import { CategorySheet } from './CategorySheet';
 
 type CustomerExploreScreenProps = {
   bookings: BookingSummary[];
@@ -51,6 +56,12 @@ const guideIcons = {
   message: MessageCircle,
 };
 
+const filterOptions: { key: CategoryFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'popular', label: 'Popular' },
+  { key: 'top-rated', label: 'Top Rated' },
+];
+
 export function CustomerExploreScreen({
   bookings,
   categories,
@@ -75,9 +86,14 @@ export function CustomerExploreScreen({
   onViewAllServices,
   onViewTopProviders,
 }: CustomerExploreScreenProps) {
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [sheetCategory, setSheetCategory] = useState<CatalogCategory | null>(null);
+  const [sheetSearchQuery, setSheetSearchQuery] = useState('');
+
   const explore = useCustomerExploreViewModel({
     bookings,
     categories,
+    categoryFilter,
     customerGuideDismissed,
     customerGuideStep,
     profile,
@@ -86,8 +102,25 @@ export function CustomerExploreScreen({
     selectedProviderId,
     selectedServiceId,
     services,
+    sheetCategoryId: sheetCategory?.id ?? null,
+    sheetSearchQuery,
     unreadCount,
   });
+
+  function openSheet(category: CatalogCategory) {
+    setSheetCategory(category);
+    setSheetSearchQuery('');
+  }
+
+  function closeSheet() {
+    setSheetCategory(null);
+    setSheetSearchQuery('');
+  }
+
+  function handleSeeAll() {
+    if (sheetCategory) onSelectCategory(sheetCategory);
+    closeSheet();
+  }
   const { data } = explore;
   const GuideIcon = guideIcons[data.guide.iconKey];
 
@@ -100,7 +133,7 @@ export function CustomerExploreScreen({
               <User color={palette.white} size={20} strokeWidth={2.4} />
             </View>
             <View>
-              <Text style={styles.heroMuted}>Good Afternoon</Text>
+              <Text style={styles.heroMuted}>Good afternoon</Text>
               <Text style={styles.heroName}>{data.customerName}</Text>
             </View>
           </View>
@@ -125,11 +158,11 @@ export function CustomerExploreScreen({
           <Card>
             <View style={styles.guideHeaderRow}>
               <View style={styles.guideIcon}>
-                <GuideIcon color={palette.mint} size={22} strokeWidth={2.5} />
+                <GuideIcon color={palette.mint} size={20} strokeWidth={2.5} />
               </View>
               <View style={styles.flex}>
-                <Text style={styles.cardMeta}>{data.guide.stepLabel}</Text>
-                <Text style={styles.cardTitle}>{data.guide.title}</Text>
+                <Text style={styles.guideStepLabel}>{data.guide.stepLabel}</Text>
+                <Text style={styles.guideCardTitle}>{data.guide.title}</Text>
               </View>
               <Pressable
                 style={styles.guideDismissButton}
@@ -140,7 +173,7 @@ export function CustomerExploreScreen({
                 <Text style={styles.guideDismissText}>Skip</Text>
               </Pressable>
             </View>
-            <Text style={styles.cardBody}>{data.guide.body}</Text>
+            <Text style={styles.guideBody}>{data.guide.body}</Text>
             <View style={styles.guideFooterRow}>
               <View style={styles.guideDots}>
                 {Array.from({ length: data.guide.totalSteps }).map((_, index) => (
@@ -170,134 +203,100 @@ export function CustomerExploreScreen({
           title="Book it again"
           action={
             <Text style={styles.linkText} onPress={onShowRecentBookings}>
-              Recent
+              See all
             </Text>
           }
         >
-          <View style={styles.bookAgainRailWrap}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalRail}
-            >
-              {data.bookAgainRows.map((booking) => (
-                <Pressable
-                  key={booking.id}
-                  style={styles.bookAgainCard}
-                  onPress={() => onOpenBooking(booking.booking)}
-                  accessibilityRole="button"
-                >
-                  <View style={styles.bookAgainAvatar}>
-                    <Text style={styles.bookAgainInitial}>{booking.initial}</Text>
-                  </View>
-                  <View style={styles.flex}>
-                    <Text style={styles.bookAgainTitle} numberOfLines={1}>
-                      {booking.title}
-                    </Text>
-                    <Text style={styles.cardMeta} numberOfLines={1}>
-                      {booking.subtitle}
-                    </Text>
-                  </View>
-                  <ChevronRight color={palette.faint} size={18} />
-                </Pressable>
-              ))}
-              {!data.hasBookAgainRows ? (
-                <View style={styles.bookAgainCard}>
-                  <View style={styles.bookAgainAvatar}>
-                    <Sparkles color={palette.white} size={18} />
-                  </View>
-                  <View style={styles.flex}>
-                    <Text style={styles.bookAgainTitle}>No completed bookings yet</Text>
-                    <Text style={styles.cardMeta}>Completed services appear here</Text>
-                  </View>
+          <View style={styles.bookAgainList}>
+            {data.bookAgainRows.map((booking) => (
+              <Pressable
+                key={booking.id}
+                style={styles.bookAgainCard}
+                onPress={() => onOpenBooking(booking.booking)}
+                accessibilityRole="button"
+              >
+                <View style={styles.bookAgainAvatar}>
+                  <Text style={styles.bookAgainInitial}>{booking.initial}</Text>
                 </View>
-              ) : null}
-            </ScrollView>
-            {data.hasBookAgainCue ? (
-              <View pointerEvents="none" style={styles.bookAgainRailCue}>
-                <ChevronRight color={palette.mint} size={20} strokeWidth={2.6} />
+                <View style={styles.flex}>
+                  <Text style={styles.itemTitle} numberOfLines={1}>
+                    {booking.title}
+                  </Text>
+                  <Text style={styles.itemMeta} numberOfLines={1}>
+                    {booking.subtitle}
+                  </Text>
+                </View>
+                <View style={styles.rebookPill}>
+                  <Text style={styles.rebookPillText}>Rebook</Text>
+                </View>
+              </Pressable>
+            ))}
+            {!data.hasBookAgainRows ? (
+              <View style={styles.bookAgainEmpty}>
+                <View style={styles.bookAgainEmptyIcon}>
+                  <Sparkles color={palette.mint} size={18} strokeWidth={2.2} />
+                </View>
+                <View style={styles.flex}>
+                  <Text style={styles.itemTitle}>No completed bookings yet</Text>
+                  <Text style={styles.itemMeta}>Completed services appear here</Text>
+                </View>
               </View>
             ) : null}
           </View>
         </Section>
 
         <Section
-          title="Browse categories"
+          title="Browse Categories"
           action={
             <Text style={styles.linkText} onPress={onViewAllServices}>
               View all
             </Text>
           }
         >
-          <View style={styles.categoryGrid}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            {filterOptions.map(({ key, label }) => (
+              <Pill
+                key={key}
+                label={label}
+                selected={categoryFilter === key}
+                onPress={() => setCategoryFilter(key)}
+              />
+            ))}
+          </ScrollView>
+
+          <View style={styles.categoryList}>
             {data.categoryRows.map((category) => (
               <CategoryTile
                 key={category.id}
                 title={category.title}
                 subtitle={category.subtitle}
                 selected={category.isSelected}
-                onPress={() => onSelectCategory(category.category)}
+                tag={category.isPopular ? 'Popular' : undefined}
+                onPress={() => openSheet(category.category)}
               />
             ))}
           </View>
         </Section>
 
-        <Section
-          title="Popular services"
-          action={
-            <Text style={styles.linkText} onPress={onViewAllServices}>
-              View all
-            </Text>
-          }
-        >
-          {data.serviceRows.map((service) => (
-            <Card
-              key={service.id}
-              selected={service.isSelected}
-              onPress={() => onSelectService(service.service)}
-            >
-              <View style={styles.rowBetween}>
-                <Text style={styles.cardTitle}>{service.title}</Text>
-                <Text style={styles.priceText}>{service.priceLabel}</Text>
-              </View>
-              <Text style={styles.cardBody}>{service.description}</Text>
-            </Card>
-          ))}
-        </Section>
-
-        <Section
-          title="Top service providers"
-          action={
-            <Text style={styles.linkText} onPress={onViewTopProviders}>
-              View all
-            </Text>
-          }
-        >
-          {data.providerRows.map((provider) => (
-            <Card
-              key={provider.id}
-              selected={provider.isSelected}
-              onPress={() => onSelectProvider(provider.provider)}
-            >
-              <View style={styles.rowBetween}>
-                <View style={styles.flex}>
-                  <Text style={styles.cardTitle}>{provider.title}</Text>
-                  <Text style={styles.cardMeta}>{provider.providerBusinessName}</Text>
-                </View>
-                <Badge
-                  label={provider.verificationStatus}
-                  tone={provider.verificationTone}
-                />
-              </View>
-              <Text style={styles.cardBody}>{provider.description}</Text>
-              <View style={styles.rowBetween}>
-                <Text style={styles.priceText}>{provider.priceLabel}</Text>
-                <Text style={styles.cardMeta}>{provider.ratingLabel}</Text>
-              </View>
-            </Card>
-          ))}
-        </Section>
       </View>
+
+      <CategorySheet
+        category={sheetCategory}
+        serviceRows={data.sheetServiceRows}
+        totalServiceCount={data.sheetTotalServiceCount}
+        searchQuery={sheetSearchQuery}
+        onSearchChange={setSheetSearchQuery}
+        onSelectService={(service) => {
+          closeSheet();
+          onSelectService(service);
+        }}
+        onSeeAll={handleSeeAll}
+        onClose={closeSheet}
+      />
     </ScrollView>
   );
 }
@@ -306,13 +305,17 @@ const styles = StyleSheet.create({
   withBottomNav: {
     backgroundColor: palette.cream,
     flexGrow: 1,
-    paddingBottom: 108,
+    paddingBottom: 96,
   },
+
+  // Hero
   customerHero: {
     backgroundColor: palette.mint,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     gap: spacing.base,
-    paddingBottom: spacing.xxl,
-    paddingHorizontal: spacing.xl,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.base,
     paddingTop: spacing.base,
   },
   heroRow: {
@@ -328,86 +331,110 @@ const styles = StyleSheet.create({
   heroAvatar: {
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 14,
+    borderRadius: radius.lg,
     height: 40,
     justifyContent: 'center',
     width: 40,
   },
   heroMuted: {
     color: 'rgba(255,255,255,0.82)',
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '500',
   },
   heroName: {
     color: palette.white,
-    fontSize: 24,
-    fontWeight: '900',
+    fontSize: 20,
+    fontWeight: '700',
   },
   notificationButton: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.24)',
-    borderColor: 'rgba(255,255,255,0.32)',
-    borderRadius: radius.lg,
+    backgroundColor: 'rgba(255,255,255,0.20)',
+    borderColor: 'rgba(255,255,255,0.28)',
+    borderRadius: radius.md,
     borderWidth: 1,
-    height: 44,
+    height: 40,
     justifyContent: 'center',
     position: 'relative',
-    width: 44,
+    width: 40,
   },
   heroUnreadDot: {
     backgroundColor: palette.coral,
     borderColor: 'rgba(86,196,144,0.8)',
     borderRadius: radius.pill,
-    borderWidth: 2,
-    height: 9,
+    borderWidth: 1.5,
+    height: 8,
     position: 'absolute',
-    right: 9,
-    top: 8,
-    width: 9,
+    right: 8,
+    top: 7,
+    width: 8,
   },
   searchBar: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 52,
-    justifyContent: 'center',
+    gap: spacing.sm,
+    minHeight: 48,
     paddingHorizontal: spacing.base,
-    boxShadow: '0 6px 16px rgba(44,90,60,0.12)',
+    boxShadow: '0 4px 14px rgba(44,90,60,0.12)',
   },
   searchText: {
     color: palette.faint,
+    flex: 1,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '500',
   },
+
+  // Page content
   content: {
     gap: spacing.lg,
-    padding: spacing.xl,
+    padding: spacing.base,
+    paddingTop: spacing.lg,
   },
+
+  // Guide card internals
   guideHeaderRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   guideIcon: {
     alignItems: 'center',
     backgroundColor: palette.mintSoft,
-    borderRadius: radius.md,
-    height: 44,
+    borderRadius: radius.sm,
+    height: 36,
     justifyContent: 'center',
-    width: 44,
+    width: 36,
+  },
+  guideStepLabel: {
+    color: palette.mint,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  guideCardTitle: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 1,
   },
   guideDismissButton: {
     alignItems: 'center',
-    minHeight: 44,
     justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
+    minHeight: 36,
+    paddingHorizontal: spacing.xs,
   },
   guideDismissText: {
     color: palette.faint,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  guideBody: {
+    color: palette.muted,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '400',
+    lineHeight: 19,
   },
   guideFooterRow: {
     alignItems: 'center',
@@ -421,37 +448,23 @@ const styles = StyleSheet.create({
   guideDot: {
     backgroundColor: palette.line,
     borderRadius: radius.pill,
-    height: 8,
-    width: 8,
+    height: 6,
+    width: 6,
   },
   guideDotActive: {
     backgroundColor: palette.mint,
-    width: 18,
+    width: 16,
   },
   guideNextButton: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.xxs,
-    minHeight: 44,
+    minHeight: 36,
   },
-  bookAgainRailWrap: {
-    position: 'relative',
-  },
-  bookAgainRailCue: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(240,255,244,0.94)',
-    borderRadius: radius.pill,
-    height: 36,
-    justifyContent: 'center',
-    position: 'absolute',
-    right: spacing.sm,
-    top: 22,
-    width: 36,
-    boxShadow: '0 6px 14px rgba(0,0,0,0.08)',
-  },
-  horizontalRail: {
-    gap: spacing.md,
-    paddingRight: spacing.lg,
+
+  // Book again — vertical list
+  bookAgainList: {
+    gap: spacing.sm,
   },
   bookAgainCard: {
     alignItems: 'center',
@@ -460,66 +473,83 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 80,
-    minWidth: 250,
-    padding: spacing.base,
+    gap: spacing.sm,
+    minHeight: 70,
+    padding: spacing.sm,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+  },
+  bookAgainEmpty: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 70,
+    padding: spacing.sm,
+  },
+  bookAgainEmptyIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
   },
   bookAgainAvatar: {
     alignItems: 'center',
     backgroundColor: palette.mint,
     borderRadius: radius.pill,
-    height: 44,
+    height: 40,
     justifyContent: 'center',
-    width: 44,
+    width: 40,
   },
   bookAgainInitial: {
     color: palette.white,
-    fontSize: 16,
-    fontWeight: '900',
+    fontSize: 15,
+    fontWeight: '700',
   },
-  bookAgainTitle: {
-    color: palette.ink,
-    fontSize: 14,
-    fontWeight: '900',
+  rebookPill: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  rebookPillText: {
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+
+  // Browse categories — filter + single column list
+  filterRow: {
+    gap: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  categoryList: {
     gap: spacing.sm,
   },
-  rowBetween: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-  },
-  flex: {
-    flex: 1,
-  },
-  cardTitle: {
+
+  // Shared text
+  itemTitle: {
     color: palette.ink,
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: '700',
   },
-  cardBody: {
+  itemMeta: {
     color: palette.muted,
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 20,
-  },
-  cardMeta: {
-    ...type.caption,
-    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+    marginTop: 2,
   },
   linkText: {
     color: palette.mint,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
   },
-  priceText: {
-    color: palette.mint,
-    fontSize: 18,
-    fontWeight: '900',
+  flex: {
+    flex: 1,
   },
 });

@@ -4,12 +4,14 @@ import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { palette, radius, spacing, type } from '../theme/serveaseDesign';
 import {
   buildMonthCalendarCells,
+  buildMonthCalendarRows,
   dateFromMonthInput,
   formatApiDate,
 } from './MonthCalendarModel';
 
 export {
   buildMonthCalendarCells,
+  buildMonthCalendarRows,
   dateFromMonthInput,
   formatApiDate,
   type MonthCalendarCell,
@@ -61,6 +63,7 @@ export function MonthCalendar({
       }),
     [disabledDates, maxDate, minDate, visibleMonth],
   );
+  const rows = useMemo(() => buildMonthCalendarRows(cells), [cells]);
   const visibleMonthDate = dateFromMonthInput(visibleMonth);
 
   return (
@@ -100,53 +103,62 @@ export function MonthCalendar({
           ))}
         </View>
         <View style={styles.monthGrid}>
-          {cells.map((cell, index) => {
-            if (!cell.date) {
-              return <View key={`empty-${index}`} style={styles.emptyDayCell} />;
-            }
-
-            const isDisabled = cell.isDisabled;
-            const date = cell.date;
-            const isSelected = selectedDate === date;
-            const cellMarkers = normalizeMarkers(markers[date]);
-
-            return (
-              <Pressable
-                key={date}
-                style={[
-                  styles.dayCell,
-                  isSelected && styles.dayCellSelected,
-                  isDisabled && styles.dayCellDisabled,
-                ]}
-                onPress={() => onSelectDate(date)}
-                disabled={isDisabled}
-                accessibilityRole="button"
-                accessibilityLabel={`Select ${date}`}
-                accessibilityState={{ selected: isSelected, disabled: isDisabled }}
-              >
-                <Text
-                  style={[
-                    styles.dayNumber,
-                    isSelected && styles.dayNumberSelected,
-                    isDisabled && styles.dayNumberDisabled,
-                  ]}
-                >
-                  {Number(date.slice(-2))}
-                </Text>
-                <View style={styles.dotRow}>
-                  {cellMarkers.map((marker) => (
+          {rows.map((row, rowIndex) => (
+            <View key={`week-${rowIndex}`} style={styles.weekRow}>
+              {row.map((cell, columnIndex) => {
+                if (!cell.date) {
+                  return (
                     <View
-                      key={marker}
-                      style={[
-                        styles.markerDot,
-                        { backgroundColor: markerColors[marker] },
-                      ]}
+                      key={`empty-${rowIndex}-${columnIndex}`}
+                      style={styles.emptyDayCell}
                     />
-                  ))}
-                </View>
-              </Pressable>
-            );
-          })}
+                  );
+                }
+
+                const isDisabled = cell.isDisabled;
+                const date = cell.date;
+                const isSelected = selectedDate === date;
+                const cellMarkers = normalizeMarkers(markers[date]);
+
+                return (
+                  <Pressable
+                    key={date}
+                    style={[
+                      styles.dayCell,
+                      isSelected && styles.dayCellSelected,
+                      isDisabled && styles.dayCellDisabled,
+                    ]}
+                    onPress={() => onSelectDate(date)}
+                    disabled={isDisabled}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${date}`}
+                    accessibilityState={{ selected: isSelected, disabled: isDisabled }}
+                  >
+                    <Text
+                      style={[
+                        styles.dayNumber,
+                        isSelected && styles.dayNumberSelected,
+                        isDisabled && styles.dayNumberDisabled,
+                      ]}
+                    >
+                      {Number(date.slice(-2))}
+                    </Text>
+                    <View style={styles.dotRow}>
+                      {cellMarkers.map((marker) => (
+                        <View
+                          key={marker}
+                          style={[
+                            styles.markerDot,
+                            { backgroundColor: markerColors[marker] },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
         </View>
       </View>
     </View>
@@ -185,6 +197,7 @@ const styles = StyleSheet.create({
   monthTitle: {
     ...type.section,
     color: palette.ink,
+    fontWeight: '700',
   },
   monthActions: {
     flexDirection: 'row',
@@ -212,18 +225,20 @@ const styles = StyleSheet.create({
     color: palette.faint,
     flex: 1,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
     textAlign: 'center',
   },
   monthGrid: {
+    gap: 0,
+  },
+  weekRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
   },
   dayCell: {
     alignItems: 'center',
     aspectRatio: 1,
+    flex: 1,
     justifyContent: 'center',
-    width: `${100 / 7}%`,
   },
   dayCellSelected: {
     backgroundColor: palette.mintSoft,
@@ -234,12 +249,12 @@ const styles = StyleSheet.create({
   },
   emptyDayCell: {
     aspectRatio: 1,
-    width: `${100 / 7}%`,
+    flex: 1,
   },
   dayNumber: {
     color: palette.ink,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   dayNumberSelected: {
     color: palette.mintDeep,
