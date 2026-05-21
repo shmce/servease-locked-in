@@ -41,6 +41,11 @@ npm run build
 npm run e2e
 ```
 
+The local dev server runs on `http://localhost:3002` so it does not conflict
+with the admin app on `http://localhost:3001`. Both server-side proxy routes
+and browser calls should keep pointing at the backend gateway on
+`http://localhost:5001`.
+
 ## Backend Boundary
 
 Browser pages should call local `src/app/api/*` proxy routes when server-side environment values are needed. Proxy routes should forward to the API Gateway through `SERVEASE_API_BASE_URL`, not to internal service ports.

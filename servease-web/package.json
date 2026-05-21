@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "next dev -p 3002",
     "e2e": "npm run build && playwright test",
     "env:prod": "node scripts/check-production-env.mjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"scripts/**/*.ts\" \"e2e/**/*.ts\"",
-    "start": "next start",
+    "start": "next start -p ${PORT:-3002}",
     "test": "for file in scripts/*.test.ts; do tsx \"$file\" || exit 1; done",
     "typecheck": "tsc --noEmit"
   },
