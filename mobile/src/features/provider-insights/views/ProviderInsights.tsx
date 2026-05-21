@@ -8,6 +8,7 @@ import {
   Users,
 } from 'lucide-react-native';
 import {
+  Card,
   PrimaryButton,
   TopBar,
 } from '../../../components/DesignKit';
@@ -54,7 +55,7 @@ export function ProviderInsightsScreen({
       <ScreenScroll>
         <ScreenContent>
 
-          {/* Featured earnings */}
+          {/* Featured earnings hero */}
           <View style={styles.featuredCard}>
             <TrendingUp color={palette.white} size={22} strokeWidth={2.2} />
             <Text style={styles.featuredLabel}>Total Earnings</Text>
@@ -62,10 +63,10 @@ export function ProviderInsightsScreen({
             <Text style={styles.featuredSub}>Today: {insights.data.todayEarnings}</Text>
           </View>
 
-          {/* Rating + Reviews */}
+          {/* Rating / Reviews / Bookings strip */}
           <View style={styles.statRow}>
             <View style={styles.statCard}>
-            <Star color={palette.mint} fill={palette.mint} size={20} />
+              <Star color="#FFC107" fill="#FFC107" size={20} />
               <Text style={styles.statValue}>{insights.data.overallRating}</Text>
               <Text style={styles.statLabel}>Rating</Text>
             </View>
@@ -86,58 +87,63 @@ export function ProviderInsightsScreen({
           {/* Service performance */}
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>Service Performance</Text>
-            <View style={styles.metricPanel}>
+            <Card>
               <View style={styles.metricRow}>
-                <View style={styles.metricIcon}>
-                  <CheckCircle2 color={palette.mint} size={16} strokeWidth={2.2} />
+                <View style={styles.metricIconBg}>
+                  <CheckCircle2 color={palette.mint} size={15} strokeWidth={2.2} />
                 </View>
                 <Text style={styles.metricName}>Acceptance rate</Text>
                 <Text style={styles.metricValue}>{insights.data.acceptanceRateLabel}</Text>
               </View>
-              <View style={[styles.metricRow, styles.metricRowDivider]}>
-                <View style={styles.metricIcon}>
-                  <CheckCircle2 color={palette.mint} size={16} strokeWidth={2.2} />
+              <View style={[styles.metricRow, styles.metricDivider]}>
+                <View style={styles.metricIconBg}>
+                  <CheckCircle2 color={palette.amber} size={15} strokeWidth={2.2} />
                 </View>
                 <Text style={styles.metricName}>Completion rate</Text>
                 <Text style={styles.metricValue}>{insights.data.completionRateLabel}</Text>
               </View>
-              <View style={[styles.metricRow, styles.metricRowDivider]}>
-                <View style={styles.metricIcon}>
-                  <Clock color={palette.mint} size={16} strokeWidth={2.2} />
+              <View style={[styles.metricRow, styles.metricDivider]}>
+                <View style={styles.metricIconBg}>
+                  <Clock color={palette.violet} size={15} strokeWidth={2.2} />
                 </View>
                 <Text style={styles.metricName}>Avg. response time</Text>
                 <Text style={styles.metricValue}>{insights.data.responseTimeLabel}</Text>
               </View>
-            </View>
+            </Card>
           </View>
 
           {/* Booking activity */}
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>Booking Activity</Text>
-            <View style={styles.bookingRow}>
-              <View style={styles.bookingCard}>
-                <Text style={styles.bookingValue}>{insights.data.completedCount}</Text>
+
+            {/* Completed / Cancelled / Today count strip */}
+            <View style={styles.bookingStrip}>
+              <View style={styles.bookingCell}>
+                <Text style={styles.bookingCount}>{insights.data.completedCount}</Text>
                 <Text style={styles.bookingLabel}>Completed</Text>
               </View>
-              <View style={styles.bookingCard}>
-                <Text style={styles.bookingValue}>{insights.data.cancelledCount}</Text>
+              <View style={styles.stripDivider} />
+              <View style={styles.bookingCell}>
+                <Text style={styles.bookingCount}>{insights.data.cancelledCount}</Text>
                 <Text style={styles.bookingLabel}>Cancelled</Text>
               </View>
-              <View style={styles.bookingCard}>
-                <Text style={styles.bookingValue}>{insights.data.todayBookings}</Text>
+              <View style={styles.stripDivider} />
+              <View style={styles.bookingCell}>
+                <Text style={styles.bookingCount}>{insights.data.todayBookings}</Text>
                 <Text style={styles.bookingLabel}>Today</Text>
               </View>
             </View>
-            <View style={styles.metricPanel}>
+
+            <Card>
               <View style={styles.metricRow}>
                 <Text style={styles.metricName}>Repeat customers</Text>
                 <Text style={styles.metricValue}>{insights.data.repeatCustomers}</Text>
               </View>
-              <View style={[styles.metricRow, styles.metricRowDivider]}>
+              <View style={[styles.metricRow, styles.metricDivider]}>
                 <Text style={styles.metricName}>New booking requests</Text>
                 <Text style={styles.metricValue}>{insights.data.newRequests}</Text>
               </View>
-            </View>
+            </Card>
           </View>
 
           {/* Growth tips */}
@@ -145,7 +151,7 @@ export function ProviderInsightsScreen({
             <Text style={styles.sectionLabel}>Tips to Grow</Text>
             {insights.data.growthTips.map((tip) => (
               <View key={tip} style={styles.tipCard}>
-                <TrendingUp color={palette.mint} size={14} strokeWidth={2.2} />
+                <TrendingUp color={palette.mint} size={14} strokeWidth={2.5} />
                 <Text style={styles.tipText}>{tip}</Text>
               </View>
             ))}
@@ -158,39 +164,45 @@ export function ProviderInsightsScreen({
 }
 
 const styles = StyleSheet.create({
+  /* ── Featured hero ── */
   featuredCard: {
     alignItems: 'center',
     backgroundColor: palette.mint,
     borderRadius: radius.lg,
     gap: spacing.xs,
-    paddingVertical: spacing.lg,
     paddingHorizontal: spacing.base,
+    paddingVertical: spacing.xl,
   },
   featuredLabel: {
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   featuredValue: {
     color: palette.white,
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '900',
+    letterSpacing: -0.5,
   },
   featuredSub: {
     color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
   },
 
+  /* ── Stat strip (white card with dividers) ── */
   statRow: {
     alignItems: 'center',
+    backgroundColor: palette.white,
+    borderRadius: radius.lg,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
     flexDirection: 'row',
   },
   statCard: {
     alignItems: 'center',
     flex: 1,
     gap: spacing.xs,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
   },
   statDivider: {
     backgroundColor: palette.lineSoft,
@@ -199,15 +211,16 @@ const styles = StyleSheet.create({
   },
   statValue: {
     color: palette.ink,
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: 22,
+    fontWeight: '800',
   },
   statLabel: {
     color: palette.muted,
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '700',
   },
 
+  /* ── Section labels ── */
   sectionBlock: {
     gap: spacing.sm,
   },
@@ -220,6 +233,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
+  /* ── Metric rows (inside Card) ── */
   metricRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -227,14 +241,11 @@ const styles = StyleSheet.create({
     minHeight: 48,
     paddingVertical: spacing.sm,
   },
-  metricPanel: {
-    gap: 0,
-  },
-  metricRowDivider: {
+  metricDivider: {
     borderTopColor: palette.lineSoft,
     borderTopWidth: 1,
   },
-  metricIcon: {
+  metricIconBg: {
     alignItems: 'center',
     backgroundColor: palette.lineSoft,
     borderRadius: radius.sm,
@@ -246,7 +257,7 @@ const styles = StyleSheet.create({
     color: palette.muted,
     flex: 1,
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   metricValue: {
     color: palette.ink,
@@ -254,27 +265,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  bookingRow: {
+  /* ── Booking count strip (white card with dividers) ── */
+  bookingStrip: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderRadius: radius.lg,
+    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
     flexDirection: 'row',
-    gap: spacing.sm,
   },
-  bookingCard: {
+  bookingCell: {
     alignItems: 'center',
     flex: 1,
-    gap: spacing.xs,
+    gap: spacing.xxs,
     paddingVertical: spacing.base,
   },
-  bookingValue: {
+  stripDivider: {
+    backgroundColor: palette.lineSoft,
+    height: 36,
+    width: 1,
+  },
+  bookingCount: {
     color: palette.ink,
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
   },
   bookingLabel: {
     color: palette.muted,
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '700',
   },
 
+  /* ── Growth tips ── */
   tipCard: {
     alignItems: 'flex-start',
     backgroundColor: palette.mintSoft,
@@ -287,7 +308,7 @@ const styles = StyleSheet.create({
     color: palette.mintDeep,
     flex: 1,
     fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 19,
+    fontWeight: '700',
+    lineHeight: 20,
   },
 });

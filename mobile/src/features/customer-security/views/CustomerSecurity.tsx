@@ -35,7 +35,7 @@ export function CustomerSecurityScreen({
       />
       <ScrollView contentContainerStyle={styles.scroll}>
         <View style={styles.content}>
-          <Section title="Two-Factor Authentication">
+          <Section title="Account protection">
             <TwoFactorSettingsCard
               busyAction={busyAction}
               twoFactorCode={twoFactorCode}

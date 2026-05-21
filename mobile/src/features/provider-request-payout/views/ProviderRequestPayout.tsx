@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckCircle, Wallet } from 'lucide-react-native';
 import {
+  Card,
   EmptyState,
   Field,
   PrimaryButton,
@@ -66,8 +67,8 @@ export function ProviderRequestPayoutScreen({
             <Text style={styles.balanceValue}>{data.availableBalanceLabel}</Text>
           </View>
 
-          {/* Amount + fee breakdown */}
-          <View style={styles.amountPanel}>
+          {/* Amount input + fee breakdown inside a Card */}
+          <Card>
             <Field
               label="Withdrawal Amount"
               value={requestPayoutAmount}
@@ -83,41 +84,43 @@ export function ProviderRequestPayoutScreen({
               <Text style={styles.totalLabel}>You receive</Text>
               <Text style={styles.totalValue}>{data.netAmountLabel}</Text>
             </View>
-          </View>
+          </Card>
 
           {/* Payout method selection */}
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>Send To</Text>
             {data.hasPayoutMethods ? (
-              data.payoutMethodRows.map((method) => (
-                <Pressable
-                  key={method.id}
-                  style={[
-                    styles.methodCard,
-                    method.isSelected && styles.methodCardSelected,
-                  ]}
-                  onPress={() => onSelectPayoutMethod(method.id)}
-                  accessibilityRole="button"
-                >
-                  <View style={[
-                    styles.methodIcon,
-                    method.isSelected && styles.methodIconSelected,
-                  ]}>
-                    <Wallet
-                      color={method.isSelected ? palette.mint : palette.muted}
-                      size={18}
-                      strokeWidth={2.2}
-                    />
-                  </View>
-                  <View style={styles.flex}>
-                    <Text style={styles.methodName}>{method.accountLabel}</Text>
-                    <Text style={styles.methodMeta}>{method.methodLabel}</Text>
-                  </View>
-                  {method.isSelected ? (
-                    <CheckCircle color={palette.mint} size={20} strokeWidth={2.2} />
-                  ) : null}
-                </Pressable>
-              ))
+              <View style={styles.methodList}>
+                {data.payoutMethodRows.map((method) => (
+                  <Pressable
+                    key={method.id}
+                    style={[
+                      styles.methodCard,
+                      method.isSelected && styles.methodCardSelected,
+                    ]}
+                    onPress={() => onSelectPayoutMethod(method.id)}
+                    accessibilityRole="button"
+                  >
+                    <View style={[
+                      styles.methodIcon,
+                      method.isSelected && styles.methodIconSelected,
+                    ]}>
+                      <Wallet
+                        color={method.isSelected ? palette.mint : palette.muted}
+                        size={18}
+                        strokeWidth={2.2}
+                      />
+                    </View>
+                    <View style={styles.flex}>
+                      <Text style={styles.methodName}>{method.accountLabel}</Text>
+                      <Text style={styles.methodMeta}>{method.methodLabel}</Text>
+                    </View>
+                    {method.isSelected ? (
+                      <CheckCircle color={palette.mint} size={20} strokeWidth={2.2} />
+                    ) : null}
+                  </Pressable>
+                ))}
+              </View>
             ) : (
               <EmptyState
                 title="No payout method"
@@ -145,28 +148,27 @@ export function ProviderRequestPayoutScreen({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
 
+  /* ── Balance hero ── */
   balanceCard: {
     alignItems: 'center',
     backgroundColor: palette.mint,
     borderRadius: radius.lg,
     gap: spacing.xs,
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.xl,
   },
   balanceLabel: {
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.75)',
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   balanceValue: {
     color: palette.white,
     fontSize: 36,
     fontWeight: '900',
+    letterSpacing: -0.5,
   },
 
-  amountPanel: {
-    gap: spacing.md,
-  },
-
+  /* ── Fee breakdown (inside Card) ── */
   feeRow: {
     alignItems: 'center',
     borderBottomColor: palette.lineSoft,
@@ -199,10 +201,11 @@ const styles = StyleSheet.create({
   },
   totalValue: {
     color: palette.ink,
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '900',
   },
 
+  /* ── Section ── */
   sectionBlock: {
     gap: spacing.sm,
   },
@@ -215,17 +218,25 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
+  /* ── Method cards ── */
+  methodList: {
+    gap: spacing.sm,
+  },
   methodCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
+    borderColor: palette.line,
     borderRadius: radius.md,
+    borderWidth: 1.5,
     flexDirection: 'row',
     gap: spacing.base,
     minHeight: 64,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
   },
   methodCardSelected: {
     backgroundColor: palette.mintSoft,
+    borderColor: palette.mint,
   },
   methodIcon: {
     alignItems: 'center',
@@ -246,7 +257,7 @@ const styles = StyleSheet.create({
   methodMeta: {
     color: palette.muted,
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
     marginTop: 2,
   },
 
