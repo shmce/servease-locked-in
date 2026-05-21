@@ -10,13 +10,9 @@ import { CheckCircle, ChevronRight } from 'lucide-react-native';
 import {
   Card,
   PrimaryButton,
-  Section,
   StatusTimeline,
 } from '../../../components/DesignKit';
-import {
-  InfoRow,
-  MissingSelection,
-} from '../../../components/AppDisplay';
+import { MissingSelection } from '../../../components/AppDisplay';
 import {
   BookingSummary,
   PaymentSummary,
@@ -58,31 +54,34 @@ export function CustomerBookingConfirmationScreen({
     return <MissingSelection onBack={onBack} />;
   }
 
+  const { data } = confirmation;
+
   return (
     <ScrollView contentContainerStyle={styles.withBottomNav}>
-      <View style={styles.confirmationContent}>
-        <View style={styles.successCircle}>
-          <CheckCircle color={palette.white} size={44} strokeWidth={2.6} />
-        </View>
-        <Text style={styles.confirmationTitle}>Your booking is confirmed!</Text>
-        <Text style={styles.bookingReference}>
-          {confirmation.data.bookingReference}
-        </Text>
+      <View style={styles.content}>
 
+        {/* Success hero */}
+        <View style={styles.hero}>
+          <View style={styles.successCircle}>
+            <CheckCircle color={palette.white} size={44} strokeWidth={2.4} />
+          </View>
+          <Text style={styles.confirmationTitle}>Your booking is confirmed!</Text>
+          <Text style={styles.bookingReference}>{data.bookingReference}</Text>
+        </View>
+
+        {/* Provider */}
         <Card>
-          <View style={styles.providerSummaryRow}>
-            <View style={styles.providerPhoto}>
-              <Text style={styles.providerPhotoText}>
-                {confirmation.data.providerInitial}
-              </Text>
+          <View style={styles.providerRow}>
+            <View style={styles.providerAvatar}>
+              <Text style={styles.providerInitial}>{data.providerInitial}</Text>
             </View>
             <View style={styles.flex}>
-              <Text style={styles.cardTitle}>{confirmation.data.providerName}</Text>
-              <Text style={styles.cardMeta}>{confirmation.data.providerRatingLabel}</Text>
+              <Text style={styles.providerName}>{data.providerName}</Text>
+              <Text style={styles.providerRating}>{data.providerRatingLabel}</Text>
               <Pressable
                 style={styles.profileLinkRow}
                 onPress={() => {
-                  if (confirmation.data.canViewProvider) {
+                  if (data.canViewProvider) {
                     navigate('customerProviderProfile', 'customer');
                   } else {
                     onMissingProvider();
@@ -92,21 +91,29 @@ export function CustomerBookingConfirmationScreen({
                 accessibilityLabel="View provider profile"
               >
                 <Text style={styles.linkText}>View Profile</Text>
-                <ChevronRight color={palette.mint} size={18} />
+                <ChevronRight color={palette.mint} size={14} strokeWidth={2.2} />
               </Pressable>
             </View>
           </View>
         </Card>
 
-        <Section title="Service summary">
-          <InfoRow label="Date" value={confirmation.data.scheduledAtLabel} />
-          <InfoRow label="Location" value={confirmation.data.locationLabel} />
-          <InfoRow label="Cost" value={confirmation.data.costLabel} />
-        </Section>
+        {/* Service summary */}
+        <Card>
+          <Text style={styles.sectionLabel}>Service summary</Text>
+          <DetailRow label="Date" value={data.scheduledAtLabel} />
+          <DetailRow label="Location" value={data.locationLabel} />
+          <DetailRow label="Cost" value={data.costLabel} last />
+        </Card>
 
-        <StatusTimeline steps={confirmation.data.statusSteps} />
+        {/* Booking status */}
+        <Card>
+          <Text style={styles.sectionLabel}>Booking status</Text>
+          <StatusTimeline steps={data.statusSteps} />
+        </Card>
+
         {timelineEvents}
-        <Text style={styles.noticeText}>{confirmation.data.bookedForLabel}</Text>
+
+        <Text style={styles.noticeText}>{data.bookedForLabel}</Text>
 
         <ActionRow>
           <PrimaryButton
@@ -119,14 +126,33 @@ export function CustomerBookingConfirmationScreen({
             onPress={() => void addSelectedBookingToCalendar()}
           />
         </ActionRow>
+
         <PrimaryButton
           label="Reserve payment"
           variant="secondary"
           onPress={() => navigate('customerReservePayment', 'customer')}
-          disabled={confirmation.data.isPaymentReserved}
+          disabled={data.isPaymentReserved}
         />
+
       </View>
     </ScrollView>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  last,
+}: {
+  label: string;
+  value: string;
+  last?: boolean;
+}) {
+  return (
+    <View style={[styles.detailRow, !last && styles.detailRowBorder]}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue} numberOfLines={3}>{value}</Text>
+    </View>
   );
 }
 
@@ -136,14 +162,23 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 108,
   },
-  confirmationContent: {
+  content: {
     gap: spacing.md,
     padding: spacing.md,
     paddingTop: spacing.lg,
   },
+  flex: {
+    flex: 1,
+  },
+
+  // Hero
+  hero: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingBottom: spacing.xs,
+  },
   successCircle: {
     alignItems: 'center',
-    alignSelf: 'center',
     backgroundColor: palette.mint,
     borderRadius: radius.pill,
     height: 88,
@@ -152,25 +187,27 @@ const styles = StyleSheet.create({
   },
   confirmationTitle: {
     color: palette.ink,
-    fontSize: 24,
-    fontWeight: '900',
+    fontSize: 22,
+    fontWeight: '700',
     lineHeight: 30,
     textAlign: 'center',
   },
   bookingReference: {
-    color: palette.faint,
-    fontSize: 12,
-    fontWeight: '900',
+    color: palette.mint,
+    fontSize: 11,
+    fontWeight: '700',
     letterSpacing: 1.4,
     textAlign: 'center',
     textTransform: 'uppercase',
   },
-  providerSummaryRow: {
+
+  // Provider card
+  providerRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.base,
   },
-  providerPhoto: {
+  providerAvatar: {
     alignItems: 'center',
     backgroundColor: palette.mintSoft,
     borderRadius: radius.pill,
@@ -178,40 +215,74 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: 48,
   },
-  providerPhotoText: {
+  providerInitial: {
     color: palette.mint,
     fontSize: 20,
-    fontWeight: '900',
+    fontWeight: '700',
+  },
+  providerName: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  providerRating: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
   },
   profileLinkRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.xs,
+    gap: 2,
     marginTop: spacing.xs,
-  },
-  flex: {
-    flex: 1,
-  },
-  cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  cardMeta: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 19,
   },
   linkText: {
     color: palette.mint,
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 12,
+    fontWeight: '700',
   },
+
+  // Section label
+  sectionLabel: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: spacing.xs,
+  },
+
+  // Detail rows
+  detailRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  detailRowBorder: {
+    borderBottomColor: palette.line,
+    borderBottomWidth: 1,
+  },
+  detailLabel: {
+    color: palette.muted,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+    paddingTop: 1,
+  },
+  detailValue: {
+    color: palette.ink,
+    flex: 1.6,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+
+  // Notice + footer
   noticeText: {
     color: palette.muted,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
     lineHeight: 18,
+    textAlign: 'center',
   },
 });

@@ -22,6 +22,7 @@ import {
   geocodeAddress,
   getCheckoutStatus,
   getDirections,
+  GatewayApiError,
   getGoogleAuthorizationUrl,
   getPublicProviderAvailability,
   getProviderAvailability,
@@ -135,6 +136,39 @@ describe('serveaseApi', () => {
       serviceAddress: '123 Test St',
       scheduledAt: '2026-05-20T02:00:00.000Z',
     });
+  });
+
+  it('preserves gateway error codes on failed booking requests', async () => {
+    const fetcher = async () =>
+      jsonResponse(
+        {
+          error: {
+            code: 'provider_unavailable',
+            message: 'Provider is unavailable for the requested time.',
+          },
+        },
+        409,
+      );
+
+    await assert.rejects(
+      createBooking(
+        {
+          providerId: 'provider-1',
+          serviceAddress: '123 Test St',
+          scheduledAt: '2026-05-20T02:00:00.000Z',
+        },
+        {
+          baseUrl: 'http://gateway.test',
+          token: 'access-token',
+          fetcher,
+        },
+      ),
+      (error) =>
+        error instanceof GatewayApiError &&
+        error.status === 409 &&
+        error.code === 'provider_unavailable' &&
+        error.message === 'Provider is unavailable for the requested time.',
+    );
   });
 
   it('creates pricing quotes through the gateway', async () => {

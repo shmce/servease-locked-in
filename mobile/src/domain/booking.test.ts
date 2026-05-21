@@ -464,6 +464,54 @@ describe('booking domain helpers', () => {
     );
   });
 
+  it('marks slots that overlap active bookings as unavailable', () => {
+    const schedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'tuesday' as const,
+          startTime: '09:00',
+          endTime: '17:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+      ],
+      daysOff: [],
+      timeOffWindows: [],
+      bookedWindows: [
+        {
+          bookingId: 'booking-1',
+          offDate: '2026-05-26',
+          startTime: '10:00',
+          endTime: '12:00',
+          status: 'confirmed' as const,
+        },
+      ],
+    };
+
+    const availability = buildCustomerBookingAvailability(
+      schedule,
+      1,
+      ['09:00', '10:00', '11:00', '12:00'],
+      new Date('2026-05-26T00:00:00'),
+      '2026-05-26',
+    );
+
+    assert.deepEqual(
+      availability.timeOptions.map((slot) => ({
+        time: slot.time,
+        isAvailable: slot.isAvailable,
+      })),
+      [
+        { time: '09:00', isAvailable: true },
+        { time: '10:00', isAvailable: false },
+        { time: '11:00', isAvailable: false },
+        { time: '12:00', isAvailable: true },
+      ],
+    );
+  });
+
   it('maps provider unavailable booking errors to the slot picker message', () => {
     assert.equal(
       providerUnavailableSlotPickerMessage(

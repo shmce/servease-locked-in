@@ -62,12 +62,14 @@ export function TrackingMapPreview({
   mode = 'tracking',
   navigationOrigin,
 }: TrackingMapPreviewProps) {
-  const destination = tracking?.destinationLocation ?? null;
-  const routeGeometry = directions?.geometry?.length ? directions.geometry : null;
+  const destination = normalizeTrackingMapLocation(
+    tracking?.destinationLocation ?? null,
+  );
+  const routeGeometry = normalizeRouteGeometry(directions?.geometry ?? null);
   const actualProvider =
-    navigationOrigin ??
+    normalizeTrackingMapLocation(navigationOrigin ?? null) ??
     routeGeometry?.[0] ??
-    tracking?.providerLocation ??
+    normalizeTrackingMapLocation(tracking?.providerLocation ?? null) ??
     null;
   const previewProvider =
     actualProvider ??
@@ -149,10 +151,13 @@ export function AddressVerificationPreview({
 }: {
   result: GeoAddressResult;
 }) {
-  const destination = {
+  const destination = normalizeTrackingMapLocation({
     latitude: result.latitude,
     longitude: result.longitude,
-  };
+  });
+  if (!destination) {
+    return null;
+  }
   const points = projectTrackingPoints(null, destination);
 
   return (
@@ -761,21 +766,48 @@ function buildProviderLocationUpdateScript(
   provider: TrackingMapLocation | null,
   routeGeometry: TrackingMapLocation[] | null,
 ): string | null {
-  if (!provider) {
+  const safeProvider = normalizeTrackingMapLocation(provider);
+  if (!safeProvider) {
     return null;
   }
 
-  const providerHeading = normalizeHeading(provider.headingDegrees ?? null);
-  const routeBearing = routeGeometry?.length
-    ? deriveRouteBearing(provider, routeGeometry)
+  const safeRouteGeometry = normalizeRouteGeometry(routeGeometry);
+  const providerHeading = normalizeHeading(safeProvider.headingDegrees ?? null);
+  const routeBearing = safeRouteGeometry?.length
+    ? deriveRouteBearing(safeProvider, safeRouteGeometry)
     : null;
   const payload = {
     cameraBearing: providerHeading ?? routeBearing ?? 0,
-    provider: [provider.longitude, provider.latitude],
+    provider: [safeProvider.longitude, safeProvider.latitude],
     providerHeading,
   };
 
   return `window.__serveaseUpdateTracking?.(${JSON.stringify(payload)}); true;`;
+}
+
+function normalizeTrackingMapLocation(
+  location: TrackingMapLocation | GeoRouteLocation | null,
+): TrackingMapLocation | null {
+  if (
+    !location ||
+    !Number.isFinite(location.latitude) ||
+    !Number.isFinite(location.longitude)
+  ) {
+    return null;
+  }
+
+  return location;
+}
+
+function normalizeRouteGeometry(
+  routeGeometry: (TrackingMapLocation | GeoRouteLocation)[] | null,
+): TrackingMapLocation[] | null {
+  const safeGeometry =
+    routeGeometry
+      ?.map((point) => normalizeTrackingMapLocation(point))
+      .filter((point): point is TrackingMapLocation => point !== null) ?? [];
+
+  return safeGeometry.length ? safeGeometry : null;
 }
 
 function normalizeHeading(heading: number | null): number | null {

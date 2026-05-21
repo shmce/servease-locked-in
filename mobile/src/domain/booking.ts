@@ -429,6 +429,7 @@ export function buildProviderBookingSlots(
     });
     timeOffWindowsByDate.set(window.offDate, windows);
   });
+  const bookedWindowsByDate = bookingBlockedWindowsByDate(schedule);
   const slots: BookingSlot[] = [];
 
   for (let offset = 0; offset < 14; offset += 1) {
@@ -453,8 +454,11 @@ export function buildProviderBookingSlots(
       const overlapsTimeOff = (timeOffWindowsByDate.get(dateValue) ?? []).some(
         (window) => time < window.endTime && endTime > window.startTime,
       );
+      const overlapsBooking = (bookedWindowsByDate.get(dateValue) ?? []).some(
+        (window) => time < window.endTime && endTime > window.startTime,
+      );
 
-      if (fitsWindow && !overlapsTimeOff) {
+      if (fitsWindow && !overlapsTimeOff && !overlapsBooking) {
         slots.push({
           label: `${date.toLocaleDateString('en-PH', {
             month: 'short',
@@ -511,6 +515,8 @@ export function buildCustomerBookingAvailability(
   const selectedDateOff = offDates.has(selectedDateValue);
   const selectedTimeOffWindows =
     schedule?.timeOffWindows.filter((window) => window.offDate === selectedDateValue) ?? [];
+  const selectedBookedWindows =
+    schedule?.bookedWindows?.filter((window) => window.offDate === selectedDateValue) ?? [];
   const timeOptions = timeSlots.map((time) => {
     const endTime = addHoursToTime(time, safeDuration);
     const fitsWindow = selectedWindows.some(
@@ -519,7 +525,11 @@ export function buildCustomerBookingAvailability(
     const overlapsTimeOff = selectedTimeOffWindows.some(
       (window) => time < window.endTime && endTime > window.startTime,
     );
-    const isAvailable = !selectedDateOff && fitsWindow && !overlapsTimeOff;
+    const overlapsBooking = selectedBookedWindows.some(
+      (window) => time < window.endTime && endTime > window.startTime,
+    );
+    const isAvailable =
+      !selectedDateOff && fitsWindow && !overlapsTimeOff && !overlapsBooking;
 
     return {
       time,
@@ -547,6 +557,7 @@ export function buildCustomerBookingCalendarState(
     0,
   ).getDate();
   const offDates = new Set(schedule?.daysOff.map((dayOff) => dayOff.offDate) ?? []);
+  const bookedWindowsByDate = bookingBlockedWindowsByDate(schedule);
 
   for (let day = 1; day <= daysInMonth; day += 1) {
     const value = formatDateInput(
@@ -557,6 +568,7 @@ export function buildCustomerBookingCalendarState(
       value,
       safeDuration,
       timeSlots,
+      bookedWindowsByDate.get(value) ?? [],
     );
 
     if (offDates.has(value) || !hasAvailableSlot) {
@@ -609,6 +621,8 @@ function customerDateSlotState(
   dateValue: string,
   durationHours: number,
   timeSlots: string[],
+  bookedWindows: { startTime: string; endTime: string }[] =
+    schedule?.bookedWindows?.filter((window) => window.offDate === dateValue) ?? [],
 ): { hasAvailableSlot: boolean; hasBlockedSlot: boolean } {
   const date = dateFromInputValue(dateValue);
   if (!schedule || !date) {
@@ -630,17 +644,37 @@ function customerDateSlotState(
     const overlapsTimeOff = timeOffWindows.some(
       (window) => time < window.endTime && endTime > window.startTime,
     );
+    const overlapsBooking = bookedWindows.some(
+      (window) => time < window.endTime && endTime > window.startTime,
+    );
 
-    if (fitsWindow && !overlapsTimeOff) {
+    if (fitsWindow && !overlapsTimeOff && !overlapsBooking) {
       hasAvailableSlot = true;
     }
 
-    if (fitsWindow && overlapsTimeOff) {
+    if (fitsWindow && (overlapsTimeOff || overlapsBooking)) {
       hasBlockedSlot = true;
     }
   }
 
   return { hasAvailableSlot, hasBlockedSlot };
+}
+
+function bookingBlockedWindowsByDate(
+  schedule: ProviderAvailabilitySchedule | null,
+): Map<string, { startTime: string; endTime: string }[]> {
+  const bookedWindowsByDate = new Map<string, { startTime: string; endTime: string }[]>();
+
+  (schedule?.bookedWindows ?? []).forEach((window) => {
+    const windows = bookedWindowsByDate.get(window.offDate) ?? [];
+    windows.push({
+      startTime: window.startTime,
+      endTime: window.endTime,
+    });
+    bookedWindowsByDate.set(window.offDate, windows);
+  });
+
+  return bookedWindowsByDate;
 }
 
 function dateFromMonthInput(value: string): Date {

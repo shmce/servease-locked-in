@@ -109,6 +109,7 @@ import {
   getDirections,
   getGoogleAuthorizationUrl,
   generateOtp,
+  GatewayApiError,
   listProviderOwnedServices,
   replaceProviderServices,
   deleteCustomerPaymentMethod,
@@ -545,6 +546,7 @@ export default function App() {
   const lastPushRegistrationKey = useRef<string | null>(null);
   const reconcilingCheckoutRef = useRef(false);
   const payoutIdempotencyKeyRef = useRef<string | null>(null);
+  const authFailureHandledRef = useRef(false);
   const [providerPortfolioPhotoUri, setProviderPortfolioPhotoUri] = useState<string | null>(null);
   const [providerPortfolioPhotoUrl, setProviderPortfolioPhotoUrl] = useState<string | null>(null);
   const [editingPortfolioCaptionId, setEditingPortfolioCaptionId] =
@@ -615,6 +617,12 @@ export default function App() {
   }, [route]);
 
   useEffect(() => {
+    if (session?.accessToken) {
+      authFailureHandledRef.current = false;
+    }
+  }, [session?.accessToken]);
+
+  useEffect(() => {
     goBackRef.current = () => goBack();
   });
 
@@ -659,6 +667,7 @@ export default function App() {
     selectedBooking: selectedBooking ?? null,
     selectedCustomerPaymentMethod,
     selectedProvider: selectedProvider ?? null,
+    selectedProviderAvailability,
     selectedService: selectedService ?? null,
     setBusyAction,
     setNotice,
@@ -781,7 +790,11 @@ export default function App() {
     if (!session?.accessToken) {
       return undefined;
     }
+    let stopped = false;
     const tick = async () => {
+      if (stopped) {
+        return;
+      }
       try {
         const [nextNotifications, nextBookings] = await Promise.all([
           listNotifications(apiOptions),
@@ -791,12 +804,18 @@ export default function App() {
         ]);
         replaceNotifications(nextNotifications);
         setBookings(nextBookings);
-      } catch {
+      } catch (error) {
+        if (handleUnauthorized(error)) {
+          stopped = true;
+        }
         // ignore poll errors to avoid noisy notices
       }
     };
     const interval = setInterval(() => void tick(), 30000);
-    return () => clearInterval(interval);
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
   }, [session?.accessToken, appRole, apiOptions, replaceNotifications]);
 
   useEffect(() => {
@@ -814,8 +833,9 @@ export default function App() {
       userPreferences.pushNotificationsEnabled,
       apiOptions,
       Platform.OS,
-    ).catch(() => {
+    ).catch((error) => {
       lastPushRegistrationKey.current = null;
+      handleUnauthorized(error);
     });
   }, [session?.accessToken, userPreferences, apiOptions]);
 
@@ -984,6 +1004,9 @@ export default function App() {
       setSelectedCategoryId(firstCategoryId);
       await loadServices(firstCategoryId);
     } catch (error) {
+      if (handleUnauthorized(error)) {
+        return;
+      }
       setNotice(readError(error));
     } finally {
       setBusyAction(null);
@@ -1307,6 +1330,11 @@ export default function App() {
     providerServiceFlow.actions.clear();
     setSelectedBookingServiceUpdates([]);
     setSelectedBookingTimelineEvents([]);
+    setSelectedBookingTracking(null);
+    setSelectedBookingDirections(null);
+    setSelectedNavigationOrigin(null);
+    setNavigationRouteError(null);
+    setNavigationRouteLoading(false);
     setSelectedProviderPortfolioMedia([]);
     setProviderPortfolioMedia([]);
     setAvailability(null);
@@ -1320,6 +1348,41 @@ export default function App() {
     setNewPassword('');
     resetRoute({ role: null, screen: 'authGate' });
     setNotice('Signed out.');
+  }
+
+  function hasAccessToken() {
+    return Boolean(session?.accessToken?.trim());
+  }
+
+  function isUnauthorizedGatewayError(error: unknown) {
+    if (error instanceof GatewayApiError) {
+      return error.status === 401;
+    }
+
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    const maybeGatewayError = error as { name?: unknown; status?: unknown };
+    return (
+      maybeGatewayError.name === 'GatewayApiError' &&
+      maybeGatewayError.status === 401
+    );
+  }
+
+  function handleUnauthorized(error: unknown) {
+    if (!isUnauthorizedGatewayError(error)) {
+      return false;
+    }
+
+    if (!authFailureHandledRef.current) {
+      authFailureHandledRef.current = true;
+      signOut();
+      resetRoute({ role: null, screen: 'loginRole' });
+      setNotice('Session expired. Sign in again to continue.');
+    }
+
+    return true;
   }
 
   async function deleteMyAccount() {
@@ -1623,6 +1686,9 @@ export default function App() {
       setSelectedBookingId((current) => current ?? nextBookings[0]?.id ?? null);
       setNotice(`${nextBookings.length} booking${nextBookings.length === 1 ? '' : 's'} loaded.`);
     } catch (error) {
+      if (handleUnauthorized(error)) {
+        return;
+      }
       setNotice(readError(error));
     } finally {
       setBusyAction(null);
@@ -1635,6 +1701,12 @@ export default function App() {
   ) {
     if (!selectedBooking) {
       setNotice('Select a booking first.');
+      return false;
+    }
+
+    if (!hasAccessToken()) {
+      setNotice('Sign in again before updating this booking.');
+      resetRoute({ role: null, screen: 'loginRole' });
       return false;
     }
 
@@ -1651,6 +1723,9 @@ export default function App() {
       setNotice(`Booking moved to ${statusLabel(updated.status)}.`);
       return true;
     } catch (error) {
+      if (handleUnauthorized(error)) {
+        return false;
+      }
       setNotice(readError(error));
       return false;
     } finally {
@@ -2139,7 +2214,7 @@ export default function App() {
   async function reservePayment() {
     const reserved = selectedPayment ? true : await collectPayment();
     if (reserved && selectedBooking) {
-      navigate('customerBookingConfirmation', 'customer');
+      navigate('customerBookingDetail', 'customer');
     }
   }
 
@@ -2409,6 +2484,11 @@ export default function App() {
     }
 
     if (intent.bookingId) {
+      if (!hasAccessToken()) {
+        setNotice('Sign in again before opening this booking.');
+        resetRoute({ role: null, screen: 'loginRole' });
+        return;
+      }
       setSelectedBookingId(intent.bookingId);
       void refreshBookingServiceUpdates(intent.bookingId);
       void refreshBookingTimelineEvents(intent.bookingId);
@@ -2428,31 +2508,55 @@ export default function App() {
   }
 
   async function refreshBookingServiceUpdates(bookingId: string) {
+    if (!hasAccessToken()) {
+      setSelectedBookingServiceUpdates([]);
+      return;
+    }
+
     try {
       setSelectedBookingServiceUpdates(
         await listBookingServiceUpdates(bookingId, apiOptions),
       );
-    } catch {
+    } catch (error) {
+      if (handleUnauthorized(error)) {
+        return;
+      }
       setSelectedBookingServiceUpdates([]);
     }
   }
 
   async function refreshBookingTimelineEvents(bookingId: string) {
+    if (!hasAccessToken()) {
+      setSelectedBookingTimelineEvents([]);
+      return;
+    }
+
     try {
       setSelectedBookingTimelineEvents(
         await listBookingTimelineEvents(bookingId, apiOptions),
       );
-    } catch {
+    } catch (error) {
+      if (handleUnauthorized(error)) {
+        return;
+      }
       setSelectedBookingTimelineEvents([]);
     }
   }
 
   async function refreshBookingTrackingImpl(bookingId: string) {
+    if (!hasAccessToken()) {
+      setSelectedBookingTracking(null);
+      return;
+    }
+
     try {
       setSelectedBookingTracking(
         await getBookingTrackingSnapshot(bookingId, apiOptions),
       );
-    } catch {
+    } catch (error) {
+      if (handleUnauthorized(error)) {
+        return;
+      }
       setSelectedBookingTracking(null);
     }
   }
@@ -2474,6 +2578,14 @@ export default function App() {
   }
 
   async function refreshProviderDirectionsImpl(bookingId: string) {
+    if (!hasAccessToken()) {
+      setSelectedBookingDirections(null);
+      setNavigationRouteError('Sign in again to use in-app directions.');
+      setNavigationRouteLoading(false);
+      resetRoute({ role: null, screen: 'loginRole' });
+      return;
+    }
+
     setNavigationRouteLoading(true);
     setNavigationRouteError(null);
 
@@ -2502,6 +2614,9 @@ export default function App() {
         ),
       );
     } catch (error) {
+      if (handleUnauthorized(error)) {
+        return;
+      }
       setSelectedBookingDirections(null);
       setNavigationRouteError(
         error instanceof Error && error.message === 'location_permission_denied'
@@ -2583,6 +2698,12 @@ export default function App() {
   }
 
   function openBooking(booking: BookingSummary, screen: AppScreen) {
+    if (!hasAccessToken()) {
+      setNotice('Sign in again before opening this booking.');
+      resetRoute({ role: null, screen: 'loginRole' });
+      return;
+    }
+
     setSelectedBookingId(booking.id);
     void refreshBookingServiceUpdates(booking.id);
     void refreshBookingTimelineEvents(booking.id);

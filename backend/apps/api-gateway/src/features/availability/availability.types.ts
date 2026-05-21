@@ -37,6 +37,14 @@ export interface ProviderTimeOffWindow {
   reason: string | null;
 }
 
+export interface ProviderBookedWindow {
+  bookingId: string;
+  offDate: string;
+  startTime: string;
+  endTime: string;
+  status: 'pending' | 'confirmed' | 'in_progress';
+}
+
 export interface AddProviderTimeOffWindowInput {
   offDate: string;
   startTime: string;
@@ -49,4 +57,5 @@ export interface ProviderAvailabilitySchedule {
   windows: AvailabilityWindow[];
   daysOff: ProviderDayOff[];
   timeOffWindows: ProviderTimeOffWindow[];
+  bookedWindows?: ProviderBookedWindow[];
 }

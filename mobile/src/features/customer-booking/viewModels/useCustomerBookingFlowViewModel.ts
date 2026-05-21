@@ -2,11 +2,13 @@ import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
   addressVerifiedNotice,
+  buildCustomerBookingAvailability,
+  providerUnavailableSlotPickerCopy,
   providerUnavailableSlotPickerMessage,
   promotionNotice,
   toManilaBookingIso,
 } from '../../../domain/booking';
-import { defaultScheduledAt } from '../../../constants/appContent';
+import { bookingTimeSlots, defaultScheduledAt } from '../../../constants/appContent';
 import { readError } from '../../../navigation/routeHelpers';
 import type { AppRole, AppScreen } from '../../../navigation/types';
 import type {
@@ -18,6 +20,7 @@ import type {
   GeoAddressResult,
   PricingQuoteSummary,
   PromotionValidationSummary,
+  ProviderAvailabilitySchedule,
   ProviderListing,
   UploadSummary,
 } from '../../../shared/models/types';
@@ -37,6 +40,7 @@ type CustomerBookingFlowViewModelInput = {
   selectedBooking: BookingSummary | null;
   selectedCustomerPaymentMethod: CustomerPaymentMethodSummary | null;
   selectedProvider: ProviderListing | null;
+  selectedProviderAvailability: ProviderAvailabilitySchedule | null;
   selectedService: CatalogServiceItem | null;
   setBusyAction: (busyAction: string | null) => void;
   setNotice: (notice: string) => void;
@@ -51,6 +55,7 @@ export function useCustomerBookingFlowViewModel({
   selectedBooking,
   selectedCustomerPaymentMethod,
   selectedProvider,
+  selectedProviderAvailability,
   selectedService,
   setBusyAction,
   setNotice,
@@ -107,6 +112,26 @@ export function useCustomerBookingFlowViewModel({
 
     if (!selectedProvider || !address.trim() || !scheduledAtIso) {
       setNotice('Choose a service provider, address, and schedule.');
+      return;
+    }
+
+    if (!selectedProviderAvailability) {
+      setNotice('Provider availability is still loading.');
+      setRoute({ role: 'customer', screen: 'customerBookingForm' });
+      return;
+    }
+
+    if (
+      !isSelectedBookingSlotAvailable(
+        selectedProviderAvailability,
+        scheduledAt,
+        Number(hoursRequired) || 1,
+      )
+    ) {
+      setBookingSlotError(providerUnavailableSlotPickerCopy);
+      setNotice(providerUnavailableSlotPickerCopy);
+      onRefreshProviderAvailability(selectedProvider.providerId);
+      setRoute({ role: 'customer', screen: 'customerBookingForm' });
       return;
     }
 
@@ -340,6 +365,34 @@ export function useCustomerBookingFlowViewModel({
     isLoading: false,
     error: null,
   };
+}
+
+function isSelectedBookingSlotAvailable(
+  providerAvailability: ProviderAvailabilitySchedule,
+  scheduledAt: string,
+  durationHours: number,
+): boolean {
+  const dateOnly = scheduledAt.slice(0, 10);
+  const timeOnly = scheduledAt.slice(11, 16);
+  if (!dateOnly || !timeOnly) {
+    return false;
+  }
+
+  const availability = buildCustomerBookingAvailability(
+    providerAvailability,
+    durationHours,
+    bookingTimeSlots,
+    new Date(),
+    dateOnly,
+  );
+  const selectedDateOption = availability.dateOptions.find(
+    (date) => date.value === dateOnly,
+  );
+  const selectedTimeOption = availability.timeOptions.find(
+    (slot) => slot.time === timeOnly,
+  );
+
+  return selectedDateOption?.isAvailable === true && selectedTimeOption?.isAvailable === true;
 }
 
 function mediaAttachmentFromUpload(upload: UploadSummary) {

@@ -100,6 +100,38 @@ test('tracking screens subscribe to HTTP live tracking before polling fallback',
   assert.match(source, /subscription\.close\(\)/);
 });
 
+test('app handles expired gateway sessions before repeating protected booking requests', () => {
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const pollStart = source.indexOf('const tick = async () => {');
+  const pushRegistrationStart = source.indexOf('void syncExpoPushRegistration');
+  const serviceUpdatesStart = source.indexOf(
+    'async function refreshBookingServiceUpdates',
+  );
+  const trackingStart = source.indexOf('async function refreshBookingTrackingImpl');
+  const openBookingStart = source.indexOf('function openBooking');
+  const renderAuthStart = source.indexOf('function renderAuth');
+  assert.notEqual(pollStart, -1);
+  assert.notEqual(pushRegistrationStart, -1);
+  assert.notEqual(serviceUpdatesStart, -1);
+  assert.notEqual(trackingStart, -1);
+  assert.notEqual(openBookingStart, -1);
+  assert.notEqual(renderAuthStart, -1);
+
+  const pollSource = source.slice(pollStart, pushRegistrationStart);
+  const detailSource = source.slice(serviceUpdatesStart, openBookingStart);
+  const openBookingSource = source.slice(openBookingStart, renderAuthStart);
+
+  assert.match(source, /GatewayApiError/);
+  assert.match(source, /authFailureHandledRef/);
+  assert.match(source, /function handleUnauthorized/);
+  assert.match(source, /Session expired\. Sign in again to continue\./);
+  assert.match(pollSource, /handleUnauthorized\(error\)/);
+  assert.match(detailSource, /if \(!hasAccessToken\(\)\)/);
+  assert.match(detailSource, /handleUnauthorized\(error\)/);
+  assert.match(openBookingSource, /if \(!hasAccessToken\(\)\)/);
+  assert.match(openBookingSource, /screen: 'loginRole'/);
+});
+
 test('tracking navigation uses compact collapsible sheet states', () => {
   const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const customerTrackSource = readFileSync(

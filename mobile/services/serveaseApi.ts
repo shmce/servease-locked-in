@@ -496,11 +496,20 @@ export interface ProviderTimeOffWindow {
   reason: string | null;
 }
 
+export interface ProviderBookedWindow {
+  bookingId: string;
+  offDate: string;
+  startTime: string;
+  endTime: string;
+  status: 'pending' | 'confirmed' | 'in_progress';
+}
+
 export interface ProviderAvailabilitySchedule {
   providerId: string;
   windows: AvailabilityWindow[];
   daysOff: ProviderDayOff[];
   timeOffWindows: ProviderTimeOffWindow[];
+  bookedWindows?: ProviderBookedWindow[];
 }
 
 export type UserRole = 'customer' | 'provider' | 'admin';
@@ -911,6 +920,18 @@ export interface BookingTrackingStreamHandlers {
 
 export interface BookingTrackingStreamSubscription {
   close: () => void;
+}
+
+export class GatewayApiError extends Error {
+  code: string | null;
+  status: number;
+
+  constructor(message: string, status: number, code: string | null = null) {
+    super(message);
+    this.name = 'GatewayApiError';
+    this.status = status;
+    this.code = code;
+  }
 }
 
 let generatedIdempotencyCounter = 0;
@@ -2197,7 +2218,7 @@ async function request<T>(
       payload.error?.message ??
       payload.error?.code ??
       `Gateway request failed with ${response.status}`;
-    throw new Error(message);
+    throw new GatewayApiError(message, response.status, payload.error?.code ?? null);
   }
 
   if (!('data' in payload)) {
@@ -2242,7 +2263,7 @@ async function readGatewayResponse<T>(response: Response): Promise<T> {
       payload.error?.message ??
       payload.error?.code ??
       `Gateway request failed with ${response.status}`;
-    throw new Error(message);
+    throw new GatewayApiError(message, response.status, payload.error?.code ?? null);
   }
 
   if (!('data' in payload)) {
