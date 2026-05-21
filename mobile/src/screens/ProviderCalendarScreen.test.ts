@@ -26,8 +26,10 @@ test('provider calendar screen renders month grid markers and opens date detail'
   assert.match(viewModelSource, /daysOff/);
   assert.match(viewModelSource, /activeBookingsByDate/);
   assert.match(viewSource, /onSelectDate/);
+  assert.match(viewSource, /Set availability/);
   assert.match(viewSource, /MonthCalendar/);
   assert.match(viewSource, /markers=\{calendar\.data\.calendarMarkers\}/);
+  assert.match(viewModelSource, /todayDate/);
   assert.match(viewModelSource, /full/);
   assert.match(viewModelSource, /partial/);
   assert.match(viewModelSource, /booking/);

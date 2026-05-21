@@ -1,4 +1,4 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   Badge,
   Card,
@@ -69,7 +69,18 @@ export function ProviderCalendarScreen({
             </View>
           </Section>
 
-          <Section title="Upcoming bookings">
+          <Section
+            title="Upcoming bookings"
+            action={
+              <Pressable
+                onPress={() => onSelectDate(calendar.data.todayDate)}
+                accessibilityRole="button"
+                accessibilityLabel="Set availability for today"
+              >
+                <Text style={styles.sectionAction}>Set availability</Text>
+              </Pressable>
+            }
+          >
             {calendar.data.upcomingRows.length ? (
               calendar.data.upcomingRows.map((item) => (
                 <Card
@@ -150,12 +161,17 @@ const styles = StyleSheet.create({
   cardTitle: {
     color: palette.ink,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   cardMeta: {
     color: palette.faint,
     fontSize: 13,
     fontWeight: '500',
     marginTop: spacing.xs,
+  },
+  sectionAction: {
+    color: palette.mintDeep,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

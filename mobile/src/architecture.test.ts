@@ -456,6 +456,9 @@ test('provider bookings follows feature-level MVVM boundaries', () => {
 
   assert.match(screenSource, /features\/provider-bookings\/views\/ProviderBookings/);
   assert.match(viewSource, /useProviderBookingsViewModel/);
+  assert.match(viewSource, /\bPill\b/);
+  assert.match(viewSource, /title="Bookings"/);
+  assert.match(viewSource, /searchInputShell/);
   assert.doesNotMatch(viewSource, /filterProviderBookings/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /filterProviderBookings/);

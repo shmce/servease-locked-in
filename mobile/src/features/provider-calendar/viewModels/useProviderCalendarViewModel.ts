@@ -105,6 +105,7 @@ export function useProviderCalendarViewModel({
   return {
     data: {
       calendarMarkers,
+      todayDate: formatApiDate(new Date()),
       upcomingRows,
     },
     isLoading,
