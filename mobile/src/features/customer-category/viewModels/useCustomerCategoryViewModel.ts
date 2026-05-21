@@ -46,7 +46,11 @@ export function buildCustomerCategoryViewModel({
   const serviceRatings = buildServiceRatings(providers);
   const query = searchQuery.trim().toLowerCase();
 
-  const filteredServices = services.filter((service) => {
+  const categoryServices = selectedCategoryId
+    ? services.filter((service) => service.categoryId === selectedCategoryId)
+    : services;
+
+  const filteredServices = categoryServices.filter((service) => {
     if (!query) return true;
     return [service.name, service.description ?? ''].some((s) =>
       s.toLowerCase().includes(query),
@@ -55,8 +59,8 @@ export function buildCustomerCategoryViewModel({
 
   const serviceCountLabel =
     query
-      ? `${filteredServices.length} of ${services.length} services`
-      : `${services.length} services available`;
+      ? `${filteredServices.length} of ${categoryServices.length} services`
+      : `${categoryServices.length} services available`;
 
   const serviceRows = filteredServices.map((service) => {
     const rating = serviceRatings.get(service.id);

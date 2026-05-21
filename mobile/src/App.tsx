@@ -493,6 +493,7 @@ export default function App() {
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [services, setServices] = useState<CatalogServiceItem[]>([]);
   const [providers, setProviders] = useState<ProviderListing[]>([]);
+  const [catalogProviders, setCatalogProviders] = useState<ProviderListing[]>([]);
   const [bookings, setBookings] = useState<BookingSummary[]>([]);
   const [payments, setPayments] = useState<PaymentSummary[]>([]);
   const [pendingCheckout, setPendingCheckout] = useState<PendingCheckout | null>(
@@ -1012,10 +1013,33 @@ export default function App() {
     setBusyAction('catalog');
     try {
       const nextCategories = await listCatalogCategories({ baseUrl: apiBaseUrl });
+      const [nextServices, nextCatalogProviders] = await Promise.all([
+        listCatalogServices(null, { baseUrl: apiBaseUrl }),
+        listProviderListings(null, { baseUrl: apiBaseUrl }),
+      ]);
       const firstCategoryId = nextCategories[0]?.id ?? null;
+      const firstServiceId =
+        nextServices.find((service) => service.categoryId === firstCategoryId)?.id ??
+        nextServices[0]?.id ??
+        null;
+      const firstProviders = firstServiceId
+        ? nextCatalogProviders.filter((provider) => provider.serviceId === firstServiceId)
+        : nextCatalogProviders;
       setCategories(nextCategories);
+      setServices(nextServices);
+      setCatalogProviders(nextCatalogProviders);
       setSelectedCategoryId(firstCategoryId);
-      await loadServices(firstCategoryId);
+      setSelectedServiceId(firstServiceId);
+      setProviders(firstProviders);
+      setSelectedProviderId(firstProviders[0]?.providerId ?? null);
+      if (firstProviders[0]?.providerId) {
+        await refreshProviderReviews(firstProviders[0].providerId);
+        await refreshSelectedProviderAvailability(firstProviders[0].providerId);
+        await refreshSelectedProviderPortfolio(firstProviders[0].providerId);
+      } else {
+        setSelectedProviderAvailability(null);
+        setSelectedProviderPortfolioMedia([]);
+      }
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -1024,10 +1048,18 @@ export default function App() {
   }
 
   async function loadServices(categoryId: string | null) {
-    const nextServices = await listCatalogServices(categoryId, { baseUrl: apiBaseUrl });
-    const firstServiceId = nextServices[0]?.id ?? null;
-    setServices(nextServices);
+    const categoryServices = categoryId
+      ? services.filter((service) => service.categoryId === categoryId)
+      : services;
+    const firstServiceId = categoryServices[0]?.id ?? null;
     setSelectedServiceId(firstServiceId);
+    if (!firstServiceId) {
+      setProviders([]);
+      setSelectedProviderId(null);
+      setSelectedProviderAvailability(null);
+      setSelectedProviderPortfolioMedia([]);
+      return;
+    }
     await loadProviders(firstServiceId);
   }
 
@@ -2775,7 +2807,7 @@ export default function App() {
         customerGuideDismissed={customerGuideDismissed}
         customerGuideStep={customerGuideStep}
         profile={profile}
-        providers={providers}
+        providers={catalogProviders}
         selectedCategoryId={selectedCategoryId}
         selectedProviderId={selectedProviderId}
         selectedServiceId={selectedServiceId}
@@ -2843,7 +2875,7 @@ export default function App() {
     return (
       <CustomerCategoryScreen
         categories={categories}
-        providers={providers}
+        providers={catalogProviders}
         selectedCategoryId={selectedCategoryId}
         services={services}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}

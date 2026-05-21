@@ -129,6 +129,19 @@ test('tracking screens subscribe to HTTP live tracking before polling fallback',
   assert.match(source, /subscription\.close\(\)/);
 });
 
+test('customer catalog bootstrap loads full services and provider listings for browsing', () => {
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const loadCatalogStart = source.indexOf('async function loadCatalogImpl');
+  const loadServicesStart = source.indexOf('async function loadServices', loadCatalogStart);
+  assert.notEqual(loadCatalogStart, -1);
+  assert.notEqual(loadServicesStart, -1);
+
+  const loadCatalogSource = source.slice(loadCatalogStart, loadServicesStart);
+
+  assert.match(loadCatalogSource, /listCatalogServices\(null,\s*\{ baseUrl: apiBaseUrl \}\)/);
+  assert.match(loadCatalogSource, /listProviderListings\(null,\s*\{ baseUrl: apiBaseUrl \}\)/);
+});
+
 test('tracking navigation uses compact collapsible sheet states', () => {
   const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const customerTrackSource = readFileSync(
