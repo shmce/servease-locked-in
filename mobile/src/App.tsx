@@ -595,6 +595,8 @@ export default function App() {
   const [newPayoutAccountLast4, setNewPayoutAccountLast4] = useState('');
   const [selectedCustomerPaymentMethodId, setSelectedCustomerPaymentMethodId] =
     useState<string | null>(null);
+  const [hideSelectedBookingReservePayment, setHideSelectedBookingReservePayment] =
+    useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState('Welcome to ServEase.');
   const [nowTick, setNowTick] = useState(() => Date.now());
@@ -672,6 +674,7 @@ export default function App() {
     onBookingCreated: (booking) => {
       setBookings((current) => [booking, ...current]);
       setSelectedBookingId(booking.id);
+      setHideSelectedBookingReservePayment(false);
       void refreshBookingTimelineEvents(booking.id);
       void refreshPayments();
     },
@@ -1403,6 +1406,7 @@ export default function App() {
     setProviderPortfolioMedia([]);
     setAvailability(null);
     setSelectedBookingId(null);
+    setHideSelectedBookingReservePayment(false);
     setSelectedCustomerPaymentMethodId(null);
     setPendingCheckout(null);
     customerBookingFlow.actions.setAddress('');
@@ -2596,6 +2600,7 @@ export default function App() {
 
     if (intent.bookingId) {
       setSelectedBookingId(intent.bookingId);
+      setHideSelectedBookingReservePayment(false);
       void refreshBookingServiceUpdates(intent.bookingId);
       void refreshBookingTimelineEvents(intent.bookingId);
       void refreshBookingTracking(intent.bookingId);
@@ -2808,8 +2813,13 @@ export default function App() {
     });
   }
 
-  function openBooking(booking: BookingSummary, screen: AppScreen) {
+  function openBooking(
+    booking: BookingSummary,
+    screen: AppScreen,
+    options: { hideReservePayment?: boolean } = {},
+  ) {
     setSelectedBookingId(booking.id);
+    setHideSelectedBookingReservePayment(Boolean(options.hideReservePayment));
     void refreshBookingServiceUpdates(booking.id);
     void refreshBookingTimelineEvents(booking.id);
     void refreshBookingTracking(booking.id);
@@ -3106,7 +3116,11 @@ export default function App() {
       <CustomerCalendarScreen
         bookings={bookings}
         onRefresh={refreshWorkspace}
-        openBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
+        openBooking={(booking) =>
+          openBooking(booking, 'customerBookingDetail', {
+            hideReservePayment: true,
+          })
+        }
         onViewAllBookings={() => {
           setBookingFilter('active');
           navigate('bookings', 'customer');
@@ -3142,6 +3156,7 @@ export default function App() {
         rating={rating}
         reviewText={reviewText}
         busyAction={busyAction}
+        showReservePaymentAction={!hideSelectedBookingReservePayment}
         onBack={() => goBack({ role: 'customer', screen: 'bookings' })}
         onViewProviderProfile={() => navigate('customerProviderProfile', 'customer')}
         onProviderProfileUnavailable={() => setNotice('Provider profile still loading.')}

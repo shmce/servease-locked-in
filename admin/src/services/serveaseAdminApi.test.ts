@@ -51,6 +51,38 @@ describe("serveaseAdminApi", () => {
     });
   });
 
+  it("refreshes Supabase sessions with the stored refresh token", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        access_token: "token-456",
+        refresh_token: "refresh-456",
+        expires_in: 3600,
+        token_type: "bearer",
+        user: { id: "user-1", email: "admin@example.com" },
+      }),
+    });
+
+    const { refreshSupabaseSession } = await import("./serveaseAdminApi");
+    const session = await refreshSupabaseSession(" refresh-123 ");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://supabase.test/auth/v1/token?grant_type=refresh_token",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          apikey: "public-key",
+          "content-type": "application/json",
+        }),
+        body: JSON.stringify({
+          refresh_token: "refresh-123",
+        }),
+      }),
+    );
+    expect(session.accessToken).toBe("token-456");
+    expect(session.refreshToken).toBe("refresh-456");
+  });
+
   it("fails fast when the production gateway URL is missing", async () => {
     const { resolveGatewayBaseUrl } = await import("./gatewayConfig");
 

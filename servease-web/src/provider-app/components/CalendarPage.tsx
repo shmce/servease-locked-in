@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, X, DollarSign, CheckCircle, XCircle, MinusCircle } from "lucide-react";
 import { useNavigate } from "react-router";
+import { useProviderAuth } from "../context/ProviderAuthContext";
 import { useProviderData } from "../context/ProviderDataContext";
 import {
-  getStoredProviderAccessToken,
   listProviderBookings,
 } from "../../services/serveaseProviderApi";
 import {
@@ -81,6 +81,7 @@ const defaultTimeSlots = [
 
 export function CalendarPage() {
   const navigate = useNavigate();
+  const { accessToken, isLoading: isAuthLoading } = useProviderAuth();
   const {
     addBlockedDates,
     availabilityError,
@@ -101,9 +102,11 @@ export function CalendarPage() {
   const [bookingError, setBookingError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = getStoredProviderAccessToken();
+    if (isAuthLoading) {
+      return;
+    }
 
-    if (!token) {
+    if (!accessToken) {
       setBookingError("Sign in to view live booking calendar data.");
       return;
     }
@@ -111,7 +114,7 @@ export function CalendarPage() {
     setIsLoadingBookings(true);
     setBookingError(null);
 
-    listProviderBookings(token)
+    listProviderBookings(accessToken)
       .then((items) => {
         setBookings(groupBookingsForProviderCalendar(items));
       })
@@ -121,7 +124,7 @@ export function CalendarPage() {
         );
       })
       .finally(() => setIsLoadingBookings(false));
-  }, []);
+  }, [accessToken, isAuthLoading]);
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();

@@ -25,7 +25,6 @@ import { UnifiedBookingsPage } from "./components/UnifiedBookingsPage";
 import { BookingDetailsPage } from "./components/BookingDetailsPage";
 import { BookingRequestDetailsPage } from "./components/BookingRequestDetailsPage";
 import { CancelBookingPage } from "./components/CancelBookingPage";
-import { ProviderAnalyticsPage } from "./components/ProviderAnalyticsPage";
 
 export const router = createBrowserRouter([
   {
@@ -75,10 +74,6 @@ export const router = createBrowserRouter([
       {
         path: "provider/performanceinsights",
         Component: ProviderPerformanceInsightsPage,
-      },
-      {
-        path: "provider/analytics",
-        Component: ProviderAnalyticsPage,
       },
       {
         path: "provider/calendar",

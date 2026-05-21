@@ -591,6 +591,9 @@ const SUPABASE_PUBLISHABLE_KEY =
 
 export const PROVIDER_STORAGE_KEY = 'servease_provider'
 export const PROVIDER_TOKEN_STORAGE_KEY = 'servease_provider_access_token'
+export const PROVIDER_REFRESH_TOKEN_STORAGE_KEY = 'servease_provider_refresh_token'
+export const PROVIDER_TOKEN_EXPIRES_AT_STORAGE_KEY =
+  'servease_provider_access_token_expires_at'
 
 export function getProviderApiBaseUrl(): string {
   return resolvePublicGatewayBaseUrl()
@@ -604,6 +607,23 @@ export function getStoredProviderAccessToken(): string | null {
   return localStorage.getItem(PROVIDER_TOKEN_STORAGE_KEY)
 }
 
+export function getStoredProviderRefreshToken(): string | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return localStorage.getItem(PROVIDER_REFRESH_TOKEN_STORAGE_KEY)
+}
+
+export function getStoredProviderTokenExpiresAt(): number | null {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  const value = Number(localStorage.getItem(PROVIDER_TOKEN_EXPIRES_AT_STORAGE_KEY))
+  return Number.isFinite(value) && value > 0 ? value : null
+}
+
 export function clearStoredProviderSession(): void {
   if (typeof window === 'undefined') {
     return
@@ -611,11 +631,14 @@ export function clearStoredProviderSession(): void {
 
   localStorage.removeItem(PROVIDER_STORAGE_KEY)
   localStorage.removeItem(PROVIDER_TOKEN_STORAGE_KEY)
+  localStorage.removeItem(PROVIDER_REFRESH_TOKEN_STORAGE_KEY)
+  localStorage.removeItem(PROVIDER_TOKEN_EXPIRES_AT_STORAGE_KEY)
 }
 
 export function storeProviderSession(
   token: string,
   profile: CurrentUserProfile,
+  session?: Pick<SupabaseAuthSession, 'expiresIn' | 'refreshToken'>,
 ): void {
   if (typeof window === 'undefined') {
     return
@@ -623,11 +646,44 @@ export function storeProviderSession(
 
   localStorage.setItem(PROVIDER_STORAGE_KEY, JSON.stringify(profile))
   localStorage.setItem(PROVIDER_TOKEN_STORAGE_KEY, token)
+
+  if (session?.refreshToken) {
+    localStorage.setItem(PROVIDER_REFRESH_TOKEN_STORAGE_KEY, session.refreshToken)
+  }
+
+  if (session?.expiresIn) {
+    localStorage.setItem(
+      PROVIDER_TOKEN_EXPIRES_AT_STORAGE_KEY,
+      String(Date.now() + session.expiresIn * 1000),
+    )
+  }
 }
 
 export async function signInWithPassword(
   email: string,
   password: string,
+): Promise<SupabaseAuthSession> {
+  return requestSupabaseToken('password', {
+    email: email.trim(),
+    password,
+  })
+}
+
+export async function refreshSupabaseSession(
+  refreshToken: string,
+): Promise<SupabaseAuthSession> {
+  if (!refreshToken.trim()) {
+    throw new Error('Refresh token is required.')
+  }
+
+  return requestSupabaseToken('refresh_token', {
+    refresh_token: refreshToken.trim(),
+  })
+}
+
+async function requestSupabaseToken(
+  grantType: 'password' | 'refresh_token',
+  body: Record<string, string>,
 ): Promise<SupabaseAuthSession> {
   const normalizedUrl = SUPABASE_URL?.replace(/\/$/, '')
   const normalizedKey = SUPABASE_PUBLISHABLE_KEY?.trim()
@@ -639,17 +695,14 @@ export async function signInWithPassword(
   }
 
   const response = await fetch(
-    `${normalizedUrl}/auth/v1/token?grant_type=password`,
+    `${normalizedUrl}/auth/v1/token?grant_type=${grantType}`,
     {
       method: 'POST',
       headers: {
         apikey: normalizedKey,
         'content-type': 'application/json',
       },
-      body: JSON.stringify({
-        email: email.trim(),
-        password,
-      }),
+      body: JSON.stringify(body),
     },
   )
   const payload = (await response.json()) as SupabaseTokenResponse

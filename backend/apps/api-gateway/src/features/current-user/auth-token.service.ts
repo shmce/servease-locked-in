@@ -40,9 +40,10 @@ export class AuthTokenService {
       throw new AuthRequiredError();
     }
 
-    const [scheme, token] = authorization.split(' ');
+    const match = authorization.trim().match(/^Bearer\s+(.+)$/i);
+    const token = match?.[1]?.trim();
 
-    if (scheme !== 'Bearer' || !token) {
+    if (!token) {
       throw new AuthRequiredError();
     }
 

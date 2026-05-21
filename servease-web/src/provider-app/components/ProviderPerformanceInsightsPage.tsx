@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Award, Clock, CheckCircle, XCircle, Star, Target, BarChart3, Trophy } from 'lucide-react';
-import { getStoredProviderAccessToken, getProviderDashboard } from '../../services/serveaseProviderApi';
+import { TrendingUp, TrendingDown, Award, Clock, CheckCircle, XCircle, Star, Target, BarChart3, Trophy, ShoppingBag, DollarSign } from 'lucide-react';
+import { getStoredProviderAccessToken, getProviderDashboard, listProviderBookings } from '../../services/serveaseProviderApi';
 
 export function ProviderPerformanceInsightsPage() {
   const [acceptanceRate, setAcceptanceRate] = useState(92);
@@ -8,17 +8,25 @@ export function ProviderPerformanceInsightsPage() {
   const [responseTimeMinutes, setResponseTimeMinutes] = useState<number | null>(12);
   const [customerSatisfaction, setCustomerSatisfaction] = useState(4.8);
   const [reviewCount, setReviewCount] = useState(0);
+  const [totalBookings, setTotalBookings] = useState(0);
+  const [totalRevenue, setTotalRevenue] = useState(0);
 
   useEffect(() => {
     const token = getStoredProviderAccessToken();
     if (!token) return;
-    getProviderDashboard(token)
-      .then((dashboard) => {
+    Promise.all([
+      getProviderDashboard(token).catch(() => null),
+      listProviderBookings(token).catch(() => []),
+    ])
+      .then(([dashboard, bookings]) => {
+        setTotalBookings(bookings.length);
+        if (!dashboard) return;
         setAcceptanceRate(dashboard.performance.acceptanceRate);
         setCompletionRate(dashboard.performance.completionRate);
         setResponseTimeMinutes(dashboard.performance.responseTimeMinutes);
         setCustomerSatisfaction(dashboard.summary.overallRating);
         setReviewCount(dashboard.summary.reviewCount);
+        setTotalRevenue(dashboard.summary.totalEarnings);
       })
       .catch(() => {});
   }, []);
@@ -38,6 +46,48 @@ export function ProviderPerformanceInsightsPage() {
     customerSatisfaction,
     onTimeArrivalRate,
   };
+
+  const formatMoney = (amount: number) =>
+    `₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+  const businessOverviewMetrics = [
+    {
+      label: 'Total Bookings',
+      value: totalBookings.toLocaleString('en-PH'),
+      detail: `${completionRate}% completion rate`,
+      icon: ShoppingBag,
+      iconColor: '#00BF63',
+      iconBackground: '#dcfce7',
+      borderColor: '#dcfce7',
+    },
+    {
+      label: 'Total Revenue',
+      value: formatMoney(totalRevenue),
+      detail: 'Lifetime provider revenue',
+      icon: DollarSign,
+      iconColor: '#2563eb',
+      iconBackground: '#dbeafe',
+      borderColor: '#dbeafe',
+    },
+    {
+      label: 'Rating',
+      value: customerSatisfaction > 0 ? customerSatisfaction.toFixed(1) : '—',
+      detail: `${reviewCount} review${reviewCount === 1 ? '' : 's'}`,
+      icon: Star,
+      iconColor: '#f59e0b',
+      iconBackground: '#fef3c7',
+      borderColor: '#fef3c7',
+    },
+    {
+      label: 'Acceptance Rate',
+      value: acceptanceRate > 0 ? `${acceptanceRate}%` : '—',
+      detail: 'Top provider target: 95%',
+      icon: CheckCircle,
+      iconColor: '#16a34a',
+      iconBackground: '#dcfce7',
+      borderColor: '#dcfce7',
+    },
+  ];
 
   const categoryAverage = {
     acceptanceRate: 85,
@@ -172,6 +222,13 @@ export function ProviderPerformanceInsightsPage() {
     marginBottom: '32px'
   };
 
+  const businessOverviewGridStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: '24px',
+    marginBottom: '32px',
+  };
+
   // Third row (2 columns)
   const twoColGridStyle: React.CSSProperties = {
     display: 'grid',
@@ -200,6 +257,43 @@ export function ProviderPerformanceInsightsPage() {
         <div style={headerStyle}>
           <h1 style={titleStyle}>Performance Insights</h1>
           <p style={subtitleStyle}>Track your performance metrics and progress toward Top Provider status</p>
+        </div>
+
+        <div style={businessOverviewGridStyle}>
+          {businessOverviewMetrics.map((metric) => {
+            const Icon = metric.icon;
+
+            return (
+              <div key={metric.label} style={{ ...cardStyle, padding: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginBottom: '20px' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                      {metric.label}
+                    </div>
+                    <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#111827', lineHeight: 1 }}>
+                      {metric.value}
+                    </div>
+                  </div>
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    borderRadius: '12px',
+                    background: metric.iconBackground,
+                    border: `1px solid ${metric.borderColor}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <Icon style={{ width: '24px', height: '24px', color: metric.iconColor }} />
+                  </div>
+                </div>
+                <div style={{ fontSize: '14px', color: '#6b7280', fontWeight: '600' }}>
+                  {metric.detail}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Top Row: Performance Score */}

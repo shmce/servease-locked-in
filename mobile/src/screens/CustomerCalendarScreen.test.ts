@@ -24,6 +24,20 @@ test('customer calendar screen mirrors provider calendar for customer bookings',
     ),
     'utf8',
   );
+  const bookingDetailSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking-detail/views/CustomerBookingDetail.tsx',
+    ),
+    'utf8',
+  );
+  const bookingDetailViewModelSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking-detail/viewModels/useCustomerBookingDetailViewModel.ts',
+    ),
+    'utf8',
+  );
 
   assert.match(screenSource, /features\/customer-calendar\/views\/CustomerCalendar/);
   assert.match(appSource, /calendar: renderCustomerCalendar/);
@@ -35,6 +49,17 @@ test('customer calendar screen mirrors provider calendar for customer bookings',
   assert.match(viewSource, /openBooking\(booking\)/);
   assert.match(viewSource, /View all/);
   assert.match(viewSource, /onViewAllBookings/);
+  assert.match(
+    appSource,
+    /openBooking\(booking, 'customerBookingDetail', \{\s*hideReservePayment: true,\s*\}\)/,
+  );
+  assert.match(appSource, /showReservePaymentAction=\{!hideSelectedBookingReservePayment\}/);
+  assert.match(bookingDetailSource, /showReservePaymentAction\?: boolean/);
+  assert.match(bookingDetailViewModelSource, /showReservePaymentAction = true/);
+  assert.match(
+    bookingDetailViewModelSource,
+    /showReservePayment:\s*showReservePaymentAction && booking\.status !== 'completed'/,
+  );
   assert.match(viewModelSource, /activeBookingStatuses/);
   assert.match(viewModelSource, /pending/);
   assert.match(viewModelSource, /confirmed/);

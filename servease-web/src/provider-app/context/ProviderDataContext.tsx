@@ -1,9 +1,8 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 import {
   addProviderDayOff,
   getProviderAvailability,
   getProviderProfile,
-  getStoredProviderAccessToken,
   removeProviderDayOff,
   replaceProviderAvailabilityWindows,
   type AvailabilityWindowInput,
@@ -11,6 +10,7 @@ import {
   type ProviderAvailabilitySchedule,
   type ProviderProfileSnapshot,
 } from "../../services/serveaseProviderApi";
+import { useProviderAuth } from "./ProviderAuthContext";
 
 interface PortfolioItem {
   id: string;
@@ -264,6 +264,7 @@ function applyProviderProfileSnapshot(
 }
 
 export function ProviderDataProvider({ children }: { children: ReactNode }) {
+  const { accessToken, isLoading: isAuthLoading } = useProviderAuth();
   const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [providerData, setProviderData] = useState<ProviderData>({
@@ -274,10 +275,8 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
     availability: defaultAvailability,
   });
 
-  const refreshAvailability = async () => {
-    const token = getStoredProviderAccessToken();
-
-    if (!token) {
+  const refreshAvailability = useCallback(async () => {
+    if (!accessToken) {
       return;
     }
 
@@ -285,7 +284,7 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
     setAvailabilityError(null);
 
     try {
-      const schedule = await getProviderAvailability(token);
+      const schedule = await getProviderAvailability(accessToken);
       setProviderData((prev) => applyAvailabilitySchedule(prev, schedule));
     } catch (error) {
       setAvailabilityError(
@@ -294,27 +293,29 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsAvailabilityLoading(false);
     }
-  };
+  }, [accessToken]);
 
-  const refreshProviderProfile = async () => {
-    const token = getStoredProviderAccessToken();
-
-    if (!token) {
+  const refreshProviderProfile = useCallback(async () => {
+    if (!accessToken) {
       return;
     }
 
     try {
-      const snapshot = await getProviderProfile(token);
+      const snapshot = await getProviderProfile(accessToken);
       setProviderData((prev) => applyProviderProfileSnapshot(prev, snapshot));
     } catch {
       // Profile screens keep local editable state if the live profile is unavailable.
     }
-  };
+  }, [accessToken]);
 
   useEffect(() => {
+    if (isAuthLoading || !accessToken) {
+      return;
+    }
+
     void refreshProviderProfile();
     void refreshAvailability();
-  }, []);
+  }, [accessToken, isAuthLoading, refreshAvailability, refreshProviderProfile]);
 
   const saveAvailability = async (availability: { [key: string]: DaySchedule }) => {
     setProviderData((prev) => ({
@@ -322,9 +323,7 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
       availability,
     }));
 
-    const token = getStoredProviderAccessToken();
-
-    if (!token) {
+    if (!accessToken) {
       setAvailabilityError("Sign in to sync availability with the backend.");
       return;
     }
@@ -334,7 +333,7 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
 
     try {
       const schedule = await replaceProviderAvailabilityWindows(
-        token,
+        accessToken,
         toAvailabilityWindows(availability),
       );
       setProviderData((prev) => applyAvailabilitySchedule(prev, schedule));
@@ -354,9 +353,7 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
       blockedDates: [...new Set([...prev.blockedDates, ...dates])],
     }));
 
-    const token = getStoredProviderAccessToken();
-
-    if (!token) {
+    if (!accessToken) {
       setAvailabilityError("Sign in to sync blocked dates with the backend.");
       return;
     }
@@ -368,7 +365,7 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
       let latestSchedule: ProviderAvailabilitySchedule | null = null;
 
       for (const date of dates) {
-        latestSchedule = await addProviderDayOff(token, date, reason);
+        latestSchedule = await addProviderDayOff(accessToken, date, reason);
       }
 
       if (latestSchedule) {
@@ -390,9 +387,7 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
       blockedDates: prev.blockedDates.filter((d) => d !== date),
     }));
 
-    const token = getStoredProviderAccessToken();
-
-    if (!token) {
+    if (!accessToken) {
       setAvailabilityError("Sign in to sync blocked dates with the backend.");
       return;
     }
@@ -401,7 +396,7 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
     setAvailabilityError(null);
 
     try {
-      const schedule = await removeProviderDayOff(token, date);
+      const schedule = await removeProviderDayOff(accessToken, date);
       setProviderData((prev) => applyAvailabilitySchedule(prev, schedule));
     } catch (error) {
       setAvailabilityError(

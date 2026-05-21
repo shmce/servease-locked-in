@@ -30,6 +30,7 @@ type CustomerBookingDetailScreenProps = {
   rating: string;
   reviewText: string;
   busyAction: string | null;
+  showReservePaymentAction?: boolean;
   onBack: () => void;
   onViewProviderProfile: () => void;
   onProviderProfileUnavailable: () => void;
@@ -53,6 +54,7 @@ export function CustomerBookingDetailScreen({
   rating,
   reviewText,
   busyAction,
+  showReservePaymentAction,
   onBack,
   onViewProviderProfile,
   onProviderProfileUnavailable,
@@ -68,6 +70,7 @@ export function CustomerBookingDetailScreen({
     booking,
     selectedProvider,
     selectedPayment,
+    showReservePaymentAction,
   });
   const { data } = bookingDetail;
 

@@ -17,12 +17,14 @@ type CustomerBookingDetailViewModelInput = {
   booking: BookingSummary;
   selectedProvider: ProviderListing | null;
   selectedPayment: PaymentSummary | null;
+  showReservePaymentAction?: boolean;
 };
 
 export function useCustomerBookingDetailViewModel({
   booking,
   selectedProvider,
   selectedPayment,
+  showReservePaymentAction,
 }: CustomerBookingDetailViewModelInput) {
   return useMemo(
     () =>
@@ -30,8 +32,9 @@ export function useCustomerBookingDetailViewModel({
         booking,
         selectedProvider,
         selectedPayment,
+        showReservePaymentAction,
       }),
-    [booking, selectedPayment, selectedProvider],
+    [booking, selectedPayment, selectedProvider, showReservePaymentAction],
   );
 }
 
@@ -39,6 +42,7 @@ export function buildCustomerBookingDetailViewModel({
   booking,
   selectedProvider,
   selectedPayment,
+  showReservePaymentAction = true,
 }: CustomerBookingDetailViewModelInput) {
   const serviceDetailRows = [
     {
@@ -105,7 +109,8 @@ export function buildCustomerBookingDetailViewModel({
       serviceDetailRows,
       serviceTitle: booking.serviceTitle ?? 'Service booking',
       showPaymentSummary: booking.status === 'completed' && Boolean(paymentSummary),
-      showReservePayment: booking.status !== 'completed',
+      showReservePayment:
+        showReservePaymentAction && booking.status !== 'completed',
       showReviewPanel: booking.status === 'completed',
       showTrackProvider: ['confirmed', 'in_progress'].includes(booking.status),
       statusChip: bookingStatusChip(booking.status),

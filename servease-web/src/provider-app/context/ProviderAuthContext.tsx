@@ -3,9 +3,13 @@ import {
   clearStoredProviderSession,
   getCurrentUser,
   getStoredProviderAccessToken,
+  getStoredProviderRefreshToken,
+  getStoredProviderTokenExpiresAt,
+  refreshSupabaseSession,
   signInWithPassword,
   storeProviderSession,
   type CurrentUserProfile,
+  type SupabaseAuthSession,
 } from '../../services/serveaseProviderApi';
 
 interface ProviderAuthContextType {
@@ -20,6 +24,11 @@ interface ProviderAuthContextType {
 }
 
 const ProviderAuthContext = createContext<ProviderAuthContextType | undefined>(undefined);
+const REFRESH_SKEW_MS = 60_000;
+
+function isExpiringSoon(expiresAt: number | null): boolean {
+  return !!expiresAt && expiresAt - Date.now() <= REFRESH_SKEW_MS;
+}
 
 function validateProviderProfile(profile: CurrentUserProfile): string | null {
   if (profile.user.role !== 'provider' || !profile.providerProfile) {
@@ -42,6 +51,7 @@ export function ProviderAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const restoreSession = async () => {
       const token = getStoredProviderAccessToken();
+      const refreshToken = getStoredProviderRefreshToken();
 
       if (!token) {
         setIsLoading(false);
@@ -49,7 +59,15 @@ export function ProviderAuthProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const nextProfile = await getCurrentUser(token);
+        let nextSession: SupabaseAuthSession | null = null;
+        let nextAccessToken = token;
+
+        if (refreshToken && isExpiringSoon(getStoredProviderTokenExpiresAt())) {
+          nextSession = await refreshSupabaseSession(refreshToken);
+          nextAccessToken = nextSession.accessToken;
+        }
+
+        const nextProfile = await getCurrentUser(nextAccessToken);
         const validationError = validateProviderProfile(nextProfile);
 
         if (validationError) {
@@ -57,8 +75,8 @@ export function ProviderAuthProvider({ children }: { children: ReactNode }) {
         }
 
         setProfile(nextProfile);
-        setAccessToken(token);
-        storeProviderSession(token, nextProfile);
+        setAccessToken(nextAccessToken);
+        storeProviderSession(nextAccessToken, nextProfile, nextSession ?? undefined);
       } catch {
         clearStoredProviderSession();
         setProfile(null);
@@ -90,7 +108,7 @@ export function ProviderAuthProvider({ children }: { children: ReactNode }) {
 
       setProfile(nextProfile);
       setAccessToken(session.accessToken);
-      storeProviderSession(session.accessToken, nextProfile);
+      storeProviderSession(session.accessToken, nextProfile, session);
       setSessionExpired(false);
 
       return { success: true };
@@ -108,6 +126,46 @@ export function ProviderAuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(null);
     setSessionExpired(false);
   };
+
+  useEffect(() => {
+    if (!accessToken) {
+      return undefined;
+    }
+
+    const refreshToken = getStoredProviderRefreshToken();
+    const expiresAt = getStoredProviderTokenExpiresAt();
+
+    if (!refreshToken || !expiresAt) {
+      return undefined;
+    }
+
+    const refreshDelay = Math.max(expiresAt - Date.now() - REFRESH_SKEW_MS, 0);
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const session = await refreshSupabaseSession(refreshToken);
+          const nextProfile = await getCurrentUser(session.accessToken);
+          const validationError = validateProviderProfile(nextProfile);
+
+          if (validationError) {
+            throw new Error(validationError);
+          }
+
+          setProfile(nextProfile);
+          setAccessToken(session.accessToken);
+          storeProviderSession(session.accessToken, nextProfile, session);
+          setSessionExpired(false);
+        } catch {
+          clearStoredProviderSession();
+          setProfile(null);
+          setAccessToken(null);
+          setSessionExpired(true);
+        }
+      })();
+    }, refreshDelay);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [accessToken]);
 
   return (
     <ProviderAuthContext.Provider

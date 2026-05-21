@@ -61,7 +61,6 @@ export function Layout() {
         { path: '/provider/earningsdashboard', icon: BarChart3, label: 'Earnings' },
         { path: '/provider/reviews', icon: Star, label: 'Reviews' },
         { path: '/provider/performanceinsights', icon: TrendingUp, label: 'Performance Insights' },
-        { path: '/provider/analytics', icon: BarChart3, label: 'Analytics' },
       ]
     },
     {

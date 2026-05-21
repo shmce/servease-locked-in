@@ -723,6 +723,28 @@ export async function signInWithPassword(
   email: string,
   password: string,
 ): Promise<SupabaseAuthSession> {
+  return requestSupabaseToken('password', {
+    email: email.trim(),
+    password,
+  })
+}
+
+export async function refreshSupabaseSession(
+  refreshToken: string,
+): Promise<SupabaseAuthSession> {
+  if (!refreshToken.trim()) {
+    throw new Error('Refresh token is required.')
+  }
+
+  return requestSupabaseToken('refresh_token', {
+    refresh_token: refreshToken.trim(),
+  })
+}
+
+async function requestSupabaseToken(
+  grantType: 'password' | 'refresh_token',
+  body: Record<string, string>,
+): Promise<SupabaseAuthSession> {
   const normalizedUrl = SUPABASE_URL?.replace(/\/$/, '')
   const normalizedKey = SUPABASE_PUBLISHABLE_KEY?.trim()
 
@@ -733,17 +755,14 @@ export async function signInWithPassword(
   }
 
   const response = await fetch(
-    `${normalizedUrl}/auth/v1/token?grant_type=password`,
+    `${normalizedUrl}/auth/v1/token?grant_type=${grantType}`,
     {
       method: 'POST',
       headers: {
         apikey: normalizedKey,
         'content-type': 'application/json',
       },
-      body: JSON.stringify({
-        email: email.trim(),
-        password,
-      }),
+      body: JSON.stringify(body),
     },
   )
   const payload = (await response.json()) as SupabaseTokenResponse

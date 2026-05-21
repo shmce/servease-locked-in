@@ -1961,7 +1961,6 @@ test.describe('merged landing and provider website', () => {
       { path: '/provider/earningsdetails', text: 'Earnings Details' },
       { path: '/provider/reviews', text: 'Reviews' },
       { path: '/provider/performanceinsights', text: 'Performance Insights' },
-      { path: '/provider/analytics', text: 'Analytics' },
       { path: '/provider/calendar', text: 'Calendar' },
       { path: '/provider/availability', text: 'Set Availability' },
       { path: '/provider/block-time', text: 'Block Time' },
