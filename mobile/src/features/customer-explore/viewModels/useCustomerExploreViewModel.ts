@@ -10,6 +10,9 @@ import { formatDateTime, formatMoney } from '../../../shared/utils/booking';
 
 export type CategoryFilter = 'all' | 'popular' | 'top-rated';
 
+const TOP_RATED_MIN_REVIEWS = 10;
+const DEFAULT_PLATFORM_AVERAGE_RATING = 4.5;
+
 type CustomerExploreViewModelInput = {
   bookings: BookingSummary[];
   categories: CatalogCategory[];
@@ -108,9 +111,17 @@ export function buildCustomerExploreViewModel({
 }: CustomerExploreViewModelInput) {
   const safeGuideStep = customerGuideStep % guideSteps.length;
   const guideStep = guideSteps[safeGuideStep];
-  const serviceCountsByCategory = buildServiceCountsByCategory(categories, services);
-  const providerScoresByCategory = buildProviderScoresByCategory(categories, services, providers);
-  const popularCategoryId = highestScoredKey(serviceCountsByCategory);
+  const popularityScoresByCategory = buildPopularityScoresByCategory(
+    categories,
+    services,
+    providers,
+  );
+  const ratingScoresByCategory = buildBayesianRatingScoresByCategory(
+    categories,
+    services,
+    providers,
+  );
+  const popularCategoryId = highestScoredKey(popularityScoresByCategory);
   const bookAgainRows = completedRebookOptions(bookings)
     .slice(0, 5)
     .map((booking) => ({
@@ -133,8 +144,8 @@ export function buildCustomerExploreViewModel({
   const categoryRows = sortCategoryRows(
     baseRows,
     categoryFilter,
-    serviceCountsByCategory,
-    providerScoresByCategory,
+    popularityScoresByCategory,
+    ratingScoresByCategory,
   );
 
   return {
@@ -200,7 +211,37 @@ function buildServiceCountsByCategory(
   return counts;
 }
 
-function buildProviderScoresByCategory(
+function buildPopularityScoresByCategory(
+  categories: CatalogCategory[],
+  services: CatalogServiceItem[],
+  providers: ProviderListing[],
+): Map<string, number> {
+  const categoryIds = new Set(categories.map((c) => c.id));
+  const serviceCategoryById = new Map<string, string>();
+  const serviceCounts = buildServiceCountsByCategory(categories, services);
+  const providerListingCounts = new Map<string, number>();
+  services.forEach((service) => {
+    if (!service.categoryId || !categoryIds.has(service.categoryId)) return;
+    serviceCategoryById.set(service.id, service.categoryId);
+  });
+
+  providers.forEach((provider) => {
+    if (!provider.serviceId) return;
+    const categoryId = serviceCategoryById.get(provider.serviceId);
+    if (!categoryId) return;
+    providerListingCounts.set(categoryId, (providerListingCounts.get(categoryId) ?? 0) + 1);
+  });
+
+  const scores = new Map<string, number>();
+  categories.forEach((category) => {
+    const serviceVolume = serviceCounts.get(category.id) ?? 0;
+    const providerListingVolume = providerListingCounts.get(category.id) ?? 0;
+    scores.set(category.id, Math.log1p(serviceVolume) + Math.log1p(providerListingVolume));
+  });
+  return scores;
+}
+
+function buildBayesianRatingScoresByCategory(
   categories: CatalogCategory[],
   services: CatalogServiceItem[],
   providers: ProviderListing[],
@@ -211,13 +252,42 @@ function buildProviderScoresByCategory(
     if (!service.categoryId || !categoryIds.has(service.categoryId)) return;
     serviceCategoryById.set(service.id, service.categoryId);
   });
-  const scores = new Map<string, number>();
+
+  const categoryRatingStats = new Map<string, { totalReviews: number; weightedSum: number }>();
+  let platformReviewCount = 0;
+  let platformWeightedSum = 0;
   providers.forEach((provider) => {
-    if (!provider.serviceId) return;
+    if (!provider.serviceId || provider.reviewCount <= 0) return;
     const categoryId = serviceCategoryById.get(provider.serviceId);
     if (!categoryId) return;
-    const score = provider.averageRating * Math.max(provider.reviewCount, 1);
-    scores.set(categoryId, (scores.get(categoryId) ?? 0) + score);
+    const entry = categoryRatingStats.get(categoryId) ?? {
+      totalReviews: 0,
+      weightedSum: 0,
+    };
+    categoryRatingStats.set(categoryId, {
+      totalReviews: entry.totalReviews + provider.reviewCount,
+      weightedSum: entry.weightedSum + provider.averageRating * provider.reviewCount,
+    });
+    platformReviewCount += provider.reviewCount;
+    platformWeightedSum += provider.averageRating * provider.reviewCount;
+  });
+
+  const observedPlatformAverage =
+    platformReviewCount > 0
+      ? platformWeightedSum / platformReviewCount
+      : DEFAULT_PLATFORM_AVERAGE_RATING;
+  const platformAverage = Math.min(observedPlatformAverage, DEFAULT_PLATFORM_AVERAGE_RATING);
+  const scores = new Map<string, number>();
+  categories.forEach((category) => {
+    const stats = categoryRatingStats.get(category.id);
+    if (!stats || stats.totalReviews <= 0) {
+      scores.set(category.id, 0);
+      return;
+    }
+    const averageRating = stats.weightedSum / stats.totalReviews;
+    const confidenceWeight = stats.totalReviews / (stats.totalReviews + TOP_RATED_MIN_REVIEWS);
+    const priorWeight = TOP_RATED_MIN_REVIEWS / (stats.totalReviews + TOP_RATED_MIN_REVIEWS);
+    scores.set(category.id, confidenceWeight * averageRating + priorWeight * platformAverage);
   });
   return scores;
 }

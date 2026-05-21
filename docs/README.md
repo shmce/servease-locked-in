@@ -16,6 +16,7 @@ This directory contains the source-of-truth documentation for the active ServEas
 - [Data Ownership](data-ownership.md): per-service schema ownership and Supabase usage rules.
 - [Implementation Plan](implementation-plan.md): current implementation status and next acceptance gates.
 - [Service Contract And Package Plan](specs/service-contract-package-plan.md): selected gateway boundary, service contract map, package units, rollout order, and Kafka/Databricks decision.
+- [Catalog Browsing](specs/catalog.md): catalog browse contracts plus customer Popular and Top Rated ranking calculations.
 - [Identity And Shared Service Contracts](specs/identity-shared-service-contracts.md): auth, current-user, preferences, referrals, and geo gateway/internal contracts.
 - [Backend Deployment Systems](../backend/deploy/backend-systems.json): service deployable manifest for gateway and internal service package units.
 - [API Center Tribe Manifest](../tribe-manifest.json): public gateway registration payload; internal service routes are not exposed.

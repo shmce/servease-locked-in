@@ -22,7 +22,7 @@ Customers need to browse active service categories, services, and provider servi
 
 ## Non-Goals
 
-- Search ranking.
+- Server-side search ranking.
 - Geo-distance filtering.
 - Provider onboarding or document verification.
 - Booking creation.
@@ -110,6 +110,86 @@ Required states:
 - Only active provider listings are returned.
 - Provider listings include approved active provider profile summaries when available.
 - Missing filters return all active records for that route.
+
+## Customer Browse Ranking
+
+The customer mobile Explore screen ranks `Browse Categories` locally from the
+catalog DTOs returned by the gateway. The API still returns stable catalog
+records; the mobile view model owns presentation ranking.
+
+### Popular
+
+`Popular` is a log-compressed catalog volume score:
+
+```text
+popularScore = log1p(serviceCount) + log1p(providerListingCount)
+```
+
+Where:
+
+- `serviceCount` is the number of active services in the category.
+- `providerListingCount` is the number of active approved provider listings
+  attached to services in the category.
+- `log1p(x)` means `log(1 + x)`, which handles zero safely and compresses
+  large volume gaps.
+
+This is intentionally catalog-side popularity, not demand popularity. It means
+“many available options” rather than “many bookings.” Booking-based popularity
+would require a booking or analytics aggregate endpoint because Catalog Service
+must not read booking-service tables.
+
+### Top Rated
+
+`Top Rated` is a Bayesian weighted rating. It ranks categories by rating quality
+while reducing the advantage of tiny sample sizes:
+
+```text
+topRatedScore =
+  (reviewCount / (reviewCount + minReviews)) * rawAverageRating
+  + (minReviews / (reviewCount + minReviews)) * platformAverage
+```
+
+Current constants:
+
+- `minReviews = 10`
+- `platformAverage = min(observedPlatformAverage, 4.5)`
+
+Where:
+
+- `reviewCount` is the total review count across rated provider listings in the
+  category.
+- `rawAverageRating` is the review-count-weighted category average:
+
+```text
+rawAverageRating =
+  sum(providerAverageRating * providerReviewCount)
+  / sum(providerReviewCount)
+```
+
+The prior is capped at `4.5` so a high platform-wide average does not inflate
+new one-review categories. As review count grows, the score moves closer to the
+category's actual weighted average. With very few reviews, the score stays close
+to the prior.
+
+### Seeded Demo Example
+
+`npm run seed:demo` seeds catalog data that makes the two filters visibly
+different:
+
+| Category | Services | Provider listings | Popular score | Raw avg | Reviews | Top-rated score |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Home Cleaning | 3 | 4 | 2.996 | 4.622 | 105 | 4.611 |
+| Repairs | 1 | 2 | 1.792 | 4.944 | 108 | 4.907 |
+| Specialty Assembly | 1 | 1 | 1.386 | 5.000 | 1 | 4.545 |
+
+Expected mobile behavior:
+
+- `Popular` surfaces Home Cleaning first because it has the highest
+  log-compressed catalog volume.
+- `Top Rated` surfaces Repairs first because it has the strongest Bayesian
+  rating.
+- Specialty Assembly has a raw `5.0`, but one review is not enough evidence to
+  outrank categories with a deeper review base.
 
 ## Security And Authorization
 

@@ -117,6 +117,11 @@ Seed local/shared demo users and data:
 npm run seed:demo
 ```
 
+The demo catalog includes ranking examples: Home Cleaning has the highest
+catalog-side volume for `Popular`, Repairs has the strongest Bayesian rating
+for `Top Rated`, and Specialty Assembly has a single 5.0 review to show how
+low sample sizes are dampened.
+
 Demo credentials default to:
 
 | Role | Email | Password |

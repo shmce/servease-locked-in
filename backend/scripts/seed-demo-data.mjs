@@ -50,6 +50,7 @@ async function main() {
   const admin = await ensureAuthUser(demo.admin.email, password);
 
   const seed = await seedDemoData(customer.id, provider.id, admin.id);
+  const rankingSeed = await seedDemoRankingCatalog();
   const disputeId = await seedDemoDispute(customer.id);
   const payoutMethodId = await seedDemoPayoutMethod(seed.providerId);
   const refundId = await seedDemoRefundRequest({
@@ -78,6 +79,7 @@ async function main() {
           refundId,
           disputeId,
           payoutMethodId,
+          ranking: rankingSeed,
         },
       },
       null,
@@ -100,6 +102,16 @@ async function seedDemoRefundRequest({ customerId, providerId, bookingId, paymen
 
   if (error || !data) {
     throw new Error(`Failed to seed demo refund request: ${error?.message ?? 'missing refund id'}`);
+  }
+
+  return data;
+}
+
+async function seedDemoRankingCatalog() {
+  const { data, error } = await serviceClient.rpc('servease_seed_demo_ranking_catalog');
+
+  if (error || !data) {
+    throw new Error(`Failed to seed demo ranking catalog: ${error?.message ?? 'missing ranking seed result'}`);
   }
 
   return data;
