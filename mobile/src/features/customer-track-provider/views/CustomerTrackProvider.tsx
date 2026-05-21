@@ -4,6 +4,7 @@ import { PrimaryButton } from '../../../components/DesignKit';
 import {
   BookingSummary,
   BookingTrackingSnapshot,
+  GeoDirectionsRoute,
 } from '../../../shared/models/types';
 import { TrackingMapPreview } from '../../../tracking/TrackingMapPreview';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
@@ -17,6 +18,9 @@ const sheetLevels: CustomerTrackingSheetLevel[] = ['peek', 'half', 'expanded'];
 
 type CustomerTrackProviderScreenProps = {
   booking: BookingSummary;
+  directions: GeoDirectionsRoute | null;
+  navigationRouteError: string | null;
+  navigationRouteLoading: boolean;
   trackingSnapshot: BookingTrackingSnapshot | null;
   sheetLevel: CustomerTrackingSheetLevel;
   onSheetLevelChange: (level: CustomerTrackingSheetLevel) => void;
@@ -27,6 +31,9 @@ type CustomerTrackProviderScreenProps = {
 
 export function CustomerTrackProviderScreen({
   booking,
+  directions,
+  navigationRouteError,
+  navigationRouteLoading,
   trackingSnapshot,
   sheetLevel,
   onSheetLevelChange,
@@ -36,6 +43,9 @@ export function CustomerTrackProviderScreen({
 }: CustomerTrackProviderScreenProps) {
   const trackingViewModel = useCustomerTrackProviderViewModel({
     booking,
+    directions,
+    navigationRouteError,
+    navigationRouteLoading,
     trackingSnapshot,
     sheetLevel,
   });
@@ -53,8 +63,13 @@ export function CustomerTrackProviderScreen({
         </Pressable>
         <TrackingMapPreview
           tracking={data.tracking}
-          title={data.phaseTitle}
+          mode="navigation"
+          title="Track your provider"
           subtitle={data.routeLabel}
+          directions={directions}
+          destinationMarkerLabel="Service address"
+          navigationOrigin={data.navigationOrigin}
+          providerMarkerLabel="Provider"
         />
       </View>
       <View style={[styles.navBottomSheet, sheetStyle(sheetLevel)]}>
@@ -64,6 +79,11 @@ export function CustomerTrackProviderScreen({
           subtitle={data.routeLabel}
           onChangeLevel={onSheetLevelChange}
         />
+        <CustomerTrackingRouteStats
+          distanceLabel={data.distanceLabel}
+          providerLocationLabel={data.providerLocationLabel}
+          routeDurationLabel={data.routeDurationLabel}
+        />
         {data.isHalfSheet ? (
           <>
             <Text style={styles.cardBody} numberOfLines={data.isExpandedSheet ? 4 : 2}>
@@ -71,6 +91,7 @@ export function CustomerTrackProviderScreen({
             </Text>
             <InfoRow label="Schedule" value={data.scheduleLabel} />
             <InfoRow label="Last update" value={data.lastUpdateLabel} />
+            <InfoRow label="Provider GPS" value={data.providerLocationLabel} />
           </>
         ) : null}
         <ActionRow>
@@ -81,6 +102,35 @@ export function CustomerTrackProviderScreen({
             <PrimaryButton label="Message" onPress={onMessage} />
           </View>
         </ActionRow>
+      </View>
+    </View>
+  );
+}
+
+function CustomerTrackingRouteStats({
+  distanceLabel,
+  providerLocationLabel,
+  routeDurationLabel,
+}: {
+  distanceLabel: string;
+  providerLocationLabel: string;
+  routeDurationLabel: string;
+}) {
+  return (
+    <View style={styles.customerRouteStats}>
+      <View style={styles.customerRouteStat}>
+        <Text style={styles.customerRouteStatValue}>{routeDurationLabel}</Text>
+        <Text style={styles.customerRouteStatLabel}>ETA</Text>
+      </View>
+      <View style={styles.customerRouteStat}>
+        <Text style={styles.customerRouteStatValue}>{distanceLabel}</Text>
+        <Text style={styles.customerRouteStatLabel}>Away</Text>
+      </View>
+      <View style={styles.customerRouteStat}>
+        <Text style={styles.customerRouteStatValue} numberOfLines={1}>
+          {providerLocationLabel}
+        </Text>
+        <Text style={styles.customerRouteStatLabel}>Provider GPS</Text>
       </View>
     </View>
   );
@@ -182,21 +232,31 @@ function sheetShortLabel(level: CustomerTrackingSheetLevel): string {
 
 const styles = StyleSheet.create({
   navigationScreen: {
-    backgroundColor: '#D9FBE8',
+    backgroundColor: palette.white,
     flex: 1,
+    overflow: 'hidden',
+    position: 'relative',
   },
   mapCanvas: {
     ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#DDEFE4',
   },
   mapCloseButton: {
+    alignSelf: 'flex-end',
     backgroundColor: palette.white,
     borderRadius: radius.pill,
-    left: spacing.lg,
+    justifyContent: 'center',
+    marginRight: spacing.md,
+    marginTop: spacing.md,
+    minHeight: 44,
+    minWidth: 64,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     position: 'absolute',
-    top: spacing.md,
-    zIndex: 4,
+    right: 0,
+    top: 0,
+    zIndex: 5,
+    boxShadow: '0 8px 18px rgba(17,24,39,0.14)',
   },
   mapCloseText: {
     color: palette.ink,
@@ -205,36 +265,43 @@ const styles = StyleSheet.create({
   },
   navBottomSheet: {
     backgroundColor: palette.white,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
     bottom: 0,
     gap: spacing.md,
     left: 0,
-    padding: spacing.md,
+    overflow: 'hidden',
+    paddingBottom: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.base,
     position: 'absolute',
     right: 0,
+    zIndex: 4,
+    boxShadow: '0 -12px 28px rgba(17,24,39,0.14)',
   },
   navBottomSheetPeek: {
-    minHeight: 132,
+    maxHeight: '34%',
   },
   navBottomSheetHalf: {
-    minHeight: 292,
+    maxHeight: '43%',
   },
   navBottomSheetExpanded: {
-    minHeight: 430,
+    maxHeight: '49%',
   },
   navigationSheetHeader: {
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   dragHandleButton: {
     alignItems: 'center',
-    paddingVertical: spacing.xs,
+    justifyContent: 'center',
+    minHeight: 20,
   },
   dragHandle: {
+    alignSelf: 'center',
     backgroundColor: palette.line,
     borderRadius: radius.pill,
-    height: 4,
-    width: 54,
+    height: 5,
+    width: 48,
   },
   rowBetween: {
     alignItems: 'center',
@@ -243,26 +310,55 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sheetLevelControls: {
-    backgroundColor: palette.lineSoft,
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
     borderRadius: radius.pill,
     flexDirection: 'row',
+    gap: spacing.xxs,
     padding: 3,
   },
   sheetLevelButton: {
     borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 28,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
   },
   sheetLevelButtonActive: {
-    backgroundColor: palette.white,
+    backgroundColor: palette.mint,
   },
   sheetLevelButtonText: {
-    color: palette.faint,
+    color: palette.mint,
     fontSize: 11,
     fontWeight: '900',
   },
   sheetLevelButtonTextActive: {
-    color: palette.mint,
+    color: palette.white,
+  },
+  customerRouteStats: {
+    backgroundColor: palette.surface,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    padding: spacing.sm,
+  },
+  customerRouteStat: {
+    backgroundColor: palette.white,
+    borderRadius: radius.sm,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 56,
+    paddingHorizontal: spacing.sm,
+  },
+  customerRouteStatValue: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  customerRouteStatLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: spacing.xxs,
   },
   flex: {
     flex: 1,

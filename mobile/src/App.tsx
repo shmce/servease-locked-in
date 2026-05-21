@@ -736,6 +736,9 @@ export default function App() {
   });
   const replaceNotifications = notificationsFlow.actions.replaceNotifications;
   const refreshBookingTracking = useStableCallback(refreshBookingTrackingImpl);
+  const refreshCustomerTrackingRoute = useStableCallback(
+    refreshCustomerTrackingRouteImpl,
+  );
   const refreshProviderDirections = useStableCallback(
     refreshProviderDirectionsImpl,
   );
@@ -990,14 +993,23 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    const routeScreens: AppScreen[] = [
+      'customerTrackServiceProvider',
+      'providerNavigationMode',
+    ];
     if (
       !session?.accessToken ||
       !selectedBookingId ||
-      route.screen !== 'providerNavigationMode'
+      !routeScreens.includes(route.screen)
     ) {
       setSelectedBookingDirections(null);
       setSelectedNavigationOrigin(null);
       setNavigationRouteError(null);
+      return;
+    }
+
+    if (route.screen === 'customerTrackServiceProvider') {
+      void refreshCustomerTrackingRoute(selectedBookingId);
       return;
     }
 
@@ -1006,6 +1018,7 @@ export default function App() {
     session?.accessToken,
     selectedBookingId,
     route.screen,
+    refreshCustomerTrackingRoute,
     refreshProviderDirections,
   ]);
 
@@ -2646,6 +2659,46 @@ export default function App() {
     };
   }
 
+  async function refreshCustomerTrackingRouteImpl(bookingId: string) {
+    setNavigationRouteLoading(true);
+    setNavigationRouteError(null);
+
+    try {
+      const tracking = await getBookingTrackingSnapshot(bookingId, apiOptions);
+      setSelectedBookingTracking(tracking);
+
+      if (!tracking.destinationLocation) {
+        throw new Error('destination_unavailable');
+      }
+      if (!tracking.providerLocation) {
+        throw new Error('provider_location_unavailable');
+      }
+
+      const origin = tracking.providerLocation;
+      setSelectedNavigationOrigin(origin);
+      setSelectedBookingDirections(
+        await getDirections(
+          {
+            origin,
+            destination: tracking.destinationLocation,
+            profile: 'driving-car',
+            language: 'en',
+          },
+          apiOptions,
+        ),
+      );
+    } catch (error) {
+      setSelectedBookingDirections(null);
+      setNavigationRouteError(
+        error instanceof Error && error.message === 'provider_location_unavailable'
+          ? 'Provider location unavailable.'
+          : 'Provider route is temporarily unavailable.',
+      );
+    } finally {
+      setNavigationRouteLoading(false);
+    }
+  }
+
   async function refreshProviderDirectionsImpl(bookingId: string) {
     setNavigationRouteLoading(true);
     setNavigationRouteError(null);
@@ -3093,7 +3146,7 @@ export default function App() {
         onViewProviderProfile={() => navigate('customerProviderProfile', 'customer')}
         onProviderProfileUnavailable={() => setNotice('Provider profile still loading.')}
         onTrackProvider={() => {
-          void refreshBookingTracking(selectedBooking.id);
+          void refreshCustomerTrackingRoute(selectedBooking.id);
           navigate('customerTrackServiceProvider', 'customer');
         }}
         onManageBooking={() => navigate('customerBookingManage', 'customer')}
@@ -3123,11 +3176,14 @@ export default function App() {
     return (
       <CustomerTrackProviderScreen
         booking={selectedBooking}
+        directions={selectedBookingDirections}
+        navigationRouteError={navigationRouteError}
+        navigationRouteLoading={navigationRouteLoading}
         trackingSnapshot={selectedBookingTracking ?? null}
         sheetLevel={customerTrackingSheetLevel}
         onSheetLevelChange={setCustomerTrackingSheetLevel}
         onClose={() => goBack({ role: 'customer', screen: 'customerBookingDetail' })}
-        onRefresh={() => void refreshBookingTracking(selectedBooking.id)}
+        onRefresh={() => void refreshCustomerTrackingRoute(selectedBooking.id)}
         onMessage={() => void messagesFlow.actions.openSelectedBookingConversation()}
       />
     );
@@ -3141,7 +3197,7 @@ export default function App() {
         onMessage={() => void messagesFlow.actions.openSelectedBookingConversation()}
         onTrack={() => {
           if (selectedBooking) {
-            void refreshBookingTracking(selectedBooking.id);
+            void refreshCustomerTrackingRoute(selectedBooking.id);
           }
           navigate('customerTrackServiceProvider', 'customer');
         }}

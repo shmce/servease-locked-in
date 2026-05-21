@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
-    "start": "next start",
+    "dev": "next dev -p 3001",
+    "start": "next start -p ${PORT:-3001}",
     "env:check": "node scripts/check-admin-env.mjs",
     "env:prod": "node scripts/check-production-env.mjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"scripts/**/*.{js,mjs,ts}\"",
