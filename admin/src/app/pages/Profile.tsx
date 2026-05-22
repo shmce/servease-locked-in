@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -34,113 +35,18 @@ import {
   Activity,
   CheckCircle,
   Monitor,
-  Smartphone,
-  Chrome,
-  MapPin,
   Save,
   X,
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  type CurrentUserSessionSummary,
   getCurrentUser,
+  listCurrentUserSessions,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
 } from "../../services/serveaseAdminApi";
-
-// Mock data for login history
-const loginHistory = [
-  {
-    id: 1,
-    date: "2026-04-01T09:30:00",
-    device: "Chrome on Windows",
-    location: "Quezon City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Chrome,
-  },
-  {
-    id: 2,
-    date: "2026-03-31T18:45:00",
-    device: "Mobile - Safari on iPhone",
-    location: "Makati City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Smartphone,
-  },
-  {
-    id: 3,
-    date: "2026-03-31T08:15:00",
-    device: "Chrome on Windows",
-    location: "Quezon City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Chrome,
-  },
-  {
-    id: 4,
-    date: "2026-03-30T14:20:00",
-    device: "Chrome on Windows",
-    location: "Quezon City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Chrome,
-  },
-  {
-    id: 5,
-    date: "2026-03-29T10:30:00",
-    device: "Mobile - Safari on iPhone",
-    location: "Pasig City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Smartphone,
-  },
-  {
-    id: 6,
-    date: "2026-03-28T16:00:00",
-    device: "Chrome on Windows",
-    location: "Quezon City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Chrome,
-  },
-  {
-    id: 7,
-    date: "2026-03-27T09:15:00",
-    device: "Chrome on Windows",
-    location: "Quezon City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Chrome,
-  },
-  {
-    id: 8,
-    date: "2026-03-26T13:45:00",
-    device: "Mobile - Chrome on Android",
-    location: "Mandaluyong City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Smartphone,
-  },
-  {
-    id: 9,
-    date: "2026-03-25T11:20:00",
-    device: "Chrome on Windows",
-    location: "Quezon City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Chrome,
-  },
-  {
-    id: 10,
-    date: "2026-03-24T15:30:00",
-    device: "Chrome on Windows",
-    location: "Quezon City, Metro Manila",
-    ip: "203.177.xxx.xxx",
-    status: "Success",
-    icon: Chrome,
-  },
-];
 
 // Role permissions
 const rolePermissions = {
@@ -166,9 +72,20 @@ const rolePermissions = {
   ],
 };
 
+function formatSessionTime(value: string | null) {
+  if (!value) return "No sign-in recorded";
+  return new Date(value).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function Profile() {
   const { accessToken, admin } = useAuth();
-  const [is2FAEnabled, setIs2FAEnabled] = useState(true);
+  const navigate = useNavigate();
 
   // Edit Profile Modal
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
@@ -186,9 +103,6 @@ export function Profile() {
     confirmPassword: "",
   });
 
-  // 2FA Modal
-  const [is2FAModalOpen, setIs2FAModalOpen] = useState(false);
-
   // Activity Log Modal
   const [isActivityLogOpen, setIsActivityLogOpen] = useState(false);
 
@@ -198,8 +112,11 @@ export function Profile() {
     phone: "",
     role: "Super Admin",
     accountCreated: "January 15, 2025",
-    lastLogin: "April 01, 2026 at 9:30 AM",
+    lastLogin: "No sign-in recorded",
   });
+  const [sessions, setSessions] = useState<CurrentUserSessionSummary[]>([]);
+  const [sessionsError, setSessionsError] = useState<string | null>(null);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
 
   useEffect(() => {
     if (!admin) return;
@@ -248,8 +165,56 @@ export function Profile() {
     };
   }, [accessToken]);
 
+  useEffect(() => {
+    if (!accessToken) {
+      setSessions([]);
+      setIsLoadingSessions(false);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingSessions(true);
+    setSessionsError(null);
+
+    listCurrentUserSessions(accessToken)
+      .then((data) => {
+        if (cancelled) return;
+        setSessions(data);
+        const latest = data[0]?.lastSignInAt ?? data[0]?.createdAt ?? null;
+        setProfileData((current) => ({
+          ...current,
+          lastLogin: formatSessionTime(latest),
+        }));
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setSessionsError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load session history.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoadingSessions(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [accessToken]);
+
   const permissions =
     rolePermissions[profileData.role as keyof typeof rolePermissions] || [];
+  const sessionRows = sessions.map((session) => ({
+    id: session.id,
+    occurredAt: session.lastSignInAt ?? session.createdAt,
+    device: session.isCurrent ? "Current admin session" : "Admin web session",
+    account: session.email || profileData.email || "Admin account",
+    status: session.isCurrent ? "Current" : "Active",
+  }));
 
   const handleEditProfile = () => {
     setEditFormData({
@@ -324,14 +289,6 @@ export function Profile() {
       toast.success("Password updated.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to update password.");
-    }
-  };
-
-  const handleToggle2FA = () => {
-    if (is2FAEnabled) {
-      toast.info("Two-factor disable still needs backend support.");
-    } else {
-      toast.info("Two-factor enable still needs backend support.");
     }
   };
 
@@ -421,34 +378,18 @@ export function Profile() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-start gap-3">
-                <div
-                  className={`p-3 rounded-lg ${
-                    is2FAEnabled ? "bg-green-50" : "bg-gray-50"
-                  }`}
-                >
-                  <ShieldCheck
-                    className={`w-6 h-6 ${
-                      is2FAEnabled ? "text-green-600" : "text-gray-400"
-                    }`}
-                  />
+                <div className="p-3 rounded-lg bg-green-50">
+                  <ShieldCheck className="w-6 h-6 text-green-600" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900">
                     Two-Factor Authentication
                   </h3>
                   <p className="text-sm text-gray-500 mt-1">
-                    {is2FAEnabled
-                      ? "Your account is protected with 2FA"
-                      : "Add an extra layer of security"}
+                    Use Security to enable, verify, or disable authenticator-based 2FA.
                   </p>
-                  <Badge
-                    className={`mt-2 ${
-                      is2FAEnabled
-                        ? "bg-green-100 text-green-700 border-green-200"
-                        : "bg-gray-100 text-gray-700 border-gray-200"
-                    }`}
-                  >
-                    {is2FAEnabled ? "Enabled" : "Disabled"}
+                  <Badge className="mt-2 bg-green-100 text-green-700 border-green-200">
+                    Wired in Security
                   </Badge>
                 </div>
               </div>
@@ -510,12 +451,12 @@ export function Profile() {
                   Change Password
                 </Button>
                 <Button
-                  onClick={() => setIs2FAModalOpen(true)}
+                  onClick={() => navigate("/security")}
                   variant="outline"
                   className="justify-start"
                 >
                   <ShieldCheck className="w-4 h-4 mr-2" />
-                  {is2FAEnabled ? "Disable" : "Enable"} 2FA
+                  Manage 2FA
                 </Button>
                 <Button
                   onClick={() => setIsActivityLogOpen(true)}
@@ -534,10 +475,13 @@ export function Profile() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-[#00BF63]" />
-                Recent Login History
+                Recent Session History
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {sessionsError ? (
+                <p className="mb-3 text-sm text-red-600">{sessionsError}</p>
+              ) : null}
               {/* Desktop Table */}
               <div className="hidden md:block">
                 <Table>
@@ -545,94 +489,99 @@ export function Profile() {
                     <TableRow>
                       <TableHead>Date & Time</TableHead>
                       <TableHead>Device</TableHead>
-                      <TableHead>Location</TableHead>
+                      <TableHead>Account</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loginHistory.map((login) => {
-                      const Icon = login.icon;
-                      return (
-                        <TableRow key={login.id}>
+                    {isLoadingSessions ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-8 text-center text-sm text-gray-500">
+                          Loading session history...
+                        </TableCell>
+                      </TableRow>
+                    ) : sessionRows.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-8 text-center text-sm text-gray-500">
+                          No session history found
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      sessionRows.map((session) => (
+                        <TableRow key={session.id}>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Clock className="w-4 h-4 text-gray-400" />
                               <span className="text-sm text-gray-900">
-                                {new Date(login.date).toLocaleString("en-US", {
-                                  month: "short",
-                                  day: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
+                                {formatSessionTime(session.occurredAt)}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <Icon className="w-4 h-4 text-gray-400" />
+                              <Monitor className="w-4 h-4 text-gray-400" />
                               <span className="text-sm text-gray-700">
-                                {login.device}
+                                {session.device}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-4 h-4 text-gray-400" />
-                              <span className="text-sm text-gray-700">
-                                {login.location}
-                              </span>
-                            </div>
+                            <span className="text-sm text-gray-700">
+                              {session.account}
+                            </span>
                           </TableCell>
                           <TableCell>
                             <Badge className="bg-green-100 text-green-700 border-green-200">
                               <CheckCircle className="w-3 h-3 mr-1" />
-                              {login.status}
+                              {session.status}
                             </Badge>
                           </TableCell>
                         </TableRow>
-                      );
-                    })}
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
 
               {/* Mobile Cards */}
               <div className="md:hidden space-y-3">
-                {loginHistory.map((login) => {
-                  const Icon = login.icon;
-                  return (
+                {isLoadingSessions ? (
+                  <p className="py-6 text-center text-sm text-gray-500">
+                    Loading session history...
+                  </p>
+                ) : sessionRows.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-gray-500">
+                    No session history found
+                  </p>
+                ) : (
+                  sessionRows.map((session) => (
                     <div
-                      key={login.id}
+                      key={session.id}
                       className="p-4 border rounded-lg space-y-2"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2">
-                          <Icon className="w-4 h-4 text-gray-400" />
+                          <Monitor className="w-4 h-4 text-gray-400" />
                           <span className="text-sm font-medium text-gray-900">
-                            {login.device}
+                            {session.device}
                           </span>
                         </div>
                         <Badge className="bg-green-100 text-green-700 border-green-200">
                           <CheckCircle className="w-3 h-3 mr-1" />
-                          {login.status}
+                          {session.status}
                         </Badge>
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Clock className="w-3 h-3" />
-                        {new Date(login.date).toLocaleString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatSessionTime(session.occurredAt)}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <MapPin className="w-3 h-3" />
-                        {login.location}
+                        <Mail className="w-3 h-3" />
+                        {session.account}
                       </div>
                     </div>
-                  );
-                })}
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>
@@ -792,129 +741,61 @@ export function Profile() {
         </DialogContent>
       </Dialog>
 
-      {/* 2FA Modal */}
-      <Dialog open={is2FAModalOpen} onOpenChange={setIs2FAModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>
-              {is2FAEnabled ? "Disable" : "Enable"} Two-Factor Authentication
-            </DialogTitle>
-            <DialogDescription>
-              {is2FAEnabled
-                ? "Are you sure you want to disable 2FA? This will make your account less secure."
-                : "Add an extra layer of security to your account."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4">
-            {is2FAEnabled ? (
-              <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                <p className="text-sm text-gray-700">
-                  Disabling two-factor authentication will reduce your account
-                  security. You will only need your password to sign in.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <p className="text-sm text-gray-700">
-                    Two-factor authentication adds an extra layer of security by
-                    requiring a code from your phone in addition to your password.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-900">
-                    Setup Instructions:
-                  </p>
-                  <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
-                    <li>Download an authenticator app (Google Authenticator, Authy)</li>
-                    <li>Scan the QR code with the app</li>
-                    <li>Enter the 6-digit code to verify</li>
-                  </ol>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIs2FAModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleToggle2FA}
-              className={
-                is2FAEnabled
-                  ? "bg-red-600 hover:bg-red-700"
-                  : "bg-[#00BF63] hover:bg-[#00A055]"
-              }
-            >
-              <ShieldCheck className="w-4 h-4 mr-2" />
-              {is2FAEnabled ? "Disable 2FA" : "Enable 2FA"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Activity Log Modal */}
       <Dialog open={isActivityLogOpen} onOpenChange={setIsActivityLogOpen}>
         <DialogContent className="sm:max-w-[700px] max-h-[80vh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Activity className="w-5 h-5 text-[#00BF63]" />
-              Activity Log
+              Session Activity
             </DialogTitle>
             <DialogDescription>
-              Complete history of your account activities
+              Recent backend session records for your admin account
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 overflow-y-auto max-h-[500px]">
             <div className="space-y-3">
-              {loginHistory.map((login) => {
-                const Icon = login.icon;
-                return (
+              {isLoadingSessions ? (
+                <p className="py-6 text-center text-sm text-gray-500">
+                  Loading session activity...
+                </p>
+              ) : sessionRows.length === 0 ? (
+                <p className="py-6 text-center text-sm text-gray-500">
+                  No session activity found
+                </p>
+              ) : (
+                sessionRows.map((session) => (
                   <div
-                    key={login.id}
+                    key={session.id}
                     className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     <div className="flex items-start gap-3">
                       <div className="p-2 bg-green-50 rounded-lg">
-                        <Icon className="w-4 h-4 text-green-600" />
+                        <Monitor className="w-4 h-4 text-green-600" />
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
                           <p className="font-medium text-gray-900">
-                            Successful Login
+                            {session.device}
                           </p>
                           <Badge className="bg-green-100 text-green-700 border-green-200">
                             <CheckCircle className="w-3 h-3 mr-1" />
-                            {login.status}
+                            {session.status}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-600">{login.device}</p>
+                        <p className="text-sm text-gray-600">{session.account}</p>
                         <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {new Date(login.date).toLocaleString("en-US", {
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3" />
-                            {login.location}
+                            {formatSessionTime(session.occurredAt)}
                           </span>
                         </div>
                       </div>
                     </div>
                   </div>
-                );
-              })}
+                ))
+              )}
             </div>
           </div>
 

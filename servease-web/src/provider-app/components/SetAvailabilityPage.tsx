@@ -97,6 +97,7 @@ export function SetAvailabilityPage() {
   const navigate = useNavigate();
   const {
     availabilityError,
+    addBlockedDates,
     isAvailabilityLoading,
     providerData,
     saveAvailability,
@@ -109,7 +110,7 @@ export function SetAvailabilityPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const [copyToAll, setCopyToAll] = useState(false);
-  const [recurringDaysOff, setRecurringDaysOff] = useState<string[]>([]);
+  const [selectedOffDate, setSelectedOffDate] = useState("");
   const [offReason, setOffReason] = useState("");
 
   const daysOfWeek = [
@@ -157,6 +158,9 @@ export function SetAvailabilityPage() {
     try {
       setSaveError(null);
       await saveAvailability(schedule);
+      if (selectedOffDate) {
+        await addBlockedDates([selectedOffDate], offReason.trim() || null);
+      }
       navigate("/provider/calendar");
     } catch (error) {
       setSaveError(
@@ -174,7 +178,7 @@ export function SetAvailabilityPage() {
         <div style={styles.pageHeader}>
           <h1 style={styles.pageTitle}>Set Availability</h1>
           <p style={{ fontSize: "16px", color: "#6B7280" }}>
-            Configure your working hours and recurring days off
+            Configure your working hours and blocked dates
           </p>
           {(saveError || availabilityError) && (
             <p style={{ fontSize: "14px", color: "#B91C1C", marginTop: "12px" }}>
@@ -449,7 +453,7 @@ export function SetAvailabilityPage() {
           </div>
         </div>
 
-        {/* Recurring Days Off Card */}
+        {/* Days Off Card */}
         <div style={styles.card}>
           <h2
             style={{
@@ -459,7 +463,7 @@ export function SetAvailabilityPage() {
               marginBottom: "8px",
             }}
           >
-            Recurring Days Off
+            Days Off
           </h2>
           <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "20px" }}>
             Set specific dates when you'll be unavailable
@@ -469,6 +473,8 @@ export function SetAvailabilityPage() {
             <label style={styles.label}>Select Dates</label>
             <input
               type="date"
+              value={selectedOffDate}
+              onChange={(e) => setSelectedOffDate(e.target.value)}
               style={{ ...styles.input, width: "100%" }}
               onFocus={(e) => {
                 e.currentTarget.style.borderColor = "#00BF63";

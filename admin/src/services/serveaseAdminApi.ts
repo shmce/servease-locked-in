@@ -90,6 +90,15 @@ export interface UpdateCurrentUserPasswordRequest {
   newPassword: string
 }
 
+export interface PasswordResetRequest {
+  email: string
+  redirectTo?: string | null
+}
+
+export interface PasswordResetResponse {
+  ok: true
+}
+
 export interface TwoFactorProvisioningResponse {
   enabled: false
   secret: string
@@ -738,6 +747,18 @@ export async function refreshSupabaseSession(
 
   return requestSupabaseToken('refresh_token', {
     refresh_token: refreshToken.trim(),
+  })
+}
+
+export function requestPasswordReset(
+  input: PasswordResetRequest,
+): Promise<PasswordResetResponse> {
+  return request<PasswordResetResponse>('/v1/auth/password-reset', {
+    method: 'POST',
+    body: {
+      email: input.email.trim().toLowerCase(),
+      redirectTo: input.redirectTo?.trim() || null,
+    },
   })
 }
 

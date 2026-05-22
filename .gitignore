@@ -6,6 +6,7 @@ dist/
 coverage/
 playwright-report/
 test-results/
+.playwright-mcp/
 .expo/
 .env
 .env.*

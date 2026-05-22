@@ -37,6 +37,38 @@ describe('CatalogGatewayService', () => {
     );
   });
 
+  it('returns service areas from the catalog service client', async () => {
+    const client = {
+      listServiceAreas: jest.fn().mockResolvedValue([
+        {
+          id: '2de4b01a-9321-4e04-91d2-0ce48fdddf7d',
+          name: 'Makati',
+          city: 'Makati',
+          region: 'Metro Manila',
+          status: 'active',
+          providerCount: 8,
+          latitude: 14.5547,
+          longitude: 121.0244,
+        },
+      ]),
+    } as unknown as CatalogServiceClient;
+    const service = new CatalogGatewayService(client);
+
+    await expect(service.listServiceAreas()).resolves.toEqual([
+      {
+        id: '2de4b01a-9321-4e04-91d2-0ce48fdddf7d',
+        name: 'Makati',
+        city: 'Makati',
+        region: 'Metro Manila',
+        status: 'active',
+        providerCount: 8,
+        latitude: 14.5547,
+        longitude: 121.0244,
+      },
+    ]);
+    expect(client.listServiceAreas).toHaveBeenCalledWith();
+  });
+
   it('forwards provider listing filters to the catalog service client', async () => {
     const client = {
       listProviderListings: jest.fn().mockResolvedValue([]),

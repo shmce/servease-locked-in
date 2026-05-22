@@ -108,6 +108,7 @@ const dashboardFixture = {
   performance: {
     acceptanceRate: 95,
     completionRate: 98,
+    cancellationRate: 2,
     responseTimeMinutes: 10,
   },
 };
@@ -256,6 +257,24 @@ async function mockProviderGateway(page: Page, captures: ProviderGatewayCaptures
 
     if (path === '/v1/provider/services') {
       await fulfillJson(route, { data: [providerServiceFixture] });
+      return;
+    }
+
+    if (path === '/v1/catalog/service-areas') {
+      await fulfillJson(route, {
+        data: [
+          {
+            id: 'service-area-1',
+            name: 'Makati',
+            city: 'Makati',
+            region: 'Metro Manila',
+            status: 'active',
+            providerCount: 8,
+            latitude: 14.5547,
+            longitude: 121.0244,
+          },
+        ],
+      });
       return;
     }
 
@@ -666,6 +685,7 @@ test.describe('merged landing and provider website', () => {
           performance: {
             acceptanceRate: 95,
             completionRate: 98,
+            cancellationRate: 2,
             responseTimeMinutes: 10,
           },
         },
@@ -786,6 +806,7 @@ test.describe('merged landing and provider website', () => {
           performance: {
             acceptanceRate: 96,
             completionRate: 98,
+            cancellationRate: 2,
             responseTimeMinutes: 12,
           },
         },

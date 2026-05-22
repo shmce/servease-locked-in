@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Wallet, Calendar, ChevronRight, ExternalLink, Clock, X, Search, TrendingUp, CheckCircle, AlertCircle, Plus, Building2, Smartphone } from "lucide-react";
+import { Wallet, Calendar, ChevronRight, Clock, Search, TrendingUp, CheckCircle, AlertCircle, Plus, Building2, Smartphone } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
   getProviderPayoutAccount,
@@ -7,8 +7,10 @@ import {
   listProviderPayoutMethods,
   listProviderPayouts,
   listProviderPayments,
+  upsertProviderPayoutMethod,
   type PaymentSummary,
   type PayoutAccountSummary,
+  type PayoutMethodType,
   type PayoutMethodSummary,
   type PayoutSummary,
 } from "../../services/serveaseProviderApi";
@@ -68,11 +70,16 @@ const styles = {
 
 interface Transaction {
   id: string;
+  kind: "payment" | "payout";
   date: string;
   amount: number;
   status: "completed" | "pending" | "processing";
   method: string;
   reference: string;
+  grossAmount: number;
+  platformFee: number | null;
+  processingFee: number | null;
+  netAmount: number;
 }
 
 function toPayoutTransaction(payment: PaymentSummary): Transaction {
@@ -80,6 +87,7 @@ function toPayoutTransaction(payment: PaymentSummary): Transaction {
 
   return {
     id: payment.id,
+    kind: "payment",
     date: Number.isNaN(date.getTime())
       ? new Date().toISOString()
       : date.toISOString(),
@@ -92,6 +100,10 @@ function toPayoutTransaction(payment: PaymentSummary): Transaction {
           : "processing",
     method: payment.paymentMethod || "Gateway payment",
     reference: payment.id,
+    grossAmount: payment.amount,
+    platformFee: payment.platformFee,
+    processingFee: null,
+    netAmount: payment.providerPayout,
   };
 }
 
@@ -100,6 +112,7 @@ function toPayoutRequestTransaction(payout: PayoutSummary): Transaction {
 
   return {
     id: payout.id,
+    kind: "payout",
     date: Number.isNaN(date.getTime())
       ? new Date().toISOString()
       : date.toISOString(),
@@ -112,6 +125,10 @@ function toPayoutRequestTransaction(payout: PayoutSummary): Transaction {
           : "processing",
     method: payout.accountLabel || "Payout request",
     reference: payout.reference || payout.id,
+    grossAmount: payout.amount,
+    platformFee: null,
+    processingFee: payout.processingFee,
+    netAmount: payout.netAmount || payout.amount,
   };
 }
 
@@ -131,6 +148,15 @@ export function PayoutPage() {
   const [payoutMethods, setPayoutMethods] = useState<PayoutMethodSummary[]>([]);
   const [payoutAccount, setPayoutAccount] = useState<PayoutAccountSummary | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isPayoutMethodFormOpen, setIsPayoutMethodFormOpen] = useState(false);
+  const [payoutMethodType, setPayoutMethodType] = useState<PayoutMethodType>("gcash");
+  const [accountLabel, setAccountLabel] = useState("");
+  const [accountName, setAccountName] = useState("");
+  const [accountNumberLast4, setAccountNumberLast4] = useState("");
+  const [isDefaultMethod, setIsDefaultMethod] = useState(true);
+  const [isSavingMethod, setIsSavingMethod] = useState(false);
+  const [methodError, setMethodError] = useState<string | null>(null);
+  const [methodFeedback, setMethodFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     const loadPayoutData = async () => {
@@ -243,6 +269,56 @@ export function PayoutPage() {
     return matchesStatus && matchesSearch;
   });
 
+  const handleSavePayoutMethod = async () => {
+    const token = getStoredProviderAccessToken();
+    const label = accountLabel.trim();
+
+    if (!token) {
+      setMethodError("Sign in again to save a payout method.");
+      return;
+    }
+
+    if (!label) {
+      setMethodError("Enter an account label.");
+      return;
+    }
+
+    setIsSavingMethod(true);
+    setMethodError(null);
+    setMethodFeedback(null);
+
+    try {
+      const saved = await upsertProviderPayoutMethod(token, {
+        methodType: payoutMethodType,
+        accountLabel: label,
+        accountName: accountName.trim() || null,
+        accountNumberLast4: accountNumberLast4.trim() || null,
+        isDefault: isDefaultMethod,
+      });
+
+      setPayoutMethods((current) => {
+        const withoutSaved = current.filter((method) => method.id !== saved.id);
+        const next = isDefaultMethod
+          ? withoutSaved.map((method) => ({ ...method, isDefault: false }))
+          : withoutSaved;
+
+        return [saved, ...next];
+      });
+      setAccountLabel("");
+      setAccountName("");
+      setAccountNumberLast4("");
+      setIsDefaultMethod(true);
+      setIsPayoutMethodFormOpen(false);
+      setMethodFeedback("Payout method saved.");
+    } catch (error) {
+      setMethodError(
+        error instanceof Error ? error.message : "Unable to save payout method.",
+      );
+    } finally {
+      setIsSavingMethod(false);
+    }
+  };
+
   return (
     <div style={styles.container}>
       <div style={styles.maxWidthContainer}>
@@ -302,7 +378,7 @@ export function PayoutPage() {
       <ChevronRight style={{ width: "18px", height: "18px" }} />
     </button>
     <p style={{ fontSize: "11px", color: "#9CA3AF", textAlign: "center" }}>
-      Instant payout with small fee
+      Confirmed fees and net amount appear after request creation
     </p>
   </div>
 
@@ -415,6 +491,7 @@ export function PayoutPage() {
               Payout Method
             </h2>
             <button
+              onClick={() => setIsPayoutMethodFormOpen((open) => !open)}
               style={{
                 ...styles.button,
                 ...styles.secondaryButton,
@@ -426,10 +503,100 @@ export function PayoutPage() {
                 e.currentTarget.style.backgroundColor = "white";
               }}
             >
-              Manage Payout Methods
-              <ExternalLink style={{ width: "16px", height: "16px" }} />
+              <Plus style={{ width: "16px", height: "16px" }} />
+              {isPayoutMethodFormOpen ? "Close Form" : "Add Payout Method"}
             </button>
           </div>
+
+          {(methodError || methodFeedback) && (
+            <p
+              style={{
+                color: methodError ? "#B91C1C" : "#047857",
+                fontSize: "14px",
+                fontWeight: "600",
+                marginBottom: "16px",
+              }}
+            >
+              {methodError || methodFeedback}
+            </p>
+          )}
+
+          {isPayoutMethodFormOpen && (
+            <div
+              style={{
+                backgroundColor: "#F9FAFB",
+                border: "1px solid #E5E7EB",
+                borderRadius: "12px",
+                display: "grid",
+                gap: "14px",
+                marginBottom: "20px",
+                padding: "20px",
+              }}
+            >
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                <label style={{ display: "grid", gap: "6px", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                  Method Type
+                  <select
+                    value={payoutMethodType}
+                    onChange={(event) => setPayoutMethodType(event.target.value as PayoutMethodType)}
+                    style={{ padding: "12px", borderRadius: "10px", border: "1px solid #D1D5DB" }}
+                  >
+                    <option value="gcash">GCash</option>
+                    <option value="paymaya">PayMaya</option>
+                    <option value="bank">Bank Transfer</option>
+                  </select>
+                </label>
+                <label style={{ display: "grid", gap: "6px", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                  Account Label
+                  <input
+                    value={accountLabel}
+                    onChange={(event) => setAccountLabel(event.target.value)}
+                    placeholder="e.g., GCash ending 1234"
+                    style={{ padding: "12px", borderRadius: "10px", border: "1px solid #D1D5DB" }}
+                  />
+                </label>
+                <label style={{ display: "grid", gap: "6px", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                  Account Name
+                  <input
+                    value={accountName}
+                    onChange={(event) => setAccountName(event.target.value)}
+                    placeholder="Registered account name"
+                    style={{ padding: "12px", borderRadius: "10px", border: "1px solid #D1D5DB" }}
+                  />
+                </label>
+                <label style={{ display: "grid", gap: "6px", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                  Last 4 Digits
+                  <input
+                    value={accountNumberLast4}
+                    onChange={(event) => setAccountNumberLast4(event.target.value)}
+                    maxLength={4}
+                    placeholder="1234"
+                    style={{ padding: "12px", borderRadius: "10px", border: "1px solid #D1D5DB" }}
+                  />
+                </label>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", fontWeight: "600", color: "#374151" }}>
+                <input
+                  type="checkbox"
+                  checked={isDefaultMethod}
+                  onChange={(event) => setIsDefaultMethod(event.target.checked)}
+                />
+                Set as primary payout method
+              </label>
+              <button
+                onClick={() => void handleSavePayoutMethod()}
+                disabled={isSavingMethod}
+                style={{
+                  ...styles.button,
+                  ...styles.primaryButton,
+                  opacity: isSavingMethod ? 0.7 : 1,
+                  justifySelf: "flex-start",
+                }}
+              >
+                {isSavingMethod ? "Saving..." : "Save Payout Method"}
+              </button>
+            </div>
+          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {payoutMethods.length === 0 ? (
@@ -506,7 +673,7 @@ export function PayoutPage() {
                     </div>
                     <p style={{ fontSize: "12px", color: method.isDefault ? "#059669" : "#6B7280", display: "flex", alignItems: "center", gap: "4px" }}>
                       <Clock size={12} />
-                      Processing time: {isWallet ? "Instant to 1 hour" : "1 to 3 business days"}
+                      {method.isDefault ? "Primary payout method" : "Saved payout method"}
                     </p>
                   </div>
                 );
@@ -515,6 +682,7 @@ export function PayoutPage() {
 
             {/* Add New Payout Method */}
             <button
+              onClick={() => setIsPayoutMethodFormOpen(true)}
               style={{
                 ...styles.button,
                 backgroundColor: "white",
@@ -615,7 +783,6 @@ export function PayoutPage() {
               <option value="all">All Time</option>
               <option value="week">This Week</option>
               <option value="month">This Month</option>
-              <option value="custom">Custom Range</option>
             </select>
           </div>
 
@@ -628,9 +795,6 @@ export function PayoutPage() {
               filteredTransactions.map((transaction) => {
                 const statusColors = getStatusColor(transaction.status);
                 const isExpanded = expandedTransaction === transaction.id;
-                const serviceFee = transaction.amount * 0.05;
-                const platformFee = transaction.amount * 0.02;
-                const netAmount = transaction.amount - serviceFee - platformFee;
                 
                 return (
                   <div
@@ -742,31 +906,39 @@ export function PayoutPage() {
                         }}
                       >
                         <h4 style={{ fontSize: "13px", fontWeight: "600", color: "#111827", marginBottom: "12px" }}>
-                          Payment Breakdown
+                          {transaction.kind === "payment" ? "Payment Breakdown" : "Payout Request Breakdown"}
                         </h4>
                         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: "13px", color: "#6B7280" }}>Gross Amount</span>
+                            <span style={{ fontSize: "13px", color: "#6B7280" }}>
+                              {transaction.kind === "payment" ? "Amount Charged" : "Requested Amount"}
+                            </span>
                             <span style={{ fontSize: "13px", fontWeight: "600", color: "#111827" }}>
-                              ₱{transaction.amount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              ₱{transaction.grossAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                             </span>
                           </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <span style={{ fontSize: "13px", color: "#6B7280" }}>Service Fee (5%)</span>
-                            <span style={{ fontSize: "13px", fontWeight: "600", color: "#DC2626" }}>
-                              - ₱{serviceFee.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "8px", borderBottom: "1px solid #E5E7EB" }}>
-                            <span style={{ fontSize: "13px", color: "#6B7280" }}>Platform Fee (2%)</span>
-                            <span style={{ fontSize: "13px", fontWeight: "600", color: "#DC2626" }}>
-                              - ₱{platformFee.toLocaleString("en-US", { minimumFractionDigits: 2 })}
-                            </span>
-                          </div>
+                          {transaction.platformFee !== null && (
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "8px", borderBottom: "1px solid #E5E7EB" }}>
+                              <span style={{ fontSize: "13px", color: "#6B7280" }}>Platform Fee</span>
+                              <span style={{ fontSize: "13px", fontWeight: "600", color: "#DC2626" }}>
+                                - ₱{transaction.platformFee.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          {transaction.processingFee !== null && (
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "8px", borderBottom: "1px solid #E5E7EB" }}>
+                              <span style={{ fontSize: "13px", color: "#6B7280" }}>Processing Fee</span>
+                              <span style={{ fontSize: "13px", fontWeight: "600", color: "#DC2626" }}>
+                                - ₱{transaction.processingFee.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "8px" }}>
-                            <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>Net Payout</span>
+                            <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>
+                              {transaction.kind === "payment" ? "Provider Payout" : "Net Amount"}
+                            </span>
                             <span style={{ fontSize: "16px", fontWeight: "700", color: "#00BF63" }}>
-                              ₱{netAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                              ₱{transaction.netAmount.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                             </span>
                           </div>
                         </div>

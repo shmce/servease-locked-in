@@ -70,7 +70,7 @@ import {
   Lock,
 } from "lucide-react";
 
-/* ─── MOCK DATA ─────────────────────────────────────────────────── */
+/* ─── APPLICATION VIEW MODEL ─────────────────────────────────────── */
 const buildApplication = (
   applicationId: string,
   businessName: string,
@@ -123,86 +123,6 @@ const buildApplication = (
   contactEmail,
   status,
 });
-
-const mockApplications: Record<string, ReturnType<typeof buildApplication>> = {
-  "APP-2026-0237": buildApplication(
-    "APP-2026-0237", "AutoCare Express", "Leonardo David Reyes",
-    "Automotive & Tech Support", "Mar 4, 2026", "Makati City, Metro Manila",
-    "medium", ["ID mismatch", "Duplicate TIN"],
-    "Company",
-    "Professional automotive care and maintenance services covering electrical diagnostics, oil change, brake inspection, tire rotation, and general vehicle repairs. We specialize in Japanese and Korean car brands with certified mechanics and a focus on quality workmanship.",
-    "Physical Location",
-    { street: "123 Kamuning Road", barangay: "Brgy. Kamuning", city: "Makati City, Metro Manila" },
-    "+63 917 123 4567",
-    "info@autocareexpress.ph"
-  ),
-  "APP-2026-0235": buildApplication(
-    "APP-2026-0235", "Wellness Massage Therapy", "Carmen Grace Alvarez",
-    "Beauty Wellness & Personal Care", "Mar 3, 2026", "Manila City, Metro Manila",
-    "low", [],
-    "Individual",
-    "Licensed massage therapy and wellness services offering Swedish, deep tissue, and hot stone massage. Specializing in stress relief, muscle recovery, and holistic wellness treatments for individuals and corporate clients.",
-    "Physical Location",
-    { street: "45 Adriatico Street", barangay: "Brgy. Malate", city: "Manila City, Metro Manila" },
-    "+63 918 234 5678",
-    "carmen@wellnessmassage.ph"
-  ),
-  "APP-2026-0238": buildApplication(
-    "APP-2026-0238", "PetCare Veterinary Services", "Victoria Anne Lopez",
-    "Pet Services", "Mar 3, 2026", "Pasig City, Metro Manila",
-    "low", [],
-    "Company",
-    "Full-service veterinary clinic providing consultations, vaccinations, grooming, dental care, and emergency services for dogs and cats. Our team of licensed veterinarians ensures compassionate and quality care for your beloved pets.",
-    "Physical Location",
-    { street: "78 Shaw Boulevard", barangay: "Brgy. Wack-Wack", city: "Pasig City, Metro Manila" },
-    "+63 919 345 6789",
-    "vet@petcareservices.ph"
-  ),
-  "APP-2026-0236": buildApplication(
-    "APP-2026-0236", "Prime Cleaning Solutions", "Fernando Jose Santos",
-    "Domestic & Cleaning Services", "Mar 2, 2026", "Quezon City, Metro Manila",
-    "high", ["Blurry document", "Missing document", "Duplicate TIN"],
-    "Company",
-    "Commercial and residential cleaning services including deep cleaning, regular housekeeping, office sanitation, post-construction cleanup, and move-in/move-out cleaning. Eco-friendly products used upon request.",
-    "Physical Location",
-    { street: "12 Banawe Street", barangay: "Brgy. Sta. Mesa Heights", city: "Quezon City, Metro Manila" },
-    "+63 920 456 7890",
-    "contact@primecleaning.ph"
-  ),
-  "APP-2026-0240": buildApplication(
-    "APP-2026-0240", "HandyFix Home Services", "Michelle Anne Garcia",
-    "Home Maintenance & Repair", "Mar 2, 2026", "Mandaluyong City, Metro Manila",
-    "low", [],
-    "Individual",
-    "Reliable home maintenance and repair services specializing in plumbing, electrical work, carpentry, painting, and appliance installation. Fast response time with transparent pricing and guaranteed workmanship.",
-    "Physical Location",
-    { street: "34 Pioneer Street", barangay: "Brgy. Barangka", city: "Mandaluyong City, Metro Manila" },
-    "+63 921 567 8901",
-    "handyfix@homeservices.ph"
-  ),
-  "APP-2026-0234": buildApplication(
-    "APP-2026-0234", "Tutor Excellence Hub", "Roberto Miguel Cruz",
-    "Education & Professional Services", "Mar 1, 2026", "Taguig City, Metro Manila",
-    "low", [],
-    "Company",
-    "Professional tutoring and academic coaching services for K-12 and college students. Subjects include Mathematics, Science, English, and Accounting. Online and in-person sessions available with flexible scheduling.",
-    "Online Business",
-    { street: "56 McKinley Road", barangay: "Brgy. Fort Bonifacio", city: "Taguig City, Metro Manila" },
-    "+63 922 678 9012",
-    "info@tutorexcellence.ph"
-  ),
-  "APP-2026-0239": buildApplication(
-    "APP-2026-0239", "EventMasters Pro", "Christopher James Diaz",
-    "Events & Entertainment", "Mar 1, 2026", "Pasay City, Metro Manila",
-    "medium", ["Missing document"],
-    "Company",
-    "Full-service event planning and management covering corporate events, weddings, birthday parties, and product launches. We handle venue sourcing, catering coordination, entertainment booking, and on-the-day event management.",
-    "Physical Location",
-    { street: "89 Roxas Boulevard", barangay: "Brgy. San Isidro", city: "Pasay City, Metro Manila" },
-    "+63 923 789 0123",
-    "events@eventmasterspro.ph"
-  ),
-};
 
 function toReviewApplication(
   app: AdminProviderApplicationSummary,
@@ -257,18 +177,15 @@ function toReviewApplication(
 /* ─── SHARED CONSTANTS ───────────────────────────────────────────── */
 const TABS = ["Overview", "Documents", "Background Check", "Activity Logs"];
 
-const DOCUMENT_TYPES = [
-  { id: "gov-id", name: "Government ID", file: "national-id-2026.jpg", date: "Mar 1, 2026", status: "verified", color: "bg-blue-100", iconColor: "text-blue-500" },
-  { id: "nbi", name: "NBI Clearance", file: "nbi-clearance.pdf", date: "Mar 1, 2026", status: "pending", color: "bg-amber-100", iconColor: "text-amber-500" },
-  { id: "prc", name: "PRC License", file: "prc-license-2026.jpg", date: "Mar 1, 2026", status: "verified", color: "bg-purple-100", iconColor: "text-purple-500" },
-  { id: "tin", name: "TIN Document", file: "bir-tin-2026.pdf", date: "Mar 1, 2026", status: "flagged", color: "bg-orange-100", iconColor: "text-orange-500" },
-  { id: "permit", name: "Business Permit", file: "business-permit-2026.pdf", date: "Mar 1, 2026", status: "pending", color: "bg-teal-100", iconColor: "text-teal-500" },
-  { id: "address", name: "Proof of Address", file: "utility-bill-2026.jpg", date: "Mar 1, 2026", status: "verified", color: "bg-cyan-100", iconColor: "text-cyan-500" },
-  { id: "insurance", name: "Insurance Certificate", file: "insurance-cert-2026.pdf", date: "Mar 1, 2026", status: "pending", color: "bg-indigo-100", iconColor: "text-indigo-500" },
-];
-
-type ReviewDocument = (typeof DOCUMENT_TYPES)[number] & {
+type ReviewDocument = {
+  id: string;
   documentId?: string;
+  name: string;
+  file: string;
+  date: string;
+  status: "verified" | "pending" | "rejected";
+  color: string;
+  iconColor: string;
   previewUrl?: string | null;
   downloadUrl?: string | null;
 };
@@ -389,7 +306,6 @@ export function ProviderApplicationReview() {
   const navigate = useNavigate();
   const { applicationId } = useParams<{ applicationId: string }>();
   const { accessToken } = useAuth();
-  const mockApplication = applicationId ? mockApplications[applicationId] : null;
   const [backendApplication, setBackendApplication] =
     useState<AdminProviderApplicationSummary | null>(null);
   const [backendReview, setBackendReview] =
@@ -397,9 +313,7 @@ export function ProviderApplicationReview() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoadingApplication, setIsLoadingApplication] = useState(false);
   const [isSavingReview, setIsSavingReview] = useState(false);
-  const application = backendApplication
-    ? toReviewApplication(backendApplication)
-    : mockApplication;
+  const application = backendApplication ? toReviewApplication(backendApplication) : null;
 
   const [activeTab, setActiveTab] = useState("Overview");
   const [flagsExpanded, setFlagsExpanded] = useState(true);
@@ -608,7 +522,7 @@ export function ProviderApplicationReview() {
   const checkedCount          = checklist.filter(c => c.checked).length;
   const displayedDocuments = backendApplication
     ? backendApplication.documents.map(toReviewDocument)
-    : DOCUMENT_TYPES;
+    : [];
   const verifiedDocs          = displayedDocuments.filter(d => d.status === "verified").length;
   const businessCheckedCount  = businessChecklist.filter(c => c.checked).length;
   const kycComplete =

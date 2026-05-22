@@ -7,7 +7,6 @@ import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { Eye, EyeOff, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { Link } from "react-router";
-import { ContactAdminModal } from "../components/ContactAdminModal";
 
 export function Login() {
   const navigate = useNavigate();
@@ -19,7 +18,6 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -273,15 +271,7 @@ export function Login() {
 
               {/* No Account Helper */}
               <p className="text-center text-sm text-gray-600 pt-2">
-                No account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setIsContactModalOpen(true)}
-                  className="text-[#00BF63] hover:text-[#00A055] font-medium hover:underline"
-                >
-                  Contact a Super Admin
-                </button>{" "}
-                for access.
+                No account? Ask a Super Admin to create your admin user.
               </p>
 
               {/* Backend Configuration Helper */}
@@ -303,9 +293,6 @@ export function Login() {
           </p>
         </div>
       </div>
-
-      {/* Contact Admin Modal */}
-      <ContactAdminModal isOpen={isContactModalOpen} onClose={() => setIsContactModalOpen(false)} />
     </div>
   );
 }

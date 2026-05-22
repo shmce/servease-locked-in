@@ -567,6 +567,7 @@ export default function App() {
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const lastPushRegistrationKey = useRef<string | null>(null);
   const reconcilingCheckoutRef = useRef(false);
+  const workspacePollFailureNotifiedRef = useRef(false);
   const checkoutReconcileRetryRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -829,8 +830,12 @@ export default function App() {
         ]);
         replaceNotifications(nextNotifications);
         setBookings(nextBookings);
-      } catch {
-        // ignore poll errors to avoid noisy notices
+        workspacePollFailureNotifiedRef.current = false;
+      } catch (error) {
+        if (!workspacePollFailureNotifiedRef.current) {
+          setNotice(`Workspace could not be refreshed: ${readError(error)}`);
+          workspacePollFailureNotifiedRef.current = true;
+        }
       }
     };
     const interval = setInterval(() => void tick(), 30000);
@@ -1109,8 +1114,9 @@ export default function App() {
   async function refreshProviderReviews(providerId: string) {
     try {
       setReviews(await listProviderReviews(providerId, { baseUrl: apiBaseUrl }));
-    } catch {
+    } catch (error) {
       setReviews([]);
+      setNotice(`Provider reviews could not be loaded: ${readError(error)}`);
     }
   }
 
@@ -1120,8 +1126,9 @@ export default function App() {
       setSelectedProviderAvailability(
         await getPublicProviderAvailability(providerId, { baseUrl: apiBaseUrl }),
       );
-    } catch {
+    } catch (error) {
       setSelectedProviderAvailability(null);
+      setNotice(`Provider availability could not be loaded: ${readError(error)}`);
     }
   }
 
@@ -1130,8 +1137,9 @@ export default function App() {
       setSelectedProviderPortfolioMedia(
         await listProviderPortfolioMedia(providerId, { baseUrl: apiBaseUrl }),
       );
-    } catch {
+    } catch (error) {
       setSelectedProviderPortfolioMedia([]);
+      setNotice(`Provider portfolio could not be loaded: ${readError(error)}`);
     }
   }
 
@@ -1599,6 +1607,18 @@ export default function App() {
     }
   }
 
+  async function loadOptionalWorkspaceSection<T>(
+    label: string,
+    fallback: T,
+    loader: () => Promise<T>,
+  ): Promise<{ value: T; error: string | null }> {
+    try {
+      return { value: await loader(), error: null };
+    } catch (error) {
+      return { value: fallback, error: `${label}: ${readError(error)}` };
+    }
+  }
+
   async function refreshWorkspace(
     token = session?.accessToken,
     nextRole = appRole,
@@ -1638,91 +1658,136 @@ export default function App() {
         listConversations(options),
         listPayments(options),
         nextRole === 'customer'
-          ? listCustomerPaymentMethods(options).catch(() => [])
-          : Promise.resolve([]),
+          ? loadOptionalWorkspaceSection('payment methods', [], () =>
+              listCustomerPaymentMethods(options),
+            )
+          : Promise.resolve({ value: [], error: null }),
         listSupportTickets(options),
         listNotifications(options),
         nextRole === 'provider'
-          ? getProviderAvailability(options).catch(() => null)
-          : Promise.resolve(null),
+          ? loadOptionalWorkspaceSection('availability', null, () =>
+              getProviderAvailability(options),
+            )
+          : Promise.resolve({ value: null, error: null }),
         nextRole === 'provider'
-          ? getProviderPayoutAccount(options).catch(() => null)
-          : Promise.resolve(null),
+          ? loadOptionalWorkspaceSection('payout account', null, () =>
+              getProviderPayoutAccount(options),
+            )
+          : Promise.resolve({ value: null, error: null }),
         nextRole === 'provider'
-          ? listProviderPayoutMethods(options).catch(() => [])
-          : Promise.resolve([]),
+          ? loadOptionalWorkspaceSection('payout methods', [], () =>
+              listProviderPayoutMethods(options),
+            )
+          : Promise.resolve({ value: [], error: null }),
         nextRole === 'provider'
-          ? listProviderPayouts(options).catch(() => [])
-          : Promise.resolve([]),
+          ? loadOptionalWorkspaceSection('payouts', [], () =>
+              listProviderPayouts(options),
+            )
+          : Promise.resolve({ value: [], error: null }),
         nextRole === 'provider' && providerId
-          ? listProviderPortfolioMedia(providerId, options).catch(() => [])
-          : Promise.resolve([]),
+          ? loadOptionalWorkspaceSection('portfolio', [], () =>
+              listProviderPortfolioMedia(providerId, options),
+            )
+          : Promise.resolve({ value: [], error: null }),
         nextRole === 'customer'
-          ? getReferralSummary(options).catch(() => null)
-          : Promise.resolve(null),
-        getUserPreferences(options).catch(() => null),
+          ? loadOptionalWorkspaceSection('referrals', null, () =>
+              getReferralSummary(options),
+            )
+          : Promise.resolve({ value: null, error: null }),
+        loadOptionalWorkspaceSection('preferences', null, () =>
+          getUserPreferences(options),
+        ),
         nextRole === 'provider' && providerId
-          ? listProviderReviews(providerId, options).catch(() => [])
-          : Promise.resolve([]),
+          ? loadOptionalWorkspaceSection('reviews', [], () =>
+              listProviderReviews(providerId, options),
+            )
+          : Promise.resolve({ value: [], error: null }),
         nextRole === 'provider'
-          ? getProviderDashboard(options).catch(() => null)
-          : Promise.resolve(null),
+          ? loadOptionalWorkspaceSection('provider dashboard', null, () =>
+              getProviderDashboard(options),
+            )
+          : Promise.resolve({ value: null, error: null }),
         nextRole === 'provider'
-          ? listProviderOwnedServices(options).catch(() => [])
-          : Promise.resolve([]),
-        listCurrentUserSessions(options).catch(() => []),
+          ? loadOptionalWorkspaceSection('owned services', [], () =>
+              listProviderOwnedServices(options),
+            )
+          : Promise.resolve({ value: [], error: null }),
+        loadOptionalWorkspaceSection('sessions', [], () =>
+          listCurrentUserSessions(options),
+        ),
         nextRole === 'provider'
-          ? getMyProviderApplication(options).catch(() => null)
-          : Promise.resolve(null),
+          ? loadOptionalWorkspaceSection('provider application', null, () =>
+              getMyProviderApplication(options),
+            )
+          : Promise.resolve({ value: null, error: null }),
       ]);
 
       setBookings(nextBookings);
       messagesFlow.actions.replaceConversations(nextConversations);
       setPayments(nextPayments);
-      setCustomerPaymentMethods(nextCustomerPaymentMethods);
-      setPayoutAccount(nextPayoutAccount);
-      setPayoutMethods(nextPayoutMethods);
-      setProviderPayouts(nextProviderPayouts);
-      setReferralSummary(nextReferralSummary);
-      setUserPreferences(nextUserPreferences);
-      if (nextUserPreferences) {
-        setPushNotificationsEnabled(nextUserPreferences.pushNotificationsEnabled);
-        setDarkModeEnabled(nextUserPreferences.darkModeEnabled);
+      setCustomerPaymentMethods(nextCustomerPaymentMethods.value);
+      setPayoutAccount(nextPayoutAccount.value);
+      setPayoutMethods(nextPayoutMethods.value);
+      setProviderPayouts(nextProviderPayouts.value);
+      setReferralSummary(nextReferralSummary.value);
+      setUserPreferences(nextUserPreferences.value);
+      if (nextUserPreferences.value) {
+        setPushNotificationsEnabled(nextUserPreferences.value.pushNotificationsEnabled);
+        setDarkModeEnabled(nextUserPreferences.value.darkModeEnabled);
       }
-      setProviderPortfolioMedia(nextProviderPortfolio);
-      setOwnReviews(nextOwnReviews as ReviewSummary[]);
-      setProviderDashboard(nextProviderDashboard as ProviderDashboardSummary | null);
-      setOwnedServices(nextOwnedServices as ProviderOwnedServiceSummary[]);
-      setActiveSessions(nextSessions);
-      setProviderApplication(nextProviderApplication);
+      setProviderPortfolioMedia(nextProviderPortfolio.value);
+      setOwnReviews(nextOwnReviews.value as ReviewSummary[]);
+      setProviderDashboard(nextProviderDashboard.value as ProviderDashboardSummary | null);
+      setOwnedServices(nextOwnedServices.value as ProviderOwnedServiceSummary[]);
+      setActiveSessions(nextSessions.value);
+      setProviderApplication(nextProviderApplication.value);
       setSelectedPayoutMethodId((current) => {
-        if (current && nextPayoutMethods.some((method) => method.id === current)) {
+        if (current && nextPayoutMethods.value.some((method) => method.id === current)) {
           return current;
         }
         return (
-          nextPayoutMethods.find((method) => method.isDefault)?.id ??
-          nextPayoutMethods[0]?.id ??
+          nextPayoutMethods.value.find((method) => method.isDefault)?.id ??
+          nextPayoutMethods.value[0]?.id ??
           null
         );
       });
       setSelectedCustomerPaymentMethodId((current) => {
         if (
           current &&
-          nextCustomerPaymentMethods.some((method) => method.id === current)
+          nextCustomerPaymentMethods.value.some((method) => method.id === current)
         ) {
           return current;
         }
         return (
-          nextCustomerPaymentMethods.find((method) => method.isDefault)?.id ??
-          nextCustomerPaymentMethods[0]?.id ??
+          nextCustomerPaymentMethods.value.find((method) => method.isDefault)?.id ??
+          nextCustomerPaymentMethods.value[0]?.id ??
           null
         );
       });
       supportFlow.actions.replaceTickets(nextTickets);
       notificationsFlow.actions.replaceNotifications(nextNotifications);
-      setAvailability(nextAvailability);
+      setAvailability(nextAvailability.value);
       setSelectedBookingId((current) => current ?? nextBookings[0]?.id ?? null);
-      setNotice(`${nextBookings.length} booking${nextBookings.length === 1 ? '' : 's'} loaded.`);
+      const sectionErrors = [
+        nextCustomerPaymentMethods.error,
+        nextAvailability.error,
+        nextPayoutAccount.error,
+        nextPayoutMethods.error,
+        nextProviderPayouts.error,
+        nextProviderPortfolio.error,
+        nextReferralSummary.error,
+        nextUserPreferences.error,
+        nextOwnReviews.error,
+        nextProviderDashboard.error,
+        nextOwnedServices.error,
+        nextSessions.error,
+        nextProviderApplication.error,
+      ].filter(Boolean);
+      setNotice(
+        sectionErrors.length
+          ? `${nextBookings.length} booking${nextBookings.length === 1 ? '' : 's'} loaded. Some sections failed: ${sectionErrors.join('; ')}.`
+          : `${nextBookings.length} booking${nextBookings.length === 1 ? '' : 's'} loaded.`,
+      );
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -2628,8 +2693,9 @@ export default function App() {
       setSelectedBookingServiceUpdates(
         await listBookingServiceUpdates(bookingId, apiOptions),
       );
-    } catch {
+    } catch (error) {
       setSelectedBookingServiceUpdates([]);
+      setNotice(`Booking service updates could not be loaded: ${readError(error)}`);
     }
   }
 
@@ -2638,8 +2704,9 @@ export default function App() {
       setSelectedBookingTimelineEvents(
         await listBookingTimelineEvents(bookingId, apiOptions),
       );
-    } catch {
+    } catch (error) {
       setSelectedBookingTimelineEvents([]);
+      setNotice(`Booking timeline could not be loaded: ${readError(error)}`);
     }
   }
 
@@ -2648,8 +2715,9 @@ export default function App() {
       setSelectedBookingTracking(
         await getBookingTrackingSnapshot(bookingId, apiOptions),
       );
-    } catch {
+    } catch (error) {
       setSelectedBookingTracking(null);
+      setNotice(`Booking tracking could not be loaded: ${readError(error)}`);
     }
   }
 

@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Patch,
   Post,
@@ -44,6 +45,8 @@ type AuditRequest = { headers?: Record<string, string | string[] | undefined>; s
 
 @Controller('v1/admin/users')
 export class AdminUsersController {
+  private readonly logger = new Logger(AdminUsersController.name);
+
   constructor(
     private readonly adminUsersGatewayService: AdminUsersGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -61,24 +64,27 @@ export class AdminUsersController {
       const admin = await this.requireAdmin(authorization);
       const input = this.normalizeCreateInput(body);
       const user = await this.adminUsersGatewayService.createUser(input);
-      void this.adminAuditGatewayService.createAuditLog({
-        adminUserId: admin.user.id,
-        adminEmail: admin.user.email,
-        adminName: admin.user.fullName,
-        action: 'Created admin user',
-        actionType: 'create',
-        entityType: 'User',
-        entityId: user.id,
-        details: `Admin user ${user.email} was created.`,
-        ipAddress: this.getClientIp(request),
-        metadata: {
-          userId: user.id,
-          email: user.email,
-          accessRole: input.accessRole,
-          sendInvitation: input.sendInvitation,
-          requireTwoFactor: input.requireTwoFactor,
+      void this.auditAdminUserAction(
+        {
+          adminUserId: admin.user.id,
+          adminEmail: admin.user.email,
+          adminName: admin.user.fullName,
+          action: 'Created admin user',
+          actionType: 'create',
+          entityType: 'User',
+          entityId: user.id,
+          details: `Admin user ${user.email} was created.`,
+          ipAddress: this.getClientIp(request),
+          metadata: {
+            userId: user.id,
+            email: user.email,
+            accessRole: input.accessRole,
+            sendInvitation: input.sendInvitation,
+            requireTwoFactor: input.requireTwoFactor,
+          },
         },
-      }).catch(() => undefined);
+        `create admin user ${user.id}`,
+      );
       return { data: user };
     } catch (error) {
       throw this.toHttpException(error);
@@ -125,18 +131,21 @@ export class AdminUsersController {
       const admin = await this.requireAdmin(authorization);
       if (!body.status || !validUserStatuses.has(body.status)) throw new InvalidAdminRequestError();
       const user = await this.adminUsersGatewayService.updateUserStatus(userId, body.status);
-      void this.adminAuditGatewayService.createAuditLog({
-        adminUserId: admin.user.id,
-        adminEmail: admin.user.email,
-        adminName: admin.user.fullName,
-        action: `Updated user status to ${body.status}`,
-        actionType: 'update',
-        entityType: 'User',
-        entityId: user.id,
-        details: `User ${user.email} status updated to ${body.status}.`,
-        ipAddress: this.getClientIp(request),
-        metadata: { userId: user.id, email: user.email, status: body.status },
-      }).catch(() => undefined);
+      void this.auditAdminUserAction(
+        {
+          adminUserId: admin.user.id,
+          adminEmail: admin.user.email,
+          adminName: admin.user.fullName,
+          action: `Updated user status to ${body.status}`,
+          actionType: 'update',
+          entityType: 'User',
+          entityId: user.id,
+          details: `User ${user.email} status updated to ${body.status}.`,
+          ipAddress: this.getClientIp(request),
+          metadata: { userId: user.id, email: user.email, status: body.status },
+        },
+        `update user ${user.id} status`,
+      );
       return { data: user };
     } catch (error) {
       throw this.toHttpException(error);
@@ -154,23 +163,26 @@ export class AdminUsersController {
       const admin = await this.requireAdmin(authorization);
       const input = this.normalizeAccessInput(body);
       const user = await this.adminUsersGatewayService.updateUserAccess(userId, input);
-      void this.adminAuditGatewayService.createAuditLog({
-        adminUserId: admin.user.id,
-        adminEmail: admin.user.email,
-        adminName: admin.user.fullName,
-        action: 'Updated admin role permissions',
-        actionType: 'update',
-        entityType: 'User',
-        entityId: user.id,
-        details: `Admin user ${user.email} access role updated to ${input.accessRole}.`,
-        ipAddress: this.getClientIp(request),
-        metadata: {
-          userId: user.id,
-          email: user.email,
-          accessRole: input.accessRole,
-          requireTwoFactor: input.requireTwoFactor,
+      void this.auditAdminUserAction(
+        {
+          adminUserId: admin.user.id,
+          adminEmail: admin.user.email,
+          adminName: admin.user.fullName,
+          action: 'Updated admin role permissions',
+          actionType: 'update',
+          entityType: 'User',
+          entityId: user.id,
+          details: `Admin user ${user.email} access role updated to ${input.accessRole}.`,
+          ipAddress: this.getClientIp(request),
+          metadata: {
+            userId: user.id,
+            email: user.email,
+            accessRole: input.accessRole,
+            requireTwoFactor: input.requireTwoFactor,
+          },
         },
-      }).catch(() => undefined);
+        `update admin user ${user.id} access`,
+      );
       return { data: user };
     } catch (error) {
       throw this.toHttpException(error);
@@ -190,22 +202,25 @@ export class AdminUsersController {
       }
 
       const user = await this.adminUsersGatewayService.deleteUser(userId);
-      void this.adminAuditGatewayService.createAuditLog({
-        adminUserId: admin.user.id,
-        adminEmail: admin.user.email,
-        adminName: admin.user.fullName,
-        action: 'Deleted admin user',
-        actionType: 'delete',
-        entityType: 'User',
-        entityId: user.id,
-        details: `Admin user ${user.email} was deleted.`,
-        ipAddress: this.getClientIp(request),
-        metadata: {
-          userId: user.id,
-          email: user.email,
-          accessRole: user.accessRole ?? null,
+      void this.auditAdminUserAction(
+        {
+          adminUserId: admin.user.id,
+          adminEmail: admin.user.email,
+          adminName: admin.user.fullName,
+          action: 'Deleted admin user',
+          actionType: 'delete',
+          entityType: 'User',
+          entityId: user.id,
+          details: `Admin user ${user.email} was deleted.`,
+          ipAddress: this.getClientIp(request),
+          metadata: {
+            userId: user.id,
+            email: user.email,
+            accessRole: user.accessRole ?? null,
+          },
         },
-      }).catch(() => undefined);
+        `delete admin user ${user.id}`,
+      );
       return { data: user };
     } catch (error) {
       throw this.toHttpException(error);
@@ -223,6 +238,19 @@ export class AdminUsersController {
     const forwardedFor = request.headers?.['x-forwarded-for'];
     if (Array.isArray(forwardedFor)) return forwardedFor[0] ?? null;
     return forwardedFor?.split(',')[0]?.trim() || request.socket?.remoteAddress || null;
+  }
+
+  private async auditAdminUserAction(
+    input: Parameters<AdminAuditGatewayService['createAuditLog']>[0],
+    context: string,
+  ): Promise<void> {
+    try {
+      await this.adminAuditGatewayService.createAuditLog(input);
+    } catch (error) {
+      this.logger.warn(
+        `Could not create audit log for admin user action (${context}): ${this.errorMessage(error)}`,
+      );
+    }
   }
 
   private normalizeCreateInput(body?: Partial<CreateAdminUserRequest>): CreateAdminUserRequest {
@@ -299,5 +327,9 @@ export class AdminUsersController {
 
   private error(code: string, message: string, status: number): HttpException {
     return new HttpException({ error: { code, message, details: {} } }, status);
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

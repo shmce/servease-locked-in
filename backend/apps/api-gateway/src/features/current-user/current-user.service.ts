@@ -3,7 +3,10 @@ import { AuthServiceClient } from './clients/auth-service.client';
 import { BookingServiceClient } from '../booking/clients/booking-service.client';
 import { CatalogServiceClient } from './clients/catalog-service.client';
 import { UserServiceClient } from './clients/user-service.client';
-import { AccountInactiveError } from './current-user.errors';
+import {
+  AccountDeletionDependencyUnavailableError,
+  AccountInactiveError,
+} from './current-user.errors';
 import {
   CurrentUserProfile,
   TwoFactorProvisioningResponse,
@@ -111,6 +114,15 @@ export class CurrentUserService {
     return this.authServiceClient.enableTwoFactor(user.id, user.email);
   }
 
+  async getTwoFactorStatus(userId: string): Promise<TwoFactorStatusResponse> {
+    const user = await this.authServiceClient.findUserById(userId);
+    if (user.status !== 'active') {
+      throw new AccountInactiveError();
+    }
+
+    return this.authServiceClient.getTwoFactorStatus(user.id);
+  }
+
   async verifyTwoFactor(
     userId: string,
     code: string,
@@ -137,16 +149,21 @@ export class CurrentUserService {
 
   async deleteCurrentUser(userId: string): Promise<{ ok: true }> {
     const user = await this.authServiceClient.findUserById(userId);
+    const bookingServiceClient = this.bookingServiceClient;
+
+    if (!bookingServiceClient) {
+      throw new AccountDeletionDependencyUnavailableError();
+    }
+
     const providerProfile =
       user.role === 'provider' || user.role === 'admin'
         ? await this.catalogServiceClient.findProviderProfileByUserId(user.id)
         : null;
 
     const [customerBookings, providerBookings] = await Promise.all([
-      this.bookingServiceClient?.listBookings(user.id, null).catch(() => []) ??
-        Promise.resolve([]),
-      providerProfile && this.bookingServiceClient
-        ? this.bookingServiceClient.listBookings(null, providerProfile.id).catch(() => [])
+      bookingServiceClient.listBookings(user.id, null),
+      providerProfile
+        ? bookingServiceClient.listBookings(null, providerProfile.id)
         : Promise.resolve([]),
     ]);
 
@@ -158,18 +175,14 @@ export class CurrentUserService {
 
     await Promise.all(
       activeBookings.map((booking) =>
-        this.bookingServiceClient
-          ? this.bookingServiceClient
-          .transitionStatus(
-            booking.id,
-            user.id,
-            booking.status,
-            'cancelled',
-            'Account deleted',
-            'Account owner requested deletion.',
-          )
-          .catch(() => null)
-          : Promise.resolve(null),
+        bookingServiceClient.transitionStatus(
+          booking.id,
+          user.id,
+          booking.status,
+          'cancelled',
+          'Account deleted',
+          'Account owner requested deletion.',
+        ),
       ),
     );
 

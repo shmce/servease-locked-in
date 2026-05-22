@@ -171,4 +171,68 @@ describe('AdminBookingController', () => {
     expect(response.data.notificationId).toBe('notification-1');
     expect(response.data.messageId).toBe('message-1');
   });
+
+  it('still notifies providers when admin message persistence fails', async () => {
+    const adminBookingGatewayService = {
+      getBooking: jest.fn().mockResolvedValue({
+        id: 'booking-1',
+        bookingReference: 'SRV-001',
+        providerId: 'provider-1',
+        serviceTitle: 'Home cleaning',
+      }),
+      appendMessage: jest.fn().mockRejectedValue(new Error('thread unavailable')),
+    } as unknown as AdminBookingGatewayService;
+    const catalogServiceClient = {
+      findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
+        userId: 'provider-user-1',
+      }),
+    } as unknown as CatalogServiceClient;
+    const notificationServiceClient = {
+      createNotification: jest.fn().mockResolvedValue({
+        id: 'notification-1',
+      }),
+    } as unknown as NotificationServiceClient;
+    const controller = new AdminBookingController(
+      adminBookingGatewayService,
+      { createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }) } as unknown as AdminAuditGatewayService,
+      { authenticate: jest.fn().mockResolvedValue('admin-1') } as unknown as AuthTokenService,
+      {
+        getCurrentUser: jest.fn().mockResolvedValue({
+          user: {
+            id: 'admin-1',
+            email: 'admin@servease.test',
+            fullName: 'Admin User',
+            role: 'admin',
+          },
+        }),
+      } as unknown as CurrentUserService,
+      catalogServiceClient,
+      notificationServiceClient,
+    );
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.sendProviderMessage(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      'booking-1',
+      { message: 'Please contact the customer before arrival.' },
+    );
+
+    expect(notificationServiceClient.createNotification).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'provider-user-1',
+        metadata: expect.objectContaining({
+          messageId: null,
+        }),
+      }),
+    );
+    expect(response.data.notificationId).toBe('notification-1');
+    expect(response.data.messageId).toBeNull();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not persist admin provider message'),
+    );
+    warnSpy.mockRestore();
+  });
 });

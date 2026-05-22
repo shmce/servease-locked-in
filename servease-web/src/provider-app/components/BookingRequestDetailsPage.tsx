@@ -3,13 +3,11 @@ import { useParams, useNavigate } from "react-router";
 import {
   ArrowLeft,
   Phone,
-  MessageCircle,
   MapPin,
   Calendar,
   Clock,
   CheckCircle,
   X,
-  Star,
   AlertCircle,
   Image as ImageIcon,
 } from "lucide-react";
@@ -164,10 +162,6 @@ const styles = {
     alignItems: "center",
     gap: "6px",
   },
-  buttonGroup: {
-    display: "flex",
-    gap: "12px",
-  },
   button: {
     padding: "10px 20px",
     borderRadius: "10px",
@@ -226,19 +220,15 @@ const styles = {
     color: "#374151",
     fontWeight: "500",
   },
-  mapPlaceholder: {
-    width: "100%",
-    height: "200px",
-    backgroundColor: "#F3F4F6",
-    borderRadius: "12px",
-    display: "flex",
+  mapLink: {
+    marginTop: "10px",
+    display: "inline-flex",
     alignItems: "center",
-    justifyContent: "center",
-    color: "#9CA3AF",
-    fontSize: "14px",
-    marginTop: "12px",
-    marginBottom: "12px",
-    border: "2px dashed #D1D5DB",
+    gap: "6px",
+    color: "#00BF63",
+    fontSize: "13px",
+    fontWeight: "600",
+    textDecoration: "none",
   },
   photoGrid: {
     display: "grid",
@@ -307,6 +297,15 @@ const styles = {
   },
 };
 
+function buildMapsSearchUrl(address: string): string {
+  const params = new URLSearchParams({
+    api: "1",
+    query: address,
+  });
+
+  return `https://www.google.com/maps/search/?${params.toString()}`;
+}
+
 export function BookingRequestDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -352,11 +351,10 @@ export function BookingRequestDetailsPage() {
     estimatedHours === null
       ? "Not specified"
       : `${estimatedHours} hour${estimatedHours === 1 ? "" : "s"}`;
-  const platformFee = Math.round(apiBooking.totalAmount * 0.1);
-  const providerEarnings = apiBooking.totalAmount - platformFee;
   const referencePhotos = (apiBooking.attachments ?? []).filter(
     (attachment) => attachment.mediaKind === "booking_reference",
   );
+  const hasServiceAddress = Boolean(apiBooking.serviceAddress?.trim());
   const request = {
     id: apiBooking.id,
     refNumber: apiBooking.bookingReference,
@@ -364,8 +362,6 @@ export function BookingRequestDetailsPage() {
     customer: {
       name: apiBooking.customerFullName || "ServEase Customer",
       phone: apiBooking.customerContactNumber || "Contact unavailable",
-      rating: 0,
-      totalReviews: 0,
     },
     service: {
       type: apiBooking.serviceTitle || "Service Booking",
@@ -390,9 +386,7 @@ export function BookingRequestDetailsPage() {
       url: attachment.fileUrl,
     })),
     pricing: {
-      serviceFee: apiBooking.totalAmount,
-      platformFee,
-      providerEarnings,
+      totalAmount: apiBooking.totalAmount,
     },
   };
 
@@ -559,8 +553,8 @@ export function BookingRequestDetailsPage() {
         <div style={styles.infoBox}>
           <AlertCircle size={18} style={{ marginTop: "2px", flexShrink: 0 }} />
           <div>
-            <strong>Action Required:</strong> This customer is waiting for your response. 
-            Please accept or reject this request within 24 hours.
+            <strong>Action Required:</strong> This customer is waiting for your response.
+            Please accept or reject this request as soon as you can.
           </div>
         </div>
 
@@ -593,15 +587,6 @@ export function BookingRequestDetailsPage() {
                 <div style={styles.avatar}>{initials}</div>
                 <div style={styles.customerInfo}>
                   <div style={styles.customerName}>{request.customer.name}</div>
-                  <div style={styles.rating}>
-                    <Star size={16} fill="#FCD34D" color="#FCD34D" />
-                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>
-                      {request.customer.rating}
-                    </span>
-                    <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
-                      ({request.customer.totalReviews} reviews)
-                    </span>
-                  </div>
                   <div style={styles.phoneNumber}>
                     <Phone size={14} />
                     {request.customer.phone}
@@ -609,22 +594,9 @@ export function BookingRequestDetailsPage() {
                       (visible after accepting)
                     </span>
                   </div>
-                  <div style={styles.buttonGroup}>
-                    <button
-                      style={{ ...styles.button, ...styles.secondaryButton }}
-                      disabled
-                    >
-                      <Phone size={16} />
-                      Call
-                    </button>
-                    <button
-                      style={{ ...styles.button, ...styles.secondaryButton }}
-                      disabled
-                    >
-                      <MessageCircle size={16} />
-                      Message
-                    </button>
-                  </div>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>
+                    Call and chat actions are available after you accept the booking.
+                  </p>
                 </div>
               </div>
             </div>
@@ -662,12 +634,17 @@ export function BookingRequestDetailsPage() {
                 <div style={styles.detailContent}>
                   <div style={styles.detailLabel}>Location</div>
                   <div style={styles.detailValue}>{request.service.location}</div>
-                  <div style={styles.mapPlaceholder}>
-                    <div style={{ textAlign: "center" }}>
-                      <MapPin size={24} style={{ marginBottom: "8px" }} />
-                      <div>Map Preview</div>
-                    </div>
-                  </div>
+                  {hasServiceAddress && (
+                    <a
+                      href={buildMapsSearchUrl(request.service.location)}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={styles.mapLink}
+                    >
+                      <MapPin size={14} />
+                      Open address in Maps
+                    </a>
+                  )}
                 </div>
               </div>
 
@@ -718,30 +695,20 @@ export function BookingRequestDetailsPage() {
 
           {/* Right Column */}
           <div>
-            {/* Pricing Breakdown */}
+            {/* Pricing Summary */}
             <div style={styles.card}>
-              <h2 style={styles.cardTitle}>Pricing Breakdown</h2>
-
-              <div style={styles.pricingRow}>
-                <div style={styles.pricingLabel}>Service Fee</div>
-                <div style={styles.pricingValue}>
-                  ₱{request.pricing.serviceFee.toLocaleString()}
-                </div>
-              </div>
-
-              <div style={styles.pricingRow}>
-                <div style={styles.pricingLabel}>Platform Fee (10%)</div>
-                <div style={styles.pricingValue}>
-                  -₱{request.pricing.platformFee.toLocaleString()}
-                </div>
-              </div>
+              <h2 style={styles.cardTitle}>Pricing Summary</h2>
 
               <div style={styles.totalRow}>
-                <div style={styles.totalLabel}>Your Earnings</div>
+                <div style={styles.totalLabel}>Booking Total</div>
                 <div style={styles.totalValue}>
-                  ₱{request.pricing.providerEarnings.toLocaleString()}
+                  ₱{request.pricing.totalAmount.toLocaleString()}
                 </div>
               </div>
+              <p style={{ color: "#6B7280", fontSize: "13px", lineHeight: 1.5, marginTop: "8px" }}>
+                Provider payout and fee details are confirmed through payment records
+                after the booking is processed.
+              </p>
             </div>
 
             {/* Action Buttons */}

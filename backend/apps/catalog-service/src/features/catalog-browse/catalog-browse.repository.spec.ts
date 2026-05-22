@@ -59,6 +59,49 @@ describe('SupabaseCatalogBrowseRepository', () => {
     });
   });
 
+  it('lists active service areas from the service-area catalog', async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: [
+        {
+          id: '2de4b01a-9321-4e04-91d2-0ce48fdddf7d',
+          name: 'Makati',
+          city: 'Makati',
+          region: 'Metro Manila',
+          status: 'active',
+          provider_count: '8',
+          latitude: '14.5547',
+          longitude: '121.0244',
+        },
+        {
+          id: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+          name: 'Retired Area',
+          city: 'Retired',
+          region: 'Metro Manila',
+          status: 'inactive',
+          provider_count: '0',
+          latitude: null,
+          longitude: null,
+        },
+      ],
+      error: null,
+    });
+    const repository = new SupabaseCatalogBrowseRepository({ rpc });
+
+    await expect(repository.listServiceAreas()).resolves.toEqual([
+      {
+        id: '2de4b01a-9321-4e04-91d2-0ce48fdddf7d',
+        name: 'Makati',
+        city: 'Makati',
+        region: 'Metro Manila',
+        status: 'active',
+        providerCount: 8,
+        latitude: 14.5547,
+        longitude: 121.0244,
+      },
+    ]);
+    expect(rpc).toHaveBeenCalledWith('servease_admin_list_service_areas');
+  });
+
   it('forwards filters and maps provider listing summaries', async () => {
     const rpc = jest.fn().mockResolvedValue({
       data: [

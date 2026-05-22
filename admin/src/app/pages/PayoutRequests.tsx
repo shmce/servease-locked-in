@@ -26,6 +26,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../components/ui/dialog";
+import { Label } from "../components/ui/label";
+import { Textarea } from "../components/ui/textarea";
 import {
   Clock,
   CheckCircle,
@@ -34,12 +36,16 @@ import {
   ThumbsUp,
   ThumbsDown,
   Wallet,
+  History,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  listAdminPayouts,
   approveAdminSettlement,
-  updateAdminPayoutStatus,
+  listAdminSettlementHistory,
+  listAdminSettlements,
+  reconcileAdminSettlement,
+  rejectAdminSettlement,
+  type AdminPayoutEventSummary,
   type AdminPayoutStatus,
   type AdminPayoutSummary,
 } from "../../services/serveaseAdminApi";
@@ -86,6 +92,13 @@ export function PayoutRequests() {
   const [selectedPayout, setSelectedPayout] = useState<string | null>(null);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showReconcileDialog, setShowReconcileDialog] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [settlementHistory, setSettlementHistory] = useState<AdminPayoutEventSummary[]>([]);
+  const [historySettlement, setHistorySettlement] = useState<AdminPayoutSummary | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [bankReference, setBankReference] = useState("");
+  const [reconcileNote, setReconcileNote] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [updatingPayoutId, setUpdatingPayoutId] = useState<string | null>(null);
@@ -98,7 +111,7 @@ export function PayoutRequests() {
 
     try {
       setPayoutRequests(
-        await listAdminPayouts(
+        await listAdminSettlements(
           accessToken,
           statusFilter === "all" ? null : statusFilter,
         ),
@@ -147,25 +160,23 @@ export function PayoutRequests() {
     };
   }, [payoutRequests]);
 
-  const updatePayout = async (payoutId: string, status: AdminPayoutStatus) => {
-    if (!accessToken) return;
-
-    setUpdatingPayoutId(payoutId);
-    try {
-      const updated = await updateAdminPayoutStatus(accessToken, payoutId, status);
-      setPayoutRequests((current) =>
-        current.map((payout) => (payout.id === updated.id ? updated : payout)),
-      );
-      toast.success(`Payout ${updated.reference ?? updated.id} updated to ${statusLabel(status)}.`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to update payout.");
-    } finally {
-      setUpdatingPayoutId(null);
-      setSelectedPayout(null);
-      setShowApproveDialog(false);
-      setShowRejectDialog(false);
-    }
+  const replacePayout = (updated: AdminPayoutSummary) => {
+    setPayoutRequests((current) =>
+      current.map((payout) => (payout.id === updated.id ? updated : payout)),
+    );
   };
+
+  const closeActionDialogs = () => {
+    setSelectedPayout(null);
+    setShowApproveDialog(false);
+    setShowRejectDialog(false);
+    setShowReconcileDialog(false);
+    setBankReference("");
+    setReconcileNote("");
+  };
+
+  const selectedPayoutRecord =
+    payoutRequests.find((payout) => payout.id === selectedPayout) ?? null;
 
   const handleApprove = () => {
     if (!selectedPayout || !accessToken) return;
@@ -173,9 +184,7 @@ export function PayoutRequests() {
     setUpdatingPayoutId(selectedPayout);
     approveAdminSettlement(accessToken, selectedPayout)
       .then((updated) => {
-        setPayoutRequests((current) =>
-          current.map((payout) => (payout.id === updated.id ? updated : payout)),
-        );
+        replacePayout(updated);
         toast.success(`Settlement ${updated.reference ?? updated.id} approved for processing.`);
       })
       .catch((error) => {
@@ -183,9 +192,68 @@ export function PayoutRequests() {
       })
       .finally(() => {
         setUpdatingPayoutId(null);
-        setSelectedPayout(null);
-        setShowApproveDialog(false);
+        closeActionDialogs();
       });
+  };
+
+  const handleReject = () => {
+    if (!selectedPayout || !accessToken) return;
+
+    setUpdatingPayoutId(selectedPayout);
+    rejectAdminSettlement(accessToken, selectedPayout)
+      .then((updated) => {
+        replacePayout(updated);
+        toast.success(`Settlement ${updated.reference ?? updated.id} rejected.`);
+      })
+      .catch((error) => {
+        toast.error(error instanceof Error ? error.message : "Unable to reject settlement.");
+      })
+      .finally(() => {
+        setUpdatingPayoutId(null);
+        closeActionDialogs();
+      });
+  };
+
+  const handleReconcile = async () => {
+    if (!accessToken) return;
+    const settlementId = selectedPayout;
+    const reference = bankReference.trim();
+
+    if (!settlementId || !reference) {
+      toast.error("Bank reference is required.");
+      return;
+    }
+
+    setUpdatingPayoutId(settlementId);
+    try {
+      const updated = await reconcileAdminSettlement(accessToken, settlementId, {
+        bankReference: reference,
+        note: reconcileNote.trim() || null,
+      });
+      replacePayout(updated);
+      toast.success(`Settlement ${updated.reference ?? updated.id} reconciled.`);
+      closeActionDialogs();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to reconcile settlement.");
+    } finally {
+      setUpdatingPayoutId(null);
+    }
+  };
+
+  const handleViewHistory = async (payout: AdminPayoutSummary) => {
+    if (!accessToken) return;
+
+    setHistorySettlement(payout);
+    setSettlementHistory([]);
+    setShowHistoryDialog(true);
+    setIsLoadingHistory(true);
+    try {
+      setSettlementHistory(await listAdminSettlementHistory(accessToken, payout.id));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to load settlement history.");
+    } finally {
+      setIsLoadingHistory(false);
+    }
   };
 
   const getStatusBadge = (status: AdminPayoutStatus) => {
@@ -419,7 +487,7 @@ export function PayoutRequests() {
                         <TableCell>{getStatusBadge(payout.status)}</TableCell>
                         <TableCell>
                           {payout.status === "requested" && (
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <Button
                                 size="sm"
                                 disabled={updatingPayoutId === payout.id}
@@ -451,11 +519,28 @@ export function PayoutRequests() {
                             <Button
                               size="sm"
                               disabled={updatingPayoutId === payout.id}
-                              onClick={() => void updatePayout(payout.id, "paid")}
+                              onClick={() => {
+                                setSelectedPayout(payout.id);
+                                setShowReconcileDialog(true);
+                              }}
                               className="bg-[#16A34A] hover:bg-[#15803D]"
                             >
                               <CheckCircle className="w-3 h-3 mr-1" />
-                              Mark Released
+                              Reconcile
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void handleViewHistory(payout)}
+                            className="mt-2 sm:mt-0 sm:ml-2"
+                          >
+                            <History className="w-3 h-3 mr-1" />
+                            History
+                          </Button>
+                          {payout.status === "paid" && (
+                            <Button size="sm" disabled variant="outline" className="ml-2">
+                              Released
                             </Button>
                           )}
                         </TableCell>
@@ -475,8 +560,9 @@ export function PayoutRequests() {
           <DialogHeader>
             <DialogTitle>Approve Payout Request</DialogTitle>
             <DialogDescription>
-              Are you sure you want to approve this payout request? The funds will be processed
-              for transfer to the provider's bank account.
+              Approve settlement {selectedPayoutRecord?.reference ?? selectedPayoutRecord?.id} for
+              payout processing. This records an approval event and moves the settlement to
+              Processing.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -502,12 +588,10 @@ export function PayoutRequests() {
           <DialogHeader>
             <DialogTitle>Reject Payout Request</DialogTitle>
             <DialogDescription>
-              Please provide a reason for rejecting this payout request.
+              Reject settlement {selectedPayoutRecord?.reference ?? selectedPayoutRecord?.id}. This
+              records a rejection event and cancels the payout request.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Input placeholder="Reason for rejection..." />
-          </div>
           <DialogFooter>
             <Button
               variant="outline"
@@ -519,14 +603,112 @@ export function PayoutRequests() {
               Cancel
             </Button>
             <Button
-              onClick={() => {
-                if (selectedPayout) {
-                  void updatePayout(selectedPayout, "cancelled");
-                }
-              }}
+              onClick={handleReject}
+              disabled={updatingPayoutId === selectedPayout}
               className="bg-red-600 hover:bg-red-700"
             >
               Reject Request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reconcile Dialog */}
+      <Dialog open={showReconcileDialog} onOpenChange={setShowReconcileDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reconcile Settlement</DialogTitle>
+            <DialogDescription>
+              Record the external bank or wallet reference after settlement{" "}
+              {selectedPayoutRecord?.reference ?? selectedPayoutRecord?.id} has been transferred.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="bankReference">Bank Reference *</Label>
+              <Input
+                id="bankReference"
+                value={bankReference}
+                onChange={(event) => setBankReference(event.target.value)}
+                placeholder="e.g. BDO-20260522-0001"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reconcileNote">Note</Label>
+              <Textarea
+                id="reconcileNote"
+                value={reconcileNote}
+                onChange={(event) => setReconcileNote(event.target.value)}
+                placeholder="Optional reconciliation note"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowReconcileDialog(false);
+                setSelectedPayout(null);
+                setBankReference("");
+                setReconcileNote("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleReconcile()}
+              disabled={updatingPayoutId === selectedPayout || !bankReference.trim()}
+              className="bg-[#16A34A] hover:bg-[#15803D]"
+            >
+              Reconcile Settlement
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* History Dialog */}
+      <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Settlement History</DialogTitle>
+            <DialogDescription>
+              Events recorded for {historySettlement?.reference ?? historySettlement?.id}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {isLoadingHistory ? (
+              <p className="text-sm text-gray-500">Loading settlement history...</p>
+            ) : settlementHistory.length === 0 ? (
+              <p className="text-sm text-gray-500">No settlement events recorded yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {settlementHistory.map((event) => (
+                  <div key={event.id} className="rounded-lg border p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-medium text-gray-900">
+                        {event.eventType.replaceAll("_", " ")}
+                      </p>
+                      <Badge variant="outline">{statusLabel(event.status)}</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {event.createdAt ? new Date(event.createdAt).toLocaleString() : "No date"}
+                    </p>
+                    {event.bankReference && (
+                      <p className="mt-2 text-sm text-gray-700">
+                        Bank reference:{" "}
+                        <span className="font-mono">{event.bankReference}</span>
+                      </p>
+                    )}
+                    {event.note && <p className="mt-1 text-sm text-gray-600">{event.note}</p>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowHistoryDialog(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

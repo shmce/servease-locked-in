@@ -63,6 +63,7 @@ export function ProviderRegStep4() {
         idType: formData.idType,
         fileName: fileName,
       }));
+      sessionStorage.setItem("providerRegSubmittedAt", new Date().toISOString());
 
       const draft = readProviderRegistrationDraft();
       await submitProviderRegistration(draft);

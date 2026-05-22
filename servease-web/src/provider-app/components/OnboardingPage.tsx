@@ -1,14 +1,18 @@
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Check, MapPin, Plus, Trash2, Clock, Calendar } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Check, MapPin, Plus, Trash2, Clock } from "lucide-react";
 import { useNavigate } from "react-router";
 import {
+  getCurrentUser,
   getStoredProviderAccessToken,
   upsertProviderPayoutMethod,
   replaceProviderOwnedServices,
   replaceProviderAvailabilityWindows,
+  updateCurrentUserProfile,
+  listCatalogServiceAreas,
   ProviderOwnedServiceInput,
   AvailabilityWindowInput,
   DayOfWeek,
+  ServiceAreaSummary,
 } from "../../services/serveaseProviderApi";
 
 const styles = {
@@ -350,11 +354,6 @@ interface Service {
   name: string;
   basePrice: string;
   priceUnit: string;
-  calloutFee: string;
-  materialsMarkup: string;
-  minimumCharge: string;
-  emergencyMultiplier: string;
-  estimatedDuration: string;
 }
 
 interface DaySchedule {
@@ -362,6 +361,10 @@ interface DaySchedule {
   startTime: string;
   endTime: string;
   unavailable: boolean;
+}
+
+function toAreaLabel(area: ServiceAreaSummary): string {
+  return area.name || area.city;
 }
 
 export function OnboardingPage() {
@@ -373,35 +376,16 @@ export function OnboardingPage() {
   const [bankName, setBankName] = useState("");
   const [accountName, setAccountName] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
-  const [accountType, setAccountType] = useState("savings");
-  const [branch, setBranch] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [setPrimary, setSetPrimary] = useState(false);
-  const [payoutSchedule, setPayoutSchedule] = useState("weekly");
 
   // Step 2: Service Configuration
   const [services, setServices] = useState<Service[]>([
     {
       id: "1",
-      name: "Plumbing Repair",
-      basePrice: "500",
+      name: "",
+      basePrice: "",
       priceUnit: "per hour",
-      calloutFee: "200",
-      materialsMarkup: "15",
-      minimumCharge: "500",
-      emergencyMultiplier: "1.5",
-      estimatedDuration: "2 hours",
-    },
-    {
-      id: "2",
-      name: "Pipe Installation",
-      basePrice: "3000",
-      priceUnit: "per project",
-      calloutFee: "200",
-      materialsMarkup: "20",
-      minimumCharge: "2500",
-      emergencyMultiplier: "2",
-      estimatedDuration: "4 hours",
     },
   ]);
 
@@ -410,24 +394,15 @@ export function OnboardingPage() {
   const [serviceRadius, setServiceRadius] = useState(15);
   const [areaType, setAreaType] = useState<"radius" | "specific">("radius");
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
-  const [maxTravelDistance, setMaxTravelDistance] = useState("25");
+  const [serviceAreas, setServiceAreas] = useState<ServiceAreaSummary[]>([]);
+  const [serviceAreasError, setServiceAreasError] = useState<string | null>(null);
 
-  const areas = [
-    "Quezon City",
-    "Manila",
-    "Makati",
-    "Pasig",
-    "Taguig",
-    "Mandaluyong",
-    "San Juan",
-    "Parañaque",
-    "Las Piñas",
-    "Muntinlupa",
-    "Caloocan",
-    "Malabon",
-    "Navotas",
-    "Valenzuela",
-  ];
+  const areas = useMemo(() => {
+    return serviceAreas
+      .filter((area) => area.status === "active")
+      .map(toAreaLabel)
+      .filter(Boolean);
+  }, [serviceAreas]);
 
   // Step 4: Availability Calendar
   const [schedule, setSchedule] = useState<DaySchedule[]>([
@@ -439,13 +414,31 @@ export function OnboardingPage() {
     { day: "Saturday", startTime: "09:00", endTime: "13:00", unavailable: false },
     { day: "Sunday", startTime: "09:00", endTime: "17:00", unavailable: true },
   ]);
-  const [breakStart, setBreakStart] = useState("12:00");
-  const [breakEnd, setBreakEnd] = useState("13:00");
-  const [recurringDaysOff, setRecurringDaysOff] = useState<string[]>(["Sunday"]);
-  const [maxBookingsPerDay, setMaxBookingsPerDay] = useState("5");
-  const [advanceBookingWindow, setAdvanceBookingWindow] = useState("30");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    listCatalogServiceAreas()
+      .then((items) => {
+        if (!isMounted) return;
+        setServiceAreas(items);
+        setServiceAreasError(null);
+      })
+      .catch((error) => {
+        if (!isMounted) return;
+        setServiceAreasError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load live service areas.",
+        );
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const steps = [
     { number: 1, label: "Payout Setup" },
@@ -482,6 +475,16 @@ export function OnboardingPage() {
         endTime: s.endTime,
         isActive: !s.unavailable,
       }));
+      const currentUser = await getCurrentUser(token);
+      const serviceArea =
+        areaType === 'specific'
+          ? selectedAreas.join(', ')
+          : [
+              baseAddress.trim(),
+              serviceRadius > 0 ? `${serviceRadius} km radius` : null,
+            ]
+              .filter(Boolean)
+              .join(' - ');
       await Promise.all([
         upsertProviderPayoutMethod(token, {
           methodType: payoutMethod as 'bank' | 'gcash' | 'paymaya',
@@ -494,6 +497,26 @@ export function OnboardingPage() {
           ? replaceProviderOwnedServices(token, serviceInputs)
           : Promise.resolve([]),
         replaceProviderAvailabilityWindows(token, windowInputs),
+        currentUser.providerProfile
+          ? updateCurrentUserProfile(token, {
+              fullName:
+                currentUser.user.fullName ||
+                currentUser.providerProfile.businessName ||
+                currentUser.user.email,
+              contactNumber: currentUser.user.contactNumber,
+              address: currentUser.customerProfile?.address ?? null,
+              businessName:
+                currentUser.providerProfile.businessName ||
+                currentUser.user.fullName ||
+                currentUser.user.email,
+              bio: currentUser.providerProfile.bio ?? null,
+              serviceDescription:
+                currentUser.providerProfile.serviceDescription ?? null,
+              serviceArea: serviceArea || null,
+              yearsExperience:
+                currentUser.providerProfile.yearsExperience ?? null,
+            })
+          : Promise.resolve(null),
       ]);
       navigate('/provider/dashboard');
     } catch (err) {
@@ -535,11 +558,6 @@ export function OnboardingPage() {
       name: "",
       basePrice: "",
       priceUnit: "per hour",
-      calloutFee: "",
-      materialsMarkup: "",
-      minimumCharge: "",
-      emergencyMultiplier: "",
-      estimatedDuration: "",
     };
     setServices([...services, newService]);
   };
@@ -576,12 +594,6 @@ export function OnboardingPage() {
         }))
       );
     }
-  };
-
-  const toggleRecurringDayOff = (day: string) => {
-    setRecurringDaysOff((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    );
   };
 
   const renderProgressBar = () => (
@@ -788,29 +800,6 @@ export function OnboardingPage() {
             </div>
           </div>
 
-          <div style={styles.gridTwoCol}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Account Type</label>
-              <select
-                style={styles.select}
-                value={accountType}
-                onChange={(e) => setAccountType(e.target.value)}
-              >
-                <option value="savings">Savings</option>
-                <option value="checking">Checking</option>
-              </select>
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Branch</label>
-              <input
-                type="text"
-                style={styles.input}
-                value={branch}
-                onChange={(e) => setBranch(e.target.value)}
-                placeholder="Branch name or location"
-              />
-            </div>
-          </div>
         </>
       )}
 
@@ -854,35 +843,11 @@ export function OnboardingPage() {
         </span>
       </div>
 
-      <div style={{ ...styles.formGroup, marginTop: "32px" }}>
-        <label style={styles.label}>Payout Schedule</label>
-        <div style={{ display: "flex", gap: "12px" }}>
-          <button
-            style={{
-              ...styles.pill,
-              ...(payoutSchedule === "weekly" ? styles.pillActive : {}),
-            }}
-            onClick={() => setPayoutSchedule("weekly")}
-          >
-            Weekly
-          </button>
-          <button
-            style={{
-              ...styles.pill,
-              ...(payoutSchedule === "biweekly" ? styles.pillActive : {}),
-            }}
-            onClick={() => setPayoutSchedule("biweekly")}
-          >
-            Biweekly
-          </button>
-        </div>
-      </div>
-
       <div style={styles.infoBox}>
-        <Calendar size={18} style={{ marginTop: "2px", flexShrink: 0 }} />
+        <Clock size={18} style={{ marginTop: "2px", flexShrink: 0 }} />
         <div>
-          Payouts are processed every {payoutSchedule === "weekly" ? "Friday" : "1st and 15th of the month"}. 
-          Funds typically arrive within 1-3 business days.
+          You can review balances and request payouts from the Payout Method page
+          after onboarding.
         </div>
       </div>
     </div>
@@ -927,7 +892,7 @@ export function OnboardingPage() {
             />
           </div>
 
-          <div style={styles.gridThreeCol}>
+          <div style={styles.gridTwoCol}>
             <div style={styles.formGroup}>
               <label style={styles.label}>Base Price</label>
               <input
@@ -950,70 +915,6 @@ export function OnboardingPage() {
                 <option value="per day">Per Day</option>
               </select>
             </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Callout Fee</label>
-              <input
-                type="text"
-                style={styles.input}
-                value={service.calloutFee}
-                onChange={(e) =>
-                  updateService(service.id, "calloutFee", e.target.value)
-                }
-                placeholder="0.00"
-              />
-            </div>
-          </div>
-
-          <div style={styles.gridThreeCol}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Materials Markup (%)</label>
-              <input
-                type="text"
-                style={styles.input}
-                value={service.materialsMarkup}
-                onChange={(e) =>
-                  updateService(service.id, "materialsMarkup", e.target.value)
-                }
-                placeholder="0"
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Minimum Charge</label>
-              <input
-                type="text"
-                style={styles.input}
-                value={service.minimumCharge}
-                onChange={(e) =>
-                  updateService(service.id, "minimumCharge", e.target.value)
-                }
-                placeholder="0.00"
-              />
-            </div>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Emergency Multiplier</label>
-              <input
-                type="text"
-                style={styles.input}
-                value={service.emergencyMultiplier}
-                onChange={(e) =>
-                  updateService(service.id, "emergencyMultiplier", e.target.value)
-                }
-                placeholder="1.5"
-              />
-            </div>
-          </div>
-
-          <div style={styles.formGroup}>
-            <label style={styles.label}>Estimated Duration</label>
-            <input
-              type="text"
-              style={styles.input}
-              value={service.estimatedDuration}
-              onChange={(e) =>
-                updateService(service.id, "estimatedDuration", e.target.value)
-              }
-              placeholder="e.g., 2 hours, 1 day"
-            />
           </div>
         </div>
       ))}
@@ -1044,16 +945,6 @@ export function OnboardingPage() {
           onChange={(e) => setBaseAddress(e.target.value)}
           placeholder="Enter your base address"
         />
-      </div>
-
-      <div style={styles.mapPlaceholder}>
-        <div style={{ textAlign: "center" }}>
-          <MapPin size={32} style={{ marginBottom: "8px" }} />
-          <div>Map with draggable pin</div>
-          <div style={{ fontSize: "12px", marginTop: "4px" }}>
-            Drag the pin to set your exact location
-          </div>
-        </div>
       </div>
 
       <div style={styles.formGroup}>
@@ -1104,6 +995,16 @@ export function OnboardingPage() {
       {areaType === "specific" && (
         <div style={{ ...styles.formGroup, marginTop: "24px" }}>
           <label style={styles.label}>Select Service Areas</label>
+          {serviceAreasError && (
+            <p style={{ fontSize: "13px", color: "#B45309", marginTop: "8px" }}>
+              Live service areas could not be loaded. Use radius-based coverage or try again later.
+            </p>
+          )}
+          {!serviceAreasError && areas.length === 0 && (
+            <p style={{ fontSize: "13px", color: "#6B7280", marginTop: "8px" }}>
+              No active service areas are available right now. Use radius-based coverage instead.
+            </p>
+          )}
           <div
             style={{
               display: "grid",
@@ -1139,17 +1040,6 @@ export function OnboardingPage() {
           </div>
         </div>
       )}
-
-      <div style={{ ...styles.formGroup, marginTop: "32px" }}>
-        <label style={styles.label}>Maximum Travel Distance (km)</label>
-        <input
-          type="text"
-          style={styles.input}
-          value={maxTravelDistance}
-          onChange={(e) => setMaxTravelDistance(e.target.value)}
-          placeholder="Enter maximum distance"
-        />
-      </div>
 
       <div style={styles.infoBox}>
         <MapPin size={18} style={{ marginTop: "2px", flexShrink: 0 }} />
@@ -1229,77 +1119,6 @@ export function OnboardingPage() {
             </div>
           </div>
         ))}
-      </div>
-
-      <div style={{ ...styles.formGroup, marginTop: "32px" }}>
-        <label style={styles.label}>Break Times</label>
-        <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ ...styles.label, fontSize: "12px", color: "#6B7280" }}>
-              Break Start
-            </label>
-            <input
-              type="time"
-              style={styles.input}
-              value={breakStart}
-              onChange={(e) => setBreakStart(e.target.value)}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ ...styles.label, fontSize: "12px", color: "#6B7280" }}>
-              Break End
-            </label>
-            <input
-              type="time"
-              style={styles.input}
-              value={breakEnd}
-              onChange={(e) => setBreakEnd(e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div style={{ ...styles.formGroup, marginTop: "24px" }}>
-        <label style={styles.label}>Recurring Days Off</label>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px" }}>
-          {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map(
-            (day) => (
-              <button
-                key={day}
-                style={{
-                  ...styles.pill,
-                  ...(recurringDaysOff.includes(day) ? styles.pillActive : {}),
-                }}
-                onClick={() => toggleRecurringDayOff(day)}
-              >
-                {day.slice(0, 3)}
-              </button>
-            )
-          )}
-        </div>
-      </div>
-
-      <div style={styles.gridTwoCol}>
-        <div style={{ ...styles.formGroup, marginTop: "32px" }}>
-          <label style={styles.label}>Max Bookings Per Day</label>
-          <input
-            type="text"
-            style={styles.input}
-            value={maxBookingsPerDay}
-            onChange={(e) => setMaxBookingsPerDay(e.target.value)}
-            placeholder="e.g., 5"
-          />
-        </div>
-        <div style={{ ...styles.formGroup, marginTop: "32px" }}>
-          <label style={styles.label}>Advance Booking Window (days)</label>
-          <input
-            type="text"
-            style={styles.input}
-            value={advanceBookingWindow}
-            onChange={(e) => setAdvanceBookingWindow(e.target.value)}
-            placeholder="e.g., 30"
-          />
-        </div>
       </div>
 
       <div style={styles.infoBox}>

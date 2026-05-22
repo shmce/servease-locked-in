@@ -4,6 +4,7 @@ import {
   CatalogCategory,
   CatalogServiceItem,
   ProviderServiceListing,
+  ServiceAreaSummary,
 } from './catalog-browse.types';
 
 interface SupabaseRpcClient {
@@ -44,6 +45,17 @@ interface ProviderListingRow {
   average_rating: number | string | null;
   review_count: number | null;
   verification_status: 'pending' | 'approved' | 'rejected';
+}
+
+interface ServiceAreaRow {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  status: 'active' | 'inactive';
+  provider_count: number | string | null;
+  latitude: number | string | null;
+  longitude: number | string | null;
 }
 
 @Injectable()
@@ -92,6 +104,29 @@ export class SupabaseCatalogBrowseRepository {
       price: row.price === null ? null : Number(row.price),
       pricingMode: row.pricing_mode,
     }));
+  }
+
+  async listServiceAreas(): Promise<ServiceAreaSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_admin_list_service_areas',
+    );
+
+    if (error) {
+      throw new Error(`Failed to load service areas: ${error.message}`);
+    }
+
+    return ((data ?? []) as ServiceAreaRow[])
+      .filter((row) => row.status === 'active')
+      .map((row) => ({
+        id: row.id,
+        name: row.name,
+        city: row.city,
+        region: row.region,
+        status: row.status,
+        providerCount: Number(row.provider_count ?? 0),
+        latitude: row.latitude === null ? null : Number(row.latitude),
+        longitude: row.longitude === null ? null : Number(row.longitude),
+      }));
   }
 
   async listProviderListings(

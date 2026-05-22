@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { BookingGatewayService } from '../booking/booking.service';
-import { BookingSummary } from '../booking/booking.types';
+import {
+  BookingSummary,
+  BookingTimelineEventSummary,
+} from '../booking/booking.types';
 import { CatalogGatewayService } from '../catalog/catalog.service';
 import {
   ProviderOwnedServiceInput,
@@ -27,10 +30,7 @@ export class ProviderGatewayService {
   async getProviderProfile(userId: string): Promise<ProviderProfileSnapshot> {
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
-    if (
-      currentUser.user.role !== 'provider' ||
-      !currentUser.providerProfile
-    ) {
+    if (currentUser.user.role !== 'provider' || !currentUser.providerProfile) {
       throw new ProviderProfileRequiredError();
     }
 
@@ -48,13 +48,12 @@ export class ProviderGatewayService {
     };
   }
 
-  async getProviderDashboard(userId: string): Promise<ProviderDashboardSummary> {
+  async getProviderDashboard(
+    userId: string,
+  ): Promise<ProviderDashboardSummary> {
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
-    if (
-      currentUser.user.role !== 'provider' ||
-      !currentUser.providerProfile
-    ) {
+    if (currentUser.user.role !== 'provider' || !currentUser.providerProfile) {
       throw new ProviderProfileRequiredError();
     }
 
@@ -71,13 +70,20 @@ export class ProviderGatewayService {
     const todayBookings = bookings.filter(
       (booking) => formatDateKey(new Date(booking.scheduledAt)) === today,
     );
-    const paidPayments = payments.filter((payment) => payment.status === 'paid');
+    const paidPayments = payments.filter(
+      (payment) => payment.status === 'paid',
+    );
     const todayEarnings = paidPayments
       .filter((payment) => paymentDateKey(payment) === today)
       .reduce((sum, payment) => sum + payment.providerPayout, 0);
     const totalEarnings = paidPayments.reduce(
       (sum, payment) => sum + payment.providerPayout,
       0,
+    );
+    const responseTimeMinutes = await calculateResponseTimeMinutes(
+      bookings,
+      providerId,
+      this.bookingGatewayService,
     );
 
     return {
@@ -107,7 +113,8 @@ export class ProviderGatewayService {
       performance: {
         acceptanceRate: calculateAcceptanceRate(bookings),
         completionRate: calculateCompletionRate(bookings),
-        responseTimeMinutes: null,
+        cancellationRate: calculateCancellationRate(bookings),
+        responseTimeMinutes,
       },
     };
   }
@@ -133,10 +140,7 @@ export class ProviderGatewayService {
   private async requireProviderProfile(userId: string): Promise<void> {
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
-    if (
-      currentUser.user.role !== 'provider' ||
-      !currentUser.providerProfile
-    ) {
+    if (currentUser.user.role !== 'provider' || !currentUser.providerProfile) {
       throw new ProviderProfileRequiredError();
     }
   }
@@ -156,7 +160,9 @@ function mapDashboardBooking(booking: BookingSummary) {
 
 function calculateAcceptanceRate(bookings: BookingSummary[]): number {
   const decisionCount = bookings.filter((booking) =>
-    ['confirmed', 'in_progress', 'completed', 'rejected'].includes(booking.status),
+    ['confirmed', 'in_progress', 'completed', 'rejected'].includes(
+      booking.status,
+    ),
   ).length;
 
   if (decisionCount === 0) {
@@ -182,6 +188,105 @@ function calculateCompletionRate(bookings: BookingSummary[]): number {
     (booking) => booking.status === 'completed',
   ).length;
   return Math.round((completedCount / terminalCount) * 100);
+}
+
+function calculateCancellationRate(bookings: BookingSummary[]): number {
+  const terminalCount = bookings.filter((booking) =>
+    ['completed', 'cancelled'].includes(booking.status),
+  ).length;
+
+  if (terminalCount === 0) {
+    return 0;
+  }
+
+  const cancelledCount = bookings.filter(
+    (booking) => booking.status === 'cancelled',
+  ).length;
+  return Math.round((cancelledCount / terminalCount) * 100);
+}
+
+async function calculateResponseTimeMinutes(
+  bookings: BookingSummary[],
+  providerId: string,
+  bookingGatewayService: BookingGatewayService,
+): Promise<number | null> {
+  const decidedBookings = bookings.filter((booking) =>
+    ['confirmed', 'in_progress', 'completed', 'rejected'].includes(
+      booking.status,
+    ),
+  );
+
+  if (decidedBookings.length === 0) {
+    return null;
+  }
+
+  const responseTimes = await Promise.all(
+    decidedBookings.map(async (booking) => {
+      try {
+        const timeline = await bookingGatewayService.listTimelineEvents(
+          booking.id,
+          null,
+          providerId,
+        );
+        return calculateBookingResponseMinutes(timeline);
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const validResponseTimes = responseTimes.filter(
+    (minutes): minutes is number => minutes !== null,
+  );
+
+  if (validResponseTimes.length === 0) {
+    return null;
+  }
+
+  const totalMinutes = validResponseTimes.reduce(
+    (sum, minutes) => sum + minutes,
+    0,
+  );
+  return Math.round(totalMinutes / validResponseTimes.length);
+}
+
+function calculateBookingResponseMinutes(
+  timeline: BookingTimelineEventSummary[],
+): number | null {
+  const createdAt = findTimelineEventDate(
+    timeline,
+    (event) =>
+      event.eventType === 'created' ||
+      event.label?.toLowerCase().includes('booking requested') === true,
+  );
+  const decidedAt = findTimelineEventDate(timeline, (event) => {
+    const label = event.label?.toLowerCase() ?? '';
+    return (
+      event.eventType === 'provider_accepted' ||
+      event.eventType === 'provider_rejected' ||
+      label.includes('status changed to confirmed') ||
+      label.includes('status changed to rejected')
+    );
+  });
+
+  if (!createdAt || !decidedAt || decidedAt.getTime() < createdAt.getTime()) {
+    return null;
+  }
+
+  return Math.round((decidedAt.getTime() - createdAt.getTime()) / 60000);
+}
+
+function findTimelineEventDate(
+  timeline: BookingTimelineEventSummary[],
+  predicate: (event: BookingTimelineEventSummary) => boolean,
+): Date | null {
+  const event = timeline.find((item) => item.createdAt && predicate(item));
+
+  if (!event?.createdAt) {
+    return null;
+  }
+
+  const date = new Date(event.createdAt);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function paymentDateKey(payment: PaymentSummary): string | null {

@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Post,
   Query,
@@ -35,6 +36,8 @@ const validRefundStatuses = new Set([
 
 @Controller('v1/admin/refunds')
 export class AdminRefundController {
+  private readonly logger = new Logger(AdminRefundController.name);
+
   constructor(
     private readonly adminPaymentGatewayService: AdminPaymentGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -153,7 +156,15 @@ export class AdminRefundController {
           status: refund.status,
         },
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Could not create refund audit log for ${refund.id}: ${this.errorMessage(error)}`,
+        );
+      });
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private getClientIp(request: {

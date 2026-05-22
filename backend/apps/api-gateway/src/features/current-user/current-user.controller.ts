@@ -10,6 +10,7 @@ import {
   Body,
 } from '@nestjs/common';
 import {
+  AccountDeletionDependencyUnavailableError,
   AccountInactiveError,
   AuthRequiredError,
   InvalidAuthTokenError,
@@ -155,6 +156,19 @@ export class CurrentUserController {
     }
   }
 
+  @Get('two-factor')
+  async getTwoFactorStatus(
+    @Headers('authorization') authorization?: string,
+  ): Promise<{ data: TwoFactorStatusResponse }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.getTwoFactorStatus(userId);
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   @Post('two-factor/verify')
   async verifyTwoFactor(
     @Headers('authorization') authorization: string | undefined,
@@ -204,6 +218,14 @@ export class CurrentUserController {
 
     if (error instanceof AccountInactiveError) {
       return this.error('account_inactive', 'This account is not active.', 403);
+    }
+
+    if (error instanceof AccountDeletionDependencyUnavailableError) {
+      return this.error(
+        'account_deletion_dependency_unavailable',
+        'Account deletion cannot complete while booking services are unavailable.',
+        503,
+      );
     }
 
     if (error instanceof InvalidPasswordChangeRequestError) {

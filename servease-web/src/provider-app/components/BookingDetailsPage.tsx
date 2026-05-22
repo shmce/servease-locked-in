@@ -15,7 +15,6 @@ import {
   Image as ImageIcon,
   Send,
   DollarSign,
-  Star,
   X,
 } from "lucide-react";
 import {
@@ -689,6 +688,8 @@ export function BookingDetailsPage() {
   const [conversationMessages, setConversationMessages] = useState<ConversationMessage[]>([]);
   const [serviceUpdates, setServiceUpdates] = useState<BookingServiceUpdateSummary[]>([]);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [serviceUpdatesError, setServiceUpdatesError] = useState<string | null>(null);
+  const [trackingError, setTrackingError] = useState<string | null>(null);
   const [messageError, setMessageError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isPostingProgress, setIsPostingProgress] = useState(false);
@@ -708,10 +709,22 @@ export function BookingDetailsPage() {
 
       try {
         setDetailError(null);
-        const [booking, updates, trackingSnapshot, conversationResult] = await Promise.all([
+        setServiceUpdatesError(null);
+        setTrackingError(null);
+        const [booking, updatesResult, trackingResult, conversationResult] = await Promise.all([
           getProviderBooking(token, id),
-          listProviderBookingServiceUpdates(token, id).catch(() => []),
-          getProviderBookingTrackingSnapshot(token, id).catch(() => null),
+          listProviderBookingServiceUpdates(token, id)
+            .then((updates) => ({ updates, error: null }))
+            .catch((error: unknown) => ({
+              updates: [] as BookingServiceUpdateSummary[],
+              error,
+            })),
+          getProviderBookingTrackingSnapshot(token, id)
+            .then((snapshot) => ({ snapshot, error: null }))
+            .catch((error: unknown) => ({
+              snapshot: null as BookingTrackingSnapshot | null,
+              error,
+            })),
           openProviderConversation(token, id)
             .then(async (openedConversation) => ({
               conversation: openedConversation,
@@ -723,8 +736,22 @@ export function BookingDetailsPage() {
             .catch((error: unknown) => ({ error })),
         ]);
         setApiBooking(booking);
-        setServiceUpdates(updates);
-        setTracking(trackingSnapshot);
+        setServiceUpdates(updatesResult.updates);
+        setTracking(trackingResult.snapshot);
+        setServiceUpdatesError(
+          updatesResult.error instanceof Error
+            ? updatesResult.error.message
+            : updatesResult.error
+              ? "Unable to load service updates."
+              : null,
+        );
+        setTrackingError(
+          trackingResult.error instanceof Error
+            ? trackingResult.error.message
+            : trackingResult.error
+              ? "Unable to load route tracking."
+              : null,
+        );
         if ("error" in conversationResult) {
           setConversation(null);
           setConversationMessages([]);
@@ -769,8 +796,6 @@ export function BookingDetailsPage() {
     apiBooking.status === "completed" && estimatedHours !== null
       ? `${estimatedHours} hour${estimatedHours === 1 ? "" : "s"}`
       : "-";
-  const platformFee = Math.round(apiBooking.totalAmount * 0.1);
-  const yourEarnings = apiBooking.totalAmount - platformFee;
   const booking = {
     id: apiBooking.id,
     refNumber: apiBooking.bookingReference,
@@ -778,8 +803,6 @@ export function BookingDetailsPage() {
     customer: {
       name: apiBooking.customerFullName || "ServEase Customer",
       phone: apiBooking.customerContactNumber || "Contact unavailable",
-      rating: 0,
-      totalReviews: 0,
     },
     service: {
       type: apiBooking.serviceTitle || "Service Booking",
@@ -803,9 +826,7 @@ export function BookingDetailsPage() {
           : "Reference photo"),
     })),
     pricing: {
-      serviceFee: apiBooking.totalAmount,
-      platformFee,
-      yourEarnings,
+      totalAmount: apiBooking.totalAmount,
     },
   };
 
@@ -1139,15 +1160,6 @@ export function BookingDetailsPage() {
                 <div style={styles.avatar}>{initials}</div>
                 <div style={styles.customerInfo}>
                   <div style={styles.customerName}>{booking.customer.name}</div>
-                  <div style={styles.rating}>
-                    <Star size={16} fill="#FCD34D" color="#FCD34D" />
-                    <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>
-                      {booking.customer.rating}
-                    </span>
-                    <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
-                      ({booking.customer.totalReviews} reviews)
-                    </span>
-                  </div>
                   <div style={styles.phoneNumber}>
                     <Phone size={14} />
                     {booking.customer.phone}
@@ -1206,10 +1218,15 @@ export function BookingDetailsPage() {
                 </div>
                 <div style={styles.detailContent}>
                   <div style={styles.detailLabel}>Location</div>
-                  <div style={styles.detailValue}>{booking.service.location}</div>
-                  <RoutePreview tracking={tracking} address={booking.service.location} />
-                </div>
-              </div>
+	                  <div style={styles.detailValue}>{booking.service.location}</div>
+	                  <RoutePreview tracking={tracking} address={booking.service.location} />
+                  {trackingError && (
+                    <p style={{ color: "#B91C1C", fontSize: "13px", marginTop: "8px" }}>
+                      {trackingError}
+                    </p>
+                  )}
+	                </div>
+	              </div>
 
               <div style={styles.detailRow}>
                 <div style={styles.detailIcon}>
@@ -1304,30 +1321,20 @@ export function BookingDetailsPage() {
 
           {/* Right Column */}
           <div>
-            {/* Pricing Breakdown */}
+            {/* Pricing Summary */}
             <div style={styles.card}>
-              <h2 style={styles.cardTitle}>Pricing Breakdown</h2>
-
-              <div style={styles.pricingRow}>
-                <div style={styles.pricingLabel}>Service Fee</div>
-                <div style={styles.pricingValue}>
-                  ₱{booking.pricing.serviceFee.toLocaleString()}
-                </div>
-              </div>
-
-              <div style={styles.pricingRow}>
-                <div style={styles.pricingLabel}>Platform Fee (10%)</div>
-                <div style={styles.pricingValue}>
-                  -₱{booking.pricing.platformFee.toLocaleString()}
-                </div>
-              </div>
+              <h2 style={styles.cardTitle}>Pricing Summary</h2>
 
               <div style={styles.totalRow}>
-                <div style={styles.totalLabel}>Your Earnings</div>
+                <div style={styles.totalLabel}>Booking Total</div>
                 <div style={styles.totalValue}>
-                  ₱{booking.pricing.yourEarnings.toLocaleString()}
+                  ₱{booking.pricing.totalAmount.toLocaleString()}
                 </div>
               </div>
+              <p style={{ color: "#6B7280", fontSize: "13px", lineHeight: 1.5, marginTop: "8px" }}>
+                Provider payout and fee details are available from the payments and payout
+                records after processing.
+              </p>
             </div>
 
             {/* Action Buttons */}
@@ -1498,9 +1505,15 @@ export function BookingDetailsPage() {
 
               <div style={{ marginTop: "24px", borderTop: "1px solid #F3F4F6", paddingTop: "18px" }}>
                 <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#111827", marginBottom: "12px" }}>
-                  Service Updates
-                </h3>
-                {serviceUpdates.length > 0 ? (
+	                  Service Updates
+	                </h3>
+                {serviceUpdatesError && (
+                  <div style={{ ...styles.infoBox, marginBottom: "12px" }}>
+                    <AlertCircle size={18} style={{ marginTop: "2px", flexShrink: 0 }} />
+                    <div>{serviceUpdatesError}</div>
+                  </div>
+                )}
+	                {serviceUpdates.length > 0 ? (
                   <div style={{ display: "grid", gap: "10px" }}>
                     {serviceUpdates.map((update) => (
                       <div

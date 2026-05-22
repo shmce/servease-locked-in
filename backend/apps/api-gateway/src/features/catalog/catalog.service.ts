@@ -10,6 +10,7 @@ import {
   ProviderPortfolioOrderItem,
   ProviderPortfolioMediaSummary,
   ProviderServiceListing,
+  ServiceAreaSummary,
 } from './catalog.types';
 
 @Injectable()
@@ -22,6 +23,10 @@ export class CatalogGatewayService {
 
   listServices(categoryId?: string): Promise<CatalogServiceItem[]> {
     return this.catalogServiceClient.listServices(categoryId);
+  }
+
+  listServiceAreas(): Promise<ServiceAreaSummary[]> {
+    return this.catalogServiceClient.listServiceAreas();
   }
 
   listProviderListings(

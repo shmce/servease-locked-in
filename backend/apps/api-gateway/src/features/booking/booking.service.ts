@@ -547,12 +547,20 @@ export class BookingGatewayService {
     if (!provider) {
       provider = this.catalogServiceClient
         .findProviderBusinessNameByProviderId(providerId)
-        .catch(() =>
-          Promise.resolve(
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Could not resolve provider business name for ${providerId}: ${this.errorMessage(error)}`,
+          );
+          return Promise.resolve(
             this.catalogServiceClient?.findProviderOwnerByProviderId(providerId),
-          ).then((owner) => owner?.businessName ?? null),
-        )
-        .catch(() => null);
+          ).then((owner) => owner?.businessName ?? null);
+        })
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Could not resolve provider owner for ${providerId}: ${this.errorMessage(error)}`,
+          );
+          return null;
+        });
       providerCache.set(providerId, provider);
     }
 
@@ -586,9 +594,16 @@ export class BookingGatewayService {
           longitude: destination.longitude,
         },
       };
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `Could not geocode booking tracking destination: ${this.errorMessage(error)}`,
+      );
       return snapshot;
     }
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private async getTrackingSnapshotForStream(

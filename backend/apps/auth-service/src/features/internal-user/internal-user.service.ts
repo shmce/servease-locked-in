@@ -142,6 +142,22 @@ export class InternalUserService {
     };
   }
 
+  async getTwoFactorStatus(userId: string): Promise<TwoFactorStatusResponse> {
+    if (!this.userRepository.getTwoFactor) {
+      throw new UserNotFoundError();
+    }
+
+    const state = await this.userRepository.getTwoFactor(userId);
+    if (!state) {
+      throw new UserNotFoundError();
+    }
+
+    return {
+      enabled: state.enabled,
+      verifiedAt: state.verifiedAt,
+    };
+  }
+
   async verifyTwoFactor(
     userId: string,
     code: string,

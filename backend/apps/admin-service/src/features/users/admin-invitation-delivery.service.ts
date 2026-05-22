@@ -28,6 +28,14 @@ export class AdminInvitationDeliveryService implements AdminInvitationSender {
     const fullName = input.fullName.trim();
     const role = getAdminAccessRoleDefinition(input.accessRole);
     const loginUrl = this.loginUrl();
+    const templateId = this.templateId();
+    const templateData = {
+      fullName: fullName || 'there',
+      loginUrl,
+      temporaryPassword: input.temporaryPassword,
+      accessRole: role.id,
+      accessRoleLabel: role.label,
+    };
 
     try {
       const client = createApicenterClient({
@@ -46,28 +54,10 @@ export class AdminInvitationDeliveryService implements AdminInvitationSender {
       await client.emailSend({
         to: [{ email, name: fullName || undefined }],
         subject: 'You have been invited to ServEase Admin',
-        text: [
-          `Hi ${fullName || 'there'},`,
-          '',
-          'You have been invited to ServEase Admin.',
-          `Role: ${role.label}`,
-          `Login: ${loginUrl}`,
-          `Temporary password: ${input.temporaryPassword}`,
-          '',
-          'Please sign in and update your password after your first login.',
-        ].join('\n'),
-        html: [
-          `<p>Hi ${this.escapeHtml(fullName || 'there')},</p>`,
-          '<p>You have been invited to ServEase Admin.</p>',
-          `<p><strong>Role:</strong> ${this.escapeHtml(role.label)}</p>`,
-          `<p><strong>Login:</strong> <a href="${this.escapeHtml(
-            loginUrl,
-          )}">${this.escapeHtml(loginUrl)}</a></p>`,
-          `<p><strong>Temporary password:</strong> ${this.escapeHtml(
-            input.temporaryPassword,
-          )}</p>`,
-          '<p>Please sign in and update your password after your first login.</p>',
-        ].join(''),
+        templateId,
+        templateData,
+        text: templateId ? undefined : this.textBody(templateData),
+        html: templateId ? undefined : this.htmlBody(templateData),
         metadata: {
           source: 'admin-user-invitation',
           accessRole: role.id,
@@ -91,6 +81,54 @@ export class AdminInvitationDeliveryService implements AdminInvitationSender {
       this.configService.get<string>('NEXT_PUBLIC_ADMIN_URL') ??
       'http://localhost:3000';
     return `${portalUrl.replace(/\/$/, '')}/login`;
+  }
+
+  private templateId(): string | undefined {
+    return (
+      this.configService.get<string>('ADMIN_INVITATION_TEMPLATE_ID')?.trim() ||
+      this.configService
+        .get<string>('APICENTER_ADMIN_INVITATION_TEMPLATE_ID')
+        ?.trim() ||
+      undefined
+    );
+  }
+
+  private textBody(input: {
+    fullName: string;
+    accessRoleLabel: string;
+    loginUrl: string;
+    temporaryPassword: string;
+  }): string {
+    return [
+      `Hi ${input.fullName},`,
+      '',
+      'You have been invited to ServEase Admin.',
+      `Role: ${input.accessRoleLabel}`,
+      `Login: ${input.loginUrl}`,
+      `Temporary password: ${input.temporaryPassword}`,
+      '',
+      'Please sign in and update your password after your first login.',
+    ].join('\n');
+  }
+
+  private htmlBody(input: {
+    fullName: string;
+    accessRoleLabel: string;
+    loginUrl: string;
+    temporaryPassword: string;
+  }): string {
+    return [
+      `<p>Hi ${this.escapeHtml(input.fullName)},</p>`,
+      '<p>You have been invited to ServEase Admin.</p>',
+      `<p><strong>Role:</strong> ${this.escapeHtml(input.accessRoleLabel)}</p>`,
+      `<p><strong>Login:</strong> <a href="${this.escapeHtml(
+        input.loginUrl,
+      )}">${this.escapeHtml(input.loginUrl)}</a></p>`,
+      `<p><strong>Temporary password:</strong> ${this.escapeHtml(
+        input.temporaryPassword,
+      )}</p>`,
+      '<p>Please sign in and update your password after your first login.</p>',
+    ].join('');
   }
 
   private escapeHtml(value: string): string {

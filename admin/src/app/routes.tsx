@@ -8,7 +8,6 @@ import { Profile } from "./pages/Profile";
 import { Settings } from "./pages/Settings";
 import { Security } from "./pages/Security";
 import { ProviderApplications } from "./pages/ProviderApplications";
-import { ProviderApplicationDetail } from "./pages/ProviderApplicationDetail";
 import { ProviderApplicationReview } from "./pages/ProviderApplicationReview";
 import { ServiceProviders } from "./pages/ServiceProviders";
 import { ServiceProviderDetails } from "./pages/ServiceProviderDetails";
@@ -23,11 +22,10 @@ import { FailedPayments } from "./pages/FailedPayments";
 import {
   AdminRoles,
   NotificationSettings,
-  SecuritySettings,
   AuditTrail,
   Integrations,
 } from "./pages/PlatformSettingsPages";
-import { Customers, Support, Broadcasts } from "./pages/PlaceholderPages";
+import { Customers, Support, Broadcasts } from "./pages/AdminGatewayPages";
 import { Categories } from "./pages/Categories";
 import { Services } from "./pages/Services";
 import { ServiceAreas } from "./pages/ServiceAreas";
@@ -40,8 +38,6 @@ import { AddNewAdmin } from "./pages/AddNewAdmin";
 import { BusinessReports } from "./pages/reports/BusinessReports";
 import { FinancialReports } from "./pages/reports/FinancialReports";
 import { UserReports } from "./pages/reports/UserReports";
-import { PerformanceReports } from "./pages/reports/PerformanceReports";
-import { ComplianceReports } from "./pages/reports/ComplianceReports";
 import { BackendSupportMatrix } from "./pages/BackendSupportMatrix";
 import { Reviews } from "./pages/Reviews";
 
@@ -121,15 +117,12 @@ export const router = createBrowserRouter([
       { path: "reports/business", Component: BusinessReports },
       { path: "reports/financial", Component: FinancialReports },
       { path: "reports/user", Component: UserReports },
-      { path: "reports/performance", Component: PerformanceReports },
-      { path: "reports/compliance", Component: ComplianceReports },
 
       // Platform Settings
       { path: "commission-rules", Component: CommissionRules },
       { path: "pricing-engine", Component: PricingEngine },
       { path: "admin-roles", Component: AdminRoles },
       { path: "notification-settings", Component: NotificationSettings },
-      { path: "security-settings", Component: SecuritySettings },
       { path: "audit-trail", Component: AuditTrail },
       { path: "integrations", Component: Integrations },
       { path: "backend-support", Component: BackendSupportMatrix },

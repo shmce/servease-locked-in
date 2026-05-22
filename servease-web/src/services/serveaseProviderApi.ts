@@ -441,6 +441,7 @@ export interface ProviderDashboardSummary {
   performance: {
     acceptanceRate: number
     completionRate: number
+    cancellationRate: number
     responseTimeMinutes: number | null
   }
 }
@@ -537,6 +538,17 @@ export interface ReferralSummary {
   completedReferrals: number
   pendingReferrals: number
   totalRewards: number
+}
+
+export interface ServiceAreaSummary {
+  id: string
+  name: string
+  city: string
+  region: string
+  status: 'active' | 'inactive'
+  providerCount: number
+  latitude: number | null
+  longitude: number | null
 }
 
 export interface AddPortfolioMediaRequest {
@@ -752,6 +764,10 @@ export function getProviderDashboard(
   return request<ProviderDashboardSummary>('/v1/provider/dashboard', {
     token,
   })
+}
+
+export function listCatalogServiceAreas(): Promise<ServiceAreaSummary[]> {
+  return request<ServiceAreaSummary[]>('/v1/catalog/service-areas')
 }
 
 export function listProviderOwnedServices(
@@ -1221,6 +1237,14 @@ export function enableCurrentUserTwoFactor(
 ): Promise<TwoFactorProvisioningResponse> {
   return request<TwoFactorProvisioningResponse>('/v1/me/two-factor/enable', {
     method: 'POST',
+    token,
+  })
+}
+
+export function getCurrentUserTwoFactorStatus(
+  token: string,
+): Promise<TwoFactorStatusResponse> {
+  return request<TwoFactorStatusResponse>('/v1/me/two-factor', {
     token,
   })
 }

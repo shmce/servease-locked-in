@@ -16,6 +16,12 @@ export class AccountInactiveError extends Error {
   }
 }
 
+export class AccountDeletionDependencyUnavailableError extends Error {
+  constructor() {
+    super('account_deletion_dependency_unavailable');
+  }
+}
+
 export class UserNotFoundError extends Error {
   constructor() {
     super('user_not_found');

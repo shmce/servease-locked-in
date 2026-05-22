@@ -5,7 +5,9 @@ import { AdminPaymentGatewayService } from './admin-payment.service';
 import { AdminRefundController } from './admin-refund.controller';
 
 describe('AdminRefundController', () => {
-  function buildController() {
+  function buildController({
+    auditFailure,
+  }: { auditFailure?: Error } = {}) {
     const authTokenService = {
       authenticate: jest.fn().mockResolvedValue('admin-user-1'),
     } as unknown as AuthTokenService;
@@ -35,10 +37,13 @@ describe('AdminRefundController', () => {
       }),
     } as unknown as AdminPaymentGatewayService;
     const adminAuditGatewayService = {
-      createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+      createAuditLog: auditFailure
+        ? jest.fn().mockRejectedValue(auditFailure)
+        : jest.fn().mockResolvedValue({ id: 'audit-1' }),
     } as unknown as AdminAuditGatewayService;
 
     return {
+      adminAuditGatewayService,
       adminPaymentGatewayService,
       controller: new AdminRefundController(
         adminPaymentGatewayService,
@@ -68,6 +73,29 @@ describe('AdminRefundController', () => {
       'Approved',
     );
     expect(response.data.status).toBe('approved');
+  });
+
+  it('keeps refund approval successful when audit logging fails', async () => {
+    const { adminAuditGatewayService, controller } = buildController({
+      auditFailure: new Error('audit unavailable'),
+    });
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.approve(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      'refund-1',
+      { reason: 'Approved' },
+    );
+
+    expect(adminAuditGatewayService.createAuditLog).toHaveBeenCalled();
+    expect(response.data.status).toBe('approved');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not create refund audit log'),
+    );
+    warnSpy.mockRestore();
   });
 
   it('rejects refunds with a required reason before calling admin service', async () => {

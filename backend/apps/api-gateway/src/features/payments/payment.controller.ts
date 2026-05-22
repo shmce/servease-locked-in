@@ -56,6 +56,8 @@ const APICENTER_CHECKOUT_STATUSES = new Set([
   'partially_refunded',
 ]);
 const APICENTER_PAYMENT_PROVIDERS = new Set(['paymongo', 'mock']);
+const APICENTER_MOCK_PAYMENT_PROVIDER = 'mock';
+const PRODUCTION_ENVIRONMENT_NAMES = new Set(['production', 'prod']);
 const APICENTER_PAYMENT_METHODS = new Set([
   'qrph',
   'gcash',
@@ -576,7 +578,7 @@ export class PaymentController {
       !body.checkoutId?.trim() ||
       !body.referenceId?.trim() ||
       !APICENTER_CHECKOUT_STATUSES.has(body.status) ||
-      !APICENTER_PAYMENT_PROVIDERS.has(body.provider) ||
+      !this.isApicenterPaymentProviderAllowed(body.provider) ||
       (body.redirectUrl !== undefined && !this.isValidUrl(body.redirectUrl)) ||
       (body.amount !== undefined &&
         (!Number.isFinite(body.amount.value) ||
@@ -585,6 +587,30 @@ export class PaymentController {
     ) {
       throw new InvalidPaymentRequestError();
     }
+  }
+
+  private isApicenterPaymentProviderAllowed(provider: string): boolean {
+    if (!APICENTER_PAYMENT_PROVIDERS.has(provider)) {
+      return false;
+    }
+
+    return (
+      provider !== APICENTER_MOCK_PAYMENT_PROVIDER ||
+      !this.isProductionLikeEnvironment()
+    );
+  }
+
+  private isProductionLikeEnvironment(): boolean {
+    const values = [
+      this.configService?.get<string>('APP_ENV'),
+      this.configService?.get<string>('NODE_ENV'),
+      process.env.APP_ENV,
+      process.env.NODE_ENV,
+    ];
+
+    return values.some((value) =>
+      PRODUCTION_ENVIRONMENT_NAMES.has(value?.trim().toLowerCase() ?? ''),
+    );
   }
 
   private async notifyProviderPaymentCreated(

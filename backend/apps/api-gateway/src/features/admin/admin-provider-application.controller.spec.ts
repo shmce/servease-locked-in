@@ -206,6 +206,54 @@ describe('AdminProviderApplicationController documents', () => {
     });
   });
 
+  it('keeps provider approval successful when notification delivery fails', async () => {
+    const providerApplicationService = {
+      getProviderApplicationReview: jest.fn().mockResolvedValue({
+        applicationId: '11111111-1111-4111-8111-111111111111',
+        isComplete: true,
+      }),
+      decideProviderApplication: jest.fn().mockResolvedValue({
+        id: '11111111-1111-4111-8111-111111111111',
+        applicationReference: 'PA-1111111111',
+        userId: '22222222-2222-4222-8222-222222222222',
+        businessName: 'GreenFix',
+      }),
+    } as unknown as AdminProviderApplicationGatewayService;
+    const controller = new AdminProviderApplicationController(
+      providerApplicationService,
+      {
+        createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+      } as unknown as AdminAuditGatewayService,
+      authTokenService(),
+      currentUserService(),
+      {
+        createNotification: jest
+          .fn()
+          .mockRejectedValue(new Error('notification unavailable')),
+      } as unknown as NotificationServiceClient,
+    );
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.approve(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      '11111111-1111-4111-8111-111111111111',
+      { reason: 'Application met requirements.' },
+    );
+
+    await Promise.resolve();
+
+    expect(response.data.id).toBe('11111111-1111-4111-8111-111111111111');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Could not create provider application approved notification',
+      ),
+    );
+    warnSpy.mockRestore();
+  });
+
   it('updates review state with the authenticated admin id', async () => {
     const providerApplicationService = {
       updateProviderApplicationReview: jest.fn().mockResolvedValue({

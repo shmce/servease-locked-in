@@ -6,6 +6,7 @@ import { SupabaseAdminBookingRepository } from './features/admin-bookings/supaba
 import { AdminDisputeController } from './features/admin-disputes/admin-dispute.controller';
 import { AdminDisputeService } from './features/admin-disputes/admin-dispute.service';
 import { SupabaseAdminDisputeRepository } from './features/admin-disputes/supabase-admin-dispute.repository';
+import { BookingAnalyticsPublisher } from './features/booking-lifecycle/booking-analytics.publisher';
 import { BookingLifecycleController } from './features/booking-lifecycle/booking-lifecycle.controller';
 import { BookingLifecycleService } from './features/booking-lifecycle/booking-lifecycle.service';
 import { SupabaseBookingRepository } from './features/booking-lifecycle/supabase-booking.repository';
@@ -21,6 +22,7 @@ import { HealthController } from './features/health/health.controller';
   ],
   providers: [
     BookingLifecycleService,
+    BookingAnalyticsPublisher,
     AdminDisputeService,
     AdminBookingService,
     {

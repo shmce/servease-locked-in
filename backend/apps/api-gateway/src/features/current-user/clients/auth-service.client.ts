@@ -201,6 +201,29 @@ export class AuthServiceClient {
     return payload.data;
   }
 
+  async getTwoFactorStatus(userId: string): Promise<TwoFactorStatusResponse> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/two-factor`,
+    );
+
+    if (response.status === 404) {
+      throw new UserNotFoundError();
+    }
+
+    if (response.status === 400) {
+      throw new InvalidTwoFactorRequestError();
+    }
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: TwoFactorStatusResponse;
+    };
+    return payload.data;
+  }
+
   async verifyTwoFactor(
     userId: string,
     code: string,

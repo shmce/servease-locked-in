@@ -1,5 +1,8 @@
 import { createApicenterClient } from '@servease/common';
-import { InvalidSharedGeoRequestError } from './shared-geo.errors';
+import {
+  InvalidSharedGeoRequestError,
+  SharedGeoDependencyUnavailableError,
+} from './shared-geo.errors';
 import { SharedGeoService } from './shared-geo.service';
 
 jest.mock('@servease/common', () => ({
@@ -11,6 +14,8 @@ const mockCreateApicenterClient = createApicenterClient as jest.Mock;
 describe('SharedGeoService', () => {
   const originalFetch = global.fetch;
   const originalOpenRouteServiceApiKey = process.env.OPENROUTESERVICE_API_KEY;
+  const originalAppEnv = process.env.APP_ENV;
+  const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
     mockCreateApicenterClient.mockReset();
@@ -24,6 +29,16 @@ describe('SharedGeoService', () => {
       delete process.env.OPENROUTESERVICE_API_KEY;
     } else {
       process.env.OPENROUTESERVICE_API_KEY = originalOpenRouteServiceApiKey;
+    }
+    if (originalAppEnv === undefined) {
+      delete process.env.APP_ENV;
+    } else {
+      process.env.APP_ENV = originalAppEnv;
+    }
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
     }
   });
 
@@ -47,6 +62,22 @@ describe('SharedGeoService', () => {
       language: 'en',
       region: undefined,
     });
+  });
+
+  it('rejects mock APICenter geocode providers in production', async () => {
+    process.env.NODE_ENV = 'production';
+    const geoGeocodeAddress = jest.fn().mockResolvedValue({
+      formattedAddress: 'Manila, Philippines',
+      latitude: 14.5995,
+      longitude: 120.9842,
+      provider: 'mock',
+    });
+    mockCreateApicenterClient.mockReturnValue({ geoGeocodeAddress });
+    const service = new SharedGeoService();
+
+    await expect(
+      service.geocodeAddress({ address: 'Manila, Philippines' }),
+    ).rejects.toBeInstanceOf(SharedGeoDependencyUnavailableError);
   });
 
   it('rejects invalid coordinates before APICenter calls', async () => {

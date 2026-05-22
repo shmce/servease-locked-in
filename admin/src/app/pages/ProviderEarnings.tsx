@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -22,26 +23,48 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 import {
   listAdminManagedProviders,
-  listAdminPayouts,
+  listAdminSettlements,
   AdminProviderSummary,
   AdminPayoutSummary,
 } from "../../services/serveaseAdminApi";
 
 export function ProviderEarnings() {
+  const navigate = useNavigate();
   const { accessToken } = useAuth();
   const [providers, setProviders] = useState<AdminProviderSummary[]>([]);
   const [payouts, setPayouts] = useState<AdminPayoutSummary[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!accessToken) return;
+    let cancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+
     Promise.all([
-      listAdminManagedProviders(accessToken).catch(() => [] as AdminProviderSummary[]),
-      listAdminPayouts(accessToken).catch(() => [] as AdminPayoutSummary[]),
-    ]).then(([provs, pays]) => {
-      setProviders(provs);
-      setPayouts(pays);
-    });
+      listAdminManagedProviders(accessToken),
+      listAdminSettlements(accessToken),
+    ])
+      .then(([provs, pays]) => {
+        if (cancelled) return;
+        setProviders(provs);
+        setPayouts(pays);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLoadError(
+          error instanceof Error ? error.message : "Unable to load provider earnings.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [accessToken]);
 
   const payoutsByProvider = useMemo(() => {
@@ -178,6 +201,11 @@ export function ProviderEarnings() {
           </div>
 
           <div className="overflow-x-auto">
+            {loadError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {loadError}
+              </div>
+            )}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -192,7 +220,13 @@ export function ProviderEarnings() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredData.length === 0 ? (
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      Loading provider earnings...
+                    </TableCell>
+                  </TableRow>
+                ) : filteredData.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-gray-500">
                       No providers found
@@ -244,7 +278,11 @@ export function ProviderEarnings() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Button size="sm" variant="outline">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigate(`/service-providers/${provider.id}`)}
+                        >
                           <Eye className="w-3 h-3 mr-1" />
                           View Details
                         </Button>

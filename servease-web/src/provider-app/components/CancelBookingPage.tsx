@@ -291,11 +291,21 @@ export function CancelBookingPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [bookingData, setBookingData] = useState<BookingSummary | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = getStoredProviderAccessToken();
     if (!token || !id) return;
-    getProviderBooking(token, id).then(setBookingData).catch(() => {});
+    getProviderBooking(token, id)
+      .then((booking) => {
+        setBookingData(booking);
+        setCancelError(null);
+      })
+      .catch((error: unknown) => {
+        setCancelError(
+          error instanceof Error ? error.message : "Unable to load booking details.",
+        );
+      });
   }, [id]);
 
   const scheduledAt = bookingData ? new Date(bookingData.scheduledAt) : null;
@@ -318,11 +328,6 @@ export function CancelBookingPage() {
       location: bookingData?.serviceAddress ?? "—",
     },
     hoursUntilBooking,
-    cancellationPolicy: {
-      penalty: 250,
-      ratingImpact: "Moderate",
-      refundAmount: Math.max(0, (bookingData?.totalAmount ?? 0) - 250),
-    },
   };
 
   const cancellationReasons = [
@@ -337,6 +342,7 @@ export function CancelBookingPage() {
   ];
 
   const handleConfirmCancel = () => {
+    setCancelError(null);
     setShowConfirmModal(true);
   };
 
@@ -348,6 +354,7 @@ export function CancelBookingPage() {
       return;
     }
     setCancelling(true);
+    setCancelError(null);
     updateProviderBookingStatus(
       token,
       id,
@@ -356,38 +363,19 @@ export function CancelBookingPage() {
       reason,
       explanation,
     )
-      .catch(() => {})
-      .finally(() => {
-        setCancelling(false);
+      .then(() => {
         setShowConfirmModal(false);
         navigate("/provider/bookings");
+      })
+      .catch((error) => {
+        setCancelError(
+          error instanceof Error ? error.message : "Unable to cancel booking.",
+        );
+      })
+      .finally(() => {
+        setCancelling(false);
       });
   };
-
-  const getPenaltyMessage = () => {
-    const hours = booking.hoursUntilBooking;
-    if (hours > 48) {
-      return {
-        penalty: "No penalty",
-        description: "Cancellation is free more than 48 hours before booking",
-        color: "#00BF63",
-      };
-    } else if (hours > 24) {
-      return {
-        penalty: `₱${booking.cancellationPolicy.penalty}`,
-        description: "Cancellation within 48 hours incurs a penalty fee",
-        color: "#F59E0B",
-      };
-    } else {
-      return {
-        penalty: `₱${booking.cancellationPolicy.penalty * 2}`,
-        description: "Late cancellation (less than 24 hours) incurs a higher penalty",
-        color: "#DC2626",
-      };
-    }
-  };
-
-  const penaltyInfo = getPenaltyMessage();
 
   return (
     <div style={styles.container}>
@@ -404,8 +392,13 @@ export function CancelBookingPage() {
           </button>
           <h1 style={styles.pageTitle}>Cancel Booking</h1>
           <p style={styles.subtitle}>
-            Please review the cancellation policy and provide a reason
+            Please review the cancellation notice and provide a reason
           </p>
+          {cancelError && (
+            <p style={{ color: "#B91C1C", fontSize: "14px", marginTop: "12px" }}>
+              {cancelError}
+            </p>
+          )}
         </div>
 
         {/* Booking Details Card */}
@@ -465,43 +458,30 @@ export function CancelBookingPage() {
           </div>
         </div>
 
-        {/* Cancellation Policy Card */}
+        {/* Cancellation Notice Card */}
         <div style={styles.warningCard}>
           <div style={styles.warningHeader}>
             <AlertTriangle size={24} style={styles.warningIcon} />
             <div style={{ flex: 1 }}>
-              <h3 style={styles.warningTitle}>Cancellation Policy</h3>
+              <h3 style={styles.warningTitle}>Cancellation Notice</h3>
               <p style={styles.warningSubtitle}>
-                {booking.hoursUntilBooking} hours remaining until booking
+                {Math.round(booking.hoursUntilBooking)} hours remaining until booking
               </p>
             </div>
           </div>
 
           <ul style={styles.policyList}>
             <li style={styles.policyItem}>
-              <strong>Penalty Fee:</strong>{" "}
-              <span
-                style={{
-                  fontWeight: "700",
-                  color: penaltyInfo.color,
-                }}
-              >
-                {penaltyInfo.penalty}
-              </span>{" "}
-              - {penaltyInfo.description}
+              <strong>Status Change:</strong> This booking will be marked cancelled after
+              confirmation.
             </li>
             <li style={styles.policyItem}>
-              <strong>Rating Impact:</strong> This cancellation will be recorded and may
-              affect your account standing and future booking opportunities
+              <strong>Account Record:</strong> The cancellation will be recorded on the
+              booking history used by ServEase operations.
             </li>
             <li style={styles.policyItem}>
               <strong>Customer Notification:</strong> The customer will be immediately
-              notified and can request a refund or reschedule with another provider
-            </li>
-            <li style={styles.policyItem}>
-              <strong>Refund to Customer:</strong> ₱
-              {booking.cancellationPolicy.refundAmount.toLocaleString()} will be processed
-              within 3-5 business days
+              notified after the cancellation is saved.
             </li>
           </ul>
         </div>
@@ -510,9 +490,9 @@ export function CancelBookingPage() {
         <div style={styles.alertBox}>
           <TrendingDown size={18} style={{ marginTop: "2px", flexShrink: 0 }} />
           <div>
-            <strong>Important:</strong> High cancellation rates may result in account
-            warnings, reduced visibility in search results, and potential account
-            suspension. Please only cancel if absolutely necessary.
+            <strong>Important:</strong> Cancellation history is visible to ServEase
+            operations. Please only cancel if you cannot safely or professionally
+            complete this booking.
           </div>
         </div>
 
@@ -640,7 +620,7 @@ export function CancelBookingPage() {
                     borderTop: "1px solid #FEE2E2",
                   }}
                 >
-                  Penalty: <strong>{penaltyInfo.penalty}</strong>
+                  This will mark the booking as cancelled.
                 </div>
               </div>
 

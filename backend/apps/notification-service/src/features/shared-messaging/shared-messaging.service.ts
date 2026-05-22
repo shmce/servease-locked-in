@@ -10,6 +10,7 @@ import {
   SharedMessageStatus,
   SharedSmsSendRequest,
 } from './shared-messaging.types';
+import { UserPreferenceClient } from '../notifications/user-preference.client';
 
 const MAX_EMAIL_LENGTH = 254;
 const MAX_EMAIL_LOCAL_LENGTH = 64;
@@ -56,6 +57,8 @@ function isValidEmailAddress(value: string | undefined): value is string {
 
 @Injectable()
 export class SharedMessagingService {
+  constructor(private readonly userPreferenceClient?: UserPreferenceClient) {}
+
   async sendEmail(
     input: SharedEmailSendRequest,
   ): Promise<SharedMessageResponse> {
@@ -72,6 +75,10 @@ export class SharedMessagingService {
       (!input.text?.trim() && !input.html?.trim() && !input.templateId?.trim())
     ) {
       throw new InvalidSharedMessagingRequestError();
+    }
+
+    if (!(await this.canDeliverChannel(input.metadata, 'email'))) {
+      return this.skippedResponse(input.metadata, 'email');
     }
 
     try {
@@ -116,6 +123,10 @@ export class SharedMessagingService {
       throw new InvalidSharedMessagingRequestError();
     }
 
+    if (!(await this.canDeliverChannel(input.metadata, 'sms'))) {
+      return this.skippedResponse(input.metadata, 'sms');
+    }
+
     try {
       return await createApicenterClient().smsSend({
         to,
@@ -145,5 +156,41 @@ export class SharedMessagingService {
       }
       throw new SharedMessagingDependencyUnavailableError();
     }
+  }
+
+  private async canDeliverChannel(
+    metadata: Record<string, string> | undefined,
+    channel: 'email' | 'sms',
+  ): Promise<boolean> {
+    const userId = metadata?.userId?.trim();
+    if (!userId || !this.userPreferenceClient) {
+      return true;
+    }
+
+    try {
+      const preferences = await this.userPreferenceClient.getByUserId(userId);
+      const value =
+        preferences.notificationPreferences?.[
+          channel === 'email'
+            ? 'emailNotificationsEnabled'
+            : 'smsNotificationsEnabled'
+        ];
+
+      return channel === 'email' ? value !== false : value === true;
+    } catch {
+      return true;
+    }
+  }
+
+  private skippedResponse(
+    metadata: Record<string, string> | undefined,
+    channel: 'email' | 'sms',
+  ): SharedMessageResponse {
+    const userId = metadata?.userId?.trim() || 'unknown-user';
+    return {
+      messageId: `preference-skip-${channel}-${userId}`,
+      provider: 'apicenter',
+      status: 'skipped',
+    };
   }
 }

@@ -4,21 +4,35 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { ArrowLeft, Loader2, CheckCircle, Mail } from "lucide-react";
+import { requestPasswordReset } from "../../services/serveaseAdminApi";
 
 export function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     setIsLoading(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    setIsLoading(false);
-    setIsSuccess(true);
+    try {
+      await requestPasswordReset({
+        email,
+        redirectTo:
+          typeof window === "undefined" ? null : `${window.location.origin}/login`,
+      });
+      setIsSuccess(true);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to send password reset link.",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -84,6 +98,11 @@ export function ForgotPassword() {
                   <p className="text-gray-600 mt-1">
                     Enter your email and we'll send you a reset link.
                   </p>
+                  {error && (
+                    <p className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {error}
+                    </p>
+                  )}
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">

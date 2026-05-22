@@ -1,10 +1,8 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import { Textarea } from "../components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -21,35 +19,19 @@ import {
   TableRow,
 } from "../components/ui/table";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "../components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../components/ui/alert-dialog";
-import {
-  Search,
-  Plus,
-  Edit,
-  Eye,
-  EyeOff,
-  Trash2,
-  MapPin,
   CheckCircle,
-  XCircle,
+  MapPin,
+  RefreshCw,
+  Search,
   Users,
+  XCircle,
 } from "lucide-react";
-import { notifyBackendRequired } from "../utils/backendRequired";
+import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  listAdminManagedProviders,
+  type AdminProviderSummary,
+} from "../../services/serveaseAdminApi";
 
 interface ServiceArea {
   id: string;
@@ -58,30 +40,57 @@ interface ServiceArea {
   region: string;
   status: "Active" | "Inactive";
   providersAvailable: number;
-  coverage: string;
   latitude: number;
   longitude: number;
 }
 
 const mapBounds = {
-  north: 14.67,
-  south: 14.52,
-  east: 121.08,
-  west: 120.96,
+  north: 14.75,
+  south: 14.45,
+  east: 121.15,
+  west: 120.9,
 };
 
-// Mock Service Areas Data
-const serviceAreasData: ServiceArea[] = [
-  { id: "AREA-001", name: "Manila - Ermita", city: "Manila", region: "NCR", status: "Active", providersAvailable: 145, coverage: "Full coverage", latitude: 14.5826, longitude: 120.9847 },
-  { id: "AREA-002", name: "Manila - Malate", city: "Manila", region: "NCR", status: "Active", providersAvailable: 132, coverage: "Full coverage", latitude: 14.5714, longitude: 120.9932 },
-  { id: "AREA-003", name: "Quezon City - Diliman", city: "Quezon City", region: "NCR", status: "Active", providersAvailable: 198, coverage: "Full coverage", latitude: 14.6537, longitude: 121.0685 },
-  { id: "AREA-004", name: "Quezon City - Cubao", city: "Quezon City", region: "NCR", status: "Active", providersAvailable: 176, coverage: "Full coverage", latitude: 14.6196, longitude: 121.051 },
-  { id: "AREA-005", name: "Makati - Poblacion", city: "Makati", region: "NCR", status: "Active", providersAvailable: 211, coverage: "Full coverage", latitude: 14.5654, longitude: 121.0292 },
-  { id: "AREA-006", name: "Makati - Salcedo Village", city: "Makati", region: "NCR", status: "Active", providersAvailable: 189, coverage: "Full coverage", latitude: 14.5547, longitude: 121.0244 },
-  { id: "AREA-007", name: "Pasig - Kapitolyo", city: "Pasig", region: "NCR", status: "Active", providersAvailable: 154, coverage: "Full coverage", latitude: 14.5718, longitude: 121.0597 },
-  { id: "AREA-008", name: "Taguig - BGC", city: "Taguig", region: "NCR", status: "Active", providersAvailable: 223, coverage: "Full coverage", latitude: 14.5507, longitude: 121.0507 },
-  { id: "AREA-009", name: "Pasay - Mall of Asia Area", city: "Pasay", region: "NCR", status: "Active", providersAvailable: 167, coverage: "Full coverage", latitude: 14.5352, longitude: 120.9822 },
-];
+const metroManilaPoints: Record<string, { latitude: number; longitude: number }> = {
+  caloocan: { latitude: 14.6507, longitude: 120.9676 },
+  makati: { latitude: 14.5547, longitude: 121.0244 },
+  malabon: { latitude: 14.668, longitude: 120.9563 },
+  mandaluyong: { latitude: 14.5794, longitude: 121.0359 },
+  manila: { latitude: 14.5995, longitude: 120.9842 },
+  marikina: { latitude: 14.6507, longitude: 121.1029 },
+  muntinlupa: { latitude: 14.4081, longitude: 121.0415 },
+  navotas: { latitude: 14.6667, longitude: 120.9417 },
+  paranaque: { latitude: 14.4793, longitude: 121.0198 },
+  pasay: { latitude: 14.5378, longitude: 121.0014 },
+  pasig: { latitude: 14.5764, longitude: 121.0851 },
+  pateros: { latitude: 14.5448, longitude: 121.0671 },
+  "quezon city": { latitude: 14.676, longitude: 121.0437 },
+  sanjuan: { latitude: 14.6042, longitude: 121.0298 },
+  taguig: { latitude: 14.5176, longitude: 121.0509 },
+  valenzuela: { latitude: 14.7011, longitude: 120.983 },
+};
+
+function normalizeAreaName(value: string | null) {
+  const trimmed = value?.trim();
+  return trimmed || "Unassigned Coverage";
+}
+
+function cityFromAreaName(name: string) {
+  const firstPart = name.split(/[-,]/)[0]?.trim() || name;
+  return firstPart.replace(/\s+/g, " ");
+}
+
+function coordinateForCity(city: string, index: number) {
+  const key = city.toLowerCase().replace(/[^a-z ]/g, "").trim();
+  const known = metroManilaPoints[key] ?? metroManilaPoints[key.replace(/\s+/g, "")];
+  if (known) return known;
+
+  const angle = (index / 12) * Math.PI * 2;
+  return {
+    latitude: 14.59 + Math.sin(angle) * 0.08,
+    longitude: 121.02 + Math.cos(angle) * 0.08,
+  };
+}
 
 function getCoveragePoint(area: ServiceArea) {
   const left =
@@ -95,106 +104,122 @@ function getCoveragePoint(area: ServiceArea) {
   };
 }
 
+function buildServiceAreas(providers: AdminProviderSummary[]): ServiceArea[] {
+  const grouped = new Map<string, AdminProviderSummary[]>();
+
+  for (const provider of providers) {
+    const name = normalizeAreaName(provider.serviceArea);
+    grouped.set(name, [...(grouped.get(name) ?? []), provider]);
+  }
+
+  return [...grouped.entries()]
+    .map(([name, areaProviders], index) => {
+      const city = name === "Unassigned Coverage" ? "Unassigned" : cityFromAreaName(name);
+      const coordinates = coordinateForCity(city, index);
+      const activeCount = areaProviders.filter((provider) => provider.isActive).length;
+
+      return {
+        id: name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+        name,
+        city,
+        region: city === "Unassigned" ? "N/A" : "NCR",
+        status: activeCount > 0 ? "Active" : "Inactive",
+        providersAvailable: activeCount,
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+      } satisfies ServiceArea;
+    })
+    .sort((a, b) => b.providersAvailable - a.providersAvailable || a.name.localeCompare(b.name));
+}
+
 export function ServiceAreas() {
+  const { accessToken } = useAuth();
+  const [providers, setProviders] = useState<AdminProviderSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [cityFilter, setCityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [selectedArea, setSelectedArea] = useState<any>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    city: "",
-    region: "NCR",
-    notes: "",
-    status: "Active",
-  });
 
-  // Get unique cities
-  const cities = Array.from(new Set(serviceAreasData.map((area) => area.city)));
+  const loadProviders = useCallback(async () => {
+    if (!accessToken) {
+      setProviders([]);
+      setIsLoading(false);
+      return;
+    }
 
-  // Filter service areas
-  const filteredAreas = serviceAreasData.filter((area) => {
-    const matchesSearch = area.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCity = cityFilter === "all" || area.city === cityFilter;
-    const matchesStatus = statusFilter === "all" || area.status.toLowerCase() === statusFilter;
-    return matchesSearch && matchesCity && matchesStatus;
-  });
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      setProviders(await listAdminManagedProviders(accessToken, { status: null }));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to load service coverage.";
+      setLoadError(message);
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [accessToken]);
 
-  // Calculate stats
-  const stats = {
-    total: serviceAreasData.length,
-    active: serviceAreasData.filter((a) => a.status === "Active").length,
-    inactive: serviceAreasData.filter((a) => a.status === "Inactive").length,
-    totalProviders: serviceAreasData.reduce((sum, a) => sum + a.providersAvailable, 0),
-  };
+  useEffect(() => {
+    void loadProviders();
+  }, [loadProviders]);
 
-  const handleAdd = () => {
-    setSelectedArea(null);
-    setFormData({
-      name: "",
-      city: "",
-      region: "NCR",
-      notes: "",
-      status: "Active",
+  const serviceAreas = useMemo(() => buildServiceAreas(providers), [providers]);
+  const cities = useMemo(
+    () => Array.from(new Set(serviceAreas.map((area) => area.city))).sort(),
+    [serviceAreas],
+  );
+
+  const filteredAreas = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    return serviceAreas.filter((area) => {
+      const matchesSearch =
+        !query ||
+        area.name.toLowerCase().includes(query) ||
+        area.city.toLowerCase().includes(query);
+      const matchesCity = cityFilter === "all" || area.city === cityFilter;
+      const matchesStatus =
+        statusFilter === "all" || area.status.toLowerCase() === statusFilter;
+      return matchesSearch && matchesCity && matchesStatus;
     });
-    setIsDialogOpen(true);
-  };
+  }, [cityFilter, searchTerm, serviceAreas, statusFilter]);
 
-  const handleEdit = (area: any) => {
-    setSelectedArea(area);
-    setFormData({
-      name: area.name,
-      city: area.city,
-      region: area.region,
-      notes: "",
-      status: area.status,
-    });
-    setIsDialogOpen(true);
-  };
-
-  const handleSave = () => {
-    notifyBackendRequired(
-      selectedArea ? "Updating service areas" : "Creating service areas",
-      selectedArea
-        ? "PATCH /v1/admin/service-areas/:id"
-        : "POST /v1/admin/service-areas",
-    );
-  };
-
-  const handleDelete = (area: any) => {
-    setSelectedArea(area);
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = () => {
-    notifyBackendRequired("Deleting service areas", "DELETE /v1/admin/service-areas/:id");
-  };
-
-  const toggleStatus = (area: any) => {
-    notifyBackendRequired(
-      "Changing service area status",
-      "PATCH /v1/admin/service-areas/:id/status",
-    );
-  };
+  const stats = useMemo(
+    () => ({
+      total: serviceAreas.length,
+      active: serviceAreas.filter((area) => area.status === "Active").length,
+      inactive: serviceAreas.filter((area) => area.status === "Inactive").length,
+      totalProviders: serviceAreas.reduce(
+        (sum, area) => sum + area.providersAvailable,
+        0,
+      ),
+    }),
+    [serviceAreas],
+  );
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Service Areas</h1>
-        <p className="text-gray-500 mt-1">
-          Manage geographical coverage zones and service availability across Metro Manila
-        </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Service Areas</h1>
+          <p className="text-gray-500 mt-1">
+            Monitor live provider coverage by service area.
+          </p>
+        </div>
+        <Button variant="outline" onClick={() => void loadProviders()} disabled={isLoading}>
+          <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Service Areas</p>
+                <p className="text-sm text-gray-500">Service Areas</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.total}</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -236,7 +261,7 @@ export function ServiceAreas() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Providers</p>
+                <p className="text-sm text-gray-500">Active Providers</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">{stats.totalProviders}</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -273,7 +298,7 @@ export function ServiceAreas() {
                   key={area.id}
                   className="absolute -translate-x-1/2 -translate-y-1/2"
                   style={point}
-                  title={`${area.name} - ${area.providersAvailable} providers`}
+                  title={`${area.name} - ${area.providersAvailable} active providers`}
                 >
                   <div className="relative">
                     <div className="absolute inset-0 h-10 w-10 -translate-x-2 -translate-y-2 rounded-full bg-[#00BF63]/15" />
@@ -289,7 +314,7 @@ export function ServiceAreas() {
                 <div key={city} className="rounded-md bg-white/90 px-3 py-2 shadow-sm">
                   <p className="text-xs font-medium text-gray-900">{city}</p>
                   <p className="text-xs text-gray-500">
-                    {serviceAreasData.filter((area) => area.city === city).length} areas
+                    {serviceAreas.filter((area) => area.city === city).length} areas
                   </p>
                 </div>
               ))}
@@ -298,26 +323,18 @@ export function ServiceAreas() {
         </CardContent>
       </Card>
 
-      {/* Main Service Areas Table */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Service Area List</CardTitle>
-            <Button className="bg-[#00BF63] hover:bg-[#00A055] text-white" onClick={handleAdd}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Service Area
-            </Button>
-          </div>
+          <CardTitle>Service Area List</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* Search & Filters */}
           <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <Input
                 placeholder="Search service areas..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(event) => setSearchTerm(event.target.value)}
                 className="pl-10"
               />
             </div>
@@ -348,214 +365,87 @@ export function ServiceAreas() {
             </Select>
           </div>
 
-          {/* Table */}
+          {loadError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
+
           <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Area Name</TableHead>
                   <TableHead>City/Region</TableHead>
-                  <TableHead>Coverage</TableHead>
-                  <TableHead className="text-right">Providers Available</TableHead>
+                  <TableHead className="text-right">Active Providers</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAreas.map((area) => (
-                  <TableRow key={area.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                          <MapPin className="w-5 h-5 text-[#00BF63]" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{area.name}</p>
-                          <p className="text-xs text-gray-500">{area.id}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="text-sm text-gray-900">{area.city}</p>
-                        <p className="text-xs text-gray-500">{area.region}</p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                        {area.coverage}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Users className="w-4 h-4 text-gray-400" />
-                        <span className="font-semibold text-gray-900">{area.providersAvailable}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          area.status === "Active"
-                            ? "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]"
-                            : "bg-red-100 text-red-700 border-red-200"
-                        }
-                      >
-                        {area.status === "Active" ? (
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                        ) : (
-                          <XCircle className="w-3 h-3 mr-1" />
-                        )}
-                        {area.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleEdit(area)}>
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleStatus(area)}
-                        >
-                          {area.status === "Active" ? (
-                            <EyeOff className="w-4 h-4" />
-                          ) : (
-                            <Eye className="w-4 h-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => handleDelete(area)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-8 text-center text-gray-500">
+                      Loading service coverage...
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : filteredAreas.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-8 text-center text-gray-500">
+                      No service areas found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredAreas.map((area) => (
+                    <TableRow key={area.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <MapPin className="w-5 h-5 text-[#00BF63]" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{area.name}</p>
+                            <p className="text-xs text-gray-500">{area.id || "unassigned"}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="text-sm text-gray-900">{area.city}</p>
+                          <p className="text-xs text-gray-500">{area.region}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Users className="w-4 h-4 text-gray-400" />
+                          <span className="font-semibold text-gray-900">
+                            {area.providersAvailable}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            area.status === "Active"
+                              ? "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]"
+                              : "bg-red-100 text-red-700 border-red-200"
+                          }
+                        >
+                          {area.status === "Active" ? (
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                          ) : (
+                            <XCircle className="w-3 h-3 mr-1" />
+                          )}
+                          {area.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
-
-          {filteredAreas.length === 0 && (
-            <div className="text-center py-12">
-              <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <p className="text-gray-500">No service areas found</p>
-              <p className="text-sm text-gray-400 mt-1">Try adjusting your search or filters</p>
-            </div>
-          )}
         </CardContent>
       </Card>
-
-      {/* Add/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{selectedArea ? "Edit Service Area" : "Add New Service Area"}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Area Name *</Label>
-              <Input
-                id="name"
-                placeholder="e.g., Manila - Ermita"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="city">City *</Label>
-                <Select value={formData.city} onValueChange={(value) => setFormData({ ...formData, city: value })}>
-                  <SelectTrigger id="city">
-                    <SelectValue placeholder="Select city" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Manila">Manila</SelectItem>
-                    <SelectItem value="Quezon City">Quezon City</SelectItem>
-                    <SelectItem value="Makati">Makati</SelectItem>
-                    <SelectItem value="Pasig">Pasig</SelectItem>
-                    <SelectItem value="Taguig">Taguig</SelectItem>
-                    <SelectItem value="Mandaluyong">Mandaluyong</SelectItem>
-                    <SelectItem value="Pasay">Pasay</SelectItem>
-                    <SelectItem value="Caloocan">Caloocan</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="region">Region *</Label>
-                <Select value={formData.region} onValueChange={(value) => setFormData({ ...formData, region: value })}>
-                  <SelectTrigger id="region">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NCR">NCR - Metro Manila</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
-              <Textarea
-                id="notes"
-                placeholder="Additional notes about this service area..."
-                rows={3}
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value })}>
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button className="bg-[#00BF63] hover:bg-[#00A055]" onClick={handleSave}>
-              {selectedArea ? "Update Service Area" : "Create Service Area"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Service Area</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{selectedArea?.name}"? This action cannot be undone
-              and will affect service availability in this area.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDelete}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              Delete Service Area
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

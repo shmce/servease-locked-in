@@ -44,12 +44,12 @@ import {
 } from "recharts";
 import { Badge } from "../../components/ui/badge";
 import { useAdminGatewayData } from "../../../hooks/useAdminGatewayData";
-import { notifyBackendRequired } from "../../utils/backendRequired";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   exportAdminReportPdf,
   exportAdminRevenueCsv,
 } from "../../../services/serveaseAdminApi";
+import { toast } from "sonner";
 
 // KPI Card Component
 function KPICard({ label, value, change, icon: Icon, changeType }: any) {
@@ -180,7 +180,7 @@ export function Revenue() {
 
   const handleExportCSV = async () => {
     if (!accessToken) {
-      notifyBackendRequired("Exporting revenue CSV", "GET /v1/admin/reports/revenue.csv");
+      toast.error("Sign in to export revenue reports.");
       return;
     }
 
@@ -197,9 +197,8 @@ export function Revenue() {
       link.remove();
       URL.revokeObjectURL(url);
     } catch (error) {
-      notifyBackendRequired(
-        error instanceof Error ? error.message : "Exporting revenue CSV failed",
-        "GET /v1/admin/reports/revenue.csv",
+      toast.error(
+        error instanceof Error ? error.message : "Exporting revenue CSV failed.",
       );
     } finally {
       setIsExportingCsv(false);
@@ -208,7 +207,7 @@ export function Revenue() {
 
   const handleExportPDF = async () => {
     if (!accessToken) {
-      notifyBackendRequired("Exporting revenue PDF", "GET /v1/admin/reports/revenue.pdf");
+      toast.error("Sign in to export revenue reports.");
       return;
     }
 
@@ -224,9 +223,8 @@ export function Revenue() {
       link.remove();
       URL.revokeObjectURL(url);
     } catch (error) {
-      notifyBackendRequired(
-        error instanceof Error ? error.message : "Exporting revenue PDF failed",
-        "GET /v1/admin/reports/revenue.pdf",
+      toast.error(
+        error instanceof Error ? error.message : "Exporting revenue PDF failed.",
       );
     } finally {
       setIsExportingPdf(false);

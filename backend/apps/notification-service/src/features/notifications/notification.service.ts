@@ -12,6 +12,21 @@ import {
   PushReceiptCheck,
 } from './push-delivery.client';
 import { SupabaseNotificationRepository } from './supabase-notification.repository';
+import { UserPreferenceClient } from './user-preference.client';
+
+const notificationPreferenceKeys: Record<string, string> = {
+  admin_booking_escalated: 'bookingModifications',
+  admin_broadcast: 'platformUpdates',
+  admin_provider_message: 'customerMessages',
+  booking_cancelled_by_admin: 'bookingCancellations',
+  booking_created: 'newBookingRequests',
+  booking_status_updated: 'bookingModifications',
+  payment_reserved: 'paymentReceived',
+  provider_application_approved: 'platformUpdates',
+  provider_application_info_requested: 'platformUpdates',
+  review_created: 'platformUpdates',
+  support_reply: 'platformUpdates',
+};
 
 @Injectable()
 export class NotificationService {
@@ -20,6 +35,7 @@ export class NotificationService {
   constructor(
     private readonly notificationRepository: SupabaseNotificationRepository,
     private readonly pushDeliveryClient: PushDeliveryClient,
+    private readonly userPreferenceClient?: UserPreferenceClient,
   ) {}
 
   async createNotification(
@@ -101,6 +117,11 @@ export class NotificationService {
     notification: NotificationSummary,
   ): Promise<void> {
     try {
+      const canDeliver = await this.canDeliverPush(notification);
+      if (!canDeliver) {
+        return;
+      }
+
       const devices = await this.notificationRepository.listActivePushDevices(
         notification.userId,
       );
@@ -120,6 +141,39 @@ export class NotificationService {
           error instanceof Error ? error.message : String(error)
         }`,
       );
+    }
+  }
+
+  private async canDeliverPush(
+    notification: NotificationSummary,
+  ): Promise<boolean> {
+    if (!this.userPreferenceClient) {
+      return true;
+    }
+
+    try {
+      const preferences = await this.userPreferenceClient.getByUserId(
+        notification.userId,
+      );
+      if (!preferences.pushNotificationsEnabled) {
+        return false;
+      }
+
+      const preferenceKey = notificationPreferenceKeys[notification.type];
+      if (!preferenceKey) {
+        return true;
+      }
+
+      const preferenceValue =
+        preferences.notificationPreferences?.[preferenceKey];
+      return preferenceValue !== false;
+    } catch (error) {
+      this.logger.warn(
+        `Preference lookup failed for notification ${notification.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return true;
     }
   }
 

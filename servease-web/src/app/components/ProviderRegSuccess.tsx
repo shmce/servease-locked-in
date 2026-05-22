@@ -2,18 +2,78 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle, Home, Clock } from "lucide-react";
+import { AlertCircle, CheckCircle, Home, Clock, XCircle } from "lucide-react";
+import { createSupabaseBrowserClient } from "../lib/supabase-browser";
+import {
+  getProviderApplicationStatus,
+  type ProviderApplicationStatus,
+} from "../lib/provider-application-status";
 
 export function ProviderRegSuccess() {
   const [documentUploadWarning, setDocumentUploadWarning] = useState("");
+  const [submittedDateLabel, setSubmittedDateLabel] = useState("");
+  const [applicationStatus, setApplicationStatus] =
+    useState<ProviderApplicationStatus | null>(null);
+  const [statusError, setStatusError] = useState("");
 
   useEffect(() => {
+    let isMounted = true;
+
     const warning = sessionStorage.getItem("providerRegDocumentUploadWarning");
     if (warning) {
       setDocumentUploadWarning(warning);
       sessionStorage.removeItem("providerRegDocumentUploadWarning");
     }
+
+    const submittedAt = sessionStorage.getItem("providerRegSubmittedAt");
+    if (submittedAt) {
+      const submittedDate = new Date(submittedAt);
+      if (Number.isFinite(submittedDate.getTime())) {
+        setSubmittedDateLabel(
+          submittedDate.toLocaleDateString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+          }),
+        );
+      }
+      sessionStorage.removeItem("providerRegSubmittedAt");
+    }
+
+    async function loadApplicationStatus() {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data } = await supabase.auth.getSession();
+        const accessToken = data.session?.access_token;
+
+        if (!accessToken) return;
+
+        const status = await getProviderApplicationStatus(accessToken);
+        if (isMounted) {
+          setApplicationStatus(status);
+          setStatusError("");
+        }
+      } catch (error) {
+        if (isMounted) {
+          setStatusError(
+            error instanceof Error
+              ? error.message
+              : "Could not load provider application status.",
+          );
+        }
+      }
+    }
+
+    void loadApplicationStatus();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  const statusView = getStatusView(applicationStatus);
+  const submittedDate =
+    formatStatusDate(applicationStatus?.createdAt) ?? submittedDateLabel;
 
   return (
     <div className="bg-gray-50 min-h-screen py-12 px-6">
@@ -54,15 +114,24 @@ export function ProviderRegSuccess() {
               </div>
               <div className="flex justify-between">
                 <span className="font-['Poppins',sans-serif] text-sm text-gray-600">Status:</span>
-                <span className="font-['Poppins',sans-serif] text-sm text-orange-600 font-semibold flex items-center gap-1 justify-end">
-                  <Clock size={14} />
-                  Pending (Under Screening)
+                <span className={`font-['Poppins',sans-serif] text-sm font-semibold flex items-center gap-1 justify-end ${statusView.className}`}>
+                  {statusView.icon}
+                  {statusView.label}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="font-['Poppins',sans-serif] text-sm text-gray-600">Registration Date:</span>
-                <span className="font-['Poppins',sans-serif] text-sm text-gray-900 font-semibold">March 8, 2026</span>
-              </div>
+              {statusError && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="font-['Poppins',sans-serif] text-xs text-amber-800 leading-relaxed">
+                    {statusError}
+                  </p>
+                </div>
+              )}
+              {submittedDate && (
+                <div className="flex justify-between">
+                  <span className="font-['Poppins',sans-serif] text-sm text-gray-600">Registration Date:</span>
+                  <span className="font-['Poppins',sans-serif] text-sm text-gray-900 font-semibold">{submittedDate}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -130,4 +199,45 @@ export function ProviderRegSuccess() {
       </div>
     </div>
   );
+}
+
+function getStatusView(status: ProviderApplicationStatus | null) {
+  switch (status?.verificationStatus) {
+    case "approved":
+      return {
+        className: "text-[#00BF63]",
+        icon: <CheckCircle size={14} />,
+        label: "Approved - Active",
+      };
+    case "rejected":
+      return {
+        className: "text-red-600",
+        icon: <XCircle size={14} />,
+        label: "Rejected",
+      };
+    case "pending":
+      return {
+        className: "text-orange-600",
+        icon: <Clock size={14} />,
+        label: "Pending Review",
+      };
+    default:
+      return {
+        className: "text-gray-700",
+        icon: <Clock size={14} />,
+        label: "Submitted",
+      };
+  }
+}
+
+function formatStatusDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 }

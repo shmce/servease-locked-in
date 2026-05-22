@@ -10,23 +10,15 @@ describe("backendSupportMatrix", () => {
       expect(item.screen).toBeTruthy();
       expect(item.currentSupport).toBeTruthy();
       expect(item.notes).toBeTruthy();
-      expect(["wired", "partial", "local", "blocked"]).toContain(item.status);
+      expect(item.status).toBe("wired");
     }
   });
 
-  it("does not mark blocked or partial features as complete without backend notes", () => {
-    const blockedItems = backendSupportMatrix.filter((item) => item.status === "blocked");
-    const incompleteItems = backendSupportMatrix.filter((item) =>
-      ["blocked", "partial", "local"].includes(item.status),
-    );
-
-    for (const item of blockedItems) {
-      expect(item.backendNeeded.length).toBeGreaterThan(0);
-      expect(item.currentSupport.toLowerCase()).not.toContain("fully wired");
-    }
-    expect(incompleteItems.length).toBeGreaterThan(0);
-    for (const item of incompleteItems) {
-      expect(item.notes).toBeTruthy();
+  it("does not advertise incomplete capabilities in the matrix", () => {
+    for (const item of backendSupportMatrix) {
+      expect(item.backendNeeded).toEqual([]);
+      expect(item.currentSupport.toLowerCase()).not.toContain("frontend-only");
+      expect(item.currentSupport.toLowerCase()).not.toContain("local-only");
     }
   });
 

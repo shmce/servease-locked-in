@@ -118,6 +118,59 @@ describe('AdminSettlementController', () => {
     expect(response.data.status).toBe('processing');
   });
 
+  it('keeps settlement approval successful when audit logging fails', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('admin-user-1'),
+    } as unknown as AuthTokenService;
+    const currentUserService = {
+      getCurrentUser: jest.fn().mockResolvedValue({
+        user: {
+          id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
+          role: 'admin',
+          status: 'active',
+        },
+      }),
+    } as unknown as CurrentUserService;
+    const adminPaymentGatewayService = {
+      updatePayoutStatus: jest.fn().mockResolvedValue({
+        id: 'payout-1',
+        providerId: 'provider-1',
+        status: 'processing',
+      }),
+      recordPayoutEvent: jest.fn().mockResolvedValue({
+        id: 'event-1',
+        payoutId: 'payout-1',
+      }),
+    } as unknown as AdminPaymentGatewayService;
+    const controller = new AdminSettlementController(
+      adminPaymentGatewayService,
+      {
+        createAuditLog: jest
+          .fn()
+          .mockRejectedValue(new Error('audit unavailable')),
+      } as unknown as AdminAuditGatewayService,
+      authTokenService,
+      currentUserService,
+    );
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.approve(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      'payout-1',
+    );
+
+    expect(response.data.status).toBe('processing');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not create settlement audit log'),
+    );
+    warnSpy.mockRestore();
+  });
+
   it('rejects settlements by cancelling the payout and auditing the action', async () => {
     const authTokenService = {
       authenticate: jest.fn().mockResolvedValue('admin-user-1'),

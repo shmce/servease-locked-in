@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Patch,
   Req,
@@ -29,6 +30,8 @@ const validCommissionRuleStatuses = new Set(['active', 'pending', 'inactive']);
 
 @Controller('v1/admin/commission-rules')
 export class AdminCommissionController {
+  private readonly logger = new Logger(AdminCommissionController.name);
+
   constructor(
     private readonly adminPaymentGatewayService: AdminPaymentGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -132,7 +135,15 @@ export class AdminCommissionController {
           status: rule.status,
         },
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Could not create commission rule audit log for ${rule.id}: ${this.errorMessage(error)}`,
+        );
+      });
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private getClientIp(request: {

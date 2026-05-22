@@ -123,4 +123,54 @@ describe('AdminDisputeController', () => {
     );
     expect(response.data.status).toBe('resolved');
   });
+
+  it('keeps dispute resolution successful when audit logging fails', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('admin-user-1'),
+    } as unknown as AuthTokenService;
+    const currentUserService = {
+      getCurrentUser: jest.fn().mockResolvedValue({
+        user: {
+          id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
+          role: 'admin',
+          status: 'active',
+        },
+      }),
+    } as unknown as CurrentUserService;
+    const adminDisputeGatewayService = {
+      resolveDispute: jest.fn().mockResolvedValue({
+        id: 'dispute-1',
+        bookingId: 'booking-1',
+        status: 'resolved',
+        amount: 1500,
+      }),
+    } as unknown as AdminDisputeGatewayService;
+    const controller = new AdminDisputeController(
+      adminDisputeGatewayService,
+      {
+        createAuditLog: jest
+          .fn()
+          .mockRejectedValue(new Error('audit unavailable')),
+      } as unknown as AdminAuditGatewayService,
+      authTokenService,
+      currentUserService,
+    );
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.resolve(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      'dispute-1',
+    );
+
+    expect(response.data.status).toBe('resolved');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not create dispute audit log'),
+    );
+    warnSpy.mockRestore();
+  });
 });

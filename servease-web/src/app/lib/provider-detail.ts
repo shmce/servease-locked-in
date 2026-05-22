@@ -18,6 +18,11 @@ export interface ProviderDetailData {
   portfolio: ProviderPortfolioMediaSummary[];
   availability: ProviderAvailabilitySchedule | null;
   reviews: ReviewSummary[];
+  loadErrors: {
+    portfolio: string | null;
+    availability: string | null;
+    reviews: string | null;
+  };
 }
 
 export async function fetchProviderDetail(
@@ -40,19 +45,48 @@ export async function fetchProviderDetail(
     (item) => item.providerId === listing.providerId && item.id !== listing.id,
   );
   const [portfolio, availability, reviews] = await Promise.all([
-    fetchProviderPortfolio(listing.providerId).catch(() => []),
-    fetchProviderAvailability(listing.providerId).catch(() => null),
-    fetchGatewayData<ReviewSummary[]>(
-      `/v1/reviews?providerId=${encodeURIComponent(listing.providerId)}`,
-    ).catch(() => []),
+    loadOptionalProviderDetailSection('portfolio', [], () =>
+      fetchProviderPortfolio(listing.providerId),
+    ),
+    loadOptionalProviderDetailSection('availability', null, () =>
+      fetchProviderAvailability(listing.providerId),
+    ),
+    loadOptionalProviderDetailSection('reviews', [], () =>
+      fetchGatewayData<ReviewSummary[]>(
+        `/v1/reviews?providerId=${encodeURIComponent(listing.providerId)}`,
+      ),
+    ),
   ]);
 
   return {
     listing,
     service,
     relatedListings,
-    portfolio,
-    availability,
-    reviews,
+    portfolio: portfolio.value,
+    availability: availability.value,
+    reviews: reviews.value,
+    loadErrors: {
+      portfolio: portfolio.error,
+      availability: availability.error,
+      reviews: reviews.error,
+    },
   };
+}
+
+async function loadOptionalProviderDetailSection<T>(
+  label: string,
+  fallback: T,
+  loader: () => Promise<T>,
+): Promise<{ value: T; error: string | null }> {
+  try {
+    return { value: await loader(), error: null };
+  } catch (error) {
+    return {
+      value: fallback,
+      error:
+        error instanceof Error
+          ? error.message
+          : `Unable to load provider ${label}.`,
+    };
+  }
 }

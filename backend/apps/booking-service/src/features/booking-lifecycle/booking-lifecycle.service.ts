@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { BookingAnalyticsPublisher } from './booking-analytics.publisher';
 import { InvalidBookingRequestError } from './booking.errors';
 import { assertBookingTransition } from './booking-status';
 import { SupabaseBookingRepository } from './supabase-booking.repository';
@@ -22,7 +23,13 @@ import {
 
 @Injectable()
 export class BookingLifecycleService {
-  constructor(private readonly bookingRepository: SupabaseBookingRepository) {}
+  private readonly logger = new Logger(BookingLifecycleService.name);
+
+  constructor(
+    private readonly bookingRepository: SupabaseBookingRepository,
+    @Optional()
+    private readonly bookingAnalyticsPublisher?: BookingAnalyticsPublisher,
+  ) {}
 
   createBooking(input: CreateBookingInput): Promise<BookingSummary> {
     return this.bookingRepository.createBooking(input);
@@ -220,13 +227,39 @@ export class BookingLifecycleService {
     explanation?: string | null,
   ): Promise<BookingSummary> {
     assertBookingTransition(currentStatus, nextStatus);
-    return this.bookingRepository.transitionStatus(
+    const booking = await this.bookingRepository.transitionStatus(
       bookingId,
       actorId,
       nextStatus,
       reason,
       explanation,
     );
+
+    if (nextStatus === 'completed') {
+      await this.publishBookingCompletedSafely(booking);
+    }
+
+    return booking;
+  }
+
+  private async publishBookingCompletedSafely(
+    booking: BookingSummary,
+  ): Promise<void> {
+    if (!this.bookingAnalyticsPublisher) {
+      return;
+    }
+
+    try {
+      await this.bookingAnalyticsPublisher.publishBookingCompleted(booking);
+    } catch (error) {
+      this.logger.warn(
+        JSON.stringify({
+          event: 'booking_completed_analytics_publish_failed',
+          bookingId: booking.id,
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
   }
 
   private deriveDistanceKm(status: BookingStatus, seed: number): number | null {

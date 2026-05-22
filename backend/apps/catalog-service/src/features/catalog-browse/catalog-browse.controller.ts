@@ -4,6 +4,7 @@ import {
   CatalogCategory,
   CatalogServiceItem,
   ProviderServiceListing,
+  ServiceAreaSummary,
 } from './catalog-browse.types';
 
 @Controller('internal/catalog')
@@ -23,6 +24,13 @@ export class CatalogBrowseController {
   ): Promise<{ data: CatalogServiceItem[] }> {
     return {
       data: await this.catalogBrowseService.listServices(categoryId),
+    };
+  }
+
+  @Get('service-areas')
+  async serviceAreas(): Promise<{ data: ServiceAreaSummary[] }> {
+    return {
+      data: await this.catalogBrowseService.listServiceAreas(),
     };
   }
 

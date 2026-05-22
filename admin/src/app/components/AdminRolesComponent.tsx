@@ -1,9 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { Switch } from "./ui/switch";
 import {
   Table,
   TableBody,
@@ -24,7 +22,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from "./ui/dropdown-menu";
 import {
   Dialog,
@@ -34,13 +31,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "./ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from "./ui/sheet";
+import { Sheet } from "./ui/sheet";
 import {
   Users,
   CheckCircle,
@@ -48,11 +39,8 @@ import {
   Shield,
   MoreVertical,
   RefreshCw,
-  Copy,
-  Check,
   Eye,
   UserX,
-  Key,
   Edit2,
   UserCheck,
   Trash2,
@@ -135,7 +123,7 @@ type AdminType = {
   email: string;
   role: string;
   permissions: string;
-  lastLogin: string;
+  createdAt: string;
   status: "Active" | "Inactive";
 };
 
@@ -163,7 +151,7 @@ function toAdminRow(user: AdminUserSummary): AdminType {
     email: user.email,
     role,
     permissions,
-    lastLogin: user.createdAt ?? new Date(0).toISOString(),
+    createdAt: user.createdAt ?? new Date(0).toISOString(),
     status: user.status === "active" ? "Active" : "Inactive",
   };
 }
@@ -201,20 +189,6 @@ export function AdminRolesComponent() {
     void loadAdmins();
   }, [loadAdmins]);
 
-  // Add New Admin modal state
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState<RoleType | "">("");
-  const [tempPassword, setTempPassword] = useState("ServEase@2026!");
-  const [requirePasswordChange, setRequirePasswordChange] = useState(true);
-  const [sendInviteEmail, setSendInviteEmail] = useState(true);
-
-  // Success dialog state
-  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false);
-  const [generatedAdmin, setGeneratedAdmin] = useState({ email: "", password: "" });
-  const [copiedField, setCopiedField] = useState<string | null>(null);
-
   // View Details modal
   const [isViewDetailsOpen, setIsViewDetailsOpen] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<AdminType | null>(null);
@@ -224,90 +198,14 @@ export function AdminRolesComponent() {
   const [editingAdmin, setEditingAdmin] = useState<AdminType | null>(null);
   const [editRole, setEditRole] = useState<RoleType | "">("");
 
-  // Reset Password modal
-  const [isResetPasswordOpen, setIsResetPasswordOpen] = useState(false);
-  const [resetPasswordAdmin, setResetPasswordAdmin] = useState<AdminType | null>(null);
-  const [showResetSuccess, setShowResetSuccess] = useState(false);
-
   // Deactivate/Activate modal
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false);
   const [isActivateOpen, setIsActivateOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [actionAdmin, setActionAdmin] = useState<AdminType | null>(null);
 
-  // Form validation errors
-  const [errors, setErrors] = useState({ fullName: "", email: "", role: "" });
-
   // Count Super Admins
   const superAdminCount = admins.filter((a) => a.role === "Super Admin" && a.status === "Active").length;
-
-  // Functions
-  const generatePassword = () => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%";
-    let password = "";
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    setTempPassword(password);
-  };
-
-  const handleCopy = (text: string, field: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedField(field);
-    setTimeout(() => setCopiedField(null), 2000);
-  };
-
-  const validateForm = () => {
-    const newErrors = { fullName: "", email: "", role: "" };
-
-    if (!fullName.trim()) {
-      newErrors.fullName = "Full name is required";
-    }
-
-    if (!email.trim()) {
-      newErrors.email = "Email address is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Invalid email format";
-    }
-
-    if (!role) {
-      newErrors.role = "Role is required";
-    }
-
-    setErrors(newErrors);
-    return !newErrors.fullName && !newErrors.email && !newErrors.role;
-  };
-
-  const handleCreateAdmin = () => {
-    if (!validateForm()) {
-      return;
-    }
-
-    setGeneratedAdmin({ email: email, password: tempPassword });
-
-    // Reset form
-    setFullName("");
-    setEmail("");
-    setRole("");
-    setTempPassword("ServEase@2026!");
-    setRequirePasswordChange(true);
-    setSendInviteEmail(true);
-    setErrors({ fullName: "", email: "", role: "" });
-
-    setIsAddModalOpen(false);
-    setIsSuccessDialogOpen(true);
-  };
-
-  const handleOpenAddModal = () => {
-    setFullName("");
-    setEmail("");
-    setRole("");
-    setTempPassword("ServEase@2026!");
-    setRequirePasswordChange(true);
-    setSendInviteEmail(true);
-    setErrors({ fullName: "", email: "", role: "" });
-    setIsAddModalOpen(true);
-  };
 
   // Overflow Menu Actions
   const handleViewDetails = (admin: AdminType) => {
@@ -345,17 +243,6 @@ export function AdminRolesComponent() {
           : "Unable to update admin permissions",
       );
     }
-  };
-
-  const handleResetPassword = (admin: AdminType) => {
-    setResetPasswordAdmin(admin);
-    setIsResetPasswordOpen(true);
-  };
-
-  const handleSendResetLink = () => {
-    setIsResetPasswordOpen(false);
-    setShowResetSuccess(true);
-    setTimeout(() => setShowResetSuccess(false), 3000);
   };
 
   const handleDeactivate = (admin: AdminType) => {
@@ -521,11 +408,11 @@ export function AdminRolesComponent() {
                 <Clock className="w-6 h-6 text-purple-600" />
               </div>
               <div className="flex-1">
-                <p className="text-sm text-gray-500">Active Sessions</p>
+                <p className="text-sm text-gray-500">Active Admins</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
                   {admins.filter((a) => a.status === "Active").length}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Currently online</p>
+                <p className="text-xs text-gray-400 mt-1">Can sign in</p>
               </div>
             </div>
           </CardContent>
@@ -555,7 +442,7 @@ export function AdminRolesComponent() {
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Permissions</TableHead>
-                <TableHead>Last Login</TableHead>
+                <TableHead>Created</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -582,7 +469,7 @@ export function AdminRolesComponent() {
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-gray-600">
-                      {new Date(admin.lastLogin).toLocaleString("en-US", {
+                      {new Date(admin.createdAt).toLocaleString("en-US", {
                         month: "short",
                         day: "numeric",
                         hour: "2-digit",
@@ -624,11 +511,6 @@ export function AdminRolesComponent() {
                           <Edit2 className="w-4 h-4 mr-2" />
                           Edit Role & Permissions
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleResetPassword(admin)}>
-                          <Key className="w-4 h-4 mr-2" />
-                          Reset Password
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
                         {admin.status === "Active" ? (
                           <DropdownMenuItem
                             onClick={() => handleDeactivate(admin)}
@@ -711,11 +593,6 @@ export function AdminRolesComponent() {
                         <Edit2 className="w-4 h-4 mr-2" />
                         Edit Role & Permissions
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleResetPassword(admin)}>
-                        <Key className="w-4 h-4 mr-2" />
-                        Reset Password
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
                       {admin.status === "Active" ? (
                         <DropdownMenuItem
                           onClick={() => handleDeactivate(admin)}
@@ -776,8 +653,8 @@ export function AdminRolesComponent() {
                 )}
               </div>
               <div className="mt-3 pt-3 border-t text-sm text-gray-600">
-                Last login:{" "}
-                {new Date(admin.lastLogin).toLocaleString("en-US", {
+                Created:{" "}
+                {new Date(admin.createdAt).toLocaleString("en-US", {
                   month: "short",
                   day: "numeric",
                   hour: "2-digit",
@@ -788,274 +665,6 @@ export function AdminRolesComponent() {
           </Card>
         ))}
       </div>
-
-      {/* Add New Admin Modal */}
-      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
-        <DialogContent className="max-w-[96%] sm:max-w-[760px] max-h-[90vh] overflow-y-auto p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
-            <DialogTitle className="text-xl">Add New Admin</DialogTitle>
-            <DialogDescription>
-              Invite a new admin user and assign permissions.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="px-6 py-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left Column: Admin Details */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                  Admin Details
-                </h3>
-
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">
-                    Full Name <span className="text-red-600">*</span>
-                  </Label>
-                  <Input
-                    id="fullName"
-                    placeholder="e.g., Ana Marie Reyes"
-                    value={fullName}
-                    onChange={(e) => {
-                      setFullName(e.target.value);
-                      if (errors.fullName) setErrors({ ...errors, fullName: "" });
-                    }}
-                    className={errors.fullName ? "border-red-500" : ""}
-                  />
-                  {errors.fullName && <p className="text-sm text-red-600">{errors.fullName}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">
-                    Email Address <span className="text-red-600">*</span>
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="e.g., ana.reyes@servease.ph"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (errors.email) setErrors({ ...errors, email: "" });
-                    }}
-                    className={errors.email ? "border-red-500" : ""}
-                  />
-                  {errors.email && <p className="text-sm text-red-600">{errors.email}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="role">
-                    Role <span className="text-red-600">*</span>
-                  </Label>
-                  <Select
-                    value={role}
-                    onValueChange={(value: RoleType) => {
-                      setRole(value);
-                      if (errors.role) setErrors({ ...errors, role: "" });
-                    }}
-                  >
-                    <SelectTrigger id="role" className={errors.role ? "border-red-500" : ""}>
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Super Admin">Super Admin (full access)</SelectItem>
-                      <SelectItem value="Finance Manager">
-                        Finance Manager (transactions + payouts + refunds)
-                      </SelectItem>
-                      <SelectItem value="Operations Manager">
-                        Operations Manager (bookings + disputes)
-                      </SelectItem>
-                      <SelectItem value="Customer Support">
-                        Customer Support (tickets + customer workflows)
-                      </SelectItem>
-                      <SelectItem value="Content Moderator">
-                        Content Moderator (applications + marketplace)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {errors.role && <p className="text-sm text-red-600">{errors.role}</p>}
-                </div>
-              </div>
-
-              {/* Right Column: Access & Security */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                  Access & Security
-                </h3>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tempPassword">Temporary Password</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="tempPassword"
-                      value={tempPassword}
-                      readOnly
-                      className="flex-1 font-mono text-sm"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={generatePassword}
-                      title="Regenerate password"
-                    >
-                      <RefreshCw className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Click the refresh icon to generate a new password
-                  </p>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">
-                      Require password change on first login
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      User must change password after first login
-                    </p>
-                  </div>
-                  <Switch
-                    checked={requirePasswordChange}
-                    onCheckedChange={setRequirePasswordChange}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">Send invite email</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Send credentials via email automatically
-                    </p>
-                  </div>
-                  <Switch checked={sendInviteEmail} onCheckedChange={setSendInviteEmail} />
-                </div>
-              </div>
-            </div>
-
-            {/* Permissions Summary - Full Width */}
-            {role && (
-              <div className="space-y-3 mt-6 pt-6 border-t">
-                <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
-                  Permissions Included
-                </h3>
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {rolePermissions[role].map((permission, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
-                        <CheckCircle className="w-4 h-4 text-[#00BF63] flex-shrink-0 mt-0.5" />
-                        <span>{permission}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter className="px-6 py-4 border-t bg-gray-50">
-            <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto sm:ml-auto">
-              <Button
-                variant="outline"
-                onClick={() => setIsAddModalOpen(false)}
-                className="w-full sm:w-auto"
-              >
-                Cancel
-              </Button>
-              <Button
-                className="bg-[#00BF63] hover:bg-[#00A055] w-full sm:w-auto"
-                onClick={handleCreateAdmin}
-              >
-                Create Admin
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Success Dialog */}
-      <Dialog open={isSuccessDialogOpen} onOpenChange={setIsSuccessDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle className="w-6 h-6 text-[#00BF63]" />
-              Admin Created Successfully
-            </DialogTitle>
-            <DialogDescription>
-              The admin user has been created.{" "}
-              {sendInviteEmail
-                ? "An invite email has been sent."
-                : "Please share these credentials manually."}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="p-4 bg-gray-50 rounded-lg border space-y-3">
-              <div>
-                <Label className="text-xs text-gray-500">Email Address</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Input
-                    value={generatedAdmin.email}
-                    readOnly
-                    className="flex-1 font-mono text-sm"
-                  />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() => handleCopy(generatedAdmin.email, "email")}
-                  >
-                    {copiedField === "email" ? (
-                      <Check className="w-4 h-4 text-[#00BF63]" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <Label className="text-xs text-gray-500">Temporary Password</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Input
-                    value={generatedAdmin.password}
-                    readOnly
-                    className="flex-1 font-mono text-sm"
-                  />
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    onClick={() => handleCopy(generatedAdmin.password, "password")}
-                  >
-                    {copiedField === "password" ? (
-                      <Check className="w-4 h-4 text-[#00BF63]" />
-                    ) : (
-                      <Copy className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {sendInviteEmail && (
-              <div className="flex items-start gap-2 p-3 bg-green-50 rounded-lg border border-green-200">
-                <CheckCircle className="w-5 h-5 text-[#00BF63] flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-gray-700">
-                  Invite email sent to <span className="font-medium">{generatedAdmin.email}</span>
-                </p>
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              className="bg-[#00BF63] hover:bg-[#00A055] w-full sm:w-auto"
-              onClick={() => setIsSuccessDialogOpen(false)}
-            >
-              Done
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* View Admin Details Modal */}
       <Dialog open={isViewDetailsOpen} onOpenChange={setIsViewDetailsOpen}>
@@ -1116,9 +725,9 @@ export function AdminRolesComponent() {
               </div>
 
               <div>
-                <Label className="text-xs text-gray-500">Last Login</Label>
+                <Label className="text-xs text-gray-500">Created</Label>
                 <p className="text-sm text-gray-900 mt-1">
-                  {new Date(selectedAdmin.lastLogin).toLocaleString("en-US", {
+                  {new Date(selectedAdmin.createdAt).toLocaleString("en-US", {
                     month: "long",
                     day: "numeric",
                     year: "numeric",
@@ -1206,52 +815,6 @@ export function AdminRolesComponent() {
               Save Changes
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reset Password Modal */}
-      <Dialog open={isResetPasswordOpen} onOpenChange={setIsResetPasswordOpen}>
-        <DialogContent className="sm:max-w-[450px]">
-          <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
-            <DialogDescription>
-              Send a password reset link to this admin user
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="py-4">
-            <p className="text-sm text-gray-700">
-              Send password reset link to{" "}
-              <span className="font-medium">{resetPasswordAdmin?.email}</span>?
-            </p>
-            <p className="text-sm text-gray-500 mt-2">
-              The admin will receive an email with instructions to reset their password.
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsResetPasswordOpen(false)}>
-              Cancel
-            </Button>
-            <Button className="bg-[#00BF63] hover:bg-[#00A055]" onClick={handleSendResetLink}>
-              Send Reset Link
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Reset Success Toast-like Dialog */}
-      <Dialog open={showResetSuccess} onOpenChange={setShowResetSuccess}>
-        <DialogContent className="sm:max-w-[400px]">
-          <div className="flex items-center gap-3 p-4">
-            <CheckCircle className="w-6 h-6 text-[#00BF63]" />
-            <div>
-              <p className="font-medium text-gray-900">Reset link sent!</p>
-              <p className="text-sm text-gray-600">
-                Password reset email sent to {resetPasswordAdmin?.email}
-              </p>
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
 

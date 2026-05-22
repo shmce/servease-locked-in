@@ -5,6 +5,7 @@ import {
   deleteCurrentUserAccount,
   disableCurrentUserTwoFactor,
   enableCurrentUserTwoFactor,
+  getCurrentUserTwoFactorStatus,
   getStoredProviderAccessToken,
   getUserPreferences,
   listCurrentUserSessions,
@@ -219,6 +220,8 @@ export function ProviderSettingsPage() {
   const [pushNotifications, setPushNotifications] = useState(true);
   const [smsNotifications, setSmsNotifications] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
+  const [notificationPreferences, setNotificationPreferences] = useState<Record<string, unknown>>({});
+  const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
   const [twoFactorAuth, setTwoFactorAuth] = useState(false);
   const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorProvisioningResponse | null>(null);
   const [twoFactorCode, setTwoFactorCode] = useState("");
@@ -239,18 +242,81 @@ export function ProviderSettingsPage() {
   useEffect(() => {
     const token = getStoredProviderAccessToken();
     if (!token) return;
-    getUserPreferences(token)
+    void getUserPreferences(token)
       .then((prefs) => {
+        const preferences = prefs.notificationPreferences ?? {};
         setPushNotifications(prefs.pushNotificationsEnabled);
+        setSmsNotifications(preferences.smsNotificationsEnabled === true);
+        setEmailNotifications(preferences.emailNotificationsEnabled !== false);
+        setNotificationPreferences(preferences);
+        setNotificationMsg(null);
         if (prefs.darkModeEnabled) setTheme("dark");
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        setNotificationMsg(
+          error instanceof Error ? error.message : "Unable to load notification preferences.",
+        );
+      });
+
+    void getCurrentUserTwoFactorStatus(token)
+      .then((status) => {
+        setTwoFactorAuth(status.enabled);
+        setTwoFactorMsg(null);
+      })
+      .catch((error: unknown) => {
+        setTwoFactorMsg(
+          error instanceof Error ? error.message : "Unable to load two-factor status.",
+        );
+      });
   }, []);
 
-  const handleTogglePush = (value: boolean) => {
+  const handleTogglePush = async (value: boolean) => {
     setPushNotifications(value);
     const token = getStoredProviderAccessToken();
-    if (token) updateUserPreferences(token, { pushNotificationsEnabled: value }).catch(() => {});
+    if (!token) return;
+    setNotificationMsg(null);
+    try {
+      await updateUserPreferences(token, { pushNotificationsEnabled: value });
+    } catch {
+      setPushNotifications(!value);
+      setNotificationMsg("Unable to save notification preference.");
+    }
+  };
+
+  const handleToggleNotificationPreference = async (
+    key: "smsNotificationsEnabled" | "emailNotificationsEnabled",
+    value: boolean,
+  ) => {
+    if (key === "smsNotificationsEnabled") {
+      setSmsNotifications(value);
+    } else {
+      setEmailNotifications(value);
+    }
+
+    const token = getStoredProviderAccessToken();
+    if (!token) return;
+
+    const nextPreferences = {
+      ...notificationPreferences,
+      [key]: value,
+    };
+
+    setNotificationPreferences(nextPreferences);
+    setNotificationMsg(null);
+
+    try {
+      await updateUserPreferences(token, {
+        notificationPreferences: nextPreferences,
+      });
+    } catch {
+      if (key === "smsNotificationsEnabled") {
+        setSmsNotifications(!value);
+      } else {
+        setEmailNotifications(!value);
+      }
+      setNotificationPreferences(notificationPreferences);
+      setNotificationMsg("Unable to save notification preference.");
+    }
   };
 
   const handlePasswordUpdate = () => {
@@ -466,6 +532,11 @@ export function ProviderSettingsPage() {
               <Bell style={{ width: "22px", height: "22px", color: "#00BF63" }} />
               <span>Notifications</span>
             </div>
+            {notificationMsg && (
+              <p style={{ fontSize: "13px", color: "#B91C1C", marginBottom: "14px" }}>
+                {notificationMsg}
+              </p>
+            )}
 
             <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
               {/* Push Notifications */}
@@ -479,7 +550,7 @@ export function ProviderSettingsPage() {
                   </p>
                 </div>
                 <div
-                  onClick={() => handleTogglePush(!pushNotifications)}
+                  onClick={() => void handleTogglePush(!pushNotifications)}
                   style={{
                     ...styles.toggle,
                     backgroundColor: pushNotifications ? "#00BF63" : "#E5E7EB",
@@ -505,7 +576,12 @@ export function ProviderSettingsPage() {
                   </p>
                 </div>
                 <div
-                  onClick={() => setSmsNotifications(!smsNotifications)}
+                  onClick={() =>
+                    void handleToggleNotificationPreference(
+                      "smsNotificationsEnabled",
+                      !smsNotifications,
+                    )
+                  }
                   style={{
                     ...styles.toggle,
                     backgroundColor: smsNotifications ? "#00BF63" : "#E5E7EB",
@@ -531,7 +607,12 @@ export function ProviderSettingsPage() {
                   </p>
                 </div>
                 <div
-                  onClick={() => setEmailNotifications(!emailNotifications)}
+                  onClick={() =>
+                    void handleToggleNotificationPreference(
+                      "emailNotificationsEnabled",
+                      !emailNotifications,
+                    )
+                  }
                   style={{
                     ...styles.toggle,
                     backgroundColor: emailNotifications ? "#00BF63" : "#E5E7EB",

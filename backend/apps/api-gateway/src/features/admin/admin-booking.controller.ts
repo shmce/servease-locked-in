@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Post,
   Query,
@@ -56,6 +57,8 @@ const validPriorities = new Set<AdminBookingEscalationPriority>([
 
 @Controller('v1/admin/bookings')
 export class AdminBookingController {
+  private readonly logger = new Logger(AdminBookingController.name);
+
   constructor(
     private readonly adminBookingGatewayService: AdminBookingGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -188,7 +191,11 @@ export class AdminBookingController {
               reason: body.reason,
             },
           })
-          .catch(() => undefined);
+          .catch((error: unknown) => {
+            this.logger.warn(
+              `Could not create admin booking cancellation notification for ${booking.id}: ${this.errorMessage(error)}`,
+            );
+          });
       }
       return { data: booking };
     } catch (error) {
@@ -250,7 +257,11 @@ export class AdminBookingController {
             },
           }),
         )
-        .catch(() => undefined);
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Could not create admin booking escalation notification for ${booking.id}: ${this.errorMessage(error)}`,
+          );
+        });
       return { data: booking };
     } catch (error) {
       throw this.toHttpException(error);
@@ -299,8 +310,11 @@ export class AdminBookingController {
             },
           },
         );
-      } catch {
+      } catch (error) {
         // Persisting must not block the user-visible notification.
+        this.logger.warn(
+          `Could not persist admin provider message for booking ${booking.id}: ${this.errorMessage(error)}`,
+        );
         persistedMessage = null;
       }
 
@@ -444,20 +458,30 @@ export class AdminBookingController {
       metadata: Record<string, unknown>;
     },
   ): Promise<unknown> {
-    return this.adminAuditGatewayService
-      .createAuditLog({
-        adminUserId: admin.user.id,
-        adminEmail: admin.user.email,
-        adminName: admin.user.fullName,
-        action: input.action,
-        actionType: input.actionType,
-        entityType: 'Booking',
-        entityId: input.entityId,
-        details: input.details,
-        ipAddress: this.getClientIp(request),
-        metadata: input.metadata,
-      })
-      .catch(() => undefined);
+    return this.auditBookingAction({
+      adminUserId: admin.user.id,
+      adminEmail: admin.user.email,
+      adminName: admin.user.fullName,
+      action: input.action,
+      actionType: input.actionType,
+      entityType: 'Booking',
+      entityId: input.entityId,
+      details: input.details,
+      ipAddress: this.getClientIp(request),
+      metadata: input.metadata,
+    });
+  }
+
+  private async auditBookingAction(
+    input: Parameters<AdminAuditGatewayService['createAuditLog']>[0],
+  ): Promise<void> {
+    try {
+      await this.adminAuditGatewayService.createAuditLog(input);
+    } catch (error) {
+      this.logger.warn(
+        `Could not create audit log for admin booking action ${input.action} (${input.entityId}): ${this.errorMessage(error)}`,
+      );
+    }
   }
 
   private getClientIp(request: {
@@ -531,5 +555,9 @@ export class AdminBookingController {
       },
       status,
     );
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

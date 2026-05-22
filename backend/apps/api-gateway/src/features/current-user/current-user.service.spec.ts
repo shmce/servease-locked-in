@@ -1,5 +1,8 @@
 import { CurrentUserService } from './current-user.service';
-import { AccountInactiveError } from './current-user.errors';
+import {
+  AccountDeletionDependencyUnavailableError,
+  AccountInactiveError,
+} from './current-user.errors';
 import { AuthServiceClient } from './clients/auth-service.client';
 import { CatalogServiceClient } from './clients/catalog-service.client';
 import { UserServiceClient } from './clients/user-service.client';
@@ -147,6 +150,38 @@ describe('CurrentUserService', () => {
     );
   });
 
+  it('loads two-factor status for active accounts', async () => {
+    const authServiceClient = {
+      findUserById: jest.fn().mockResolvedValue({
+        id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+        email: 'provider@example.com',
+        fullName: 'Provider Name',
+        contactNumber: '+639000000000',
+        role: 'provider',
+        status: 'active',
+      }),
+      getTwoFactorStatus: jest.fn().mockResolvedValue({
+        enabled: true,
+        verifiedAt: '2026-05-22T10:00:00.000Z',
+      }),
+    } as unknown as AuthServiceClient;
+    const service = new CurrentUserService(
+      authServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+    );
+
+    await expect(
+      service.getTwoFactorStatus('9b6ed52b-8a97-4b89-b6a8-364c65f8736b'),
+    ).resolves.toEqual({
+      enabled: true,
+      verifiedAt: '2026-05-22T10:00:00.000Z',
+    });
+    expect(authServiceClient.getTwoFactorStatus).toHaveBeenCalledWith(
+      '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+    );
+  });
+
   it('cancels active bookings before deleting the current user account', async () => {
     const authServiceClient = {
       findUserById: jest.fn().mockResolvedValue({
@@ -193,5 +228,92 @@ describe('CurrentUserService', () => {
     expect(authServiceClient.deleteCurrentUserAccount).toHaveBeenCalledWith(
       '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
     );
+  });
+
+  it('does not delete the account when active booking lookup fails', async () => {
+    const authServiceClient = {
+      findUserById: jest.fn().mockResolvedValue({
+        id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+        email: 'customer@example.com',
+        fullName: 'Customer Name',
+        contactNumber: '+639000000000',
+        role: 'customer',
+        status: 'active',
+      }),
+      deleteCurrentUserAccount: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuthServiceClient;
+    const bookingServiceClient = {
+      listBookings: jest.fn().mockRejectedValue(new Error('booking service down')),
+      transitionStatus: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const service = new CurrentUserService(
+      authServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+      bookingServiceClient,
+    );
+
+    await expect(
+      service.deleteCurrentUser('9b6ed52b-8a97-4b89-b6a8-364c65f8736b'),
+    ).rejects.toThrow('booking service down');
+    expect(authServiceClient.deleteCurrentUserAccount).not.toHaveBeenCalled();
+  });
+
+  it('does not delete the account when active booking cancellation fails', async () => {
+    const authServiceClient = {
+      findUserById: jest.fn().mockResolvedValue({
+        id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+        email: 'customer@example.com',
+        fullName: 'Customer Name',
+        contactNumber: '+639000000000',
+        role: 'customer',
+        status: 'active',
+      }),
+      deleteCurrentUserAccount: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuthServiceClient;
+    const bookingServiceClient = {
+      listBookings: jest.fn().mockResolvedValue([
+        {
+          id: 'booking-1',
+          status: 'confirmed',
+        },
+      ]),
+      transitionStatus: jest.fn().mockRejectedValue(new Error('cancel failed')),
+    } as unknown as BookingServiceClient;
+    const service = new CurrentUserService(
+      authServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+      bookingServiceClient,
+    );
+
+    await expect(
+      service.deleteCurrentUser('9b6ed52b-8a97-4b89-b6a8-364c65f8736b'),
+    ).rejects.toThrow('cancel failed');
+    expect(authServiceClient.deleteCurrentUserAccount).not.toHaveBeenCalled();
+  });
+
+  it('requires booking service availability before deleting the current user account', async () => {
+    const authServiceClient = {
+      findUserById: jest.fn().mockResolvedValue({
+        id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+        email: 'customer@example.com',
+        fullName: 'Customer Name',
+        contactNumber: '+639000000000',
+        role: 'customer',
+        status: 'active',
+      }),
+      deleteCurrentUserAccount: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuthServiceClient;
+    const service = new CurrentUserService(
+      authServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+    );
+
+    await expect(
+      service.deleteCurrentUser('9b6ed52b-8a97-4b89-b6a8-364c65f8736b'),
+    ).rejects.toBeInstanceOf(AccountDeletionDependencyUnavailableError);
+    expect(authServiceClient.deleteCurrentUserAccount).not.toHaveBeenCalled();
   });
 });

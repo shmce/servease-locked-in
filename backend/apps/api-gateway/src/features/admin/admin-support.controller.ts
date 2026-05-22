@@ -4,6 +4,8 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
+  Optional,
   Param,
   Patch,
   Post,
@@ -30,7 +32,6 @@ import {
   SupportTicketSummary,
 } from './admin-support.types';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
-import { Optional } from '@nestjs/common';
 
 const validSupportStatuses = new Set([
   'open',
@@ -41,6 +42,8 @@ const validSupportStatuses = new Set([
 
 @Controller('v1/admin/support/tickets')
 export class AdminSupportController {
+  private readonly logger = new Logger(AdminSupportController.name);
+
   constructor(
     private readonly adminSupportGatewayService: AdminSupportGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -119,7 +122,12 @@ export class AdminSupportController {
       if (this.notificationServiceClient) {
         const ticket = await this.adminSupportGatewayService
           .getSupportTicket(ticketId)
-          .catch(() => null);
+          .catch((error: unknown) => {
+            this.logger.warn(
+              `Could not load support ticket ${ticketId} before sending reply notification: ${this.errorMessage(error)}`,
+            );
+            return null;
+          });
         if (ticket?.userId) {
           void this.notificationServiceClient
             .createNotification({
@@ -133,7 +141,11 @@ export class AdminSupportController {
                 subject: ticket.subject ?? null,
               },
             })
-            .catch(() => undefined);
+            .catch((error: unknown) => {
+              this.logger.warn(
+                `Could not create support reply notification for ticket ${ticketId}: ${this.errorMessage(error)}`,
+              );
+            });
         }
       }
       return { data: reply };
@@ -194,7 +206,11 @@ export class AdminSupportController {
           ipAddress: this.getClientIp(request),
           metadata: { ticketId: ticket.id, status: ticket.status },
         })
-        .catch(() => undefined);
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Could not create audit log for support ticket ${ticket.id} status update: ${this.errorMessage(error)}`,
+          );
+        });
       if (this.notificationServiceClient && ticket.userId) {
         void this.notificationServiceClient
           .createNotification({
@@ -218,7 +234,11 @@ export class AdminSupportController {
               subject: ticket.subject ?? null,
             },
           })
-          .catch(() => undefined);
+          .catch((error: unknown) => {
+            this.logger.warn(
+              `Could not create support status notification for ticket ${ticket.id}: ${this.errorMessage(error)}`,
+            );
+          });
       }
       return {
         data: ticket,
@@ -312,5 +332,9 @@ export class AdminSupportController {
       },
       status,
     );
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

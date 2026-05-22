@@ -171,9 +171,18 @@ export function useProviderServiceFlowViewModel({
       );
       onServiceUpdateCreated(update);
       onRefreshBookingTimelineEvents(updated.id);
-      await onPaymentsRefresh().catch(() => undefined);
+      let paymentRefreshFailed = false;
+      try {
+        await onPaymentsRefresh();
+      } catch {
+        paymentRefreshFailed = true;
+      }
       setCompletionNotes('');
-      setNotice('Service completed.');
+      setNotice(
+        paymentRefreshFailed
+          ? 'Service completed. Payment summary could not refresh yet.'
+          : 'Service completed.',
+      );
       setProviderRoute('providerServiceCompleted');
     } catch (error) {
       setNotice(readError(error));

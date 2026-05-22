@@ -41,10 +41,8 @@ import {
   CheckCircle,
   Clock,
   Download,
-  Eye,
   MessageSquare,
   Mail,
-  Package,
   RefreshCw,
   Search,
   Smartphone,
@@ -56,7 +54,9 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import {
+  addAdminSupportTicketReply,
   getAdminUsersSummary,
+  listAdminSupportTicketReplies,
   listAdminBroadcasts,
   listAdminSupportTickets,
   listAdminUsers,
@@ -67,6 +67,7 @@ import {
   type AdminBroadcastAudience,
   type AdminBroadcastRepeatRule,
   type AdminBroadcastSummary,
+  type AdminSupportTicketReplySummary,
   type AdminSupportTicketStatus,
   type AdminSupportTicketSummary,
   type AdminUserStatus,
@@ -92,6 +93,7 @@ export function Customers() {
   const [summary, setSummary] = useState<AdminUsersSummaryStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [pendingId, setPendingId] = useState<string | null>(null);
 
@@ -129,14 +131,24 @@ export function Customers() {
     let cancelled = false;
     setIsLoading(true);
     setLoadError(null);
+    setSummaryError(null);
     Promise.all([
       listAdminUsers(accessToken, { role: "customer" }),
-      getAdminUsersSummary(accessToken).catch(() => null),
+      getAdminUsersSummary(accessToken)
+        .then((nextSummary) => ({ summary: nextSummary, error: null }))
+        .catch((error: unknown) => ({
+          summary: null,
+          error:
+            error instanceof Error
+              ? error.message
+              : "Unable to load customer summary.",
+        })),
     ])
-      .then(([nextCustomers, nextSummary]) => {
+      .then(([nextCustomers, summaryResult]) => {
         if (cancelled) return;
         setCustomers(nextCustomers);
-        setSummary(nextSummary);
+        setSummary(summaryResult.summary);
+        setSummaryError(summaryResult.error);
       })
       .catch((error) => {
         if (cancelled) return;
@@ -216,6 +228,12 @@ export function Customers() {
           Manage and monitor all customers on the platform
         </p>
       </div>
+
+      {summaryError ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          Customer list loaded, but summary totals could not be refreshed: {summaryError}
+        </div>
+      ) : null}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -374,31 +392,8 @@ export function Customers() {
   );
 }
 
-/* ── Coming-soon placeholder helper ──────────────────────────── */
-function ComingSoon({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
-        <p className="text-gray-500 mt-1">{description}</p>
-      </div>
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 bg-[#DCFCE7] rounded-2xl flex items-center justify-center mb-4">
-            <Package className="w-8 h-8 text-[#16A34A]" />
-          </div>
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">Coming Soon</h2>
-          <p className="text-gray-400 text-sm max-w-sm">
-            This section is under development and will be available in a future update.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 export function Support() {
-  const { accessToken } = useAuth();
+  const { accessToken, admin } = useAuth();
   const [tickets, setTickets] = useState<AdminSupportTicketSummary[]>([]);
   const [searchTerm, setSearchTerm] = usePersistentState(
     "servease_admin_support_search",
@@ -411,6 +406,11 @@ export function Support() {
   const [error, setError] = useState<string | null>(null);
   const [updatingTicketId, setUpdatingTicketId] = useState<string | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<AdminSupportTicketSummary | null>(null);
+  const [ticketReplies, setTicketReplies] = useState<AdminSupportTicketReplySummary[]>([]);
+  const [isLoadingReplies, setIsLoadingReplies] = useState(false);
+  const [replyMessage, setReplyMessage] = useState("");
+  const [isSendingReply, setIsSendingReply] = useState(false);
+  const [replyError, setReplyError] = useState<string | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     ticket: AdminSupportTicketSummary;
     nextStatus: AdminSupportTicketStatus;
@@ -469,6 +469,67 @@ export function Support() {
   ) => {
     if (nextStatus === ticket.status) return;
     setPendingStatusChange({ ticket, nextStatus });
+  };
+
+  const openTicketConversation = useCallback(
+    async (ticket: AdminSupportTicketSummary) => {
+      setSelectedTicket(ticket);
+      setTicketReplies([]);
+      setReplyMessage("");
+      setReplyError(null);
+
+      if (!accessToken) return;
+
+      setIsLoadingReplies(true);
+      try {
+        setTicketReplies(await listAdminSupportTicketReplies(accessToken, ticket.id));
+      } catch (loadError) {
+        setReplyError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load ticket replies.",
+        );
+      } finally {
+        setIsLoadingReplies(false);
+      }
+    },
+    [accessToken],
+  );
+
+  const closeTicketConversation = () => {
+    setSelectedTicket(null);
+    setTicketReplies([]);
+    setReplyMessage("");
+    setReplyError(null);
+  };
+
+  const sendTicketReply = async () => {
+    if (!accessToken || !selectedTicket) return;
+
+    const message = replyMessage.trim();
+    if (!message) {
+      setReplyError("Enter a reply before sending.");
+      return;
+    }
+
+    setIsSendingReply(true);
+    setReplyError(null);
+
+    try {
+      const reply = await addAdminSupportTicketReply(accessToken, selectedTicket.id, {
+        repliedBy: admin?.id ?? admin?.email ?? "admin",
+        message,
+      });
+      setTicketReplies((current) => [...current, reply]);
+      setReplyMessage("");
+      toast.success(`Reply sent for ticket ${selectedTicket.id}.`);
+    } catch (sendError) {
+      setReplyError(
+        sendError instanceof Error ? sendError.message : "Unable to send reply.",
+      );
+    } finally {
+      setIsSendingReply(false);
+    }
   };
 
   const confirmStatusChange = async () => {
@@ -742,10 +803,10 @@ export function Support() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setSelectedTicket(ticket)}
+                          onClick={() => void openTicketConversation(ticket)}
                         >
-                          <Eye className="w-3 h-3 mr-1" />
-                          View
+                          <MessageSquare className="w-3 h-3 mr-1" />
+                          Reply
                         </Button>
                       </TableCell>
                       <TableCell>
@@ -776,12 +837,12 @@ export function Support() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!selectedTicket} onOpenChange={(open) => !open && setSelectedTicket(null)}>
-        <DialogContent className="sm:max-w-2xl">
+      <Dialog open={!!selectedTicket} onOpenChange={(open) => !open && closeTicketConversation()}>
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Support Ticket Details</DialogTitle>
+            <DialogTitle>Support Conversation</DialogTitle>
             <DialogDescription>
-              Backend support ticket record from the admin gateway.
+              Review the ticket and send replies through the admin support thread.
             </DialogDescription>
           </DialogHeader>
           {selectedTicket && (
@@ -815,6 +876,71 @@ export function Support() {
                 <p className="mt-1 whitespace-pre-wrap text-gray-900">
                   {selectedTicket.message ?? "No message provided."}
                 </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 p-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <p className="font-medium text-gray-900">Reply Thread</p>
+                  {isLoadingReplies && (
+                    <span className="text-xs text-gray-500">Loading replies...</span>
+                  )}
+                </div>
+                {replyError && (
+                  <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {replyError}
+                  </div>
+                )}
+                <div className="max-h-72 space-y-3 overflow-y-auto">
+                  {isLoadingReplies ? (
+                    <p className="text-sm text-gray-500">Loading ticket conversation...</p>
+                  ) : ticketReplies.length === 0 ? (
+                    <p className="text-sm text-gray-500">No replies yet.</p>
+                  ) : (
+                    ticketReplies.map((reply) => (
+                      <div
+                        key={reply.id}
+                        className="rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] p-3"
+                      >
+                        <div className="mb-1 flex items-center justify-between gap-3">
+                          <span className="break-all font-medium text-gray-900">
+                            {reply.repliedBy}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {reply.createdAt
+                              ? new Date(reply.createdAt).toLocaleString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "Just now"}
+                          </span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-gray-800">{reply.message}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  Admin reply
+                </label>
+                <Textarea
+                  value={replyMessage}
+                  onChange={(event) => setReplyMessage(event.target.value)}
+                  placeholder="Type a reply to the customer or provider..."
+                  className="min-h-28"
+                />
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    onClick={() => void sendTicketReply()}
+                    disabled={isSendingReply || !replyMessage.trim()}
+                    className="bg-[#16A34A] hover:bg-[#15803D]"
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    {isSendingReply ? "Sending..." : "Send Reply"}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -884,11 +1010,19 @@ export function Broadcasts() {
   const [message, setMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [history, setHistory] = useState<AdminBroadcastSummary[]>([]);
+  const [historyLoadError, setHistoryLoadError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<AdminBroadcastSummary | null>(null);
 
   useEffect(() => {
     if (!accessToken) return;
-    listAdminBroadcasts(accessToken, 25).then(setHistory).catch(() => {});
+    setHistoryLoadError(null);
+    listAdminBroadcasts(accessToken, 25)
+      .then(setHistory)
+      .catch((error) => {
+        setHistoryLoadError(
+          error instanceof Error ? error.message : "Unable to load broadcast history.",
+        );
+      });
   }, [accessToken]);
 
   const canSend =
@@ -1110,7 +1244,11 @@ export function Broadcasts() {
           <CardTitle className="text-base">Broadcast history</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {history.length === 0 ? (
+          {historyLoadError ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {historyLoadError}
+            </p>
+          ) : history.length === 0 ? (
             <p className="text-sm text-gray-500">No broadcasts recorded yet.</p>
           ) : (
             history.map((broadcast) => (

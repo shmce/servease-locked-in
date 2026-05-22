@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { CurrentUserIdentity } from '../current-user/current-user.types';
 import {
@@ -15,6 +15,8 @@ import { AdminServiceClient } from './clients/admin-service.client';
 
 @Injectable()
 export class AdminBookingGatewayService {
+  private readonly logger = new Logger(AdminBookingGatewayService.name);
+
   constructor(
     private readonly adminServiceClient: AdminServiceClient,
     private readonly authServiceClient: AuthServiceClient,
@@ -102,12 +104,19 @@ export class AdminBookingGatewayService {
         customerFullName: customerIdentity.fullName,
         customerContactNumber: customerIdentity.contactNumber,
       };
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `Could not enrich admin booking ${booking.id} with customer ${booking.customerId}: ${this.errorMessage(error)}`,
+      );
       return {
         ...booking,
         customerFullName: null,
         customerContactNumber: null,
       };
     }
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { readError } from '../../../navigation/routeHelpers';
 import type { AppRole } from '../../../navigation/types';
 import type {
@@ -48,6 +48,7 @@ export function useMessagesFlowViewModel({
   const [selectedConversationId, setSelectedConversationId] =
     useState<string | null>(null);
   const [messageDraft, setMessageDraft] = useState('');
+  const pollFailureNotified = useRef(false);
 
   const selectedConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedConversationId),
@@ -68,14 +69,18 @@ export function useMessagesFlowViewModel({
             await listConversationMessages(selectedConversationId, apiOptions),
           );
         }
-      } catch {
-        // Message polling is best-effort.
+        pollFailureNotified.current = false;
+      } catch (error) {
+        if (!pollFailureNotified.current) {
+          setNotice(`Messages could not be refreshed: ${readError(error)}`);
+          pollFailureNotified.current = true;
+        }
       }
     };
 
     const interval = setInterval(() => void tick(), 8000);
     return () => clearInterval(interval);
-  }, [apiOptions, hasSession, isMessagesScreen, selectedConversationId]);
+  }, [apiOptions, hasSession, isMessagesScreen, selectedConversationId, setNotice]);
 
   const replaceConversations = useCallback(
     (nextConversations: ConversationSummary[]) => {
