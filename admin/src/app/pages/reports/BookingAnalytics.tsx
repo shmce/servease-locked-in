@@ -150,6 +150,7 @@ export function BookingAnalytics() {
     }, {});
 
     return Object.entries(byDate)
+      .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
       .map(([date, bookings]) => ({ date, bookings }))
       .slice(-10);
   }, [liveBookingRows]);
