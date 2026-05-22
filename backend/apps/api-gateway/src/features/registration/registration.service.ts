@@ -24,6 +24,7 @@ import {
   OtpVerifyResponse,
   PasswordResetRequest,
   PasswordResetResponse,
+  ProviderApplicationDocumentsResponse,
   ProviderApplicationStatusResponse,
   RegisterAccountRequest,
   RegisteredAccountResponse,
@@ -72,22 +73,6 @@ export class RegistrationGatewayService {
         user.id,
         input,
       );
-      if (input.serviceId?.trim()) {
-        await this.catalogServiceClient.replaceProviderOwnedServices(user.id, [
-          {
-            serviceId: input.serviceId.trim(),
-            title:
-              input.serviceDescription?.split(' - ')[1]?.trim() ||
-              input.serviceDescription?.split(' - ')[0]?.trim() ||
-              input.businessName?.trim() ||
-              input.fullName.trim(),
-            description: input.serviceDescription?.trim() || null,
-            price: null,
-            pricingMode: 'flat',
-            isActive: true,
-          },
-        ]);
-      }
       return {
         user,
         customerProfile: null,
@@ -195,6 +180,31 @@ export class RegistrationGatewayService {
       }
 
       return application;
+    } catch (error) {
+      if (error instanceof ProviderApplicationNotFoundError) {
+        throw error;
+      }
+
+      throw new ProviderApplicationDependencyUnavailableError();
+    }
+  }
+
+  async getProviderApplicationDocuments(
+    userId: string,
+  ): Promise<ProviderApplicationDocumentsResponse> {
+    try {
+      const application =
+        await this.catalogServiceClient.getProviderApplicationByUserId(userId);
+
+      if (!application) {
+        throw new ProviderApplicationNotFoundError();
+      }
+
+      const { documents, ...status } = application;
+      return {
+        application: status,
+        documents: documents ?? [],
+      };
     } catch (error) {
       if (error instanceof ProviderApplicationNotFoundError) {
         throw error;

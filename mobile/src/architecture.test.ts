@@ -480,20 +480,27 @@ test('provider home follows feature-level MVVM boundaries', () => {
   const screenSource = readProjectFile('src/screens/ProviderHomeScreen.tsx');
   const viewSource = readProjectFile(viewPath);
   const viewModelSource = readProjectFile(viewModelPath);
+  const modelSource = readProjectFile(
+    'src/features/provider-home/viewModels/providerHomeModel.ts',
+  );
 
   assert.match(screenSource, /features\/provider-home\/views\/ProviderHome/);
   assert.match(viewSource, /useProviderHomeViewModel/);
   assert.match(viewSource, /ProviderApplicationBanner/);
+  assert.match(viewSource, /import type \{ AppRole, AppScreen \}/);
+  assert.match(viewSource, /import type \{[\s\S]*ProviderHomeHero/);
   assert.doesNotMatch(screenSource, /renderProviderApplicationBanner/);
   assert.doesNotMatch(viewSource, /buildProviderHomeViewModel/);
   assert.doesNotMatch(viewSource, /formatMoney|toLocaleDateString|toFixed/);
   assert.doesNotMatch(viewSource, /providerDashboard\?\.summary\.overallRating/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /buildProviderHomeViewModel/);
+  assert.match(viewModelSource, /import type \{[\s\S]*ProviderHomeViewModel/);
   assert.match(viewModelSource, /useMemo/);
   assert.match(viewModelSource, /businessName/);
   assert.match(viewModelSource, /todayEarningsLabel/);
   assert.match(viewModelSource, /ratingLabel/);
+  assert.match(modelSource, /import type \{ AppScreen \}/);
 });
 
 test('provider application banner follows provider-home MVVM boundaries', () => {

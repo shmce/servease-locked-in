@@ -45,7 +45,7 @@ test('provider signup validation requires admin approval inputs', () => {
     /years of experience/i,
   );
 
-  assert.match(
+  assert.equal(
     validateProviderSignupRequirements({
       businessName: 'GreenFix Home Services',
       birthdate: '1995-05-23',
@@ -54,8 +54,21 @@ test('provider signup validation requires admin approval inputs', () => {
       serviceId: '',
       serviceArea: 'Quezon City',
       serviceDescription: 'Aircon cleaning and repair',
-    }) ?? '',
-    /catalog service/i,
+    }),
+    null,
+  );
+
+  assert.equal(
+    validateProviderSignupRequirements({
+      businessName: 'GreenFix Home Services',
+      birthdate: '1995-05-23',
+      contactNumber: '+639171234567',
+      experienceYears: '',
+      serviceId: '',
+      serviceArea: '',
+      serviceDescription: '',
+    }),
+    null,
   );
 });
 

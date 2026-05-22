@@ -10,14 +10,14 @@ import {
   User,
 } from 'lucide-react-native';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { AppRole, AppScreen } from '../../../navigation/types';
+import type { AppRole, AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
 import { useProviderHomeViewModel } from '../viewModels/useProviderHomeViewModel';
-import {
+import type {
   ProviderHomeActiveBooking,
   ProviderHomeHero,
 } from '../viewModels/providerHomeModel';
-import {
+import type {
   BookingSummary,
   CurrentUserProfile,
   PaymentSummary,
@@ -40,7 +40,7 @@ type ProviderHomeScreenProps = {
   openBooking: (booking: BookingSummary, screen: AppScreen) => void;
   busyAction: string | null;
   onRefreshProviderApplication: () => void | Promise<void>;
-  onUploadGovernmentId: () => void;
+  onOpenApplicationDocuments: () => void;
   now?: Date;
   minimumPayoutAmount?: number;
 };
@@ -57,7 +57,7 @@ export function ProviderHomeScreen({
   openBooking,
   busyAction,
   onRefreshProviderApplication,
-  onUploadGovernmentId,
+  onOpenApplicationDocuments,
   now = new Date(),
   minimumPayoutAmount = EXISTING_MINIMUM_PAYOUT_AMOUNT,
 }: ProviderHomeScreenProps) {
@@ -197,7 +197,7 @@ export function ProviderHomeScreen({
           providerApplication={providerApplication}
           busyAction={busyAction}
           onRefreshStatus={onRefreshProviderApplication}
-          onUploadGovernmentId={onUploadGovernmentId}
+          onOpenApplicationDocuments={onOpenApplicationDocuments}
         />
       </View>
     </ScrollView>

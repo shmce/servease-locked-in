@@ -745,6 +745,7 @@ export interface UploadSummary {
   kind: UploadKind;
   contentType: string;
   size: number;
+  document?: ProviderApplicationDocumentSummary;
 }
 
 export interface UploadMediaRequest {
@@ -1231,6 +1232,24 @@ export interface ProviderApplicationStatus {
   updatedAt: string | null;
 }
 
+export interface ProviderApplicationDocumentSummary {
+  id: string;
+  applicationId: string;
+  userId: string;
+  documentType: string;
+  fileUrl: string | null;
+  storagePath: string | null;
+  status: ProviderApplicationVerificationStatus;
+  createdAt: string | null;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+}
+
+export interface ProviderApplicationDocumentsResponse {
+  application: ProviderApplicationStatus;
+  documents: ProviderApplicationDocumentSummary[];
+}
+
 export function getMyProviderApplication(
   options: ApiOptions = {},
 ): Promise<ProviderApplicationStatus> {
@@ -1239,6 +1258,19 @@ export function getMyProviderApplication(
     method: 'GET',
     requiresAuth: true,
   });
+}
+
+export function getMyProviderApplicationDocuments(
+  options: ApiOptions = {},
+): Promise<ProviderApplicationDocumentsResponse> {
+  return request<ProviderApplicationDocumentsResponse>(
+    '/v1/auth/provider-application/me/documents',
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
 }
 
 export function updateCurrentUserProfile(

@@ -15,11 +15,10 @@ import { palette, radius, spacing } from '../theme/serveaseDesign';
 type AppShellProps = {
   busyAction: string | null;
   children: ReactNode;
-  notice: string;
   backgroundColor?: string;
 };
 
-export function AppShell({ busyAction, children, notice, backgroundColor }: AppShellProps) {
+export function AppShell({ busyAction, children, backgroundColor }: AppShellProps) {
   const shellBackground = backgroundColor ?? palette.white;
 
   useEffect(() => {
@@ -46,7 +45,7 @@ export function AppShell({ busyAction, children, notice, backgroundColor }: AppS
       {busyAction ? (
         <View style={styles.busyPill}>
           <ActivityIndicator color={palette.white} />
-          <Text style={styles.busyText}>{notice}</Text>
+          <Text style={styles.busyText}>Loading...</Text>
         </View>
       ) : null}
     </SafeAreaView>

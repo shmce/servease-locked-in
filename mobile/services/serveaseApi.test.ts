@@ -25,6 +25,7 @@ import {
   getCheckoutStatus,
   getDirections,
   getGoogleAuthorizationUrl,
+  getMyProviderApplicationDocuments,
   getPublicProviderAvailability,
   getProviderAvailability,
   getBookingTrackingSnapshot,
@@ -862,6 +863,59 @@ describe('serveaseApi', () => {
       contactNumber: '+639000000001',
       address: 'Updated address',
     });
+  });
+
+  it('loads current provider application documents through the gateway', async () => {
+    let authorization: string | null = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(
+        url,
+        'http://gateway.test/v1/auth/provider-application/me/documents',
+      );
+      assert.equal(init?.method, 'GET');
+      authorization = new Headers(init?.headers).get('authorization');
+
+      return jsonResponse({
+        data: {
+          application: {
+            id: 'provider-application-1',
+            applicationReference: 'PA-20260523-001',
+            businessName: 'Provider Co',
+            serviceArea: 'Quezon City',
+            serviceDescription: null,
+            verificationStatus: 'pending',
+            latestDecisionReason: null,
+            latestDecisionAt: null,
+            createdAt: '2026-05-23T00:00:00.000Z',
+            updatedAt: '2026-05-23T00:00:00.000Z',
+          },
+          documents: [
+            {
+              id: 'document-1',
+              applicationId: 'provider-application-1',
+              userId: 'user-1',
+              documentType: 'government_id',
+              fileUrl: null,
+              storagePath: 'provider_document/user-1/id.jpg',
+              status: 'pending',
+              createdAt: '2026-05-23T00:01:00.000Z',
+              previewUrl: 'https://storage.test/id-preview',
+              downloadUrl: 'https://storage.test/id-download',
+            },
+          ],
+        },
+      });
+    };
+
+    const response = await getMyProviderApplicationDocuments({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.equal(authorization, 'Bearer access-token');
+    assert.equal(response.application.verificationStatus, 'pending');
+    assert.equal(response.documents[0]?.documentType, 'government_id');
   });
 
   it('manages customer saved addresses through the gateway', async () => {

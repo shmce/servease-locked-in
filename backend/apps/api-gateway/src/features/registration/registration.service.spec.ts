@@ -214,22 +214,10 @@ describe('RegistrationGatewayService', () => {
       serviceDescription: 'Deep Cleaning',
     });
 
-    expect(catalogServiceClient.replaceProviderOwnedServices).toHaveBeenCalledWith(
-      'user-1',
-      [
-        {
-          serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
-          title: 'Deep Cleaning',
-          description: 'Deep Cleaning',
-          price: null,
-          pricingMode: 'flat',
-          isActive: true,
-        },
-      ],
-    );
+    expect(catalogServiceClient.replaceProviderOwnedServices).not.toHaveBeenCalled();
   });
 
-  it('cleans up auth users when initial linked provider service creation fails', async () => {
+  it('does not create linked provider services during registration before approval', async () => {
     const authServiceClient = {
       registerUser: jest.fn().mockResolvedValue({
         id: 'user-1',
@@ -252,24 +240,74 @@ describe('RegistrationGatewayService', () => {
           averageRating: 0,
           reviewCount: 0,
         }),
-        replaceProviderOwnedServices: jest.fn().mockRejectedValue(new Error('services down')),
+        replaceProviderOwnedServices: jest.fn(),
+      } as unknown as CatalogServiceClient,
+    );
+
+    await service.register({
+      role: 'provider',
+      email: 'provider@example.com',
+      password: 'Password#2026',
+      fullName: 'Provider Example',
+      contactNumber: '+639171234567',
+      birthdate: '1990-05-23',
+      businessName: 'Provider Co',
+      serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+      serviceDescription: 'Deep Cleaning',
+    });
+
+    expect(authServiceClient.deleteRegisteredUser).not.toHaveBeenCalled();
+  });
+
+  it('returns current provider application documents for the checklist screen', async () => {
+    const service = new RegistrationGatewayService(
+      {} as AuthServiceClient,
+      {} as UserServiceClient,
+      {
+        getProviderApplicationByUserId: jest.fn().mockResolvedValue({
+          id: 'provider-application-1',
+          applicationReference: 'PA-20260523-001',
+          businessName: 'Provider Co',
+          serviceArea: 'Quezon City',
+          serviceDescription: null,
+          verificationStatus: 'pending',
+          latestDecisionReason: null,
+          latestDecisionAt: null,
+          createdAt: '2026-05-23T00:00:00.000Z',
+          updatedAt: '2026-05-23T00:00:00.000Z',
+          documents: [
+            {
+              id: 'document-1',
+              applicationId: 'provider-application-1',
+              userId: 'user-1',
+              documentType: 'government_id',
+              fileUrl: null,
+              storagePath: 'provider_document/user-1/id.jpg',
+              status: 'pending',
+              createdAt: '2026-05-23T00:01:00.000Z',
+              previewUrl: 'https://storage.test/id-preview',
+              downloadUrl: 'https://storage.test/id-download',
+            },
+          ],
+        }),
       } as unknown as CatalogServiceClient,
     );
 
     await expect(
-      service.register({
-        role: 'provider',
-        email: 'provider@example.com',
-        password: 'Password#2026',
-        fullName: 'Provider Example',
-        contactNumber: '+639171234567',
-        birthdate: '1990-05-23',
-        businessName: 'Provider Co',
-        serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
-        serviceDescription: 'Deep Cleaning',
-      }),
-    ).rejects.toThrow('services down');
-    expect(authServiceClient.deleteRegisteredUser).toHaveBeenCalledWith('user-1');
+      service.getProviderApplicationDocuments('user-1'),
+    ).resolves.toMatchObject({
+      application: {
+        id: 'provider-application-1',
+        verificationStatus: 'pending',
+      },
+      documents: [
+        {
+          documentType: 'government_id',
+          status: 'pending',
+          previewUrl: 'https://storage.test/id-preview',
+        },
+      ],
+    });
   });
 
   it('rejects provider registration with malformed service id', async () => {

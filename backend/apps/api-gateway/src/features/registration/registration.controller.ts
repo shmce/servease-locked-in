@@ -39,6 +39,7 @@ import {
   OtpVerifyResponse,
   PasswordResetRequest,
   PasswordResetResponse,
+  ProviderApplicationDocumentsResponse,
   ProviderApplicationStatusResponse,
   RegisterAccountRequest,
   RegisteredAccountResponse,
@@ -166,6 +167,22 @@ export class RegistrationController {
       const userId = await this.authTokenService.authenticate(authorization);
       return {
         data: await this.registrationGatewayService.getProviderApplicationStatus(
+          userId,
+        ),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('provider-application/me/documents')
+  async providerApplicationDocuments(
+    @Headers('authorization') authorization?: string,
+  ): Promise<{ data: ProviderApplicationDocumentsResponse }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.registrationGatewayService.getProviderApplicationDocuments(
           userId,
         ),
       };

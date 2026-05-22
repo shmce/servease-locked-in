@@ -54,7 +54,7 @@ export function validateProviderSignupRequirements(
   }
 
   if (!serviceId?.trim()) {
-    return 'Choose a catalog service for your provider application.';
+    return null;
   }
 
   if (!serviceArea.trim()) {

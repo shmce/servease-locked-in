@@ -42,6 +42,7 @@ export function getCustomerTab(screen: AppScreen): CustomerTab {
     screen === 'customerNotifications' ||
     screen === 'customerReferral' ||
     screen === 'providerProfileView' ||
+    screen === 'providerApplicationDocuments' ||
     screen === 'providerEditProfile' ||
     screen === 'providerPortfolio' ||
     screen === 'providerPayoutManagement' ||

@@ -59,6 +59,7 @@ type ProviderRendererName =
   | 'bookings'
   | 'calendar'
   | 'cancelBooking'
+  | 'applicationDocuments'
   | 'completeService'
   | 'editProfile'
   | 'help'
@@ -351,6 +352,8 @@ function renderProviderRoute(
       return renderers.provider.reportIssue();
     case 'providerServiceReceipt':
       return renderers.provider.serviceReceipt();
+    case 'providerApplicationDocuments':
+      return renderers.provider.applicationDocuments();
     case 'providerProfileView':
       return renderers.provider.profileView();
     case 'providerEditProfile':

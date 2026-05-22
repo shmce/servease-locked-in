@@ -186,7 +186,13 @@ describe('ProviderProfileService', () => {
 
   it('replaces owned provider services after validating titles', async () => {
     const repository: ProviderProfileRepository = {
-      findByUserId: jest.fn(),
+      findByUserId: jest.fn().mockResolvedValue({
+        id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+        businessName: 'Reliable Repairs',
+        verificationStatus: 'approved',
+        averageRating: 4.8,
+        reviewCount: 12,
+      }),
       create: jest.fn(),
       update: jest.fn(),
       listPortfolioMedia: jest.fn(),
@@ -226,6 +232,49 @@ describe('ProviderProfileService', () => {
       '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
       services,
     );
+  });
+
+  it('blocks pending providers from replacing owned services', async () => {
+    const repository: ProviderProfileRepository = {
+      findByUserId: jest.fn().mockResolvedValue({
+        id: 'f87b3f7e-6b54-4cef-852f-854983780c7b',
+        businessName: 'Reliable Repairs',
+        verificationStatus: 'pending',
+        averageRating: 0,
+        reviewCount: 0,
+      }),
+      create: jest.fn(),
+      update: jest.fn(),
+      listPortfolioMedia: jest.fn(),
+      addPortfolioMedia: jest.fn(),
+      replacePortfolioMedia: jest.fn(),
+      reorderPortfolioMedia: jest.fn(),
+      deletePortfolioMedia: jest.fn(),
+      listOwnedServices: jest.fn(),
+      replaceOwnedServices: jest.fn(),
+      listProviderApplications: jest.fn(),
+      getProviderApplication: jest.fn(),
+      getProviderApplicationByUserId: jest.fn(),
+      getProviderApplicationDocument: jest.fn(),
+      submitProviderApplicationDocument: jest.fn(),
+      getProviderApplicationReview: jest.fn(),
+      updateProviderApplicationReview: jest.fn(),
+      addProviderApplicationReviewNote: jest.fn(),
+      decideProviderApplication: jest.fn(),
+    };
+    const service = new ProviderProfileService(repository);
+
+    await expect(
+      service.replaceOwnedServices('9b6ed52b-8a97-4b89-b6a8-364c65f8736b', [
+        {
+          title: 'Deep Cleaning',
+          price: 1500,
+          pricingMode: 'flat',
+          isActive: true,
+        },
+      ]),
+    ).rejects.toThrow('provider_approval_required');
+    expect(repository.replaceOwnedServices).not.toHaveBeenCalled();
   });
 
   it('loads provider application documents after validating identifiers', async () => {

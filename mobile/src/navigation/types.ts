@@ -39,6 +39,7 @@ export type DetailScreen =
   | 'customerReferral'
   | 'customerTerms'
   | 'providerBookingDetail'
+  | 'providerApplicationDocuments'
   | 'providerProfileView'
   | 'providerEditProfile'
   | 'providerPortfolio'

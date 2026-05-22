@@ -9,6 +9,7 @@ import {
 import { CatalogDependencyUnavailableError } from '../catalog/catalog.errors';
 import {
   InvalidProviderRequestError,
+  ProviderApprovalRequiredError,
   ProviderProfileRequiredError,
 } from './provider.errors';
 import { ProviderGatewayService } from './provider.service';
@@ -109,6 +110,14 @@ export class ProviderController {
       return this.error(
         'provider_profile_required',
         'A provider profile is required.',
+        403,
+      );
+    }
+
+    if (error instanceof ProviderApprovalRequiredError) {
+      return this.error(
+        'provider_approval_required',
+        'Provider application approval is required before managing services.',
         403,
       );
     }

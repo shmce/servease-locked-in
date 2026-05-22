@@ -258,4 +258,40 @@ describe('ProviderGatewayService', () => {
       },
     });
   });
+
+  it('blocks pending providers from replacing marketplace services', async () => {
+    const catalogGatewayService = {
+      replaceProviderOwnedServices: jest.fn(),
+    } as unknown as CatalogGatewayService;
+    const service = new ProviderGatewayService(
+      {
+        getCurrentUser: jest.fn().mockResolvedValue({
+          user: {
+            id: 'c5246383-cdd6-4639-a7ff-bf3e290e9838',
+            role: 'provider',
+          },
+          providerProfile: {
+            id: '9d02cb22-c44a-4634-9fd1-cfa14abc34e5',
+            verificationStatus: 'pending',
+          },
+        }),
+      } as unknown as CurrentUserService,
+      catalogGatewayService,
+      {} as BookingGatewayService,
+      {} as PaymentGatewayService,
+    );
+
+    await expect(
+      service.replaceProviderServices('c5246383-cdd6-4639-a7ff-bf3e290e9838', [
+        {
+          title: 'Deep Cleaning',
+          serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+          price: 1500,
+          pricingMode: 'flat',
+          isActive: true,
+        },
+      ]),
+    ).rejects.toThrow('provider_approval_required');
+    expect(catalogGatewayService.replaceProviderOwnedServices).not.toHaveBeenCalled();
+  });
 });

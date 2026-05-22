@@ -635,6 +635,9 @@ function ProviderServiceStep({
       services.filter((service) => service.categoryId === selectedCategoryId),
     [selectedCategoryId, services],
   );
+  const selectedCategory = categoriesWithServices.find(
+    (category) => category.id === selectedCategoryId,
+  );
 
   useEffect(() => {
     if (selectedService?.categoryId && selectedService.categoryId !== selectedCategoryId) {
@@ -662,49 +665,145 @@ function ProviderServiceStep({
         placeholder="GreenFix Home Services"
       />
       <View style={styles.catalogPicker}>
-        <Text style={styles.catalogPickerLabel}>Category</Text>
-        <View style={styles.catalogChoiceGrid}>
-          {categoriesWithServices.map((category) => (
-            <Pressable
-              key={category.id}
-              style={[
-                styles.catalogChoice,
-                selectedCategoryId === category.id && styles.catalogChoiceSelected,
-              ]}
-              onPress={() => chooseCategory(category.id)}
-            >
-              <Text
-                style={[
-                  styles.catalogChoiceText,
-                  selectedCategoryId === category.id && styles.catalogChoiceTextSelected,
-                ]}
-              >
-                {category.name}
+        <View style={styles.catalogSection}>
+          <View style={styles.catalogHeader}>
+            <View style={styles.catalogHeaderCopy}>
+              <Text style={styles.catalogPickerLabel}>Category</Text>
+              <Text style={styles.catalogPickerHint}>Choose the type of work you offer.</Text>
+            </View>
+            {selectedCategory ? (
+              <Text style={styles.catalogHeaderMeta}>
+                {categoryServices.length} service{categoryServices.length === 1 ? '' : 's'}
               </Text>
-            </Pressable>
-          ))}
+            ) : null}
+          </View>
+          {categoriesWithServices.length ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryScroller}
+            >
+              {categoriesWithServices.map((category) => (
+                <Pressable
+                  key={category.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedCategoryId === category.id }}
+                  style={[
+                    styles.categoryChip,
+                    selectedCategoryId === category.id && styles.categoryChipSelected,
+                  ]}
+                  onPress={() => chooseCategory(category.id)}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.categoryChipText,
+                      selectedCategoryId === category.id &&
+                        styles.categoryChipTextSelected,
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={styles.catalogEmptyText}>
+              Catalog categories are loading. Try again in a moment.
+            </Text>
+          )}
         </View>
-        <Text style={styles.catalogPickerLabel}>Service</Text>
-        <View style={styles.catalogChoiceGrid}>
-          {categoryServices.map((service) => (
-            <Pressable
-              key={service.id}
-              style={[
-                styles.catalogChoice,
-                signupServiceId === service.id && styles.catalogChoiceSelected,
-              ]}
-              onPress={() => chooseService(service)}
-            >
+
+        <View style={styles.catalogSection}>
+          <View style={styles.catalogHeader}>
+            <View style={styles.catalogHeaderCopy}>
+              <Text style={styles.catalogPickerLabel}>Service</Text>
+              <Text style={styles.catalogPickerHint}>
+                Pick the specific service customers will book, or choose it later.
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: !signupServiceId }}
+            style={[
+              styles.serviceChoice,
+              !signupServiceId && styles.serviceChoiceSelected,
+            ]}
+            onPress={() => {
+              setSelectedCategoryId('');
+              setSignupServiceId('');
+            }}
+          >
+            <View style={styles.serviceChoiceBody}>
               <Text
                 style={[
-                  styles.catalogChoiceText,
-                  signupServiceId === service.id && styles.catalogChoiceTextSelected,
+                  styles.serviceChoiceTitle,
+                  !signupServiceId && styles.serviceChoiceTitleSelected,
                 ]}
               >
-                {service.name}
+                Decide later
               </Text>
-            </Pressable>
-          ))}
+              <Text style={styles.serviceChoiceMeta}>
+                Create your account now and complete service details before admin approval.
+              </Text>
+            </View>
+            {!signupServiceId ? (
+              <View style={styles.serviceChoiceCheck}>
+                <Check color={palette.white} size={13} strokeWidth={3} />
+              </View>
+            ) : null}
+          </Pressable>
+          {selectedCategoryId ? (
+            <View style={styles.serviceChoiceList}>
+              {categoryServices.map((service) => {
+                const selected = signupServiceId === service.id;
+
+                return (
+                  <Pressable
+                    key={service.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    style={[
+                      styles.serviceChoice,
+                      selected && styles.serviceChoiceSelected,
+                    ]}
+                    onPress={() => chooseService(service)}
+                  >
+                    <View style={styles.serviceChoiceBody}>
+                      <Text
+                        style={[
+                          styles.serviceChoiceTitle,
+                          selected && styles.serviceChoiceTitleSelected,
+                        ]}
+                      >
+                        {service.name}
+                      </Text>
+                      {service.description ? (
+                        <Text style={styles.serviceChoiceMeta}>
+                          {service.description}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {selected ? (
+                      <View style={styles.serviceChoiceCheck}>
+                        <Check color={palette.white} size={13} strokeWidth={3} />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+              {!categoryServices.length ? (
+                <Text style={styles.catalogEmptyText}>
+                  No catalog services are available for this category yet.
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <Text style={styles.catalogEmptyText}>
+              Select a category to see available services.
+            </Text>
+          )}
         </View>
       </View>
       <Field
@@ -1029,39 +1128,120 @@ const styles = StyleSheet.create({
     borderColor: palette.line,
     borderRadius: radius.md,
     borderWidth: 1,
-    gap: spacing.sm,
+    gap: spacing.md,
     padding: spacing.md,
+  },
+  catalogSection: {
+    gap: spacing.sm,
+  },
+  catalogHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  catalogHeaderCopy: {
+    flex: 1,
+    gap: 2,
   },
   catalogPickerLabel: {
     color: palette.ink,
     fontSize: 13,
     fontWeight: '900',
   },
-  catalogChoiceGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.xs,
+  catalogPickerHint: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
   },
-  catalogChoice: {
+  catalogHeaderMeta: {
+    color: palette.mint,
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 17,
+    paddingTop: 1,
+  },
+  categoryScroller: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingRight: spacing.md,
+  },
+  categoryChip: {
+    alignItems: 'center',
     borderColor: palette.line,
     borderRadius: radius.pill,
     borderWidth: 1,
-    maxWidth: '100%',
+    justifyContent: 'center',
+    maxWidth: 170,
+    minHeight: 38,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  catalogChoiceSelected: {
+  categoryChipSelected: {
     backgroundColor: palette.mint,
     borderColor: palette.mint,
   },
-  catalogChoiceText: {
+  categoryChipText: {
     color: palette.ink,
     fontSize: 12,
     fontWeight: '800',
     lineHeight: 17,
   },
-  catalogChoiceTextSelected: {
+  categoryChipTextSelected: {
     color: palette.white,
+  },
+  serviceChoiceList: {
+    gap: spacing.xs,
+  },
+  serviceChoice: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 54,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  serviceChoiceSelected: {
+    backgroundColor: '#E9F9F0',
+    borderColor: palette.mint,
+  },
+  serviceChoiceBody: {
+    flex: 1,
+    gap: 2,
+  },
+  serviceChoiceTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  serviceChoiceTitleSelected: {
+    color: palette.mint,
+  },
+  serviceChoiceMeta: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+  },
+  serviceChoiceCheck: {
+    alignItems: 'center',
+    backgroundColor: palette.mint,
+    borderRadius: radius.pill,
+    height: 22,
+    justifyContent: 'center',
+    width: 22,
+  },
+  catalogEmptyText: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
   },
   forgotLink: {
     color: palette.mint,

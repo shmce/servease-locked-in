@@ -10,10 +10,11 @@ import {
   TopBar,
 } from '../../../components/DesignKit';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
-import {
+import type {
   BookingPricingMode,
   CatalogCategory,
   CatalogServiceItem,
+  ProviderApplicationStatus,
   ProviderOwnedServiceSummary,
 } from '../../../shared/models/types';
 import {
@@ -36,6 +37,8 @@ type ProviderServicesScreenProps = {
   services: CatalogServiceItem[];
   showAddServiceForm: boolean;
   busyAction: string | null;
+  providerVerificationStatus: ProviderApplicationStatus['verificationStatus'] | null;
+  onOpenApplicationDocuments: () => void;
   onBack: () => void;
   onEditServiceTitleChange: (value: string) => void;
   onEditServicePriceChange: (value: string) => void;
@@ -68,6 +71,8 @@ export function ProviderServicesScreen({
   services,
   showAddServiceForm,
   busyAction,
+  providerVerificationStatus,
+  onOpenApplicationDocuments,
   onBack,
   onEditServiceTitleChange,
   onEditServicePriceChange,
@@ -90,6 +95,7 @@ export function ProviderServicesScreen({
     editingServiceId,
     newServicePricingMode,
     busyAction,
+    providerVerificationStatus,
   });
   const { data } = providerServices;
 
@@ -102,6 +108,17 @@ export function ProviderServicesScreen({
       />
       <ScreenScroll>
         <ScreenContent>
+          {data.isServiceManagementLocked ? (
+            <Card>
+              <View style={styles.lockedHeader}>
+                <View style={styles.flex}>
+                  <Text style={styles.lockedTitle}>{data.lockedTitle}</Text>
+                  <Text style={styles.lockedBody}>{data.lockedBody}</Text>
+                </View>
+                <Badge label="Locked" tone="warning" />
+              </View>
+            </Card>
+          ) : null}
 
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>My Services</Text>
@@ -149,25 +166,31 @@ export function ProviderServicesScreen({
                         </View>
                         <Badge label={row.statusLabel} tone={row.statusTone} />
                       </View>
-                      <View style={styles.actionRow}>
+                      {data.canManageServices ? (
+                        <View style={styles.actionRow}>
+                          {row.canEdit ? (
+                            <PrimaryButton
+                              label="Edit"
+                              variant="secondary"
+                              onPress={() => onStartEditService(row.service)}
+                            />
+                          ) : null}
+                          <PrimaryButton
+                            label={row.toggleButtonLabel}
+                            variant="secondary"
+                            onPress={() => onToggleOwnedServiceActive(row.id)}
+                            disabled={row.isToggleDisabled}
+                          />
+                        </View>
+                      ) : null}
+                      {data.canManageServices ? (
                         <PrimaryButton
-                          label="Edit"
-                          variant="secondary"
-                          onPress={() => onStartEditService(row.service)}
+                          label={row.removeButtonLabel}
+                          variant="danger"
+                          onPress={() => onRemoveOwnedService(row.id)}
+                          disabled={row.isRemoveDisabled}
                         />
-                        <PrimaryButton
-                          label={row.toggleButtonLabel}
-                          variant="secondary"
-                          onPress={() => onToggleOwnedServiceActive(row.id)}
-                          disabled={row.isToggleDisabled}
-                        />
-                      </View>
-                      <PrimaryButton
-                        label={row.removeButtonLabel}
-                        variant="danger"
-                        onPress={() => onRemoveOwnedService(row.id)}
-                        disabled={row.isRemoveDisabled}
-                      />
+                      ) : null}
                     </>
                   )}
                 </Card>
@@ -175,14 +198,31 @@ export function ProviderServicesScreen({
             ) : (
               <EmptyState
                 title="No services yet"
-                body="Add a service below to start appearing in marketplace listings."
+                body={
+                  data.isServiceManagementLocked
+                    ? 'Services will appear here after your application is approved.'
+                    : 'Add a service below to start appearing in marketplace listings.'
+                }
               />
             )}
           </View>
 
           <View style={styles.sectionBlock}>
             <Text style={styles.sectionLabel}>Add a Service</Text>
-            {showAddServiceForm ? (
+            {data.isServiceManagementLocked ? (
+              <Card>
+                <Text style={styles.lockedTitle}>Services locked</Text>
+                <Text style={styles.lockedBody}>
+                  Your listings open after the admin team approves your provider
+                  application.
+                </Text>
+                <PrimaryButton
+                  label="Upload documents"
+                  variant="secondary"
+                  onPress={onOpenApplicationDocuments}
+                />
+              </Card>
+            ) : showAddServiceForm ? (
               <Card>
                 <CatalogServicePicker
                   categories={categories}
@@ -352,6 +392,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
+  },
+  lockedHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.base,
+    justifyContent: 'space-between',
+  },
+  lockedTitle: {
+    color: palette.ink,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  lockedBody: {
+    color: palette.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    lineHeight: 19,
+    marginTop: spacing.xs,
   },
   catalogPicker: {
     backgroundColor: palette.surface,

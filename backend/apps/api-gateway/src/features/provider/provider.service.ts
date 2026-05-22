@@ -10,9 +10,13 @@ import {
   ProviderOwnedServiceSummary,
 } from '../catalog/catalog.types';
 import { CurrentUserService } from '../current-user/current-user.service';
+import type { CurrentUserProfile } from '../current-user/current-user.types';
 import { PaymentGatewayService } from '../payments/payment.service';
 import { PaymentSummary } from '../payments/payment.types';
-import { ProviderProfileRequiredError } from './provider.errors';
+import {
+  ProviderApprovalRequiredError,
+  ProviderProfileRequiredError,
+} from './provider.errors';
 import {
   ProviderDashboardSummary,
   ProviderProfileSnapshot,
@@ -130,19 +134,33 @@ export class ProviderGatewayService {
     userId: string,
     services: ProviderOwnedServiceInput[],
   ): Promise<ProviderOwnedServiceSummary[]> {
-    await this.requireProviderProfile(userId);
+    const currentUser = await this.requireProviderProfile(userId);
+    if (currentUser.providerProfile.verificationStatus !== 'approved') {
+      throw new ProviderApprovalRequiredError();
+    }
+
     return this.catalogGatewayService.replaceProviderOwnedServices(
       userId,
       services,
     );
   }
 
-  private async requireProviderProfile(userId: string): Promise<void> {
+  private async requireProviderProfile(
+    userId: string,
+  ): Promise<
+    CurrentUserProfile & {
+      providerProfile: NonNullable<CurrentUserProfile['providerProfile']>;
+    }
+  > {
     const currentUser = await this.currentUserService.getCurrentUser(userId);
 
     if (currentUser.user.role !== 'provider' || !currentUser.providerProfile) {
       throw new ProviderProfileRequiredError();
     }
+
+    return currentUser as CurrentUserProfile & {
+      providerProfile: NonNullable<CurrentUserProfile['providerProfile']>;
+    };
   }
 }
 

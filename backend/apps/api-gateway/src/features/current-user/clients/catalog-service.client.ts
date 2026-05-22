@@ -29,6 +29,10 @@ interface ProviderApplicationDocumentSummary {
   downloadUrl: string | null;
 }
 
+type ProviderApplicationWithDocuments = ProviderApplicationStatusResponse & {
+  documents?: ProviderApplicationDocumentSummary[];
+};
+
 @Injectable()
 export class CatalogServiceClient {
   constructor(private readonly configService: ConfigService) {}
@@ -152,7 +156,7 @@ export class CatalogServiceClient {
 
   async getProviderApplicationByUserId(
     userId: string,
-  ): Promise<ProviderApplicationStatusResponse | null> {
+  ): Promise<ProviderApplicationWithDocuments | null> {
     const response = await fetch(
       `${this.baseUrl()}/internal/providers/applications/by-user/${userId}`,
     );
@@ -166,7 +170,7 @@ export class CatalogServiceClient {
     }
 
     const payload = (await response.json()) as {
-      data: ProviderApplicationStatusResponse;
+      data: ProviderApplicationWithDocuments;
     };
     return payload.data;
   }

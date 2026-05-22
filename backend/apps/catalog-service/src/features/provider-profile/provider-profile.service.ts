@@ -228,7 +228,7 @@ export class ProviderProfileService {
     return this.providerProfileRepository.listOwnedServices(userId);
   }
 
-  replaceOwnedServices(
+  async replaceOwnedServices(
     userId: string,
     services: ProviderOwnedServiceInput[],
   ): Promise<ProviderOwnedServiceSummary[]> {
@@ -238,6 +238,14 @@ export class ProviderProfileService {
       services.some((service) => !service.title?.trim())
     ) {
       throw new Error('invalid_provider_service_request');
+    }
+
+    const providerProfile = await this.providerProfileRepository.findByUserId(userId);
+    if (!providerProfile) {
+      throw new Error('provider_profile_not_found');
+    }
+    if (providerProfile.verificationStatus !== 'approved') {
+      throw new Error('provider_approval_required');
     }
 
     return this.providerProfileRepository.replaceOwnedServices(userId, services);

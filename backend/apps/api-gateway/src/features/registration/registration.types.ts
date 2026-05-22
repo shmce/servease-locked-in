@@ -39,6 +39,24 @@ export interface ProviderApplicationStatusResponse {
   updatedAt: string | null;
 }
 
+export interface ProviderApplicationDocumentResponse {
+  id: string;
+  applicationId: string;
+  userId: string;
+  documentType: string;
+  fileUrl: string | null;
+  storagePath: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string | null;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+}
+
+export interface ProviderApplicationDocumentsResponse {
+  application: ProviderApplicationStatusResponse;
+  documents: ProviderApplicationDocumentResponse[];
+}
+
 export interface PasswordResetRequest {
   email: string;
   redirectTo?: string | null;

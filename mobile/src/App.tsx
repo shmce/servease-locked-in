@@ -86,6 +86,7 @@ import type {
   CurrentUserSessionSummary,
   UserPreferenceSummary,
   ProviderAvailabilitySchedule,
+  ProviderApplicationDocumentSummary,
   ProviderApplicationStatus,
   ProviderDashboardSummary,
   ProviderListing,
@@ -114,7 +115,7 @@ import {
   exchangeGoogleCode,
   replyToReview,
   flagReview,
-  getMyProviderApplication,
+  getMyProviderApplicationDocuments,
   getProviderDashboard,
   getCheckoutStatus,
   getDirections,
@@ -489,6 +490,13 @@ const ProviderServicesScreen = lazy(() =>
     default: module.ProviderServicesScreen,
   })),
 );
+const ProviderApplicationDocumentsScreen = lazy(() =>
+  import('./features/provider-application-documents/views/ProviderApplicationDocuments').then(
+    (module) => ({
+      default: module.ProviderApplicationDocumentsScreen,
+    }),
+  ),
+);
 const ProviderStartServiceScreen = lazy(() =>
   import('./features/provider-start-service/views/ProviderStartService').then((module) => ({
     default: module.ProviderStartServiceScreen,
@@ -561,6 +569,9 @@ export default function App() {
   const [profile, setProfile] = useState<CurrentUserProfile | null>(null);
   const [providerApplication, setProviderApplication] =
     useState<ProviderApplicationStatus | null>(null);
+  const [providerApplicationDocuments, setProviderApplicationDocuments] = useState<
+    ProviderApplicationDocumentSummary[]
+  >([]);
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [services, setServices] = useState<CatalogServiceItem[]>([]);
   const [providers, setProviders] = useState<ProviderListing[]>([]);
@@ -699,6 +710,8 @@ export default function App() {
     null;
   const role = profile?.user.role ?? 'customer';
   const appRole: AppRole = role === 'provider' ? 'provider' : 'customer';
+  const canManageProviderServices =
+    profile?.providerProfile?.verificationStatus === 'approved';
   const payoutTotal =
     payoutAccount?.availableBalance ?? providerPayoutTotal(payments);
   const canConfirmAccountDeletion =
@@ -1350,7 +1363,7 @@ export default function App() {
               : null,
           serviceId:
             intendedRole === 'provider'
-              ? signupServiceId.trim()
+              ? signupServiceId.trim() || null
               : null,
           serviceArea:
             intendedRole === 'provider'
@@ -1361,7 +1374,7 @@ export default function App() {
               ? buildProviderServiceDescription(
                   signupServiceDescription,
                   signupExperienceYears,
-                )
+                ) || null
               : null,
         },
         { baseUrl: apiBaseUrl },
@@ -1486,6 +1499,7 @@ export default function App() {
     setSession(null);
     setProfile(null);
     setProviderApplication(null);
+    setProviderApplicationDocuments([]);
     setBookings([]);
     messagesFlow.actions.clear();
     setPayments([]);
@@ -1806,7 +1820,7 @@ export default function App() {
         nextProviderDashboard,
         nextOwnedServices,
         nextSessions,
-        nextProviderApplication,
+        nextProviderApplicationDocuments,
       ] = await Promise.all([
         nextRole === 'provider'
           ? listProviderBookings(options)
@@ -1873,7 +1887,7 @@ export default function App() {
         ),
         nextRole === 'provider'
           ? loadOptionalWorkspaceSection('provider application', null, () =>
-              getMyProviderApplication(options),
+              getMyProviderApplicationDocuments(options),
             )
           : Promise.resolve({ value: null, error: null }),
       ]);
@@ -1896,7 +1910,10 @@ export default function App() {
       setProviderDashboard(nextProviderDashboard.value as ProviderDashboardSummary | null);
       setOwnedServices(nextOwnedServices.value as ProviderOwnedServiceSummary[]);
       setActiveSessions(nextSessions.value);
-      setProviderApplication(nextProviderApplication.value);
+      setProviderApplication(nextProviderApplicationDocuments.value?.application ?? null);
+      setProviderApplicationDocuments(
+        nextProviderApplicationDocuments.value?.documents ?? [],
+      );
       setSelectedPayoutMethodId((current) => {
         if (current && nextPayoutMethods.value.some((method) => method.id === current)) {
           return current;
@@ -1937,7 +1954,7 @@ export default function App() {
         nextProviderDashboard.error,
         nextOwnedServices.error,
         nextSessions.error,
-        nextProviderApplication.error,
+        nextProviderApplicationDocuments.error,
       ].filter(Boolean);
       setNotice(
         sectionErrors.length
@@ -2053,7 +2070,10 @@ export default function App() {
     const name = asset.fileName ?? uri.split('/').pop() ?? `servease-${kind}.jpg`;
     const contentType = asset.mimeType ?? 'image/jpeg';
 
-    setBusyAction(`upload-${kind}`);
+    const uploadAction = options.documentType?.trim()
+      ? `upload-${kind}-${options.documentType.trim()}`
+      : `upload-${kind}`;
+    setBusyAction(uploadAction);
     try {
       const uploaded = await uploadMedia(
         {
@@ -2074,13 +2094,35 @@ export default function App() {
     }
   }
 
-  async function uploadProviderGovernmentId() {
+  async function refreshProviderApplicationDocuments() {
+    setBusyAction('provider-application-documents');
+    try {
+      const response = await getMyProviderApplicationDocuments(apiOptions);
+      setProviderApplication(response.application);
+      setProviderApplicationDocuments(response.documents);
+      setNotice('Provider application documents refreshed.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function uploadProviderApplicationDocument(documentType: string) {
     await pickAndUploadImage(
       'provider_document',
-      async () => {
-        setProviderApplication(await getMyProviderApplication(apiOptions));
+      async (_uri, uploaded) => {
+        if (uploaded.document) {
+          setProviderApplicationDocuments((current) => [
+            uploaded.document as ProviderApplicationDocumentSummary,
+            ...current.filter((document) => document.id !== uploaded.document?.id),
+          ]);
+        }
+        const response = await getMyProviderApplicationDocuments(apiOptions);
+        setProviderApplication(response.application);
+        setProviderApplicationDocuments(response.documents);
       },
-      { documentType: 'government_id' },
+      { documentType },
     );
   }
 
@@ -2749,6 +2791,10 @@ export default function App() {
   }
 
   async function saveOwnedServiceEdit() {
+    if (!canManageProviderServices) {
+      setNotice('Provider application approval is required before managing services.');
+      return;
+    }
     if (!editingServiceId) return;
     const current = ownedServices.find((s) => s.id === editingServiceId);
     if (!current) return;
@@ -2780,6 +2826,10 @@ export default function App() {
   }
 
   async function addOwnedService() {
+    if (!canManageProviderServices) {
+      setNotice('Provider application approval is required before managing services.');
+      return;
+    }
     const title = newServiceTitle.trim();
     const priceValue = Number(newServicePrice);
     if (!title) {
@@ -2828,6 +2878,10 @@ export default function App() {
   }
 
   async function toggleOwnedServiceActive(serviceId: string) {
+    if (!canManageProviderServices) {
+      setNotice('Provider application approval is required before managing services.');
+      return;
+    }
     setBusyAction(`service-toggle-${serviceId}`);
     try {
       const updated: ProviderOwnedServiceInput[] = ownedServices.map((s) =>
@@ -2844,6 +2898,10 @@ export default function App() {
   }
 
   async function removeOwnedService(serviceId: string) {
+    if (!canManageProviderServices) {
+      setNotice('Provider application approval is required before managing services.');
+      return;
+    }
     setBusyAction(`service-remove-${serviceId}`);
     try {
       const remaining: ProviderOwnedServiceInput[] = ownedServices
@@ -3794,7 +3852,9 @@ export default function App() {
         onRefreshProviderApplication={async () => {
           setBusyAction('provider-application');
           try {
-            setProviderApplication(await getMyProviderApplication(apiOptions));
+            const response = await getMyProviderApplicationDocuments(apiOptions);
+            setProviderApplication(response.application);
+            setProviderApplicationDocuments(response.documents);
             setNotice('Provider application status refreshed.');
           } catch (error) {
             setNotice(readError(error));
@@ -3802,7 +3862,9 @@ export default function App() {
             setBusyAction(null);
           }
         }}
-        onUploadGovernmentId={() => void uploadProviderGovernmentId()}
+        onOpenApplicationDocuments={() =>
+          navigate('providerApplicationDocuments', 'provider')
+        }
       />
     );
   }
@@ -4204,6 +4266,21 @@ export default function App() {
     );
   }
 
+  function renderProviderApplicationDocuments() {
+    return (
+      <ProviderApplicationDocumentsScreen
+        providerApplication={providerApplication}
+        documents={providerApplicationDocuments}
+        busyAction={busyAction}
+        onBack={() => goBack({ role: 'provider', screen: 'more' })}
+        onRefresh={() => void refreshProviderApplicationDocuments()}
+        onUploadDocument={(documentType) =>
+          void uploadProviderApplicationDocument(documentType)
+        }
+      />
+    );
+  }
+
   function renderProviderServices() {
     return (
       <ProviderServicesScreen
@@ -4220,6 +4297,12 @@ export default function App() {
         services={services}
         showAddServiceForm={showAddServiceForm}
         busyAction={busyAction}
+        providerVerificationStatus={
+          profile?.providerProfile?.verificationStatus ?? null
+        }
+        onOpenApplicationDocuments={() =>
+          navigate('providerApplicationDocuments', 'provider')
+        }
         onBack={() => goBack({ role: 'provider', screen: 'more' })}
         onEditServiceTitleChange={setEditServiceTitle}
         onEditServicePriceChange={setEditServicePrice}
@@ -4357,6 +4440,7 @@ export default function App() {
       bookings: renderProviderBookings,
       calendar: renderProviderCalendar,
       cancelBooking: renderProviderCancelBooking,
+      applicationDocuments: renderProviderApplicationDocuments,
       completeService: renderProviderCompleteService,
       editProfile: renderProviderEditProfile,
       help: renderProviderHelp,
@@ -4385,7 +4469,6 @@ export default function App() {
   return (
     <AppShell
       busyAction={busyAction}
-      notice={notice}
       backgroundColor={route.screen === 'authGate' ? palette.mint : undefined}
     >
       <AppRouter

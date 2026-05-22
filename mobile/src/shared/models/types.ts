@@ -35,6 +35,8 @@ export type {
   PricingQuoteSummary,
   PromotionValidationSummary,
   ProviderApplicationStatus,
+  ProviderApplicationDocumentSummary,
+  ProviderApplicationDocumentsResponse,
   ProviderAvailabilitySchedule,
   ProviderDashboardSummary,
   ProviderListing,
