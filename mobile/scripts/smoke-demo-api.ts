@@ -22,7 +22,7 @@ const expected = {
 };
 const processes: ChildProcess[] = [];
 
-loadEnv(resolve(repoRoot, '.env'));
+loadEnv(resolve(backendDir, '.env'));
 loadEnv(resolve(process.cwd(), '.env'));
 
 async function main() {

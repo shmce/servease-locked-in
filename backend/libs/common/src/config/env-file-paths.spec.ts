@@ -18,7 +18,7 @@ describe('getBackendEnvFilePaths', () => {
     ]);
   });
 
-  it('falls back to backend .env when NODE_ENV is unset', () => {
-    expect(getBackendEnvFilePaths(undefined)).toEqual(['.env.local', '.env']);
+  it('falls back to backend .env when NODE_ENV is blank', () => {
+    expect(getBackendEnvFilePaths('')).toEqual(['.env.local', '.env']);
   });
 });
