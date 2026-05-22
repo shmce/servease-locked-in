@@ -1,6 +1,6 @@
 # ServEase Call Flows
 
-Last verified from code: 2026-05-20.
+Last verified from code: 2026-05-23.
 
 This document summarizes the active request flows across the ServEase app surfaces,
 API Gateway, HTTP services, and service-owned Supabase schemas. Editable diagram
@@ -40,9 +40,10 @@ Primary diagram: [`11-catalog-browse-sequence.mmd`](diagrams/source/11-catalog-b
 | ---: | --- | --- | --- | --- |
 | 1 | Client | `GET /v1/catalog/categories` | Gateway -> Catalog Service | Category list |
 | 2 | Client | `GET /v1/catalog/services?categoryId=...` | Gateway -> Catalog Service | Service list |
-| 3 | Client | `GET /v1/catalog/providers?serviceId=...` | Gateway -> Catalog Service | Provider listings |
-| 4 | Client | `GET /v1/catalog/providers/:providerId/portfolio` | Gateway -> Catalog Service | Provider media |
-| 5 | Client | `GET /v1/reviews?providerId=...` | Gateway -> Review Service | Public review summaries |
+| 3 | Client | `GET /v1/catalog/service-areas` | Gateway -> Catalog Service | Supported service areas |
+| 4 | Client | `GET /v1/catalog/providers?serviceId=...` | Gateway -> Catalog Service | Provider listings |
+| 5 | Client | `GET /v1/catalog/providers/:providerId/portfolio` | Gateway -> Catalog Service | Provider media |
+| 6 | Client | `GET /v1/reviews?providerId=...` | Gateway -> Review Service | Public review summaries |
 
 Related contracts: [`docs/api-contracts.md#v1catalog`](api-contracts.md#v1catalog), [`docs/specs/catalog.md`](specs/catalog.md).
 
@@ -90,8 +91,7 @@ Primary diagrams: [`07-booking-state-machine.mmd`](diagrams/source/07-booking-st
 | 3 | Provider/client | `PATCH /v1/bookings/:bookingId/status` | Gateway -> Booking Service | Valid state transition |
 | 4 | Provider client | `PATCH /v1/bookings/:bookingId/tracking/location` | Gateway -> Booking Service | Live location snapshot |
 | 5 | Client | `GET /v1/bookings/:bookingId/tracking` | Gateway -> Booking Service | Latest tracking snapshot |
-| 6 | Client | `GET /v1/bookings/:bookingId/tracking/stream` | Gateway -> Booking Service | SSE tracking events |
-| 7 | Gateway/service | `POST /internal/notifications` | Notification Service | Status notification queued |
+| 6 | Gateway/service | `POST /internal/notifications` | Notification Service | Status notification queued |
 
 Related contracts: [`docs/api-contracts.md#v1bookings`](api-contracts.md#v1bookings), [`docs/specs/booking-read.md`](specs/booking-read.md).
 
@@ -170,4 +170,3 @@ Related contracts: [`docs/specs/support.md`](specs/support.md), [`docs/specs/adm
 | Uploads | `POST /v1/uploads` multipart form | API Gateway with Supabase Storage |
 
 Related contracts: [`docs/api-contracts.md`](api-contracts.md), [`docs/media-upload-spec.md`](media-upload-spec.md), [`docs/specs/notifications.md`](specs/notifications.md), [`docs/specs/openrouteservice-directions.md`](specs/openrouteservice-directions.md).
-

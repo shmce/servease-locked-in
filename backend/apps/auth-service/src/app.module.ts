@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { getBackendEnvFilePaths } from '../../../libs/common/src';
 import { HealthController } from './features/health/health.controller';
 import { InternalUserController } from './features/internal-user/internal-user.controller';
 import {
@@ -30,7 +31,12 @@ import { SharedAuthController } from './features/shared-auth/shared-auth.control
 import { SharedAuthService } from './features/shared-auth/shared-auth.service';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: getBackendEnvFilePaths(),
+    }),
+  ],
   controllers: [
     HealthController,
     InternalUserController,

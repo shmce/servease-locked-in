@@ -1,11 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 for (const key of [
   'SUPABASE_URL',
@@ -97,20 +96,24 @@ async function main() {
   await startService('admin-service', 8511);
   await startService('api-gateway', 5001);
 
-  const booking = await postJson('http://localhost:5001/v1/bookings', customerToken, {
-    providerId: catalogSeed.providerId,
-    serviceId: catalogSeed.serviceId,
-    serviceTitle: 'Smoke Deep Clean Package',
-    serviceName: 'Smoke Deep Clean',
-    serviceDescription: 'Temporary extended smoke test booking',
-    serviceAddress: '123 Smoke Test St',
-    scheduledAt,
-    hoursRequired: 1,
-    serviceAmount: 1200,
-    pricingMode: 'flat',
-    paymentMethod: 'cash_on_service',
-    customerNotes: 'Extended smoke test booking',
-  });
+  const booking = await postJson(
+    'http://localhost:5001/v1/bookings',
+    customerToken,
+    {
+      providerId: catalogSeed.providerId,
+      serviceId: catalogSeed.serviceId,
+      serviceTitle: 'Smoke Deep Clean Package',
+      serviceName: 'Smoke Deep Clean',
+      serviceDescription: 'Temporary extended smoke test booking',
+      serviceAddress: '123 Smoke Test St',
+      scheduledAt,
+      hoursRequired: 1,
+      serviceAmount: 1200,
+      pricingMode: 'flat',
+      paymentMethod: 'cash_on_service',
+      customerNotes: 'Extended smoke test booking',
+    },
+  );
   cleanupState.bookingId = booking.id;
 
   await expectJsonError(
@@ -152,14 +155,21 @@ async function main() {
       message: 'Extended smoke provider progress update.',
     },
   );
-  const [customerUpdates, providerUpdates, otherCustomerUpdates] = await Promise.all([
-    getJson(`http://localhost:5001/v1/bookings/${booking.id}/service-updates`, customerToken),
-    getJson(`http://localhost:5001/v1/bookings/${booking.id}/service-updates`, providerToken),
-    getJson(
-      `http://localhost:5001/v1/bookings/${booking.id}/service-updates`,
-      otherCustomerToken,
-    ),
-  ]);
+  const [customerUpdates, providerUpdates, otherCustomerUpdates] =
+    await Promise.all([
+      getJson(
+        `http://localhost:5001/v1/bookings/${booking.id}/service-updates`,
+        customerToken,
+      ),
+      getJson(
+        `http://localhost:5001/v1/bookings/${booking.id}/service-updates`,
+        providerToken,
+      ),
+      getJson(
+        `http://localhost:5001/v1/bookings/${booking.id}/service-updates`,
+        otherCustomerToken,
+      ),
+    ]);
   if (
     !customerUpdates.some((item) => item.id === serviceUpdate.id) ||
     !providerUpdates.some((item) => item.id === serviceUpdate.id) ||
@@ -168,11 +178,21 @@ async function main() {
     throw new Error('Service update visibility smoke check failed');
   }
 
-  const [customerTimeline, providerTimeline, otherCustomerTimeline] = await Promise.all([
-    getJson(`http://localhost:5001/v1/bookings/${booking.id}/timeline`, customerToken),
-    getJson(`http://localhost:5001/v1/bookings/${booking.id}/timeline`, providerToken),
-    getJson(`http://localhost:5001/v1/bookings/${booking.id}/timeline`, otherCustomerToken),
-  ]);
+  const [customerTimeline, providerTimeline, otherCustomerTimeline] =
+    await Promise.all([
+      getJson(
+        `http://localhost:5001/v1/bookings/${booking.id}/timeline`,
+        customerToken,
+      ),
+      getJson(
+        `http://localhost:5001/v1/bookings/${booking.id}/timeline`,
+        providerToken,
+      ),
+      getJson(
+        `http://localhost:5001/v1/bookings/${booking.id}/timeline`,
+        otherCustomerToken,
+      ),
+    ]);
   if (
     !customerTimeline.some((item) => item.eventType === 'created') ||
     !providerTimeline.some((item) => item.eventType === 'created') ||
@@ -205,10 +225,14 @@ async function main() {
     throw new Error('Created conversation message was not listed');
   }
 
-  const payment = await postJson('http://localhost:5001/v1/payments', customerToken, {
-    bookingId: booking.id,
-    paymentMethod: 'cash_on_service',
-  });
+  const payment = await postJson(
+    'http://localhost:5001/v1/payments',
+    customerToken,
+    {
+      bookingId: booking.id,
+      paymentMethod: 'cash_on_service',
+    },
+  );
   cleanupState.paymentId = payment.id;
   if (payment.amount !== booking.totalAmount || payment.status !== 'pending') {
     throw new Error('Payment smoke returned unexpected amount or status');
@@ -240,18 +264,30 @@ async function main() {
     throw new Error('Admin payment status update failed');
   }
 
-  await patchJson(`http://localhost:5001/v1/bookings/${booking.id}/status`, providerToken, {
-    currentStatus: 'pending',
-    nextStatus: 'confirmed',
-  });
-  await patchJson(`http://localhost:5001/v1/bookings/${booking.id}/status`, providerToken, {
-    currentStatus: 'confirmed',
-    nextStatus: 'in_progress',
-  });
-  await patchJson(`http://localhost:5001/v1/bookings/${booking.id}/status`, providerToken, {
-    currentStatus: 'in_progress',
-    nextStatus: 'completed',
-  });
+  await patchJson(
+    `http://localhost:5001/v1/bookings/${booking.id}/status`,
+    providerToken,
+    {
+      currentStatus: 'pending',
+      nextStatus: 'confirmed',
+    },
+  );
+  await patchJson(
+    `http://localhost:5001/v1/bookings/${booking.id}/status`,
+    providerToken,
+    {
+      currentStatus: 'confirmed',
+      nextStatus: 'in_progress',
+    },
+  );
+  await patchJson(
+    `http://localhost:5001/v1/bookings/${booking.id}/status`,
+    providerToken,
+    {
+      currentStatus: 'in_progress',
+      nextStatus: 'completed',
+    },
+  );
   const completedTimeline = await getJson(
     `http://localhost:5001/v1/bookings/${booking.id}/timeline`,
     customerToken,
@@ -260,11 +296,15 @@ async function main() {
     throw new Error('Completed booking timeline did not include status events');
   }
 
-  const review = await postJson('http://localhost:5001/v1/reviews', customerToken, {
-    bookingId: booking.id,
-    rating: 5,
-    reviewText: 'Extended smoke review',
-  });
+  const review = await postJson(
+    'http://localhost:5001/v1/reviews',
+    customerToken,
+    {
+      bookingId: booking.id,
+      rating: 5,
+      reviewText: 'Extended smoke review',
+    },
+  );
   cleanupState.reviewId = review.id;
   if (review.rating !== 5) {
     throw new Error('Review smoke returned unexpected rating');
@@ -317,7 +357,10 @@ async function main() {
   const notification = await seedNotification(customer.id, booking.id);
   cleanupState.notificationId = notification.id;
 
-  const notifications = await getJson('http://localhost:5001/v1/notifications', customerToken);
+  const notifications = await getJson(
+    'http://localhost:5001/v1/notifications',
+    customerToken,
+  );
   if (!notifications.some((item) => item.id === notification.id)) {
     throw new Error('Notification list did not include smoke notification');
   }
@@ -365,7 +408,9 @@ async function createAuthUser(email, password) {
   });
 
   if (error || !data.user) {
-    throw new Error(`Failed to create smoke auth user: ${error?.message ?? 'missing user'}`);
+    throw new Error(
+      `Failed to create smoke auth user: ${error?.message ?? 'missing user'}`,
+    );
   }
 
   return data.user;
@@ -392,20 +437,27 @@ async function seedAdmin(userId, email) {
 }
 
 async function bindProviderUser(providerId, userId, email) {
-  const { error } = await serviceClient.rpc('servease_smoke_bind_provider_user', {
-    p_provider_id: providerId,
-    p_user_id: userId,
-    p_email: email,
-  });
+  const { error } = await serviceClient.rpc(
+    'servease_smoke_bind_provider_user',
+    {
+      p_provider_id: providerId,
+      p_user_id: userId,
+      p_email: email,
+    },
+  );
   if (error) {
     throw new Error(`Failed to bind smoke provider user: ${error.message}`);
   }
 }
 
 async function seedCatalog() {
-  const { data, error } = await serviceClient.rpc('servease_smoke_seed_catalog');
+  const { data, error } = await serviceClient.rpc(
+    'servease_smoke_seed_catalog',
+  );
   if (error || !data) {
-    throw new Error(`Failed to seed catalog smoke data: ${error?.message ?? 'missing seed data'}`);
+    throw new Error(
+      `Failed to seed catalog smoke data: ${error?.message ?? 'missing seed data'}`,
+    );
   }
 
   cleanupState.categoryId = data.categoryId;
@@ -416,26 +468,34 @@ async function seedCatalog() {
 }
 
 async function seedAvailability(providerId, scheduledAt) {
-  const { error } = await serviceClient.rpc('servease_smoke_seed_provider_availability', {
-    p_provider_id: providerId,
-    p_scheduled_at: scheduledAt,
-  });
+  const { error } = await serviceClient.rpc(
+    'servease_smoke_seed_provider_availability',
+    {
+      p_provider_id: providerId,
+      p_scheduled_at: scheduledAt,
+    },
+  );
   if (error) {
     throw new Error(`Failed to seed smoke availability: ${error.message}`);
   }
 }
 
 async function seedNotification(userId, bookingId) {
-  const { data, error } = await serviceClient.rpc('servease_create_notification', {
-    p_user_id: userId,
-    p_type: 'booking_update',
-    p_title: 'Extended smoke notification',
-    p_body: 'Temporary notification for smoke test.',
-    p_metadata: { bookingId },
-  });
+  const { data, error } = await serviceClient.rpc(
+    'servease_create_notification',
+    {
+      p_user_id: userId,
+      p_type: 'booking_update',
+      p_title: 'Extended smoke notification',
+      p_body: 'Temporary notification for smoke test.',
+      p_metadata: { bookingId },
+    },
+  );
 
   if (error || !Array.isArray(data) || !data[0]) {
-    throw new Error(`Failed to seed smoke notification: ${error?.message ?? 'missing row'}`);
+    throw new Error(
+      `Failed to seed smoke notification: ${error?.message ?? 'missing row'}`,
+    );
   }
 
   return {
@@ -450,7 +510,9 @@ async function signIn(email, password) {
   });
 
   if (error || !data.session?.access_token) {
-    throw new Error(`Failed to sign in smoke user: ${error?.message ?? 'missing session'}`);
+    throw new Error(
+      `Failed to sign in smoke user: ${error?.message ?? 'missing session'}`,
+    );
   }
 
   return data.session.access_token;
@@ -473,7 +535,9 @@ async function getPublicJson(url) {
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(`GET ${url} failed with ${response.status}: ${JSON.stringify(payload)}`);
+    throw new Error(
+      `GET ${url} failed with ${response.status}: ${JSON.stringify(payload)}`,
+    );
   }
 
   return payload.data;
@@ -491,13 +555,22 @@ async function sendJson(url, method, token, body) {
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(`${method} ${url} failed with ${response.status}: ${JSON.stringify(payload)}`);
+    throw new Error(
+      `${method} ${url} failed with ${response.status}: ${JSON.stringify(payload)}`,
+    );
   }
 
   return payload.data;
 }
 
-async function expectJsonError(url, method, token, body, expectedStatus, expectedCode) {
+async function expectJsonError(
+  url,
+  method,
+  token,
+  body,
+  expectedStatus,
+  expectedCode,
+) {
   const response = await fetch(url, {
     method,
     headers: {
@@ -587,7 +660,11 @@ async function cleanup() {
     p_notification_id: cleanupState.notificationId,
   });
 
-  if (cleanupState.categoryId && cleanupState.serviceId && cleanupState.providerId) {
+  if (
+    cleanupState.categoryId &&
+    cleanupState.serviceId &&
+    cleanupState.providerId
+  ) {
     await serviceClient.rpc('servease_smoke_cleanup_provider_availability', {
       p_provider_id: cleanupState.providerId,
     });

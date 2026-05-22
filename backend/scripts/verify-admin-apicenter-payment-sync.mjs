@@ -9,15 +9,16 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import { randomUUID } from 'node:crypto';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
   if (!process.env[key]) {
-    throw new Error(`${key} is required for admin APICenter payment sync verification`);
+    throw new Error(
+      `${key} is required for admin APICenter payment sync verification`,
+    );
   }
 }
 

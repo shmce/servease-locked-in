@@ -56,30 +56,19 @@ npm run build
 
 Use focused Vitest runs for narrow service or page changes. Run the smoke commands when gateway-backed admin behavior changes.
 
-## Provider Web Checks
+## ServEase Web Checks
 
-From `FE_Web(Provider)/`:
-
-```sh
-npm run typecheck
-npm run smoke:demo-api
-npm run build
-```
-
-Run `npm run dev` and inspect affected pages for visual or interaction changes.
-
-## Landing Page Checks
-
-From `Landing Page/`:
+From `servease-web/`:
 
 ```sh
 npm run typecheck
 npm run lint
 npm test
 npm run build
+npm run e2e
 ```
 
-Run `npm run dev` and inspect affected public/account pages when routes, forms, or proxy handlers change.
+Run `npm run dev` and inspect affected public, account, or `/provider/*` pages when routes, forms, proxy handlers, or provider dashboard interactions change.
 
 ## SDK Checks
 

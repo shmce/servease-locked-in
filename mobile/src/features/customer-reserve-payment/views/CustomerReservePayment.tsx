@@ -1,16 +1,11 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, CreditCard, Plus, Wallet } from 'lucide-react-native';
 import {
   Card,
   Field,
   PrimaryButton,
+  SkeletonBlock,
+  SkeletonLine,
   TopBar,
 } from '../../../components/DesignKit';
 import {
@@ -30,6 +25,7 @@ type CustomerReservePaymentScreenProps = {
   promotionValidation: PromotionValidationSummary | null;
   promoCode: string;
   busyAction: string | null;
+  isLoading?: boolean;
   onBack: () => void;
   onSelectPaymentMethod: (methodId: string) => void;
   onSavePaymentMethod: (methodType: CustomerPaymentMethodType) => Promise<void>;
@@ -46,6 +42,7 @@ export function CustomerReservePaymentScreen({
   promotionValidation,
   promoCode,
   busyAction,
+  isLoading = false,
   onBack,
   onSelectPaymentMethod,
   onSavePaymentMethod,
@@ -61,8 +58,11 @@ export function CustomerReservePaymentScreen({
     promotionValidation,
     promoCode,
     busyAction,
+    isLoading,
   });
   const { data } = reservePayment;
+  const showPaymentSkeletons =
+    reservePayment.isLoading && customerPaymentMethods.length === 0;
 
   return (
     <>
@@ -80,7 +80,15 @@ export function CustomerReservePaymentScreen({
           {/* Saved payment methods */}
           <Card>
             <Text style={styles.sectionLabel}>Saved payment methods</Text>
-            {data.hasPaymentMethods ? (
+            {showPaymentSkeletons ? (
+              <View style={styles.methodSkeletonList}>
+                {Array.from({ length: 2 }).map((_, index) => (
+                  <ReservePaymentMethodSkeleton
+                    key={`reserve-payment-method-skeleton-${index}`}
+                  />
+                ))}
+              </View>
+            ) : data.hasPaymentMethods ? (
               data.paymentMethods.map((item, i) => (
                 <Pressable
                   key={item.method.id}
@@ -106,9 +114,7 @@ export function CustomerReservePaymentScreen({
                   </View>
                 </Pressable>
               ))
-            ) : (
-              <ActivityIndicator color={palette.mint} style={styles.loader} />
-            )}
+            ) : null}
             <Pressable
               style={styles.addCardRow}
               onPress={() => void onSavePaymentMethod('card')}
@@ -217,6 +223,23 @@ export function CustomerReservePaymentScreen({
   );
 }
 
+function ReservePaymentMethodSkeleton() {
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={styles.methodRow}
+    >
+      <SkeletonBlock width={20} height={20} radius={radius.pill} />
+      <SkeletonBlock width={20} height={20} radius={radius.sm} />
+      <View style={styles.flex}>
+        <SkeletonLine width="42%" height={12} />
+        <SkeletonLine width="64%" height={9} style={styles.methodSkeletonMeta} />
+      </View>
+    </View>
+  );
+}
+
 function DetailRow({
   label,
   value,
@@ -322,8 +345,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 2,
   },
-  loader: {
-    paddingVertical: spacing.md,
+  methodSkeletonList: {
+    gap: spacing.xs,
+  },
+  methodSkeletonMeta: {
+    marginTop: 6,
   },
 
   // Add card row

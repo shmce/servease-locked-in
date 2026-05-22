@@ -1,6 +1,6 @@
-# ServEase Landing Page
+# ServEase Web
 
-Next.js public site and browser account-flow surface for ServEase.
+Next.js public site, browser account-flow surface, and provider dashboard for ServEase.
 
 The original Figma project is available at https://www.figma.com/design/RBI64jiti3WsLeB4UHyFkO/Revise-Landing-Page-for-ServEase.
 

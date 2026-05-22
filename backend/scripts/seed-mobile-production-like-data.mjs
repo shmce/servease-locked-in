@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
-const seedBatchId = process.env.MOBILE_PRODUCTION_SEED_BATCH_ID ?? 'mobile_seed_2026_05_23';
+const seedBatchId =
+  process.env.MOBILE_PRODUCTION_SEED_BATCH_ID ?? 'mobile_seed_2026_05_23';
 const databaseUsers = {
   customer: 'mobile.customer.seed@servease.test',
   provider: 'mobile.provider.seed@servease.test',
@@ -73,7 +73,9 @@ if (mode === 'dry-run') {
 
 for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
   if (!process.env[key]) {
-    throw new Error(`${key} is required for mobile production-like seed ${mode}`);
+    throw new Error(
+      `${key} is required for mobile production-like seed ${mode}`,
+    );
   }
 }
 

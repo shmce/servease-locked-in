@@ -63,13 +63,13 @@ Payment Service is the best fit because it can persist quote snapshots and later
   - explanation text such as `Within typical rates for Home Cleaning in this area`
 - If quote calculation fails, customer can still request booking only when the backend marks fallback pricing as allowed for that category.
 
-### Landing Page Customer Flow
+### ServEase Web Customer Flow
 
-- `Landing Page/src/app/components/BookingRequestForm.tsx` should stop sending raw `listing.price` as the final amount.
+- `servease-web/src/app/components/BookingRequestForm.tsx` should stop sending raw `listing.price` as the final amount.
 - The form should call quote preview first, display the same fair-range summary as mobile, and submit `acceptedQuoteId` with the booking request.
 - Public provider detail pages can show "From" pricing, but booking confirmation should use the server quote.
 
-### Provider Web In Landing Page
+### Provider Dashboard In ServEase Web
 
 - Provider onboarding and edit-services screens keep base price inputs.
 - Add guidance beside base price:
@@ -320,14 +320,14 @@ Admin routes go Gateway -> Admin Service -> Payment Service over HTTP.
 - Update booking cards/details to show quote snapshot where available.
 - Add tests for API shape, fallback states, and fairness labels.
 
-### `Landing Page/`
+### `servease-web/`
 
-- Extend `Landing Page/src/app/components/BookingRequestForm.tsx` to request a quote before submit.
-- Extend `Landing Page/src/app/components/ProviderDetailPage.tsx` to show quote preview entry points.
+- Extend `servease-web/src/app/components/BookingRequestForm.tsx` to request a quote before submit.
+- Extend `servease-web/src/app/components/ProviderDetailPage.tsx` to show quote preview entry points.
 - Extend provider app service pricing forms:
-  - `Landing Page/src/provider-app/components/OnboardingPage.tsx`
-  - `Landing Page/src/provider-app/components/EditServicesPricingPage.tsx`
-- Add browser API proxy support if the landing page continues forwarding through Next.js API routes.
+  - `servease-web/src/provider-app/components/OnboardingPage.tsx`
+  - `servease-web/src/provider-app/components/EditServicesPricingPage.tsx`
+- Add browser API proxy support if the web app continues forwarding through Next.js API routes.
 
 ### `admin/`
 
@@ -360,9 +360,9 @@ Admin routes go Gateway -> Admin Service -> Payment Service over HTTP.
 
 ### Phase 3: Customer UI
 
-- Add quote preview/review to mobile and landing booking flows.
+- Add quote preview/review to mobile and servease-web booking flows.
 - Add fair-range labels, line-item breakdown, confidence state, and failure fallback.
-- Ensure mobile and landing use the same DTO semantics.
+- Ensure mobile and servease-web use the same DTO semantics.
 
 ### Phase 4: Admin And Provider Controls
 
@@ -387,7 +387,7 @@ Admin routes go Gateway -> Admin Service -> Payment Service over HTTP.
   - quote API client calls gateway
   - fairness label helper
   - booking submit includes `acceptedQuoteId`
-- Landing page tests:
+- ServEase web tests:
   - quote preview before booking submit
   - fallback error state
 - Admin tests:
@@ -426,8 +426,8 @@ cd admin
 npm run lint
 npm test
 
-# Landing Page
-cd "Landing Page"
+# ServEase web
+cd servease-web
 npm run lint
 npm test
 ```

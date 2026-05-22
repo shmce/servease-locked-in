@@ -14,6 +14,7 @@ type CustomerReservePaymentViewModelInput = {
   promotionValidation: PromotionValidationSummary | null;
   promoCode: string;
   busyAction: string | null;
+  isLoading?: boolean;
 };
 
 export function useCustomerReservePaymentViewModel({
@@ -23,6 +24,7 @@ export function useCustomerReservePaymentViewModel({
   promotionValidation,
   promoCode,
   busyAction,
+  isLoading = false,
 }: CustomerReservePaymentViewModelInput) {
   return useMemo(
     () =>
@@ -33,6 +35,7 @@ export function useCustomerReservePaymentViewModel({
         promotionValidation,
         promoCode,
         busyAction,
+        isLoading,
       }),
     [
       busyAction,
@@ -41,6 +44,7 @@ export function useCustomerReservePaymentViewModel({
       promotionValidation,
       selectedMethodId,
       selectedPayment,
+      isLoading,
     ],
   );
 }
@@ -52,6 +56,7 @@ export function buildCustomerReservePaymentViewModel({
   promotionValidation,
   promoCode,
   busyAction,
+  isLoading = false,
 }: CustomerReservePaymentViewModelInput) {
   const paymentMethods = customerPaymentMethods.map((method) => ({
     method,
@@ -129,7 +134,7 @@ export function buildCustomerReservePaymentViewModel({
       normalizedPromoCode: promoCode.toUpperCase(),
       statusNotice,
     },
-    isLoading: paymentMethods.length === 0,
+    isLoading,
     error: null,
   };
 }

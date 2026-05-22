@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { getBackendEnvFilePaths } from '../../../libs/common/src';
 import { HealthController } from './features/health/health.controller';
 import { ProviderAvailabilityController } from './features/provider-availability/provider-availability.controller';
 import {
@@ -9,7 +10,12 @@ import {
 import { SupabaseProviderAvailabilityRepository } from './features/provider-availability/supabase-provider-availability.repository';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: getBackendEnvFilePaths(),
+    }),
+  ],
   controllers: [HealthController, ProviderAvailabilityController],
   providers: [
     ProviderAvailabilityService,

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { getBackendEnvFilePaths } from '../../../libs/common/src';
 import { AdminCatalogController } from './features/admin-catalog/admin-catalog.controller';
 import { AdminCatalogService } from './features/admin-catalog/admin-catalog.service';
 import { SupabaseAdminCatalogRepository } from './features/admin-catalog/supabase-admin-catalog.repository';
@@ -15,8 +16,18 @@ import {
 import { SupabaseProviderProfileRepository } from './features/provider-profile/supabase-provider-profile.repository';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
-  controllers: [HealthController, AdminCatalogController, ProviderProfileController, CatalogBrowseController],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: getBackendEnvFilePaths(),
+    }),
+  ],
+  controllers: [
+    HealthController,
+    AdminCatalogController,
+    ProviderProfileController,
+    CatalogBrowseController,
+  ],
   providers: [
     AdminCatalogService,
     {

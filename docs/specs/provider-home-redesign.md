@@ -34,7 +34,7 @@ Replace the provider homepage with an **action-first dashboard**:
 3. **No new dependencies** without checking `mobile/package.json`. Reuse the theme tokens in `mobile/src/theme/serveaseDesign.ts` (extend, don't replace).
 4. **Additive payload changes only** if any new backend field is needed. This task should ideally need zero backend changes — flag it if you find otherwise.
 5. **TDD.** Render-test the new screen for each state (no jobs, one upcoming job, pending requests, payout available, payout disabled).
-6. **Scope:** `mobile/` only. Do not edit `backend/`, `FE_Web(Provider)/`, `admin/`, `Landing Page/`, `packages/`. If you discover a shared type that must change, **stop and report** — do not edit out-of-scope folders.
+6. **Scope:** `mobile/` only. Do not edit `backend/`, `servease-web/`, `admin/`, `packages/`. If you discover a shared type that must change, **stop and report** — do not edit out-of-scope folders.
 
 ## Step 1 — Extract
 

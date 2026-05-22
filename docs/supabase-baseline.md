@@ -1,5 +1,9 @@
 # Supabase Baseline
 
+This is the initial live Supabase observation captured before the later
+repository migration set was added. For current checked-in schema ownership and
+RPC history, use `backend/database/*.sql` and `docs/data-ownership.md`.
+
 ## Audit Date
 
 2026-05-15

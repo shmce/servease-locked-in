@@ -11,11 +11,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
   if (!process.env[key]) {
@@ -26,8 +25,12 @@ for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
 const webhookSecret =
   process.env.APICENTER_WEBHOOK_SECRET?.trim() ||
   `servease-webhook-smoke-${randomUUID()}`;
-const gatewayPort = Number(process.env.APICENTER_WEBHOOK_SMOKE_GATEWAY_PORT ?? 5501);
-const paymentPort = Number(process.env.APICENTER_WEBHOOK_SMOKE_PAYMENT_PORT ?? 8607);
+const gatewayPort = Number(
+  process.env.APICENTER_WEBHOOK_SMOKE_GATEWAY_PORT ?? 5501,
+);
+const paymentPort = Number(
+  process.env.APICENTER_WEBHOOK_SMOKE_PAYMENT_PORT ?? 8607,
+);
 const gatewayUrl = `http://localhost:${gatewayPort}`;
 const checkoutId = `servease-smoke-${randomUUID()}`;
 const bookingId = randomUUID();
@@ -195,20 +198,24 @@ async function rpc(name, args) {
 }
 
 async function startService(appName, port, env = {}) {
-  const child = spawn('node', [
-    '-r',
-    'ts-node/register/transpile-only',
-    '-r',
-    'tsconfig-paths/register',
-    `apps/${appName}/src/main.ts`,
-  ], {
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      ...env,
+  const child = spawn(
+    'node',
+    [
+      '-r',
+      'ts-node/register/transpile-only',
+      '-r',
+      'tsconfig-paths/register',
+      `apps/${appName}/src/main.ts`,
+    ],
+    {
+      cwd: process.cwd(),
+      env: {
+        ...process.env,
+        ...env,
+      },
+      stdio: ['ignore', 'pipe', 'pipe'],
     },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  );
   processes.push(child);
 
   let logs = '';

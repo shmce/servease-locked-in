@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { getBackendEnvFilePaths } from '../../../libs/common/src';
 import { HealthController } from './features/health/health.controller';
 import { NotificationController } from './features/notifications/notification.controller';
 import { NotificationService } from './features/notifications/notification.service';
@@ -10,8 +11,17 @@ import { SharedMessagingController } from './features/shared-messaging/shared-me
 import { SharedMessagingService } from './features/shared-messaging/shared-messaging.service';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
-  controllers: [HealthController, NotificationController, SharedMessagingController],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: getBackendEnvFilePaths(),
+    }),
+  ],
+  controllers: [
+    HealthController,
+    NotificationController,
+    SharedMessagingController,
+  ],
   providers: [
     NotificationService,
     SupabaseNotificationRepository,

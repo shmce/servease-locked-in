@@ -3,17 +3,72 @@ import { spawn } from 'node:child_process';
 import process from 'node:process';
 
 const services = [
-  { app: 'auth-service', name: 'auth-service', port: 8701, portEnv: 'AUTH_SERVICE_PORT' },
-  { app: 'user-service', name: 'user-service', port: 8702, portEnv: 'USER_SERVICE_PORT' },
-  { app: 'catalog-service', name: 'catalog-service', port: 8703, portEnv: 'CATALOG_SERVICE_PORT' },
-  { app: 'booking-service', name: 'booking-service', port: 8704, portEnv: 'BOOKING_SERVICE_PORT' },
-  { app: 'availability-service', name: 'availability-service', port: 8705, portEnv: 'AVAILABILITY_SERVICE_PORT' },
-  { app: 'messaging-service', name: 'messaging-service', port: 8706, portEnv: 'MESSAGING_SERVICE_PORT' },
-  { app: 'payment-service', name: 'payment-service', port: 8707, portEnv: 'PAYMENT_SERVICE_PORT' },
-  { app: 'review-service', name: 'review-service', port: 8708, portEnv: 'REVIEW_SERVICE_PORT' },
-  { app: 'notification-service', name: 'notification-service', port: 8709, portEnv: 'NOTIFICATION_SERVICE_PORT' },
-  { app: 'support-service', name: 'support-service', port: 8710, portEnv: 'SUPPORT_SERVICE_PORT' },
-  { app: 'admin-service', name: 'admin-service', port: 8711, portEnv: 'ADMIN_SERVICE_PORT' },
+  {
+    app: 'auth-service',
+    name: 'auth-service',
+    port: 8701,
+    portEnv: 'AUTH_SERVICE_PORT',
+  },
+  {
+    app: 'user-service',
+    name: 'user-service',
+    port: 8702,
+    portEnv: 'USER_SERVICE_PORT',
+  },
+  {
+    app: 'catalog-service',
+    name: 'catalog-service',
+    port: 8703,
+    portEnv: 'CATALOG_SERVICE_PORT',
+  },
+  {
+    app: 'booking-service',
+    name: 'booking-service',
+    port: 8704,
+    portEnv: 'BOOKING_SERVICE_PORT',
+  },
+  {
+    app: 'availability-service',
+    name: 'availability-service',
+    port: 8705,
+    portEnv: 'AVAILABILITY_SERVICE_PORT',
+  },
+  {
+    app: 'messaging-service',
+    name: 'messaging-service',
+    port: 8706,
+    portEnv: 'MESSAGING_SERVICE_PORT',
+  },
+  {
+    app: 'payment-service',
+    name: 'payment-service',
+    port: 8707,
+    portEnv: 'PAYMENT_SERVICE_PORT',
+  },
+  {
+    app: 'review-service',
+    name: 'review-service',
+    port: 8708,
+    portEnv: 'REVIEW_SERVICE_PORT',
+  },
+  {
+    app: 'notification-service',
+    name: 'notification-service',
+    port: 8709,
+    portEnv: 'NOTIFICATION_SERVICE_PORT',
+  },
+  {
+    app: 'support-service',
+    name: 'support-service',
+    port: 8710,
+    portEnv: 'SUPPORT_SERVICE_PORT',
+  },
+  {
+    app: 'admin-service',
+    name: 'admin-service',
+    port: 8711,
+    portEnv: 'ADMIN_SERVICE_PORT',
+  },
   { app: 'api-gateway', name: 'api-gateway', port: 8700, portEnv: 'PORT' },
 ];
 
@@ -67,7 +122,9 @@ async function waitForHealthy(service, getLogs) {
 
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`http://localhost:${service.port}/health/live`);
+      const response = await fetch(
+        `http://localhost:${service.port}/health/live`,
+      );
       if (response.ok) {
         const payload = await response.json();
         if (payload.service === service.name) {
@@ -77,7 +134,9 @@ async function waitForHealthy(service, getLogs) {
           `${service.name} health returned wrong service: ${JSON.stringify(payload)}`,
         );
       } else {
-        lastError = new Error(`${service.name} health returned ${response.status}`);
+        lastError = new Error(
+          `${service.name} health returned ${response.status}`,
+        );
       }
     } catch (error) {
       lastError = error;

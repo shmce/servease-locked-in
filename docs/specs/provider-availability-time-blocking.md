@@ -5,7 +5,7 @@
 > **Related spec:** `docs/specs/provider-availability.md`
 > **Related contract doc:** `docs/api-contracts.md`
 
-You are working in the ServEase monorepo. Repo layout: `backend/` (NestJS microservices), `mobile/` (React Native/Expo), `FE_Web(Provider)/` (web provider portal), `admin/`, `Landing Page/`, `docs/`, `packages/`.
+You are working in the ServEase monorepo. Repo layout: `backend/` (NestJS microservices), `mobile/` (React Native/Expo), `admin/`, `servease-web/` (public site, account flows, and provider dashboard), `docs/`, `packages/`.
 
 ## Goal
 
@@ -20,8 +20,8 @@ Surface this as a calendar inside the mobile app. The flow: open Calendar tab �
 
 1. **Provider must block at least 2 calendar days in advance** (Asia/Manila timezone). They cannot block today or tomorrow. Enforce on both client and server.
 2. **A block must be rejected if it conflicts with an existing active booking** on that date/range. Surface a readable error so the provider knows to cancel/reschedule the booking first.
-3. **All payload changes must be additive** so `FE_Web(Provider)/`, `admin/`, and `Landing Page/` (which also consume `ProviderAvailabilitySchedule`) keep working without changes in this PR.
-4. **Scope of this PR:** `backend/`, `mobile/`, `docs/api-contracts.md` only. Do not edit `FE_Web(Provider)/`, `admin/`, or `Landing Page/`. If any of those would fail to compile because of TS strict mode against a shared type in `packages/`, **stop and report it** — list every file that would need a follow-up — do not edit them.
+3. **All payload changes must be additive** so `servease-web/` and `admin/` (which also consume `ProviderAvailabilitySchedule`) keep working without changes in this PR.
+4. **Scope of this PR:** `backend/`, `mobile/`, `docs/api-contracts.md` only. Do not edit `servease-web/` or `admin/`. If any of those would fail to compile because of TS strict mode against a shared type in `packages/`, **stop and report it** — list every file that would need a follow-up — do not edit them.
 5. **TDD.** Write failing tests first, then implement.
 
 ## What already exists (use, don't duplicate)
@@ -141,7 +141,7 @@ Update `docs/api-contracts.md`:
 
 ## Non-goals
 
-- Do not modify `admin/`, `FE_Web(Provider)/`, or `Landing Page/`.
+- Do not modify `admin/` or `servease-web/`.
 - Do not add new dependencies without checking what's already in `mobile/package.json` and `backend/package.json`.
 - Do not modify existing migrations — only add the new one.
 - Do not change the customer booking UI; only the booking guard RPC.

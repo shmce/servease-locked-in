@@ -17,7 +17,7 @@ Then install:
 npm install @implementsprint/servease-sdk
 ```
 
-The consuming repository needs package read access and a token with `packages: read` in CI.
+The consuming repository needs package read access and a token with `read:packages` in CI.
 
 ## What This Shares
 

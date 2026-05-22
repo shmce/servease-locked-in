@@ -8,15 +8,15 @@ sequenceDiagram
   participant BookingDb as booking
 
   Customer->>Mobile: Reserve payment for booking
-  Mobile->>Gateway: POST /v1/payments
+  Mobile->>Gateway: POST /v1/payments/checkout-sessions
   Gateway->>Gateway: Validate customer token
-  Gateway->>PaymentService: POST /internal/payments
+  Gateway->>PaymentService: POST /internal/payments/checkout-sessions
   PaymentService->>BookingService: Confirm booking visibility and amount
   BookingService->>BookingDb: Read booking summary
   BookingDb-->>BookingService: BookingSummary
   BookingService-->>PaymentService: Booking amount and participants
-  PaymentService->>PaymentDb: Calculate fees and upsert payment reservation
-  PaymentDb-->>PaymentService: PaymentSummary
-  PaymentService-->>Gateway: PaymentSummary
-  Gateway-->>Mobile: Payment reserved
-  Mobile-->>Customer: Show payment status
+  PaymentService->>PaymentDb: Create APICenter checkout session and payment record
+  PaymentDb-->>PaymentService: PaymentCheckoutSessionSummary
+  PaymentService-->>Gateway: PaymentCheckoutSessionSummary
+  Gateway-->>Mobile: Checkout session
+  Mobile-->>Customer: Show checkout status

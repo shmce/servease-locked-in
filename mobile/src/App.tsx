@@ -683,6 +683,9 @@ export default function App() {
   const [hideSelectedBookingReservePayment, setHideSelectedBookingReservePayment] =
     useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [hasWorkspaceLoaded, setHasWorkspaceLoaded] = useState(false);
+  const [hasCatalogLoaded, setHasCatalogLoaded] = useState(false);
+  const [providerResultsLoading, setProviderResultsLoading] = useState(false);
   const [notice, setNotice] = useState('Welcome to ServEase.');
   const [nowTick, setNowTick] = useState(() => Date.now());
 
@@ -716,6 +719,9 @@ export default function App() {
     payoutAccount?.availableBalance ?? providerPayoutTotal(payments);
   const canConfirmAccountDeletion =
     Boolean(profile?.user.email) && deleteConfirmText.trim() === profile?.user.email;
+  const isInitialWorkspaceLoading =
+    Boolean(session?.accessToken) && busyAction === 'refresh' && !hasWorkspaceLoaded;
+  const isInitialCatalogLoading = busyAction === 'catalog' && !hasCatalogLoaded;
   const apiOptions = useMemo(
     () => ({
       baseUrl: apiBaseUrl,
@@ -1164,6 +1170,7 @@ export default function App() {
     } catch (error) {
       setNotice(readError(error));
     } finally {
+      setHasCatalogLoaded(true);
       setBusyAction(null);
     }
   }
@@ -1185,16 +1192,21 @@ export default function App() {
   }
 
   async function loadProviders(serviceId: string | null) {
-    const nextProviders = await listProviderListings(serviceId, { baseUrl: apiBaseUrl });
-    setProviders(nextProviders);
-    setSelectedProviderId(nextProviders[0]?.providerId ?? null);
-    if (nextProviders[0]?.providerId) {
-      await refreshProviderReviews(nextProviders[0].providerId);
-      await refreshSelectedProviderAvailability(nextProviders[0].providerId);
-      await refreshSelectedProviderPortfolio(nextProviders[0].providerId);
-    } else {
-      setSelectedProviderAvailability(null);
-      setSelectedProviderPortfolioMedia([]);
+    setProviderResultsLoading(true);
+    try {
+      const nextProviders = await listProviderListings(serviceId, { baseUrl: apiBaseUrl });
+      setProviders(nextProviders);
+      setSelectedProviderId(nextProviders[0]?.providerId ?? null);
+      if (nextProviders[0]?.providerId) {
+        await refreshProviderReviews(nextProviders[0].providerId);
+        await refreshSelectedProviderAvailability(nextProviders[0].providerId);
+        await refreshSelectedProviderPortfolio(nextProviders[0].providerId);
+      } else {
+        setSelectedProviderAvailability(null);
+        setSelectedProviderPortfolioMedia([]);
+      }
+    } finally {
+      setProviderResultsLoading(false);
     }
   }
 
@@ -1498,6 +1510,8 @@ export default function App() {
   function signOut() {
     setSession(null);
     setProfile(null);
+    setHasWorkspaceLoaded(false);
+    setProviderResultsLoading(false);
     setProviderApplication(null);
     setProviderApplicationDocuments([]);
     setBookings([]);
@@ -1964,6 +1978,7 @@ export default function App() {
     } catch (error) {
       setNotice(readError(error));
     } finally {
+      setHasWorkspaceLoaded(true);
       setBusyAction(null);
     }
   }
@@ -3314,6 +3329,7 @@ export default function App() {
         title={title}
         services={services}
         marketplaceSearchQuery={marketplaceSearchQuery}
+        isLoading={isInitialCatalogLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
         onSearchQueryChange={setMarketplaceSearchQuery}
         onOpenService={(service) => {
@@ -3330,6 +3346,7 @@ export default function App() {
       <CustomerTopProvidersScreen
         providers={providers}
         marketplaceSearchQuery={marketplaceSearchQuery}
+        isLoading={isInitialCatalogLoading || providerResultsLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
         onSearchQueryChange={setMarketplaceSearchQuery}
         onOpenProvider={(provider) => {
@@ -3429,6 +3446,7 @@ export default function App() {
         promotionValidation={customerBookingFlow.data.promotionValidation}
         promoCode={customerBookingFlow.data.promoCode}
         busyAction={busyAction}
+        isLoading={isInitialWorkspaceLoading}
         onBack={() => goBack({ role: 'customer', screen: 'customerBookingDetail' })}
         onSelectPaymentMethod={setSelectedCustomerPaymentMethodId}
         onSavePaymentMethod={saveCustomerPaymentMethod}
@@ -3467,6 +3485,7 @@ export default function App() {
         bookingFilter={bookingFilter}
         role={appRole}
         busyAction={busyAction}
+        isLoading={isInitialWorkspaceLoading}
         setBookingFilter={setBookingFilter}
         refreshWorkspace={refreshWorkspace}
         openBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
@@ -3706,6 +3725,7 @@ export default function App() {
         customerPaymentMethods={customerPaymentMethods}
         selectedMethodId={selectedCustomerPaymentMethod?.id ?? null}
         busyAction={busyAction}
+        isLoading={isInitialWorkspaceLoading}
         onBack={() => goBack({ role: 'customer', screen: 'more' })}
         setSelectedCustomerPaymentMethodId={setSelectedCustomerPaymentMethodId}
         saveCustomerPaymentMethod={saveCustomerPaymentMethod}
@@ -3875,6 +3895,7 @@ export default function App() {
         bookings={bookings}
         providerBookingTab={providerBookingTab}
         providerSearchQuery={providerSearchQuery}
+        isLoading={isInitialWorkspaceLoading}
         setProviderBookingTab={setProviderBookingTab}
         setProviderSearchQuery={setProviderSearchQuery}
         refreshWorkspace={refreshWorkspace}

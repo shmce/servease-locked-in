@@ -1,6 +1,7 @@
 # ServEase Full-Stack Integration Audit
 
 Date: 2026-05-21  
+Documentation path refresh: 2026-05-23
 Branch: `mobile-mvvm-structure`  
 Architecture constraint: clients must call the API Gateway on port `5001` or a deployed/tunneled equivalent, never internal service ports.
 
@@ -12,7 +13,6 @@ Architecture constraint: clients must call the API Gateway on port `5001` or a d
 | `admin/` | Yes, `npm run build` | Yes, Vitest 16 files / 55 tests | Yes | None found | Env points to `http://localhost:5001`; auth token comes from Supabase password grant, then Bearer token is sent to gateway. |
 | `servease-web/` | Yes, `npm run build` | Yes, script tests completed | Yes | None found | This repo identifies `servease-web/` as the merged landing page plus provider dashboard under `/provider/*`. |
 | `mobile/` | Yes, `npx expo export --platform web --output-dir /tmp/servease-mobile-export` | Yes, 175 tests | Yes by client code; active `.env` uses ngrok URL | None found | `.env.example` points to `5001`; active `.env` is an ngrok URL and must terminate at gateway. |
-| `Landing Page/` | Covered by `servease-web/`; no separate folder exists | Covered by `servease-web/` | Covered by `servease-web/` | Not applicable | `find` and `git ls-files` found no separate `Landing Page/` directory. Docs state active landing app is `servease-web/`. |
 
 ## 2. Endpoint Inventory
 
@@ -34,7 +34,7 @@ All listed frontend calls either use gateway `/v1/*`, local Next `/api/*` proxie
 | `admin` | `GET /v1/admin/pricing/{rules,fuel-index,quote-audits}`, `PUT /v1/admin/pricing/rules`, `POST /v1/admin/pricing/fuel-index`, `POST /v1/admin/pricing/fuel-index/sync` | api-gateway -> payment-service pricing engine |
 | `admin` | `GET /v1/admin/reports/{revenue,users,financial,bookings}.csv`, `GET /v1/admin/reports/:type.pdf`, `POST /v1/admin/reports/:type`, `GET/POST /v1/admin/reports/:type/schedules`, `GET /v1/admin/audit-logs`, `GET /v1/admin/audit-logs/export`, `GET/PATCH/POST /v1/admin/integrations` | api-gateway -> admin-service and gateway aggregators |
 | `servease-web` provider dashboard | `POST /auth/v1/token?grant_type=password` | Supabase Auth token issuance only |
-| `servease-web` provider dashboard | `/v1/me`, `/v1/me/password`, `/v1/me/preferences`, `/v1/me/sessions`, `/v1/me/two-factor/{enable,verify,disable}` | api-gateway -> auth/user-service |
+| `servease-web` provider dashboard | `/v1/me`, `/v1/me/password`, `/v1/me/preferences`, `/v1/me/sessions`, `/v1/me/two-factor`, `/v1/me/two-factor/{enable,verify,disable}` | api-gateway -> auth/user-service |
 | `servease-web` provider dashboard | `/v1/provider/{profile,dashboard,services}`, `PUT /v1/provider/services`, `POST /v1/provider/pricing/guidance` | api-gateway -> catalog-service/payment-service |
 | `servease-web` provider dashboard | `/v1/provider/availability`, `/v1/provider/availability/:providerId`, `/v1/provider/availability/windows`, `/v1/provider/availability/days-off/:offDate` | api-gateway -> availability-service |
 | `servease-web` provider dashboard | `/v1/bookings`, `/v1/bookings?scope=provider`, `/v1/bookings/:id`, `/v1/bookings/:id/{status,tracking,attachments,disputes,service-updates}` | api-gateway -> booking-service |
@@ -42,12 +42,12 @@ All listed frontend calls either use gateway `/v1/*`, local Next `/api/*` proxie
 | `servease-web` provider dashboard | `/v1/payments`, `/v1/payments/{payout-account,payout-methods,payouts}`, `/v1/catalog/provider/portfolio`, `/v1/catalog/provider/portfolio/:id`, `/v1/catalog/provider/portfolio/order`, `/v1/uploads` | api-gateway -> payment-service/catalog-service/Supabase Storage |
 | `servease-web` provider dashboard | `/v1/reviews?providerId=:id`, `/v1/reviews/:id/{reply,flag}`, `/v1/support/tickets`, `/v1/support/tickets/:id/replies`, `/v1/referrals`, `/v1/geo/directions` | api-gateway -> review/support/user services |
 | `servease-web` public/landing | local `/api/*` routes for `me`, `bookings`, `payments`, `notifications`, `referrals`, `reviews`, `support-tickets`, `provider-registration`, `customer-registration`, `password-reset`, `pricing/quotes`, `provider-application/status`, `conversations` | Next proxy -> api-gateway -> owning services |
-| `servease-web` public/landing | direct server fetches `/v1/catalog/{categories,services,providers}`, `/v1/catalog/providers/:id/portfolio`, `/v1/provider/availability/:id`, `/v1/reviews?providerId=:id`, `/v1/uploads` | api-gateway -> catalog/availability/review/storage |
+| `servease-web` public/landing | direct server fetches `/v1/catalog/{categories,services,service-areas,providers}`, `/v1/catalog/providers/:id/portfolio`, `/v1/provider/availability/:id`, `/v1/reviews?providerId=:id`, `/v1/uploads` | api-gateway -> catalog/availability/review/storage |
 | `mobile` | `POST /auth/v1/token?grant_type=password` | Supabase Auth token issuance only |
-| `mobile` | `/v1/auth/{register,password-reset,otp/generate,otp/verify,google/authorize,google/token,provider-application/me}` | api-gateway -> auth-service |
-| `mobile` | `/v1/me`, `/v1/me/password`, `/v1/me/preferences`, `/v1/me/sessions`, `/v1/me/two-factor/{enable,verify,disable}` | api-gateway -> auth/user-service |
-| `mobile` | `/v1/catalog/{categories,services,providers}`, `/v1/catalog/providers/:id/portfolio`, `/v1/catalog/provider/portfolio`, `/v1/catalog/provider/portfolio/:id`, `/v1/catalog/provider/portfolio/order` | api-gateway -> catalog-service |
-| `mobile` | `/v1/bookings`, `/v1/bookings?scope=provider`, `/v1/bookings/:id`, `/v1/bookings/:id/{status,attachments,disputes,service-updates,timeline,tracking,tracking/location}`, SSE `/v1/bookings/:id/tracking/stream` | api-gateway -> booking-service |
+| `mobile` | `/v1/auth/{register,password-reset,otp/generate,otp/verify,google/authorize,google/token,provider-application/me,provider-application/me/documents}` | api-gateway -> auth-service |
+| `mobile` | `/v1/me`, `/v1/me/password`, `/v1/me/addresses`, `/v1/me/preferences`, `/v1/me/sessions`, `/v1/me/two-factor`, `/v1/me/two-factor/{enable,verify,disable}` | api-gateway -> auth/user-service |
+| `mobile` | `/v1/catalog/{categories,services,service-areas,providers}`, `/v1/catalog/providers/:id/portfolio`, `/v1/catalog/provider/portfolio`, `/v1/catalog/provider/portfolio/:id`, `/v1/catalog/provider/portfolio/order` | api-gateway -> catalog-service |
+| `mobile` | `/v1/bookings`, `/v1/bookings?scope=provider`, `/v1/bookings/:id`, `/v1/bookings/:id/{status,attachments,disputes,service-updates,timeline,tracking,tracking/location}` | api-gateway -> booking-service |
 | `mobile` | `/v1/pricing/quotes`, `/v1/payments`, `/v1/payments/checkout-sessions`, `/v1/payments/checkout-sessions/:id/status`, `/v1/payments/promotions/validate`, `/v1/payments/methods`, `/v1/payments/methods/:id`, `/v1/payments/{payout-account,payout-methods,payouts}` | api-gateway -> payment-service |
 | `mobile` | `/v1/conversations`, `/v1/conversations/:id/messages`, `/v1/notifications`, `/v1/notifications/:id/read`, `/v1/notifications/devices`, `/v1/notifications/devices/:token` | api-gateway -> messaging/notification services |
 | `mobile` | `/v1/provider/{profile,dashboard,services}`, `/v1/provider/availability`, `/v1/provider/availability/:id`, `/v1/provider/availability/{windows,days-off,time-off}`, `/v1/provider/availability/days-off/:date`, `/v1/provider/availability/time-off/:id` | api-gateway -> catalog/availability services |
@@ -66,7 +66,7 @@ All listed frontend calls either use gateway `/v1/*`, local Next `/api/*` proxie
 ### MEDIUM
 
 - `mobile/.env` uses `https://tamera-prepyloric-superacutely.ngrok-free.dev` rather than a visible `localhost:5001` gateway URL. No internal service port is used, but the audit cannot prove from repo state that the tunnel terminates at API Gateway.
-- The requested `Landing Page/` folder is absent. Current docs state that `servease-web/` is the active merged landing page and provider dashboard.
+- The public web and provider dashboard surface is `servease-web/`; no separate web workspace is active in the current repository.
 
 ### LOW
 
@@ -94,13 +94,11 @@ Commits created:
 - `977fd72 fix(admin): integration audit fixes`
 - `68cc6e7 fix(servease-web): integration audit fixes`
 - `f675577 fix(mobile): integration audit fixes`
-- `a410b2f fix(Landing Page): integration audit fixes`
+- `a410b2f fix(servease-web): integration audit fixes`
 
 ## 5. Issues Not Fixed
 
-- No separate `Landing Page/` directory exists. Recommended next step: decide whether to rename/document `servease-web/` as the canonical landing page, or restore a separate surface if product still requires it.
 - `mobile/.env` ngrok gateway target could not be proven from repository state. Recommended next step: document the tunnel owner/target or use a named deployed gateway URL for shared environments.
-- Legacy `FE_Web(Provider)/` exists but was not part of the requested surface order. Recommended next step: decide whether it is deprecated; if it remains supported, run a separate audit and either include it in future scope or remove it from active docs.
 - Native mobile builds (`ios`/`android`) and Detox E2E were not run because the requested audit did not provide simulator/device requirements and `mobile` has no package build script. Web export, typecheck, lint, and unit tests were run instead.
 
 ## 6. Verification Evidence
@@ -144,7 +142,6 @@ flowchart LR
   Admin[admin dashboard] --> Gateway[api-gateway :5001]
   Web[servease-web provider + landing] --> Gateway
   Mobile[mobile app] --> Gateway
-  Landing[Landing Page surface] -. canonical app is servease-web .-> Gateway
 
   Gateway --> Auth[auth-service :8501]
   Gateway --> User[user-service :8502]

@@ -22,7 +22,7 @@ Both must be fixed. Scope of this PR is expanded to include the customer booking
 2. **Then fix Type B.** The customer must never see a blocked slot as selectable. The server guard stays as a defense-in-depth backstop, not the primary UX gate.
 3. **Additive payload changes only.** Do not rename or remove existing fields anywhere.
 4. **TDD.** Reproduce each bug with a failing test first, then fix.
-5. **Scope:** `backend/` (only if a server bug is confirmed), `mobile/`, `packages/servease-sdk/*`, `docs/api-contracts.md`. Do **not** edit `FE_Web(Provider)/`, `admin/`, or `Landing Page/`.
+5. **Scope:** `backend/` (only if a server bug is confirmed), `mobile/`, `packages/servease-sdk/*`, `docs/api-contracts.md`. Do **not** edit `servease-web/` or `admin/`.
 
 ## Step 1 — Reproduce and classify the bug
 
@@ -108,7 +108,7 @@ PR 1 left this out of scope. Pick it up now.
 - Add SDK methods `availability.addTimeOff` and `availability.removeTimeOff` mirroring `availability.addDayOff` / `availability.removeDayOff`.
 - Add unit tests in the SDK matching its existing test style.
 - Bump the SDK version per its existing release convention (check `packages/servease-sdk/package.json` and `CHANGELOG.md` if present).
-- Note in your report which workspace consumers (`FE_Web(Provider)`, `admin`, `Landing Page`, `mobile`) now need to upgrade. Do not edit those consumers in this PR.
+- Note in your report which workspace consumers (`servease-web`, `admin`, `mobile`) now need to upgrade. Do not edit those consumers in this PR.
 
 ## Step 5 — Docs
 

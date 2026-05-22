@@ -9,11 +9,10 @@
  */
 
 import { TribeClient } from '@implementsprint/sdk';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 const requiredEnv = [
   'APICENTER_URL',
@@ -39,7 +38,11 @@ const requiredSharedServices = [
     exposes: ['/oauth/authorize', '/oauth/token'],
   },
   { key: 'otp', namePattern: /otp/i, exposes: ['/generate', '/verify'] },
-  { key: 'geo', namePattern: /geo/i, exposes: ['/geocode', '/reverse-geocode'] },
+  {
+    key: 'geo',
+    namePattern: /geo/i,
+    exposes: ['/geocode', '/reverse-geocode'],
+  },
   { key: 'email', namePattern: /email/i, exposes: ['/send', '/status'] },
   { key: 'sms', namePattern: /sms/i, exposes: ['/send', '/status'] },
 ];
@@ -65,7 +68,7 @@ async function main() {
       !service ||
       service.status !== 'active' ||
       required.exposes.some(
-        (path) => !((service.exposes ?? [])).some((exposed) => exposed === path),
+        (path) => !(service.exposes ?? []).some((exposed) => exposed === path),
       )
     );
   });
@@ -87,7 +90,9 @@ async function main() {
       state: 'servease-smoke',
     });
     if (!authorization.authorizationUrl) {
-      throw new Error('APICenter gauth authorize did not return authorizationUrl');
+      throw new Error(
+        'APICenter gauth authorize did not return authorizationUrl',
+      );
     }
   }
 
@@ -96,7 +101,10 @@ async function main() {
       address: process.env.APICENTER_SMOKE_GEO_ADDRESS ?? 'Manila, Philippines',
       region: 'PH',
     });
-    if (!Number.isFinite(geocode.latitude) || !Number.isFinite(geocode.longitude)) {
+    if (
+      !Number.isFinite(geocode.latitude) ||
+      !Number.isFinite(geocode.longitude)
+    ) {
       throw new Error('APICenter geo geocode did not return coordinates');
     }
   }

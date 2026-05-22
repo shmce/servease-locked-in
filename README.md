@@ -1,6 +1,6 @@
 # ServEase
 
-ServEase is a service marketplace with an HTTP-only NestJS microservices backend, an Expo mobile app, and separate Next.js surfaces for the public landing experience, provider dashboard, and admin panel.
+ServEase is a service marketplace with an HTTP-only NestJS microservices backend, an Expo mobile app, a Next.js admin panel, and a merged Next.js public/provider app in `servease-web/`.
 
 ## Active Apps
 
@@ -9,8 +9,7 @@ ServEase is a service marketplace with an HTTP-only NestJS microservices backend
 | `backend/` | API Gateway and internal NestJS services | `npm run dev`, `npm run test`, `npm run build`, `npm run verify` |
 | `mobile/` | Expo customer/provider app | `npm start`, `npm run web`, `npm run typecheck`, `npm test` |
 | `admin/` | Next.js admin dashboard | `npm run dev`, `npm run typecheck`, `npm test`, `npm run build` |
-| `FE_Web(Provider)/` | Next.js provider dashboard | `npm run dev`, `npm run typecheck`, `npm run build` |
-| `Landing Page/` | Next.js public site and browser account flows | `npm run dev`, `npm run build` |
+| `servease-web/` | Next.js public site, browser account flows, and provider dashboard under `/provider/*` | `npm run dev`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run e2e` |
 | `packages/servease-sdk/` | Typed public API client package | `npm run typecheck`, `npm test`, `npm run build` |
 
 ## Documentation
@@ -35,8 +34,7 @@ Install dependencies inside each app you work on:
 cd backend && npm install
 cd ../mobile && npm install
 cd ../admin && npm install
-cd '../FE_Web(Provider)' && npm install
-cd '../Landing Page' && npm install
+cd ../servease-web && npm install
 ```
 
 The backend depends on the internal GitHub Packages package `@implementsprint/sdk`. Configure GitHub Packages before running `npm install` in `backend/`:

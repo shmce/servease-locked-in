@@ -1,9 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
   if (!process.env[key]) {
@@ -55,7 +54,10 @@ async function main() {
     providerId: seed.providerId,
     bookingId: seed.bookingId,
   });
-  const liveLocation = await seedDemoLiveLocation(seed.bookingId, seed.providerId);
+  const liveLocation = await seedDemoLiveLocation(
+    seed.bookingId,
+    seed.providerId,
+  );
   const rankingSeed = await seedDemoRankingCatalog();
   const disputeId = await seedDemoDispute(customer.id);
   const payoutMethodId = await seedDemoPayoutMethod(seed.providerId);
@@ -106,7 +108,9 @@ async function seedDemoReview({ customerId, providerId, bookingId }) {
   });
 
   if (error || !data) {
-    throw new Error(`Failed to seed demo review: ${error?.message ?? 'missing review'}`);
+    throw new Error(
+      `Failed to seed demo review: ${error?.message ?? 'missing review'}`,
+    );
   }
 
   const row = Array.isArray(data) ? data[0] : data;
@@ -117,60 +121,84 @@ async function seedDemoReview({ customerId, providerId, bookingId }) {
   return row.id;
 }
 
-async function seedDemoRefundRequest({ customerId, providerId, bookingId, paymentId }) {
+async function seedDemoRefundRequest({
+  customerId,
+  providerId,
+  bookingId,
+  paymentId,
+}) {
   const refundId = 'abababab-abab-4aba-8aba-abababababab';
-  const { data, error } = await serviceClient.rpc('servease_seed_demo_refund_request', {
-    p_refund_id: refundId,
-    p_payment_id: paymentId,
-    p_booking_id: bookingId,
-    p_customer_id: customerId,
-    p_provider_id: providerId,
-    p_amount: 1500,
-    p_reason: 'Customer requested refund review for the demo booking.',
-  });
+  const { data, error } = await serviceClient.rpc(
+    'servease_seed_demo_refund_request',
+    {
+      p_refund_id: refundId,
+      p_payment_id: paymentId,
+      p_booking_id: bookingId,
+      p_customer_id: customerId,
+      p_provider_id: providerId,
+      p_amount: 1500,
+      p_reason: 'Customer requested refund review for the demo booking.',
+    },
+  );
 
   if (error || !data) {
-    throw new Error(`Failed to seed demo refund request: ${error?.message ?? 'missing refund id'}`);
+    throw new Error(
+      `Failed to seed demo refund request: ${error?.message ?? 'missing refund id'}`,
+    );
   }
 
   return data;
 }
 
 async function seedDemoRankingCatalog() {
-  const { data, error } = await serviceClient.rpc('servease_seed_demo_ranking_catalog');
+  const { data, error } = await serviceClient.rpc(
+    'servease_seed_demo_ranking_catalog',
+  );
 
   if (error || !data) {
-    throw new Error(`Failed to seed demo ranking catalog: ${error?.message ?? 'missing ranking seed result'}`);
+    throw new Error(
+      `Failed to seed demo ranking catalog: ${error?.message ?? 'missing ranking seed result'}`,
+    );
   }
 
   return data;
 }
 
 async function seedDemoDispute(customerId) {
-  const { data, error } = await serviceClient.rpc('servease_seed_demo_dispute', {
-    p_customer_id: customerId,
-  });
+  const { data, error } = await serviceClient.rpc(
+    'servease_seed_demo_dispute',
+    {
+      p_customer_id: customerId,
+    },
+  );
 
   if (error || !data) {
-    throw new Error(`Failed to seed demo dispute: ${error?.message ?? 'missing dispute id'}`);
+    throw new Error(
+      `Failed to seed demo dispute: ${error?.message ?? 'missing dispute id'}`,
+    );
   }
 
   return data;
 }
 
 async function seedDemoLiveLocation(bookingId, providerId) {
-  const { data, error } = await serviceClient.rpc('servease_upsert_booking_live_location', {
-    p_booking_id: bookingId,
-    p_provider_id: providerId,
-    p_latitude: 14.5816,
-    p_longitude: 121.0569,
-    p_accuracy_meters: 18,
-    p_heading_degrees: 42,
-    p_speed_mps: 1.2,
-  });
+  const { data, error } = await serviceClient.rpc(
+    'servease_upsert_booking_live_location',
+    {
+      p_booking_id: bookingId,
+      p_provider_id: providerId,
+      p_latitude: 14.5816,
+      p_longitude: 121.0569,
+      p_accuracy_meters: 18,
+      p_heading_degrees: 42,
+      p_speed_mps: 1.2,
+    },
+  );
 
   if (error || !data) {
-    throw new Error(`Failed to seed demo live location: ${error?.message ?? 'missing location'}`);
+    throw new Error(
+      `Failed to seed demo live location: ${error?.message ?? 'missing location'}`,
+    );
   }
 
   const row = Array.isArray(data) ? data[0] : data;
@@ -186,12 +214,17 @@ async function seedDemoLiveLocation(bookingId, providerId) {
 }
 
 async function seedDemoPayoutMethod(providerId) {
-  const { data, error } = await serviceClient.rpc('servease_seed_demo_payout_method', {
-    p_provider_id: providerId,
-  });
+  const { data, error } = await serviceClient.rpc(
+    'servease_seed_demo_payout_method',
+    {
+      p_provider_id: providerId,
+    },
+  );
 
   if (error || !data) {
-    throw new Error(`Failed to seed demo payout method: ${error?.message ?? 'missing method id'}`);
+    throw new Error(
+      `Failed to seed demo payout method: ${error?.message ?? 'missing method id'}`,
+    );
   }
 
   return data;
@@ -209,7 +242,9 @@ async function ensureAuthUser(email, nextPassword) {
       },
     );
     if (error || !data.user) {
-      throw new Error(`Failed to update demo auth user ${email}: ${error?.message ?? 'missing user'}`);
+      throw new Error(
+        `Failed to update demo auth user ${email}: ${error?.message ?? 'missing user'}`,
+      );
     }
     return data.user;
   }
@@ -220,7 +255,9 @@ async function ensureAuthUser(email, nextPassword) {
     email_confirm: true,
   });
   if (error || !data.user) {
-    throw new Error(`Failed to create demo auth user ${email}: ${error?.message ?? 'missing user'}`);
+    throw new Error(
+      `Failed to create demo auth user ${email}: ${error?.message ?? 'missing user'}`,
+    );
   }
   return data.user;
 }
@@ -236,7 +273,9 @@ async function seedDemoData(customerId, providerUserId, adminId) {
   });
 
   if (error || !data) {
-    throw new Error(`Failed to seed demo data: ${error?.message ?? 'missing seed result'}`);
+    throw new Error(
+      `Failed to seed demo data: ${error?.message ?? 'missing seed result'}`,
+    );
   }
 
   return data;

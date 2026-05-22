@@ -9,12 +9,11 @@
  */
 
 import { TribeClient } from '@implementsprint/sdk';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import { randomUUID } from 'node:crypto';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 const requiredEnv = [
   'APICENTER_URL',
@@ -92,7 +91,9 @@ function maskEmail(email) {
 }
 
 function maskPhone(phone) {
-  return phone.length <= 4 ? '****' : `${phone.slice(0, 4)}...${phone.slice(-4)}`;
+  return phone.length <= 4
+    ? '****'
+    : `${phone.slice(0, 4)}...${phone.slice(-4)}`;
 }
 
 await check('shared-services-contract', async () => {

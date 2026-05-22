@@ -71,3 +71,27 @@ test('customer reserve payment offers status check for pending online payments',
   assert.equal(model.data.confirmDisabled, false);
   assert.match(model.data.statusNotice, /pending/);
 });
+
+test('customer reserve payment loading is explicit and not inferred from empty data', () => {
+  const empty = buildCustomerReservePaymentViewModel({
+    customerPaymentMethods: [],
+    selectedMethodId: null,
+    selectedPayment: null,
+    promotionValidation: null,
+    promoCode: '',
+    busyAction: null,
+  });
+  const loading = buildCustomerReservePaymentViewModel({
+    customerPaymentMethods: [],
+    selectedMethodId: null,
+    selectedPayment: null,
+    promotionValidation: null,
+    promoCode: '',
+    busyAction: null,
+    isLoading: true,
+  });
+
+  assert.equal(empty.isLoading, false);
+  assert.equal(empty.data.hasPaymentMethods, false);
+  assert.equal(loading.isLoading, true);
+});

@@ -1,6 +1,6 @@
 # ServEase Diagrams
 
-Last verified from code: 2026-05-20.
+Last verified from code: 2026-05-23.
 
 This directory contains the standard capstone/thesis diagram package for ServEase.
 The editable sources are Mermaid files in `source/`. Generated exports are stored in

@@ -9,7 +9,7 @@ This directory contains the source-of-truth documentation for the active ServEas
 - [Workflow](workflow.md): spec-first development lifecycle from idea to handoff.
 - [API Contracts](api-contracts.md): gateway, service, mobile, and web API contract standards.
 - [Internal Service Contracts](internal-service-contracts.md): exact HTTP route inventory for service-to-service routes.
-- [App Surface Contracts](app-surface-contracts.md): which mobile, web, admin, landing, and SDK clients consume each Gateway area.
+- [App Surface Contracts](app-surface-contracts.md): which mobile, admin, servease-web, and SDK clients consume each Gateway area.
 - [Testing](testing.md): verification commands by app and change type.
 - [Documentation Status](documentation-status.md): current source-of-truth docs, historical records, and coverage status.
 - [GitHub Packages](github-packages.md): setup for `@implementsprint/sdk`.
@@ -28,7 +28,7 @@ This directory contains the source-of-truth documentation for the active ServEas
 - [Audits](audits/): dated findings and verification records.
 - [Runbooks](runbooks/): operational setup, smoke checks, rollback, and troubleshooting notes.
   - [APICenter Owner Handoff](runbooks/apicenter-owner-handoff.md): copy-ready webhook registration request.
-  - [Real-Device QA And Provider Handoff](runbooks/real-device-qa-provider-handoff.md): iOS/Android/Admin/Landing QA checklist, APICenter blockers, and production provider configuration.
+  - [Real-Device QA And Provider Handoff](runbooks/real-device-qa-provider-handoff.md): iOS/Android/Admin/servease-web QA checklist, APICenter blockers, and production provider configuration.
 - [Superpowers Specs](superpowers/specs/): agent-created design specs for scoped changes.
 - [Supabase Baseline](supabase-baseline.md): observed live database state and advisor findings.
 - [Media Upload Spec](media-upload-spec.md): upload ownership, validation, and storage behavior.
@@ -39,8 +39,7 @@ This directory contains the source-of-truth documentation for the active ServEas
 - [Backend](../backend/README.md): NestJS gateway, services, commands, and environment.
 - [Mobile](../mobile/README.md): Expo app structure, environment, and checks.
 - [Admin](../admin/README.md): admin dashboard setup and demo account.
-- [Provider Web](../FE_Web%28Provider%29/README.md): provider dashboard setup.
-- [Landing Page](<../Landing Page/README.md>): public site and account-flow setup.
+- [ServEase Web](../servease-web/README.md): public site, browser account flows, and provider dashboard setup.
 
 ## Canonical Inputs
 

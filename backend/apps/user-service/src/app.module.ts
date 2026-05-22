@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { getBackendEnvFilePaths } from '../../../libs/common/src';
 import { AdminUserController } from './features/admin-users/admin-user.controller';
 import { AdminUserService } from './features/admin-users/admin-user.service';
 import { SupabaseAdminUserRepository } from './features/admin-users/supabase-admin-user.repository';
@@ -32,7 +33,12 @@ import { SharedGeoController } from './features/shared-geo/shared-geo.controller
 import { SharedGeoService } from './features/shared-geo/shared-geo.service';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: getBackendEnvFilePaths(),
+    }),
+  ],
   controllers: [
     HealthController,
     AdminUserController,
