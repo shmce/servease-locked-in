@@ -313,15 +313,24 @@ test('provider navigation uses first-person WebView drive mode', () => {
   assert.match(providerNavigationSource, /mode="navigation"/);
   assert.match(providerNavigationSource, /navigationOrigin=\{data\.navigationOrigin\}/);
   assert.match(providerNavigationSource, /ProviderNavigationGuidanceBanner/);
+  assert.match(
+    providerNavigationSource,
+    /ProviderNavigationGuidanceBanner[\s\S]*onPress=\{\(\) => onSheetLevelChange\('expanded'\)\}/,
+  );
   assert.match(providerNavigationSource, /ProviderNavigationDriveStats/);
   assert.match(
     providerNavigationViewModelSource,
     /liveLocation\.location\s*\?\?\s*fallbackOrigin\s*\?\?\s*tracking\?\.providerLocation\s*\?\?\s*null/,
   );
   assert.match(providerNavigationViewModelSource, /providerNavigationGuidance/);
+  assert.match(providerNavigationViewModelSource, /directions\?\.steps \?\? \[\]/);
+  assert.doesNotMatch(providerNavigationViewModelSource, /slice\(0, 3\)/);
   assert.match(guidanceSource, /guidance\.maneuverSymbol/);
   assert.match(guidanceSource, /guidance\.distanceLabel/);
   assert.match(guidanceSource, /Then \{guidance\.nextInstruction\}/);
+  assert.match(guidanceSource, /Pressable/);
+  assert.match(guidanceSource, /onPress=\{onPress\}/);
+  assert.match(guidanceSource, /Show detailed turn-by-turn directions/);
   assert.match(htmlSource, /isNavigationMode/);
   assert.match(htmlSource, /cameraBearing/);
   assert.match(htmlSource, /pitch: provider && isNavigationMode \? 62 : 0/);

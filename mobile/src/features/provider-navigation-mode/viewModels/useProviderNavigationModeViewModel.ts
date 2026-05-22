@@ -112,7 +112,7 @@ export function buildProviderNavigationModeViewModel({
         ? formatRouteDuration(directions.durationSeconds)
         : '--',
       routeInstructionRows: isExpandedSheet
-        ? (directions?.steps ?? []).slice(0, 3).map((step, index) => ({
+        ? (directions?.steps ?? []).map((step, index) => ({
             id: `${index}-${step.instruction}`,
             instruction: step.instruction,
             number: String(index + 1),

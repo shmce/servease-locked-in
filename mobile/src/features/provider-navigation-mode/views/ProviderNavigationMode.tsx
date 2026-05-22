@@ -176,7 +176,10 @@ export function ProviderNavigationModeScreen({
           navigationOrigin={data.navigationOrigin}
           providerMarkerLabel="You"
         />
-        <ProviderNavigationGuidanceBanner guidance={data.guidance} />
+        <ProviderNavigationGuidanceBanner
+          guidance={data.guidance}
+          onPress={() => onSheetLevelChange('expanded')}
+        />
       </View>
       <Animated.View
         style={[
@@ -284,11 +287,18 @@ function NavigationSheetHeader({
 
 function ProviderNavigationGuidanceBanner({
   guidance,
+  onPress,
 }: {
   guidance: ProviderNavigationGuidance;
+  onPress: () => void;
 }) {
   return (
-    <View style={styles.providerGuidanceBanner}>
+    <Pressable
+      style={styles.providerGuidanceBanner}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Show detailed turn-by-turn directions"
+    >
       <View style={styles.providerGuidanceIcon}>
         <Text style={styles.providerGuidanceIconText}>{guidance.maneuverSymbol}</Text>
       </View>
@@ -303,7 +313,7 @@ function ProviderNavigationGuidanceBanner({
           </Text>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
