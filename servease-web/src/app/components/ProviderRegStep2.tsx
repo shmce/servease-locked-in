@@ -3,26 +3,18 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Tag, Award, ArrowRight, ArrowLeft, Briefcase } from "lucide-react";
+import { resolvePublicGatewayBaseUrl } from "../lib/gateway-base-url";
 
-const serviceCategories = [
-  "Home Maintenance & Repair",
-  "Beauty, Wellness & Personal Care",
-  "Educational & Professional Services",
-  "Domestic & Cleaning Services",
-  "Pet Services",
-  "Events & Entertainment",
-  "Automotive & Tech Support",
-];
+interface CatalogCategory {
+  id: string;
+  name: string;
+}
 
-const subCategories: Record<string, string[]> = {
-  "Home Maintenance & Repair": ["Plumbing", "Electrical", "Carpentry", "Painting", "Other"],
-  "Beauty, Wellness & Personal Care": ["Hair Styling", "Makeup Artist", "Massage Therapy", "Nails", "Other"],
-  "Educational & Professional Services": ["Academic Tutor", "Language Teacher", "Music Lessons", "Other"],
-  "Domestic & Cleaning Services": ["House Cleaning", "Laundry", "Ironing", "Deep Cleaning", "Other"],
-  "Pet Services": ["Pet Grooming", "Dog Walking", "Pet Sitting", "Other"],
-  "Events & Entertainment": ["Photography", "Hosting/MC", "Catering", "DJ/Live Music", "Other"],
-  "Automotive & Tech Support": ["Car Repair", "Car Wash", "IT/Gadget Repair", "Other"],
-};
+interface CatalogServiceItem {
+  id: string;
+  categoryId: string | null;
+  name: string;
+}
 
 const experienceLevels = [
   "Less than 1 year",
@@ -37,11 +29,16 @@ export function ProviderRegStep2() {
   const [formData, setFormData] = useState({
     businessName: "",
     primaryCategory: "",
+    primaryCategoryId: "",
     subCategory: "",
+    serviceId: "",
     experienceYears: "",
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [catalogCategories, setCatalogCategories] = useState<CatalogCategory[]>([]);
+  const [catalogServices, setCatalogServices] = useState<CatalogServiceItem[]>([]);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   
   // Autocomplete states
   const [categoryInput, setCategoryInput] = useState("");
@@ -55,8 +52,11 @@ export function ProviderRegStep2() {
   const experienceDropdownRef = useRef<HTMLDivElement>(null);
 
   // Filter categories based on input
-  const filteredCategories = serviceCategories.filter(category =>
-    category.toLowerCase().includes(categoryInput.toLowerCase())
+  const filteredCategories = catalogCategories.filter(category =>
+    category.name.toLowerCase().includes(categoryInput.toLowerCase())
+  );
+  const filteredServices = catalogServices.filter(
+    (service) => service.categoryId === formData.primaryCategoryId
   );
 
   // Filter experience levels based on input
@@ -89,6 +89,51 @@ export function ProviderRegStep2() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCatalog() {
+      try {
+        const baseUrl = resolvePublicGatewayBaseUrl();
+        const [categoryResponse, serviceResponse] = await Promise.all([
+          fetch(`${baseUrl}/v1/catalog/categories`, {
+            headers: { accept: "application/json" },
+          }),
+          fetch(`${baseUrl}/v1/catalog/services`, {
+            headers: { accept: "application/json" },
+          }),
+        ]);
+
+        if (!categoryResponse.ok || !serviceResponse.ok) {
+          throw new Error("Catalog unavailable");
+        }
+
+        const [categoryPayload, servicePayload] = await Promise.all([
+          categoryResponse.json(),
+          serviceResponse.json(),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCatalogCategories(categoryPayload.data ?? []);
+        setCatalogServices(servicePayload.data ?? []);
+        setCatalogError(null);
+      } catch {
+        if (isMounted) {
+          setCatalogError("Unable to load catalog services. Please try again.");
+        }
+      }
+    }
+
+    void loadCatalog();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
@@ -97,8 +142,11 @@ export function ProviderRegStep2() {
     }
 
     // Category validation
-    if (!formData.primaryCategory) {
+    if (!formData.primaryCategoryId) {
       newErrors.primaryCategory = "Please select a service category";
+    }
+    if (!formData.serviceId) {
+      newErrors.subCategory = "Please select a catalog service";
     }
 
     // Experience validation
@@ -130,10 +178,28 @@ export function ProviderRegStep2() {
     }
   };
 
-  const handleCategorySelect = (category: string) => {
-    setFormData((prev) => ({ ...prev, primaryCategory: category, subCategory: "" }));
-    setCategoryInput(category);
+  const handleCategorySelect = (category: CatalogCategory) => {
+    setFormData((prev) => ({
+      ...prev,
+      primaryCategory: category.name,
+      primaryCategoryId: category.id,
+      subCategory: "",
+      serviceId: "",
+    }));
+    setCategoryInput(category.name);
     setShowCategoryDropdown(false);
+  };
+
+  const handleServiceSelect = (serviceId: string) => {
+    const service = catalogServices.find((item) => item.id === serviceId);
+    setFormData((prev) => ({
+      ...prev,
+      serviceId,
+      subCategory: service?.name ?? "",
+    }));
+    if (errors.subCategory) {
+      setErrors((prev) => ({ ...prev, subCategory: "" }));
+    }
   };
 
   const handleExperienceSelect = (level: string) => {
@@ -205,6 +271,9 @@ export function ProviderRegStep2() {
               <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">
                 Primary Service Category <span className="text-red-500">*</span>
               </label>
+              {catalogError && (
+                <p className="font-['Poppins',sans-serif] text-xs text-red-500 mb-2">{catalogError}</p>
+              )}
               <div className="relative">
                 <Tag className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={20} />
                 <input
@@ -213,7 +282,13 @@ export function ProviderRegStep2() {
                   value={categoryInput}
                   onChange={(e) => {
                     setCategoryInput(e.target.value);
-                    setFormData((prev) => ({ ...prev, primaryCategory: e.target.value }));
+                    setFormData((prev) => ({
+                      ...prev,
+                      primaryCategory: e.target.value,
+                      primaryCategoryId: "",
+                      subCategory: "",
+                      serviceId: "",
+                    }));
                     setShowCategoryDropdown(true);
                     if (errors.primaryCategory) {
                       setErrors((prev) => ({ ...prev, primaryCategory: "" }));
@@ -233,11 +308,11 @@ export function ProviderRegStep2() {
                     {filteredCategories.length > 0 ? (
                       filteredCategories.map((category) => (
                         <div
-                          key={category}
+                          key={category.id}
                           className="px-4 py-2 cursor-pointer hover:bg-gray-100 font-['Poppins',sans-serif] text-sm text-gray-700 transition-colors"
                           onClick={() => handleCategorySelect(category)}
                         >
-                          {category}
+                          {category.name}
                         </div>
                       ))
                     ) : (
@@ -254,7 +329,7 @@ export function ProviderRegStep2() {
             </div>
 
             {/* Sub Category Dropdown */}
-            {formData.primaryCategory && subCategories[formData.primaryCategory] && (
+            {formData.primaryCategoryId && (
               <div>
                 <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">
                   Specific Service <span className="text-red-500">*</span>
@@ -263,15 +338,15 @@ export function ProviderRegStep2() {
                   <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none z-10" size={20} />
                   <select
                     name="subCategory"
-                    value={formData.subCategory}
-                    onChange={handleInputChange}
-                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-lg font-['Poppins',sans-serif] text-sm focus:outline-none focus:ring-2 focus:ring-[#00BF63]/50 focus:border-[#00BF63] appearance-none bg-white cursor-pointer"
+                    value={formData.serviceId}
+                    onChange={(event) => handleServiceSelect(event.target.value)}
+                    className={`w-full pl-11 pr-4 py-3 border ${errors.subCategory ? 'border-red-500' : 'border-gray-300'} rounded-lg font-['Poppins',sans-serif] text-sm focus:outline-none focus:ring-2 focus:ring-[#00BF63]/50 focus:border-[#00BF63] appearance-none bg-white cursor-pointer`}
                     required
                   >
                     <option value="">Select a specific service</option>
-                    {subCategories[formData.primaryCategory].map((subCat) => (
-                      <option key={subCat} value={subCat}>
-                        {subCat}
+                    {filteredServices.map((service) => (
+                      <option key={service.id} value={service.id}>
+                        {service.name}
                       </option>
                     ))}
                   </select>
@@ -281,6 +356,9 @@ export function ProviderRegStep2() {
                     </svg>
                   </div>
                 </div>
+                {errors.subCategory && (
+                  <p className="font-['Poppins',sans-serif] text-xs text-red-500 mt-1">{errors.subCategory}</p>
+                )}
               </div>
             )}
 

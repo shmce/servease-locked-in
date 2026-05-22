@@ -19,7 +19,9 @@ export interface ProviderRegistrationStep1 {
 export interface ProviderRegistrationStep2 {
   businessName: string;
   primaryCategory: string;
+  primaryCategoryId?: string;
   subCategory: string;
+  serviceId?: string;
   experienceYears: string;
 }
 
@@ -51,6 +53,7 @@ export interface GatewayProviderRegistrationRequest {
   birthdate: string;
   contactNumber: string | null;
   businessName: string;
+  serviceId: string;
   serviceDescription: string;
   serviceArea: string;
 }
@@ -87,6 +90,7 @@ export function buildGatewayProviderRegistrationPayload(
     birthdate: draft.step1.birthdate.trim(),
     contactNumber: normalizePhilippineContactNumber(draft.step1.contactNumber),
     businessName: draft.step2.businessName.trim(),
+    serviceId: draft.step2.serviceId?.trim() ?? '',
     serviceDescription: serviceParts.join(' - '),
     serviceArea: areaParts.join(', '),
   };

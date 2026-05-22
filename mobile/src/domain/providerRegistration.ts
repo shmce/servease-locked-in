@@ -3,6 +3,7 @@ export type ProviderSignupRequirementsInput = {
   birthdate: string;
   contactNumber: string;
   experienceYears: string;
+  serviceId?: string | null;
   serviceArea: string;
   serviceDescription: string;
 };
@@ -27,6 +28,7 @@ export function validateProviderSignupRequirements(
     birthdate,
     contactNumber,
     experienceYears,
+    serviceId,
     serviceArea,
     serviceDescription,
   }: ProviderSignupRequirementsInput,
@@ -49,6 +51,10 @@ export function validateProviderSignupRequirements(
 
   if (!businessName.trim()) {
     return 'Enter your business name.';
+  }
+
+  if (!serviceId?.trim()) {
+    return 'Choose a catalog service for your provider application.';
   }
 
   if (!serviceArea.trim()) {

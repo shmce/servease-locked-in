@@ -8,7 +8,11 @@ import {
   replaceProviderOwnedServices,
   replaceProviderAvailabilityWindows,
   updateCurrentUserProfile,
+  listCatalogCategories,
+  listCatalogServices,
   listCatalogServiceAreas,
+  CatalogCategory,
+  CatalogServiceItem,
   ProviderOwnedServiceInput,
   AvailabilityWindowInput,
   DayOfWeek,
@@ -351,6 +355,8 @@ const styles = {
 
 interface Service {
   id: string;
+  serviceId: string;
+  categoryId: string;
   name: string;
   basePrice: string;
   priceUnit: string;
@@ -383,6 +389,8 @@ export function OnboardingPage() {
   const [services, setServices] = useState<Service[]>([
     {
       id: "1",
+      serviceId: "",
+      categoryId: "",
       name: "",
       basePrice: "",
       priceUnit: "per hour",
@@ -395,6 +403,8 @@ export function OnboardingPage() {
   const [areaType, setAreaType] = useState<"radius" | "specific">("radius");
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
   const [serviceAreas, setServiceAreas] = useState<ServiceAreaSummary[]>([]);
+  const [catalogCategories, setCatalogCategories] = useState<CatalogCategory[]>([]);
+  const [catalogServices, setCatalogServices] = useState<CatalogServiceItem[]>([]);
   const [serviceAreasError, setServiceAreasError] = useState<string | null>(null);
 
   const areas = useMemo(() => {
@@ -420,10 +430,16 @@ export function OnboardingPage() {
   useEffect(() => {
     let isMounted = true;
 
-    listCatalogServiceAreas()
-      .then((items) => {
+    Promise.all([
+      listCatalogServiceAreas(),
+      listCatalogCategories(),
+      listCatalogServices(),
+    ])
+      .then(([items, nextCategories, nextServices]) => {
         if (!isMounted) return;
         setServiceAreas(items);
+        setCatalogCategories(nextCategories);
+        setCatalogServices(nextServices);
         setServiceAreasError(null);
       })
       .catch((error) => {
@@ -462,8 +478,9 @@ export function OnboardingPage() {
           ? accountNumber.slice(-4)
           : null;
       const serviceInputs: ProviderOwnedServiceInput[] = services
-        .filter((s) => s.name.trim())
+        .filter((s) => s.name.trim() && s.serviceId)
         .map((s) => ({
+          serviceId: s.serviceId,
           title: s.name.trim(),
           price: parseFloat(s.basePrice) || null,
           pricingMode: s.priceUnit === 'per hour' ? 'hourly' : 'flat',
@@ -531,6 +548,14 @@ export function OnboardingPage() {
   };
 
   const handleNext = () => {
+    if (
+      currentStep === 2 &&
+      services.some((service) => service.name.trim() && !service.serviceId)
+    ) {
+      setSubmitError("Choose a catalog service for each service you add.");
+      return;
+    }
+    setSubmitError(null);
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -555,6 +580,8 @@ export function OnboardingPage() {
   const addNewService = () => {
     const newService: Service = {
       id: Date.now().toString(),
+      serviceId: "",
+      categoryId: "",
       name: "",
       basePrice: "",
       priceUnit: "per hour",
@@ -564,6 +591,30 @@ export function OnboardingPage() {
 
   const removeService = (id: string) => {
     setServices(services.filter((s) => s.id !== id));
+  };
+
+  const updateServiceCatalogCategory = (id: string, categoryId: string) => {
+    setServices(
+      services.map((service) =>
+        service.id === id ? { ...service, categoryId, serviceId: "" } : service,
+      ),
+    );
+  };
+
+  const updateServiceCatalogService = (id: string, serviceId: string) => {
+    const catalogService = catalogServices.find((service) => service.id === serviceId);
+    setServices(
+      services.map((service) =>
+        service.id === id
+          ? {
+              ...service,
+              serviceId,
+              categoryId: catalogService?.categoryId ?? service.categoryId,
+              name: service.name.trim() ? service.name : catalogService?.name ?? "",
+            }
+          : service,
+      ),
+    );
   };
 
   const toggleArea = (area: string) => {
@@ -879,6 +930,42 @@ export function OnboardingPage() {
                 <Trash2 size={16} />
               </button>
             )}
+          </div>
+
+          <div style={styles.gridTwoCol}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Catalog Category</label>
+              <select
+                style={styles.select}
+                value={service.categoryId}
+                onChange={(e) => updateServiceCatalogCategory(service.id, e.target.value)}
+              >
+                <option value="">Choose category</option>
+                {catalogCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Catalog Service</label>
+              <select
+                style={styles.select}
+                value={service.serviceId}
+                onChange={(e) => updateServiceCatalogService(service.id, e.target.value)}
+                disabled={!service.categoryId}
+              >
+                <option value="">Choose service</option>
+                {catalogServices
+                  .filter((item) => item.categoryId === service.categoryId)
+                  .map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
           </div>
 
           <div style={styles.formGroup}>

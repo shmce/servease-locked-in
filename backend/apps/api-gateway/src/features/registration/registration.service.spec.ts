@@ -164,6 +164,134 @@ describe('RegistrationGatewayService', () => {
     );
   });
 
+  it('creates an initial linked provider service when provider signup includes a service id', async () => {
+    const authServiceClient = {
+      registerUser: jest.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'provider@example.com',
+        fullName: 'Provider Example',
+        contactNumber: '+639171234567',
+        role: 'provider',
+        status: 'active',
+      }),
+      deleteRegisteredUser: jest.fn(),
+    } as unknown as AuthServiceClient;
+    const catalogServiceClient = {
+      createProviderProfile: jest.fn().mockResolvedValue({
+        id: 'provider-profile-1',
+        businessName: 'Provider Co',
+        verificationStatus: 'pending',
+        averageRating: 0,
+        reviewCount: 0,
+      }),
+      replaceProviderOwnedServices: jest.fn().mockResolvedValue([
+        {
+          id: 'provider-service-1',
+          providerId: 'provider-profile-1',
+          serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+          title: 'Deep Cleaning',
+          price: null,
+          pricingMode: 'flat',
+          isActive: true,
+        },
+      ]),
+    } as unknown as CatalogServiceClient;
+    const service = new RegistrationGatewayService(
+      authServiceClient,
+      {} as UserServiceClient,
+      catalogServiceClient,
+    );
+
+    await service.register({
+      role: 'provider',
+      email: 'provider@example.com',
+      password: 'Password#2026',
+      fullName: 'Provider Example',
+      contactNumber: '+639171234567',
+      birthdate: '1990-05-23',
+      businessName: 'Provider Co',
+      serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+      serviceDescription: 'Deep Cleaning',
+    });
+
+    expect(catalogServiceClient.replaceProviderOwnedServices).toHaveBeenCalledWith(
+      'user-1',
+      [
+        {
+          serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+          title: 'Deep Cleaning',
+          description: 'Deep Cleaning',
+          price: null,
+          pricingMode: 'flat',
+          isActive: true,
+        },
+      ],
+    );
+  });
+
+  it('cleans up auth users when initial linked provider service creation fails', async () => {
+    const authServiceClient = {
+      registerUser: jest.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'provider@example.com',
+        fullName: 'Provider Example',
+        contactNumber: '+639171234567',
+        role: 'provider',
+        status: 'active',
+      }),
+      deleteRegisteredUser: jest.fn().mockResolvedValue(undefined),
+    } as unknown as AuthServiceClient;
+    const service = new RegistrationGatewayService(
+      authServiceClient,
+      {} as UserServiceClient,
+      {
+        createProviderProfile: jest.fn().mockResolvedValue({
+          id: 'provider-profile-1',
+          businessName: 'Provider Co',
+          verificationStatus: 'pending',
+          averageRating: 0,
+          reviewCount: 0,
+        }),
+        replaceProviderOwnedServices: jest.fn().mockRejectedValue(new Error('services down')),
+      } as unknown as CatalogServiceClient,
+    );
+
+    await expect(
+      service.register({
+        role: 'provider',
+        email: 'provider@example.com',
+        password: 'Password#2026',
+        fullName: 'Provider Example',
+        contactNumber: '+639171234567',
+        birthdate: '1990-05-23',
+        businessName: 'Provider Co',
+        serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+        serviceDescription: 'Deep Cleaning',
+      }),
+    ).rejects.toThrow('services down');
+    expect(authServiceClient.deleteRegisteredUser).toHaveBeenCalledWith('user-1');
+  });
+
+  it('rejects provider registration with malformed service id', async () => {
+    const service = new RegistrationGatewayService(
+      { registerUser: jest.fn() } as unknown as AuthServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+    );
+
+    await expect(
+      service.register({
+        role: 'provider',
+        email: 'provider@example.com',
+        password: 'Password#2026',
+        fullName: 'Provider Example',
+        birthdate: '1990-05-23',
+        businessName: 'Provider Co',
+        serviceId: 'not-a-service-id',
+      }),
+    ).rejects.toBeInstanceOf(InvalidRegistrationRequestError);
+  });
+
   it('rejects provider registration without a business name', async () => {
     const service = new RegistrationGatewayService(
       {} as AuthServiceClient,

@@ -12,6 +12,7 @@ test('provider signup validation requires admin approval inputs', () => {
       birthdate: '1995-05-23',
       contactNumber: '+639171234567',
       experienceYears: '3',
+      serviceId: 'service-1',
       serviceArea: 'Quezon City',
       serviceDescription: 'Aircon cleaning and repair',
     }),
@@ -24,6 +25,7 @@ test('provider signup validation requires admin approval inputs', () => {
       birthdate: '1995-05-23',
       contactNumber: '',
       experienceYears: '3',
+      serviceId: 'service-1',
       serviceArea: 'Quezon City',
       serviceDescription: 'Aircon cleaning and repair',
     }) ?? '',
@@ -36,10 +38,24 @@ test('provider signup validation requires admin approval inputs', () => {
       birthdate: '1995-05-23',
       contactNumber: '+639171234567',
       experienceYears: 'many',
+      serviceId: 'service-1',
       serviceArea: 'Quezon City',
       serviceDescription: 'Aircon cleaning and repair',
     }) ?? '',
     /years of experience/i,
+  );
+
+  assert.match(
+    validateProviderSignupRequirements({
+      businessName: 'GreenFix Home Services',
+      birthdate: '1995-05-23',
+      contactNumber: '+639171234567',
+      experienceYears: '3',
+      serviceId: '',
+      serviceArea: 'Quezon City',
+      serviceDescription: 'Aircon cleaning and repair',
+    }) ?? '',
+    /catalog service/i,
   );
 });
 
@@ -49,6 +65,7 @@ test('provider signup validation requires providers to be at least 18', () => {
     birthdate: '2008-05-23',
     contactNumber: '+639171234567',
     experienceYears: '3',
+    serviceId: 'service-1',
     serviceArea: 'Quezon City',
     serviceDescription: 'Aircon cleaning and repair',
   };

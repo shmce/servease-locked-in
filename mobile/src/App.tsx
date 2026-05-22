@@ -168,6 +168,56 @@ import {
   syncExpoPushRegistration,
 } from './shared/models/apiService';
 
+type GoogleAuthFlow = 'login' | 'registration';
+
+type GoogleAuthCallbackRoute = {
+  flow: GoogleAuthFlow;
+  role: AppRole;
+  screen: AppScreen;
+};
+
+function getGoogleAuthState(role: AppRole, flow: GoogleAuthFlow) {
+  return flow === 'registration' ? `${role}:registration` : role;
+}
+
+function resolveGoogleAuthCallbackRoute(
+  state: string | null,
+): GoogleAuthCallbackRoute | null {
+  if (state === 'provider:registration') {
+    return {
+      flow: 'registration',
+      role: 'provider',
+      screen: 'providerRegistration',
+    };
+  }
+
+  if (state === 'customer:registration') {
+    return {
+      flow: 'registration',
+      role: 'customer',
+      screen: 'customerRegistration',
+    };
+  }
+
+  if (state === 'provider') {
+    return {
+      flow: 'login',
+      role: 'provider',
+      screen: 'providerLogin',
+    };
+  }
+
+  if (state === 'customer') {
+    return {
+      flow: 'login',
+      role: 'customer',
+      screen: 'customerLogin',
+    };
+  }
+
+  return null;
+}
+
 type PendingCheckout = {
   checkoutId: string;
   bookingId: string;
@@ -498,6 +548,7 @@ export default function App() {
   const [signupServiceArea, setSignupServiceArea] = useState('');
   const [signupServiceDescription, setSignupServiceDescription] = useState('');
   const [signupExperienceYears, setSignupExperienceYears] = useState('');
+  const [signupServiceId, setSignupServiceId] = useState('');
   const [profileFullName, setProfileFullName] = useState('');
   const [profileContactNumber, setProfileContactNumber] = useState('');
   const [profileAddress, setProfileAddress] = useState('');
@@ -600,8 +651,10 @@ export default function App() {
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editServiceTitle, setEditServiceTitle] = useState('');
   const [editServicePrice, setEditServicePrice] = useState('');
+  const [editServiceServiceId, setEditServiceServiceId] = useState('');
   const [newServiceTitle, setNewServiceTitle] = useState('');
   const [newServicePrice, setNewServicePrice] = useState('');
+  const [newServiceServiceId, setNewServiceServiceId] = useState('');
   const [newServicePricingMode, setNewServicePricingMode] = useState<'flat' | 'hourly'>('flat');
   const [showAddServiceForm, setShowAddServiceForm] = useState(false);
   const [providerCancelReason, setProviderCancelReason] = useState('');
@@ -1266,6 +1319,7 @@ export default function App() {
         birthdate: signupBirthdate,
         contactNumber: signupContactNumber,
         experienceYears: signupExperienceYears,
+        serviceId: signupServiceId,
         serviceArea: signupServiceArea,
         serviceDescription: signupServiceDescription,
       });
@@ -1293,6 +1347,10 @@ export default function App() {
           businessName:
             intendedRole === 'provider'
               ? signupBusinessName.trim()
+              : null,
+          serviceId:
+            intendedRole === 'provider'
+              ? signupServiceId.trim()
               : null,
           serviceArea:
             intendedRole === 'provider'
@@ -1381,11 +1439,14 @@ export default function App() {
         },
         { baseUrl: apiBaseUrl },
       );
-      if (state === 'provider' || state === 'customer') {
-        navigate(state === 'provider' ? 'providerLogin' : 'customerLogin', state);
+      const googleRoute = resolveGoogleAuthCallbackRoute(state);
+      if (googleRoute) {
+        navigate(googleRoute.screen, googleRoute.role);
       }
       setNotice(
-        'Google account verified through APICenter. Continue with your ServEase password to finish signing in.',
+        googleRoute?.flow === 'registration'
+          ? 'Google account verified through APICenter. Finish the registration form to create your ServEase account.'
+          : 'Google account verified through APICenter. Continue with your ServEase password to finish signing in.',
       );
     } catch (error) {
       setNotice(readError(error));
@@ -1394,13 +1455,16 @@ export default function App() {
     }
   }
 
-  async function startGoogleSignIn(intendedRole: AppRole) {
+  async function startGoogleSignIn(
+    intendedRole: AppRole,
+    flow: GoogleAuthFlow = 'login',
+  ) {
     setBusyAction('google-auth');
     try {
       const authorization = await getGoogleAuthorizationUrl(
         {
           redirectUri: 'servease://auth/google/callback',
-          state: intendedRole,
+          state: getGoogleAuthState(intendedRole, flow),
           scopes: ['openid', 'email', 'profile'],
           accessType: 'offline',
           prompt: 'consent',
@@ -2688,11 +2752,20 @@ export default function App() {
     if (!editingServiceId) return;
     const current = ownedServices.find((s) => s.id === editingServiceId);
     if (!current) return;
+    if (!editServiceServiceId.trim()) {
+      setNotice('Choose a catalog service.');
+      return;
+    }
     setBusyAction('service-edit');
     try {
       const updated: ProviderOwnedServiceInput[] = ownedServices.map((s) =>
         s.id === editingServiceId
-          ? { ...s, title: editServiceTitle.trim() || s.title, price: Number(editServicePrice) || s.price }
+          ? {
+              ...s,
+              serviceId: editServiceServiceId,
+              title: editServiceTitle.trim() || s.title,
+              price: Number(editServicePrice) || s.price,
+            }
           : s,
       );
       const saved = await replaceProviderServices(updated, apiOptions);
@@ -2713,6 +2786,10 @@ export default function App() {
       setNotice('Service title is required.');
       return;
     }
+    if (!newServiceServiceId.trim()) {
+      setNotice('Choose a catalog service.');
+      return;
+    }
     if (!Number.isFinite(priceValue) || priceValue <= 0) {
       setNotice('Enter a valid price.');
       return;
@@ -2729,6 +2806,7 @@ export default function App() {
         isActive: s.isActive,
       }));
       const newService: ProviderOwnedServiceInput = {
+        serviceId: newServiceServiceId,
         title,
         price: priceValue,
         pricingMode: newServicePricingMode,
@@ -2738,6 +2816,7 @@ export default function App() {
       setOwnedServices(saved);
       setNewServiceTitle('');
       setNewServicePrice('');
+      setNewServiceServiceId('');
       setNewServicePricingMode('flat');
       setShowAddServiceForm(false);
       setNotice('Service added.');
@@ -3053,6 +3132,9 @@ export default function App() {
         signupServiceArea={signupServiceArea}
         signupServiceDescription={signupServiceDescription}
         signupExperienceYears={signupExperienceYears}
+        signupServiceId={signupServiceId}
+        categories={categories}
+        services={services}
         notice={notice}
         busyAction={busyAction}
         setEmail={setEmail}
@@ -3065,6 +3147,7 @@ export default function App() {
         setSignupServiceArea={setSignupServiceArea}
         setSignupServiceDescription={setSignupServiceDescription}
         setSignupExperienceYears={setSignupExperienceYears}
+        setSignupServiceId={setSignupServiceId}
         navigate={navigate}
         signIn={signIn}
         signUp={signUp}
@@ -4128,9 +4211,13 @@ export default function App() {
         editingServiceId={editingServiceId}
         editServiceTitle={editServiceTitle}
         editServicePrice={editServicePrice}
+        editServiceServiceId={editServiceServiceId}
         newServiceTitle={newServiceTitle}
         newServicePrice={newServicePrice}
+        newServiceServiceId={newServiceServiceId}
         newServicePricingMode={newServicePricingMode}
+        categories={categories}
+        services={services}
         showAddServiceForm={showAddServiceForm}
         busyAction={busyAction}
         onBack={() => goBack({ role: 'provider', screen: 'more' })}
@@ -4140,8 +4227,12 @@ export default function App() {
           setEditingServiceId(service.id);
           setEditServiceTitle(service.title);
           setEditServicePrice(service.price != null ? String(service.price) : '');
+          setEditServiceServiceId(service.serviceId ?? '');
         }}
-        onCancelEditService={() => setEditingServiceId(null)}
+        onCancelEditService={() => {
+          setEditingServiceId(null);
+          setEditServiceServiceId('');
+        }}
         onSaveOwnedServiceEdit={() => void saveOwnedServiceEdit()}
         onToggleOwnedServiceActive={(serviceId) =>
           void toggleOwnedServiceActive(serviceId)
@@ -4149,6 +4240,20 @@ export default function App() {
         onRemoveOwnedService={(serviceId) => void removeOwnedService(serviceId)}
         onNewServiceTitleChange={setNewServiceTitle}
         onNewServicePriceChange={setNewServicePrice}
+        onEditServiceServiceIdChange={(serviceId) => {
+          setEditServiceServiceId(serviceId);
+          const catalogService = services.find((service) => service.id === serviceId);
+          if (catalogService && !editServiceTitle.trim()) {
+            setEditServiceTitle(catalogService.name);
+          }
+        }}
+        onNewServiceServiceIdChange={(serviceId) => {
+          setNewServiceServiceId(serviceId);
+          const catalogService = services.find((service) => service.id === serviceId);
+          if (catalogService && !newServiceTitle.trim()) {
+            setNewServiceTitle(catalogService.name);
+          }
+        }}
         onNewServicePricingModeChange={setNewServicePricingMode}
         onSaveNewService={() => void addOwnedService()}
         onShowAddServiceForm={() => setShowAddServiceForm(true)}
@@ -4156,6 +4261,7 @@ export default function App() {
           setShowAddServiceForm(false);
           setNewServiceTitle('');
           setNewServicePrice('');
+          setNewServiceServiceId('');
         }}
       />
     );

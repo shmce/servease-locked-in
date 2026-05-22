@@ -63,7 +63,9 @@ const draft: ProviderRegistrationDraft = {
   step2: {
     businessName: ' Provider Cleaning ',
     primaryCategory: 'Domestic & Cleaning Services',
+    primaryCategoryId: '11111111-1111-4111-8111-111111111111',
     subCategory: 'Deep Cleaning',
+    serviceId: '33333333-3333-4333-8333-333333333333',
     experienceYears: '3-5 years',
   },
   step3: {
@@ -100,6 +102,7 @@ assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), {
   birthdate: '1990-05-23',
   contactNumber: '+639123456789',
   businessName: 'Provider Cleaning',
+  serviceId: '33333333-3333-4333-8333-333333333333',
   serviceDescription:
     'Domestic & Cleaning Services - Deep Cleaning - 3-5 years',
   serviceArea: '123 Main Street, Quezon City, Metro Manila, 1100, 10km radius',

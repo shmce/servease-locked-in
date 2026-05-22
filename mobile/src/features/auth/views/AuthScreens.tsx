@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 import {
@@ -11,6 +11,7 @@ import {
 import { RoleCard } from '../../../components/AppDisplay';
 import { MonthCalendar, formatApiDate } from '../../../components/MonthCalendar';
 import { AppRole, AppScreen } from '../../../navigation/types';
+import { CatalogCategory, CatalogServiceItem } from '../../../shared/models/types';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
 import { providerSignupRequirements } from '../../../domain/providerRegistration';
 import { useAuthViewModel } from '../viewModels/useAuthViewModel';
@@ -33,6 +34,9 @@ type AuthScreensProps = {
   signupServiceArea: string;
   signupServiceDescription: string;
   signupExperienceYears: string;
+  signupServiceId: string;
+  categories: CatalogCategory[];
+  services: CatalogServiceItem[];
   notice: string;
   busyAction: string | null;
   setEmail: Dispatch<SetStateAction<string>>;
@@ -45,11 +49,12 @@ type AuthScreensProps = {
   setSignupServiceArea: Dispatch<SetStateAction<string>>;
   setSignupServiceDescription: Dispatch<SetStateAction<string>>;
   setSignupExperienceYears: Dispatch<SetStateAction<string>>;
+  setSignupServiceId: Dispatch<SetStateAction<string>>;
   navigate: (screen: AppScreen, nextRole?: AppRole | null) => void;
   signIn: (role: AppRole) => Promise<void>;
   signUp: (role: AppRole) => Promise<void>;
   requestPasswordReset: () => Promise<void>;
-  startGoogleSignIn: (role: AppRole) => Promise<void>;
+  startGoogleSignIn: (role: AppRole, flow?: 'login' | 'registration') => Promise<void>;
 };
 
 export function AuthScreens({
@@ -64,6 +69,9 @@ export function AuthScreens({
   signupServiceArea,
   signupServiceDescription,
   signupExperienceYears,
+  signupServiceId,
+  categories,
+  services,
   notice,
   busyAction,
   setEmail,
@@ -76,6 +84,7 @@ export function AuthScreens({
   setSignupServiceArea,
   setSignupServiceDescription,
   setSignupExperienceYears,
+  setSignupServiceId,
   navigate,
   signIn,
   signUp,
@@ -187,16 +196,29 @@ export function AuthScreens({
             countLabel={`Step ${clampedStep + 1} of ${stepCount}`}
           />
           {clampedStep === 0 ? (
-            <SignupAccountFields
-              email={email}
-              password={password}
-              signupFullName={signupFullName}
-              signupContactNumber={signupContactNumber}
-              setEmail={setEmail}
-              setPassword={setPassword}
-              setSignupFullName={setSignupFullName}
-              setSignupContactNumber={setSignupContactNumber}
-            />
+            <>
+              <SignupAccountFields
+                email={email}
+                password={password}
+                signupFullName={signupFullName}
+                signupContactNumber={signupContactNumber}
+                setEmail={setEmail}
+                setPassword={setPassword}
+                setSignupFullName={setSignupFullName}
+                setSignupContactNumber={setSignupContactNumber}
+              />
+              <Pressable
+                style={styles.socialButton}
+                onPress={() => void startGoogleSignIn(intendedRole, 'registration')}
+                disabled={busyAction === 'google-auth'}
+                accessibilityRole="button"
+              >
+                <Text style={styles.googleMark}>G</Text>
+                <Text style={styles.socialText}>
+                  {busyAction === 'google-auth' ? 'Opening Google...' : 'Verify with Google'}
+                </Text>
+              </Pressable>
+            </>
           ) : null}
           {!isProvider && clampedStep === 1 ? (
             <Field
@@ -220,10 +242,14 @@ export function AuthScreens({
               signupServiceArea={signupServiceArea}
               signupExperienceYears={signupExperienceYears}
               signupServiceDescription={signupServiceDescription}
+              signupServiceId={signupServiceId}
+              categories={categories}
+              services={services}
               setSignupBusinessName={setSignupBusinessName}
               setSignupServiceArea={setSignupServiceArea}
               setSignupExperienceYears={setSignupExperienceYears}
               setSignupServiceDescription={setSignupServiceDescription}
+              setSignupServiceId={setSignupServiceId}
             />
           ) : null}
           <SignupStepActions
@@ -571,20 +597,62 @@ function ProviderServiceStep({
   signupServiceArea,
   signupExperienceYears,
   signupServiceDescription,
+  signupServiceId,
+  categories,
+  services,
   setSignupBusinessName,
   setSignupServiceArea,
   setSignupExperienceYears,
   setSignupServiceDescription,
+  setSignupServiceId,
 }: {
   signupBusinessName: string;
   signupServiceArea: string;
   signupExperienceYears: string;
   signupServiceDescription: string;
+  signupServiceId: string;
+  categories: CatalogCategory[];
+  services: CatalogServiceItem[];
   setSignupBusinessName: Dispatch<SetStateAction<string>>;
   setSignupServiceArea: Dispatch<SetStateAction<string>>;
   setSignupExperienceYears: Dispatch<SetStateAction<string>>;
   setSignupServiceDescription: Dispatch<SetStateAction<string>>;
+  setSignupServiceId: Dispatch<SetStateAction<string>>;
 }) {
+  const selectedService = services.find((service) => service.id === signupServiceId);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
+    selectedService?.categoryId ?? '',
+  );
+  const categoriesWithServices = useMemo(
+    () =>
+      categories.filter((category) =>
+        services.some((service) => service.categoryId === category.id),
+      ),
+    [categories, services],
+  );
+  const categoryServices = useMemo(
+    () =>
+      services.filter((service) => service.categoryId === selectedCategoryId),
+    [selectedCategoryId, services],
+  );
+
+  useEffect(() => {
+    if (selectedService?.categoryId && selectedService.categoryId !== selectedCategoryId) {
+      setSelectedCategoryId(selectedService.categoryId);
+    }
+  }, [selectedCategoryId, selectedService?.categoryId]);
+
+  const chooseCategory = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setSignupServiceId('');
+  };
+  const chooseService = (service: CatalogServiceItem) => {
+    setSignupServiceId(service.id);
+    if (!signupServiceDescription.trim()) {
+      setSignupServiceDescription(service.name);
+    }
+  };
+
   return (
     <>
       <Field
@@ -593,6 +661,52 @@ function ProviderServiceStep({
         onChangeText={setSignupBusinessName}
         placeholder="GreenFix Home Services"
       />
+      <View style={styles.catalogPicker}>
+        <Text style={styles.catalogPickerLabel}>Category</Text>
+        <View style={styles.catalogChoiceGrid}>
+          {categoriesWithServices.map((category) => (
+            <Pressable
+              key={category.id}
+              style={[
+                styles.catalogChoice,
+                selectedCategoryId === category.id && styles.catalogChoiceSelected,
+              ]}
+              onPress={() => chooseCategory(category.id)}
+            >
+              <Text
+                style={[
+                  styles.catalogChoiceText,
+                  selectedCategoryId === category.id && styles.catalogChoiceTextSelected,
+                ]}
+              >
+                {category.name}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.catalogPickerLabel}>Service</Text>
+        <View style={styles.catalogChoiceGrid}>
+          {categoryServices.map((service) => (
+            <Pressable
+              key={service.id}
+              style={[
+                styles.catalogChoice,
+                signupServiceId === service.id && styles.catalogChoiceSelected,
+              ]}
+              onPress={() => chooseService(service)}
+            >
+              <Text
+                style={[
+                  styles.catalogChoiceText,
+                  signupServiceId === service.id && styles.catalogChoiceTextSelected,
+                ]}
+              >
+                {service.name}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
       <Field
         label="Service Area"
         value={signupServiceArea}
@@ -909,6 +1023,45 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 17,
     marginTop: spacing.xs,
+  },
+  catalogPicker: {
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  catalogPickerLabel: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  catalogChoiceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  catalogChoice: {
+    borderColor: palette.line,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    maxWidth: '100%',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  catalogChoiceSelected: {
+    backgroundColor: palette.mint,
+    borderColor: palette.mint,
+  },
+  catalogChoiceText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 17,
+  },
+  catalogChoiceTextSelected: {
+    color: palette.white,
   },
   forgotLink: {
     color: palette.mint,

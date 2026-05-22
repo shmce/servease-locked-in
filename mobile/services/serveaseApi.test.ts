@@ -617,6 +617,70 @@ describe('serveaseApi', () => {
     });
   });
 
+  it('registers a provider account with a selected catalog service', async () => {
+    let requestBody: unknown = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/auth/register');
+      assert.equal(init?.method, 'POST');
+      requestBody = JSON.parse(String(init?.body));
+
+      return jsonResponse({
+        data: {
+          user: {
+            id: 'user-1',
+            email: 'provider@example.com',
+            fullName: 'Provider Example',
+            contactNumber: '+639000000001',
+            role: 'provider',
+            status: 'active',
+          },
+          customerProfile: null,
+          customerAddresses: [],
+          providerProfile: {
+            id: 'provider-profile-1',
+            businessName: 'Provider Co',
+            verificationStatus: 'pending',
+            averageRating: 0,
+            reviewCount: 0,
+          },
+        },
+      });
+    };
+
+    const profile = await registerAccount(
+      {
+        role: 'provider',
+        email: 'provider@example.com',
+        password: 'Password#2026',
+        fullName: 'Provider Example',
+        contactNumber: '+639000000001',
+        birthdate: '1990-05-23',
+        businessName: 'Provider Co',
+        serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+        serviceDescription: 'Deep Cleaning',
+        serviceArea: 'Quezon City',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        fetcher,
+      },
+    );
+
+    assert.equal(profile.user.role, 'provider');
+    assert.deepEqual(requestBody, {
+      role: 'provider',
+      email: 'provider@example.com',
+      password: 'Password#2026',
+      fullName: 'Provider Example',
+      contactNumber: '+639000000001',
+      birthdate: '1990-05-23',
+      businessName: 'Provider Co',
+      serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+      serviceDescription: 'Deep Cleaning',
+      serviceArea: 'Quezon City',
+    });
+  });
+
   it('requests password reset through the gateway', async () => {
     let requestBody: unknown = null;
     const fetcher = async (url: string, init?: RequestInit) => {

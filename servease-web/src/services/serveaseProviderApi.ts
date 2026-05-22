@@ -279,6 +279,22 @@ export interface CreateSupportTicketRequest {
   category?: string | null
 }
 
+export interface CatalogCategory {
+  id: string
+  name: string
+  description: string | null
+  icon: string | null
+}
+
+export interface CatalogServiceItem {
+  id: string
+  categoryId: string | null
+  name: string
+  description: string | null
+  price: number | null
+  pricingMode: 'flat' | 'hourly'
+}
+
 export interface ProviderServiceListing {
   id: string
   providerId: string
@@ -768,6 +784,15 @@ export function getProviderDashboard(
 
 export function listCatalogServiceAreas(): Promise<ServiceAreaSummary[]> {
   return request<ServiceAreaSummary[]>('/v1/catalog/service-areas')
+}
+
+export function listCatalogCategories(): Promise<CatalogCategory[]> {
+  return request<CatalogCategory[]>('/v1/catalog/categories')
+}
+
+export function listCatalogServices(categoryId?: string | null): Promise<CatalogServiceItem[]> {
+  const qs = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : ''
+  return request<CatalogServiceItem[]>(`/v1/catalog/services${qs}`)
 }
 
 export function listProviderOwnedServices(

@@ -104,7 +104,9 @@ function assertProviderRegistrationDraft(
     !isNonEmptyString(step1.contactNumber) ||
     !isNonEmptyString(step2.businessName) ||
     !isNonEmptyString(step2.primaryCategory) ||
+    !isNonEmptyString(step2.primaryCategoryId) ||
     !isNonEmptyString(step2.subCategory) ||
+    !isNonEmptyString(step2.serviceId) ||
     !isNonEmptyString(step2.experienceYears) ||
     !isNonEmptyString(step3.streetAddress) ||
     !isNonEmptyString(step3.city) ||

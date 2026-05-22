@@ -30,6 +30,8 @@ import {
 } from './registration.types';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class RegistrationGatewayService {
@@ -70,6 +72,22 @@ export class RegistrationGatewayService {
         user.id,
         input,
       );
+      if (input.serviceId?.trim()) {
+        await this.catalogServiceClient.replaceProviderOwnedServices(user.id, [
+          {
+            serviceId: input.serviceId.trim(),
+            title:
+              input.serviceDescription?.split(' - ')[1]?.trim() ||
+              input.serviceDescription?.split(' - ')[0]?.trim() ||
+              input.businessName?.trim() ||
+              input.fullName.trim(),
+            description: input.serviceDescription?.trim() || null,
+            price: null,
+            pricingMode: 'flat',
+            isActive: true,
+          },
+        ]);
+      }
       return {
         user,
         customerProfile: null,
@@ -202,6 +220,14 @@ export class RegistrationGatewayService {
     if (
       input.role === 'provider' &&
       (!input.businessName?.trim() || !isAdultBirthdate(input.birthdate))
+    ) {
+      throw new InvalidRegistrationRequestError();
+    }
+
+    if (
+      input.role === 'provider' &&
+      input.serviceId?.trim() &&
+      !UUID_PATTERN.test(input.serviceId.trim())
     ) {
       throw new InvalidRegistrationRequestError();
     }

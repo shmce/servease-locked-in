@@ -14,6 +14,7 @@ export interface RegisterAccountRequest {
   birthdate?: string | null;
   address?: string | null;
   businessName?: string | null;
+  serviceId?: string | null;
   serviceDescription?: string | null;
   serviceArea?: string | null;
 }

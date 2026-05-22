@@ -4,8 +4,12 @@ import { useNavigate } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
 import {
   getStoredProviderAccessToken,
+  listCatalogCategories,
+  listCatalogServices,
   listProviderOwnedServices,
   replaceProviderOwnedServices,
+  type CatalogCategory,
+  type CatalogServiceItem,
   type ProviderOwnedServiceInput,
   type ProviderOwnedServiceSummary,
 } from "../../services/serveaseProviderApi";
@@ -133,9 +137,11 @@ const styles = {
 
 interface Service {
   id: string;
+  serviceId: string;
   name: string;
   description: string;
   category: string;
+  categoryId: string;
   basePrice: string;
   priceUnit: string;
   active: boolean;
@@ -146,21 +152,34 @@ export function EditServicesPricingPage() {
   const { providerData, setProviderData } = useProviderData();
   
   const [services, setServices] = useState<Service[]>(providerData.services.map(s => ({
-    id: s.id,
-    name: s.name,
-    description: s.description,
-    category: s.category,
-    basePrice: s.baseRate.toString(),
-    priceUnit: s.priceUnit,
-    active: s.isActive,
+      id: s.id,
+      serviceId: "",
+      name: s.name,
+      description: s.description,
+      category: s.category,
+      categoryId: "",
+      basePrice: s.baseRate.toString(),
+      priceUnit: s.priceUnit,
+      active: s.isActive,
   })));
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [catalogCategories, setCatalogCategories] = useState<CatalogCategory[]>([]);
+  const [catalogServices, setCatalogServices] = useState<CatalogServiceItem[]>([]);
 
   useEffect(() => {
     const token = getStoredProviderAccessToken();
+
+    void Promise.all([listCatalogCategories(), listCatalogServices()])
+      .then(([nextCategories, nextServices]) => {
+        setCatalogCategories(nextCategories);
+        setCatalogServices(nextServices);
+      })
+      .catch(() => {
+        setSaveError("Unable to load catalog services.");
+      });
 
     if (!token) {
       return;
@@ -178,9 +197,11 @@ export function EditServicesPricingPage() {
   const addNewService = () => {
     const newService: Service = {
       id: Date.now().toString(),
+      serviceId: "",
       name: "",
       description: "",
       category: "",
+      categoryId: "",
       basePrice: "",
       priceUnit: "per hour",
       active: true,
@@ -198,6 +219,25 @@ export function EditServicesPricingPage() {
       services.map((s) => (s.id === id ? { ...s, [field]: value } : s))
     );
   };
+  const updateServiceCatalog = (id: string, serviceId: string) => {
+    const catalogService = catalogServices.find((service) => service.id === serviceId);
+    const catalogCategory = catalogCategories.find(
+      (category) => category.id === catalogService?.categoryId,
+    );
+    setServices(
+      services.map((service) =>
+        service.id === id
+          ? {
+              ...service,
+              serviceId,
+              categoryId: catalogService?.categoryId ?? "",
+              category: catalogCategory?.name ?? "",
+              name: service.name.trim() ? service.name : catalogService?.name ?? "",
+            }
+          : service,
+      ),
+    );
+  };
 
   const persistServices = async () => {
     setSaveError(null);
@@ -205,6 +245,12 @@ export function EditServicesPricingPage() {
 
     try {
       const token = getStoredProviderAccessToken();
+      const missingCatalogService = services.some(
+        (service) => service.active && !service.serviceId,
+      );
+      if (missingCatalogService) {
+        throw new Error("Choose a catalog service for each active service.");
+      }
       const payload = services.map(toProviderServiceInput);
       const savedServices = token
         ? await replaceProviderOwnedServices(token, payload)
@@ -357,6 +403,29 @@ export function EditServicesPricingPage() {
               {/* Service Details - Expanded when editing */}
               {editingId === service.id && (
                 <div>
+                  <CatalogServiceFields
+                    categories={catalogCategories}
+                    services={catalogServices}
+                    selectedCategoryId={service.categoryId}
+                    selectedServiceId={service.serviceId}
+                    onSelectCategory={(categoryId) => {
+                      setServices(
+                        services.map((item) =>
+                          item.id === service.id
+                            ? {
+                                ...item,
+                                categoryId,
+                                category:
+                                  catalogCategories.find((category) => category.id === categoryId)
+                                    ?.name ?? "",
+                                serviceId: "",
+                              }
+                            : item,
+                        ),
+                      );
+                    }}
+                    onSelectService={(serviceId) => updateServiceCatalog(service.id, serviceId)}
+                  />
                   {/* Row 1 */}
                   <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px", marginBottom: "16px" }}>
                     <div>
@@ -548,12 +617,74 @@ export function EditServicesPricingPage() {
   );
 }
 
+function CatalogServiceFields({
+  categories,
+  services,
+  selectedCategoryId,
+  selectedServiceId,
+  onSelectCategory,
+  onSelectService,
+}: {
+  categories: CatalogCategory[];
+  services: CatalogServiceItem[];
+  selectedCategoryId: string;
+  selectedServiceId: string;
+  onSelectCategory: (categoryId: string) => void;
+  onSelectService: (serviceId: string) => void;
+}) {
+  const effectiveCategoryId =
+    selectedCategoryId ||
+    services.find((service) => service.id === selectedServiceId)?.categoryId ||
+    "";
+  const categoryServices = services.filter(
+    (service) => service.categoryId === effectiveCategoryId,
+  );
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
+      <div>
+        <label style={styles.label}>Catalog Category</label>
+        <select
+          value={effectiveCategoryId}
+          onChange={(event) => onSelectCategory(event.target.value)}
+          style={{ ...styles.input, cursor: "pointer" }}
+        >
+          <option value="">Choose category</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label style={styles.label}>Catalog Service</label>
+        <select
+          value={selectedServiceId}
+          onChange={(event) => onSelectService(event.target.value)}
+          style={{ ...styles.input, cursor: "pointer" }}
+          disabled={!effectiveCategoryId}
+        >
+          <option value="">Choose service</option>
+          {categoryServices.map((service) => (
+            <option key={service.id} value={service.id}>
+              {service.name}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
 function toEditableService(service: ProviderOwnedServiceSummary): Service {
   return {
     id: service.id,
+    serviceId: service.serviceId ?? "",
     name: service.title,
     description: service.description || "",
     category: "Marketplace Service",
+    categoryId: "",
     basePrice: String(service.price ?? 0),
     priceUnit: service.pricingMode === "hourly" ? "per hour" : "per project",
     active: service.isActive,
@@ -563,6 +694,7 @@ function toEditableService(service: ProviderOwnedServiceSummary): Service {
 function toProviderServiceInput(service: Service): ProviderOwnedServiceInput {
   return {
     id: service.id,
+    serviceId: service.serviceId || null,
     title: service.name.trim(),
     description: service.description.trim() || null,
     price: parseFloat(service.basePrice) || 0,

@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Badge,
   Card,
@@ -11,6 +12,8 @@ import {
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
   BookingPricingMode,
+  CatalogCategory,
+  CatalogServiceItem,
   ProviderOwnedServiceSummary,
 } from '../../../shared/models/types';
 import {
@@ -24,14 +27,19 @@ type ProviderServicesScreenProps = {
   editingServiceId: string | null;
   editServiceTitle: string;
   editServicePrice: string;
+  editServiceServiceId: string;
   newServiceTitle: string;
   newServicePrice: string;
+  newServiceServiceId: string;
   newServicePricingMode: BookingPricingMode;
+  categories: CatalogCategory[];
+  services: CatalogServiceItem[];
   showAddServiceForm: boolean;
   busyAction: string | null;
   onBack: () => void;
   onEditServiceTitleChange: (value: string) => void;
   onEditServicePriceChange: (value: string) => void;
+  onEditServiceServiceIdChange: (value: string) => void;
   onStartEditService: (service: ProviderOwnedServiceSummary) => void;
   onCancelEditService: () => void;
   onSaveOwnedServiceEdit: () => void;
@@ -39,6 +47,7 @@ type ProviderServicesScreenProps = {
   onRemoveOwnedService: (serviceId: string) => void;
   onNewServiceTitleChange: (value: string) => void;
   onNewServicePriceChange: (value: string) => void;
+  onNewServiceServiceIdChange: (value: string) => void;
   onNewServicePricingModeChange: (value: BookingPricingMode) => void;
   onSaveNewService: () => void;
   onShowAddServiceForm: () => void;
@@ -50,14 +59,19 @@ export function ProviderServicesScreen({
   editingServiceId,
   editServiceTitle,
   editServicePrice,
+  editServiceServiceId,
   newServiceTitle,
   newServicePrice,
+  newServiceServiceId,
   newServicePricingMode,
+  categories,
+  services,
   showAddServiceForm,
   busyAction,
   onBack,
   onEditServiceTitleChange,
   onEditServicePriceChange,
+  onEditServiceServiceIdChange,
   onStartEditService,
   onCancelEditService,
   onSaveOwnedServiceEdit,
@@ -65,6 +79,7 @@ export function ProviderServicesScreen({
   onRemoveOwnedService,
   onNewServiceTitleChange,
   onNewServicePriceChange,
+  onNewServiceServiceIdChange,
   onNewServicePricingModeChange,
   onSaveNewService,
   onShowAddServiceForm,
@@ -99,6 +114,12 @@ export function ProviderServicesScreen({
                         label="Title"
                         value={editServiceTitle}
                         onChangeText={onEditServiceTitleChange}
+                      />
+                      <CatalogServicePicker
+                        categories={categories}
+                        services={services}
+                        selectedServiceId={editServiceServiceId}
+                        onSelectService={onEditServiceServiceIdChange}
                       />
                       <Field
                         label="Price"
@@ -163,6 +184,12 @@ export function ProviderServicesScreen({
             <Text style={styles.sectionLabel}>Add a Service</Text>
             {showAddServiceForm ? (
               <Card>
+                <CatalogServicePicker
+                  categories={categories}
+                  services={services}
+                  selectedServiceId={newServiceServiceId}
+                  onSelectService={onNewServiceServiceIdChange}
+                />
                 <Field
                   label="Service title"
                   value={newServiceTitle}
@@ -213,6 +240,87 @@ export function ProviderServicesScreen({
   );
 }
 
+function CatalogServicePicker({
+  categories,
+  services,
+  selectedServiceId,
+  onSelectService,
+}: {
+  categories: CatalogCategory[];
+  services: CatalogServiceItem[];
+  selectedServiceId: string;
+  onSelectService: (value: string) => void;
+}) {
+  const selectedService = services.find((service) => service.id === selectedServiceId);
+  const [selectedCategoryId, setSelectedCategoryId] = useState(
+    selectedService?.categoryId ?? '',
+  );
+  const categoriesWithServices = categories.filter((category) =>
+    services.some((service) => service.categoryId === category.id),
+  );
+  const categoryServices = services.filter(
+    (service) => service.categoryId === selectedCategoryId,
+  );
+
+  useEffect(() => {
+    if (selectedService?.categoryId && selectedService.categoryId !== selectedCategoryId) {
+      setSelectedCategoryId(selectedService.categoryId);
+    }
+  }, [selectedCategoryId, selectedService?.categoryId]);
+
+  return (
+    <View style={styles.catalogPicker}>
+      <Text style={styles.catalogPickerLabel}>Category</Text>
+      <View style={styles.catalogChoiceGrid}>
+        {categoriesWithServices.map((category) => (
+          <Pressable
+            key={category.id}
+            style={[
+              styles.catalogChoice,
+              selectedCategoryId === category.id && styles.catalogChoiceSelected,
+            ]}
+            onPress={() => {
+              setSelectedCategoryId(category.id);
+              onSelectService('');
+            }}
+          >
+            <Text
+              style={[
+                styles.catalogChoiceText,
+                selectedCategoryId === category.id && styles.catalogChoiceTextSelected,
+              ]}
+            >
+              {category.name}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      <Text style={styles.catalogPickerLabel}>Catalog service</Text>
+      <View style={styles.catalogChoiceGrid}>
+        {categoryServices.map((service) => (
+          <Pressable
+            key={service.id}
+            style={[
+              styles.catalogChoice,
+              selectedServiceId === service.id && styles.catalogChoiceSelected,
+            ]}
+            onPress={() => onSelectService(service.id)}
+          >
+            <Text
+              style={[
+                styles.catalogChoiceText,
+                selectedServiceId === service.id && styles.catalogChoiceTextSelected,
+              ]}
+            >
+              {service.name}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
 
@@ -244,6 +352,46 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
+  },
+  catalogPicker: {
+    backgroundColor: palette.surface,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  catalogPickerLabel: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  catalogChoiceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  catalogChoice: {
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    maxWidth: '100%',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  catalogChoiceSelected: {
+    backgroundColor: palette.mint,
+    borderColor: palette.mint,
+  },
+  catalogChoiceText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 17,
+  },
+  catalogChoiceTextSelected: {
+    color: palette.white,
   },
 
   actionRow: {
