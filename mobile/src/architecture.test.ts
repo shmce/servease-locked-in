@@ -330,6 +330,63 @@ test('app shell stabilizes effect callbacks instead of omitting hook dependencie
   assert.match(notificationsFlowSource, /useCallback/);
 });
 
+test('booking process passes stable flow inputs to avoid render loops', () => {
+  const appSource = readProjectFile('src/App.tsx');
+  const customerFlowStart = appSource.indexOf(
+    'const customerBookingFlow = useCustomerBookingFlowViewModel({',
+  );
+  const customerFlowEnd = appSource.indexOf(
+    'const messagesFlow = useMessagesFlowViewModel({',
+    customerFlowStart,
+  );
+  const providerFlowStart = appSource.indexOf(
+    'const providerServiceFlow = useProviderServiceFlowViewModel({',
+  );
+  const providerFlowEnd = appSource.indexOf(
+    'useEffect(() => {\n    void loadCatalog();',
+    providerFlowStart,
+  );
+  assert.notEqual(customerFlowStart, -1);
+  assert.notEqual(customerFlowEnd, -1);
+  assert.notEqual(providerFlowStart, -1);
+  assert.notEqual(providerFlowEnd, -1);
+
+  const customerFlowSource = appSource.slice(customerFlowStart, customerFlowEnd);
+  const providerFlowSource = appSource.slice(providerFlowStart, providerFlowEnd);
+
+  assert.match(appSource, /emptyCustomerAddresses/);
+  assert.match(
+    appSource,
+    /const customerAddresses = profile\?\.customerAddresses \?\? emptyCustomerAddresses/,
+  );
+  assert.doesNotMatch(
+    appSource,
+    /customerAddresses: profile\?\.customerAddresses \?\? \[\]/,
+  );
+  assert.match(appSource, /const handleCustomerAddressSaved = useStableCallback/);
+  assert.match(appSource, /const handleBookingCreated = useStableCallback/);
+  assert.match(appSource, /const handleProviderServiceRoute = useStableCallback/);
+  assert.match(appSource, /const uploadProviderJobPhoto = useStableCallback/);
+
+  assert.match(customerFlowSource, /customerAddresses,\n/);
+  assert.match(customerFlowSource, /onCustomerAddressSaved: handleCustomerAddressSaved/);
+  assert.match(customerFlowSource, /onBookingCreated: handleBookingCreated/);
+  assert.match(customerFlowSource, /onRefreshProviderAvailability: refreshProviderAvailability/);
+  assert.doesNotMatch(customerFlowSource, /onCustomerAddressSaved:\s*\(/);
+  assert.doesNotMatch(customerFlowSource, /onBookingCreated:\s*\(/);
+  assert.doesNotMatch(customerFlowSource, /onRefreshProviderAvailability:\s*\(/);
+
+  assert.match(providerFlowSource, /onBookingUpdated: updateSelectedBooking/);
+  assert.match(providerFlowSource, /onPaymentsRefresh: refreshProviderPayments/);
+  assert.match(providerFlowSource, /onRefreshBookingTimelineEvents: refreshProviderBookingTimelineEvents/);
+  assert.match(providerFlowSource, /onRefreshBookingTracking: refreshProviderBookingTracking/);
+  assert.match(providerFlowSource, /onServiceUpdateCreated: addProviderServiceUpdate/);
+  assert.match(providerFlowSource, /setProviderRoute: handleProviderServiceRoute/);
+  assert.match(providerFlowSource, /uploadProviderJobPhoto,/);
+  assert.doesNotMatch(providerFlowSource, /=>\s*\{\n\s*void refreshBookingTimelineEvents/);
+  assert.doesNotMatch(providerFlowSource, /=>\s*\{\n\s*void refreshBookingTracking/);
+});
+
 test('tracking map preview keeps webview update callbacks hook-safe', () => {
   const source = readProjectFile('src/tracking/TrackingMapPreview.tsx');
 
@@ -671,7 +728,8 @@ test('auth screens follow feature-level MVVM boundaries', () => {
   assert.match(screenSource, /features\/auth\/views\/AuthScreens/);
   assert.match(viewSource, /useAuthViewModel/);
   assert.match(viewModelSource, /loginMethod/);
-  assert.match(viewModelSource, /phoneOtpId/);
+  assert.match(viewModelSource, /LoginMethod = 'email' \| 'google'/);
+  assert.doesNotMatch(viewModelSource, /phoneOtpId|requestPhoneOtp|verifyPhoneOtp/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
 });
 

@@ -50,6 +50,11 @@ async function main() {
   const admin = await ensureAuthUser(demo.admin.email, password);
 
   const seed = await seedDemoData(customer.id, provider.id, admin.id);
+  const reviewId = await seedDemoReview({
+    customerId: customer.id,
+    providerId: seed.providerId,
+    bookingId: seed.bookingId,
+  });
   const liveLocation = await seedDemoLiveLocation(seed.bookingId, seed.providerId);
   const rankingSeed = await seedDemoRankingCatalog();
   const disputeId = await seedDemoDispute(customer.id);
@@ -77,6 +82,7 @@ async function main() {
           adminUserId: admin.id,
           providerId: seed.providerId,
           bookingId: seed.bookingId,
+          reviewId,
           liveLocation,
           refundId,
           disputeId,
@@ -88,6 +94,27 @@ async function main() {
       2,
     ),
   );
+}
+
+async function seedDemoReview({ customerId, providerId, bookingId }) {
+  const { data, error } = await serviceClient.rpc('servease_create_review', {
+    p_booking_id: bookingId,
+    p_provider_id: providerId,
+    p_reviewer_id: customerId,
+    p_rating: 5,
+    p_review_text: 'GreenFix arrived on time and left the condo spotless.',
+  });
+
+  if (error || !data) {
+    throw new Error(`Failed to seed demo review: ${error?.message ?? 'missing review'}`);
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row?.id) {
+    throw new Error('Failed to seed demo review: missing review id');
+  }
+
+  return row.id;
 }
 
 async function seedDemoRefundRequest({ customerId, providerId, bookingId, paymentId }) {

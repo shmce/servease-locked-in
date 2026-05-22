@@ -6,11 +6,15 @@ import { UserServiceClient } from './clients/user-service.client';
 import {
   AccountDeletionDependencyUnavailableError,
   AccountInactiveError,
+  ProfileDependencyUnavailableError,
 } from './current-user.errors';
 import {
+  CreateCustomerAddressRequest,
   CurrentUserProfile,
+  CustomerAddressSummary,
   TwoFactorProvisioningResponse,
   TwoFactorStatusResponse,
+  UpdateCustomerAddressRequest,
   UpdateCurrentUserPasswordInput,
   UpdateCurrentUserPasswordResponse,
   UpdateCurrentUserProfileInput,
@@ -32,8 +36,10 @@ export class CurrentUserService {
       throw new AccountInactiveError();
     }
 
-    const customerProfile =
-      await this.userServiceClient.findCustomerProfileByUserId(user.id);
+    const [customerProfile, customerAddresses] = await Promise.all([
+      this.userServiceClient.findCustomerProfileByUserId(user.id),
+      this.listCustomerAddressesForProfile(user.id, user.role),
+    ]);
     const providerProfile =
       user.role === 'provider' || user.role === 'admin'
         ? await this.catalogServiceClient.findProviderProfileByUserId(user.id)
@@ -42,6 +48,7 @@ export class CurrentUserService {
     return {
       user,
       customerProfile,
+      customerAddresses,
       providerProfile,
     };
   }
@@ -56,10 +63,12 @@ export class CurrentUserService {
       throw new AccountInactiveError();
     }
 
-    const customerProfile =
+    const [customerProfile, customerAddresses] = await Promise.all([
       user.role === 'customer' || user.role === 'admin'
-        ? await this.userServiceClient.updateCustomerProfile(user.id, input.address)
-        : await this.userServiceClient.findCustomerProfileByUserId(user.id);
+        ? this.userServiceClient.updateCustomerProfile(user.id, input.address)
+        : this.userServiceClient.findCustomerProfileByUserId(user.id),
+      this.listCustomerAddressesForProfile(user.id, user.role),
+    ]);
     const providerProfile =
       user.role === 'provider' || user.role === 'admin'
         ? await this.catalogServiceClient.updateProviderProfile(
@@ -77,8 +86,67 @@ export class CurrentUserService {
     return {
       user,
       customerProfile,
+      customerAddresses,
       providerProfile,
     };
+  }
+
+  async listCustomerAddresses(userId: string): Promise<CustomerAddressSummary[]> {
+    const user = await this.authServiceClient.findUserById(userId);
+    if (user.status !== 'active') {
+      throw new AccountInactiveError();
+    }
+
+    return this.userServiceClient.listCustomerAddresses(user.id);
+  }
+
+  async createCustomerAddress(
+    userId: string,
+    input: CreateCustomerAddressRequest,
+  ): Promise<CustomerAddressSummary> {
+    const user = await this.authServiceClient.findUserById(userId);
+    if (user.status !== 'active') {
+      throw new AccountInactiveError();
+    }
+
+    return this.userServiceClient.createCustomerAddress(user.id, input);
+  }
+
+  async updateCustomerAddress(
+    userId: string,
+    addressId: string,
+    input: UpdateCustomerAddressRequest,
+  ): Promise<CustomerAddressSummary> {
+    const user = await this.authServiceClient.findUserById(userId);
+    if (user.status !== 'active') {
+      throw new AccountInactiveError();
+    }
+
+    return this.userServiceClient.updateCustomerAddress(user.id, addressId, input);
+  }
+
+  async setDefaultCustomerAddress(
+    userId: string,
+    addressId: string,
+  ): Promise<CustomerAddressSummary> {
+    const user = await this.authServiceClient.findUserById(userId);
+    if (user.status !== 'active') {
+      throw new AccountInactiveError();
+    }
+
+    return this.userServiceClient.setDefaultCustomerAddress(user.id, addressId);
+  }
+
+  async deleteCustomerAddress(
+    userId: string,
+    addressId: string,
+  ): Promise<{ ok: true }> {
+    const user = await this.authServiceClient.findUserById(userId);
+    if (user.status !== 'active') {
+      throw new AccountInactiveError();
+    }
+
+    return this.userServiceClient.deleteCustomerAddress(user.id, addressId);
   }
 
   async updateCurrentUserPassword(
@@ -188,5 +256,23 @@ export class CurrentUserService {
 
     await this.authServiceClient.deleteCurrentUserAccount(user.id);
     return { ok: true };
+  }
+
+  private async listCustomerAddressesForProfile(
+    userId: string,
+    role: string,
+  ): Promise<CustomerAddressSummary[]> {
+    if (role !== 'customer' && role !== 'admin') {
+      return [];
+    }
+
+    try {
+      return await this.userServiceClient.listCustomerAddresses(userId);
+    } catch (error) {
+      if (error instanceof ProfileDependencyUnavailableError) {
+        return [];
+      }
+      throw error;
+    }
   }
 }

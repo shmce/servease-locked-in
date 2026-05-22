@@ -432,9 +432,10 @@ export function OngoingServices() {
                 <SelectItem value="all">All Categories</SelectItem>
                 <SelectItem value="Home Maintenance & Repair">Home Maintenance</SelectItem>
                 <SelectItem value="Beauty, Wellness & Personal Care">Beauty & Wellness</SelectItem>
+                <SelectItem value="Educational & Professional Services">Education & Professional</SelectItem>
+                <SelectItem value="Domestic & Cleaning Services">Domestic & Cleaning</SelectItem>
                 <SelectItem value="Events & Entertainment">Events</SelectItem>
                 <SelectItem value="Pet Services">Pet Services</SelectItem>
-                <SelectItem value="Health & Fitness">Health & Fitness</SelectItem>
                 <SelectItem value="Automotive & Tech Support">Auto & Tech</SelectItem>
               </SelectContent>
             </Select>

@@ -10,6 +10,7 @@ export const providerRegistrationStorageKeys = [
 export interface ProviderRegistrationStep1 {
   fullName: string;
   email: string;
+  birthdate: string;
   contactNumber: string;
   password: string;
   confirmPassword?: string;
@@ -47,6 +48,7 @@ export interface GatewayProviderRegistrationRequest {
   email: string;
   password: string;
   fullName: string;
+  birthdate: string;
   contactNumber: string | null;
   businessName: string;
   serviceDescription: string;
@@ -82,6 +84,7 @@ export function buildGatewayProviderRegistrationPayload(
     email: draft.step1.email.trim(),
     password: draft.step1.password,
     fullName: draft.step1.fullName.trim(),
+    birthdate: draft.step1.birthdate.trim(),
     contactNumber: normalizePhilippineContactNumber(draft.step1.contactNumber),
     businessName: draft.step2.businessName.trim(),
     serviceDescription: serviceParts.join(' - '),

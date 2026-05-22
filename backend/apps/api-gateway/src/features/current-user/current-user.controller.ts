@@ -5,6 +5,7 @@ import {
   Headers,
   HttpException,
   HttpStatus,
+  Param,
   Patch,
   Post,
   Body,
@@ -25,15 +26,20 @@ import {
 import { AuthTokenService } from './auth-token.service';
 import { CurrentUserService } from './current-user.service';
 import {
+  CreateCustomerAddressRequest,
   CurrentUserProfile,
   CurrentUserSessionSummary,
   TwoFactorProvisioningResponse,
   TwoFactorStatusResponse,
   TwoFactorVerificationInput,
+  UpdateCustomerAddressRequest,
   UpdateCurrentUserPasswordInput,
   UpdateCurrentUserPasswordResponse,
   UpdateCurrentUserProfileInput,
 } from './current-user.types';
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Controller('v1/me')
 export class CurrentUserController {
@@ -124,6 +130,106 @@ export class CurrentUserController {
     try {
       const userId = await this.authTokenService.authenticate(authorization);
       const data = await this.currentUserService.deleteCurrentUser(userId);
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('addresses')
+  async listAddresses(
+    @Headers('authorization') authorization?: string,
+  ) {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.listCustomerAddresses(userId);
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('addresses')
+  async createAddress(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: CreateCustomerAddressRequest,
+  ) {
+    try {
+      this.assertAddressBody(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.createCustomerAddress(userId, {
+        ...body,
+        label: body.label?.trim() || 'Home',
+        address: body.address.trim(),
+      });
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Patch('addresses/:addressId')
+  async updateAddress(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('addressId') addressId: string,
+    @Body() body: UpdateCustomerAddressRequest,
+  ) {
+    try {
+      this.assertAddressId(addressId);
+      if (body.address !== undefined && !body.address?.trim()) {
+        throw this.error(
+          'invalid_customer_address_request',
+          'Customer address request is invalid.',
+          400,
+        );
+      }
+      this.assertCoordinates(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.updateCustomerAddress(
+        userId,
+        addressId,
+        {
+          ...body,
+          label: body.label?.trim() || undefined,
+          address: body.address?.trim() || undefined,
+        },
+      );
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('addresses/:addressId/default')
+  async setDefaultAddress(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('addressId') addressId: string,
+  ) {
+    try {
+      this.assertAddressId(addressId);
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.setDefaultCustomerAddress(
+        userId,
+        addressId,
+      );
+      return { data };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Delete('addresses/:addressId')
+  async deleteAddress(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('addressId') addressId: string,
+  ) {
+    try {
+      this.assertAddressId(addressId);
+      const userId = await this.authTokenService.authenticate(authorization);
+      const data = await this.currentUserService.deleteCustomerAddress(
+        userId,
+        addressId,
+      );
       return { data };
     } catch (error) {
       throw this.toHttpException(error);
@@ -282,5 +388,57 @@ export class CurrentUserController {
       },
       status,
     );
+  }
+
+  private assertAddressBody(body: CreateCustomerAddressRequest): void {
+    if (!body.address?.trim()) {
+      throw this.error(
+        'invalid_customer_address_request',
+        'Customer address request is invalid.',
+        400,
+      );
+    }
+    this.assertCoordinates(body);
+  }
+
+  private assertAddressId(addressId: string): void {
+    if (!UUID_PATTERN.test(addressId)) {
+      throw this.error(
+        'invalid_customer_address_request',
+        'Customer address request is invalid.',
+        400,
+      );
+    }
+  }
+
+  private assertCoordinates(body: {
+    latitude?: number | null;
+    longitude?: number | null;
+  }): void {
+    const hasLatitude = body.latitude !== undefined && body.latitude !== null;
+    const hasLongitude = body.longitude !== undefined && body.longitude !== null;
+    if (hasLatitude !== hasLongitude) {
+      throw this.error(
+        'invalid_customer_address_request',
+        'Customer address request is invalid.',
+        400,
+      );
+    }
+    if (
+      (hasLatitude &&
+        (typeof body.latitude !== 'number' ||
+          !Number.isFinite(body.latitude) ||
+          Math.abs(body.latitude) > 90)) ||
+      (hasLongitude &&
+        (typeof body.longitude !== 'number' ||
+          !Number.isFinite(body.longitude) ||
+          Math.abs(body.longitude) > 180))
+    ) {
+      throw this.error(
+        'invalid_customer_address_request',
+        'Customer address request is invalid.',
+        400,
+      );
+    }
   }
 }

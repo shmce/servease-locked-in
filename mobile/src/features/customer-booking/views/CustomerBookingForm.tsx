@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Navigation, Upload } from 'lucide-react-native';
+import { Home, MapPin, Navigation, Upload } from 'lucide-react-native';
 import {
   Card,
   Field,
@@ -11,6 +11,7 @@ import { CustomerBookingSchedulePicker } from './CustomerBookingSchedulePicker';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
 import {
   GeoAddressResult,
+  CustomerAddressSummary,
   ProviderAvailabilitySchedule,
   ProviderListing,
 } from '../../../shared/models/types';
@@ -30,6 +31,8 @@ type CustomerBookingFormScreenProps = {
   bookingSlotError: string;
   defaultScheduledAt: string;
   address: string;
+  savedAddresses: CustomerAddressSummary[];
+  selectedSavedAddressId: string | null;
   addressGeoResult: GeoAddressResult | null;
   notes: string;
   bookingReferencePhotoUri: string | null;
@@ -40,6 +43,8 @@ type CustomerBookingFormScreenProps = {
   onBookingSlotErrorChange: (value: string) => void;
   onUnavailableSlotPress: () => void;
   onAddressChange: (value: string) => void;
+  onSavedAddressPress: (address: CustomerAddressSummary) => void;
+  onSaveAddressAsHome: () => void;
   onUseCurrentLocation: () => void;
   onVerifyAddress: () => void;
   onHoursRequiredChange: (value: string) => void;
@@ -58,6 +63,8 @@ export function CustomerBookingFormScreen({
   bookingSlotError,
   defaultScheduledAt,
   address,
+  savedAddresses,
+  selectedSavedAddressId,
   addressGeoResult,
   notes,
   bookingReferencePhotoUri,
@@ -68,6 +75,8 @@ export function CustomerBookingFormScreen({
   onBookingSlotErrorChange,
   onUnavailableSlotPress,
   onAddressChange,
+  onSavedAddressPress,
+  onSaveAddressAsHome,
   onUseCurrentLocation,
   onVerifyAddress,
   onHoursRequiredChange,
@@ -84,6 +93,8 @@ export function CustomerBookingFormScreen({
     timeSlots,
     bookingSlotError,
     address,
+    savedAddresses,
+    selectedSavedAddressId,
     bookingReferencePhotoUrl,
     busyAction,
   });
@@ -153,6 +164,57 @@ export function CustomerBookingFormScreen({
               </View>
             }
           >
+            {data.savedAddressOptions.length > 0 ? (
+              <View style={styles.savedAddressRail}>
+                {data.savedAddressOptions.map((savedAddress) => {
+                  const fullAddress = savedAddresses.find(
+                    (item) => item.id === savedAddress.id,
+                  );
+                  return (
+                    <Pressable
+                      key={savedAddress.id}
+                      style={[
+                        styles.savedAddressChip,
+                        savedAddress.isSelected && styles.savedAddressChipSelected,
+                      ]}
+                      onPress={() => {
+                        if (fullAddress) {
+                          onSavedAddressPress(fullAddress);
+                        }
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Use ${savedAddress.label} address`}
+                    >
+                      {savedAddress.isSelected ? (
+                        <Home color={palette.white} size={14} strokeWidth={2.4} />
+                      ) : (
+                        <MapPin color={palette.mint} size={14} strokeWidth={2.4} />
+                      )}
+                      <View style={styles.savedAddressTextColumn}>
+                        <Text
+                          style={[
+                            styles.savedAddressLabel,
+                            savedAddress.isSelected &&
+                              styles.savedAddressLabelSelected,
+                          ]}
+                        >
+                          {savedAddress.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.savedAddressText,
+                            savedAddress.isSelected && styles.savedAddressTextSelected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {savedAddress.address}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
             <Field
               label="Service Address"
               value={address}
@@ -163,6 +225,16 @@ export function CustomerBookingFormScreen({
             {addressGeoResult ? (
               <AddressVerificationPreview result={addressGeoResult} />
             ) : null}
+            <Pressable
+              style={[styles.saveHomeButton, data.saveAddressDisabled && styles.faded]}
+              onPress={onSaveAddressAsHome}
+              disabled={data.saveAddressDisabled}
+              accessibilityRole="button"
+              accessibilityLabel="Save service address as home"
+            >
+              <Home color={palette.mint} size={15} strokeWidth={2.4} />
+              <Text style={styles.smallActionText}>{data.saveAddressLabel}</Text>
+            </Pressable>
           </Section>
 
           <Section title="Add details (optional)">
@@ -266,6 +338,56 @@ const styles = StyleSheet.create({
   },
   faded: {
     opacity: 0.5,
+  },
+  savedAddressRail: {
+    gap: spacing.xs,
+  },
+  savedAddressChip: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 54,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  savedAddressChipSelected: {
+    backgroundColor: palette.mint,
+    borderColor: palette.mint,
+  },
+  savedAddressTextColumn: {
+    flex: 1,
+    gap: 2,
+  },
+  savedAddressLabel: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  savedAddressLabelSelected: {
+    color: palette.white,
+  },
+  savedAddressText: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  savedAddressTextSelected: {
+    color: 'rgba(255,255,255,0.82)',
+  },
+  saveHomeButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    minHeight: 36,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   footerTotalRow: {
     alignItems: 'center',

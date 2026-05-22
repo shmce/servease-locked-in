@@ -529,6 +529,7 @@ export interface CurrentUserProfile {
     id: string;
     address: string | null;
   } | null;
+  customerAddresses: CustomerAddressSummary[];
   providerProfile: {
     id: string;
     businessName: string | null;
@@ -538,12 +539,43 @@ export interface CurrentUserProfile {
   } | null;
 }
 
+export interface CustomerAddressSummary {
+  id: string;
+  userId: string;
+  label: string;
+  address: string;
+  barangay: string | null;
+  city: string | null;
+  province: string | null;
+  region: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  isDefault: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface CreateCustomerAddressRequest {
+  label?: string | null;
+  address: string;
+  barangay?: string | null;
+  city?: string | null;
+  province?: string | null;
+  region?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  isDefault?: boolean | null;
+}
+
+export type UpdateCustomerAddressRequest = Partial<CreateCustomerAddressRequest>;
+
 export interface RegisterAccountRequest {
   role: 'customer' | 'provider';
   email: string;
   password: string;
   fullName: string;
   contactNumber?: string | null;
+  birthdate?: string | null;
   address?: string | null;
   businessName?: string | null;
   serviceDescription?: string | null;
@@ -1045,6 +1077,72 @@ export function getCurrentUser(
     method: 'GET',
     requiresAuth: true,
   });
+}
+
+export function listCustomerAddresses(
+  options: ApiOptions = {},
+): Promise<CustomerAddressSummary[]> {
+  return request<CustomerAddressSummary[]>('/v1/me/addresses', {
+    ...options,
+    method: 'GET',
+    requiresAuth: true,
+  });
+}
+
+export function createCustomerAddress(
+  body: CreateCustomerAddressRequest,
+  options: ApiOptions = {},
+): Promise<CustomerAddressSummary> {
+  return request<CustomerAddressSummary>('/v1/me/addresses', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function updateCustomerAddress(
+  addressId: string,
+  body: UpdateCustomerAddressRequest,
+  options: ApiOptions = {},
+): Promise<CustomerAddressSummary> {
+  return request<CustomerAddressSummary>(
+    `/v1/me/addresses/${encodeURIComponent(addressId)}`,
+    {
+      ...options,
+      method: 'PATCH',
+      body,
+      requiresAuth: true,
+    },
+  );
+}
+
+export function setDefaultCustomerAddress(
+  addressId: string,
+  options: ApiOptions = {},
+): Promise<CustomerAddressSummary> {
+  return request<CustomerAddressSummary>(
+    `/v1/me/addresses/${encodeURIComponent(addressId)}/default`,
+    {
+      ...options,
+      method: 'POST',
+      requiresAuth: true,
+    },
+  );
+}
+
+export function deleteCustomerAddress(
+  addressId: string,
+  options: ApiOptions = {},
+): Promise<{ ok: true }> {
+  return request<{ ok: true }>(
+    `/v1/me/addresses/${encodeURIComponent(addressId)}`,
+    {
+      ...options,
+      method: 'DELETE',
+      requiresAuth: true,
+    },
+  );
 }
 
 export function registerAccount(

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { palette, radius, spacing, type } from '../theme/serveaseDesign';
 import {
@@ -32,9 +32,24 @@ export interface MonthCalendarProps {
   disabledDates?: Set<string>;
   markers?: MonthCalendarMarkers;
   initialMonth?: string;
+  showMonthYearPicker?: boolean;
 }
 
 const weekdayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const monthLabels = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
 
 const markerColors: Record<MonthCalendarMarkerKind, string> = {
   full: palette.red,
@@ -50,6 +65,7 @@ export function MonthCalendar({
   disabledDates,
   markers = {},
   initialMonth,
+  showMonthYearPicker = false,
 }: MonthCalendarProps) {
   const [visibleMonth, setVisibleMonth] = useState(() =>
     normalizeMonth(initialMonth ?? selectedDate ?? formatApiDate(new Date())),
@@ -65,6 +81,8 @@ export function MonthCalendar({
   );
   const rows = useMemo(() => buildMonthCalendarRows(cells), [cells]);
   const visibleMonthDate = dateFromMonthInput(visibleMonth);
+  const visibleYear = visibleMonthDate.getFullYear();
+  const visibleMonthNumber = visibleMonthDate.getMonth() + 1;
 
   return (
     <View>
@@ -94,6 +112,84 @@ export function MonthCalendar({
           </Pressable>
         </View>
       </View>
+      {showMonthYearPicker ? (
+        <View style={styles.jumpPanel}>
+          <View style={styles.yearJumpRow}>
+            <Pressable
+              style={styles.yearJumpButton}
+              onPress={() => setVisibleMonth(addYears(visibleMonth, -10, minDate, maxDate))}
+              accessibilityRole="button"
+              accessibilityLabel="Go back 10 years"
+            >
+              <Text style={styles.yearJumpText}>-10y</Text>
+            </Pressable>
+            <Pressable
+              style={styles.yearJumpButton}
+              onPress={() => setVisibleMonth(addYears(visibleMonth, -1, minDate, maxDate))}
+              accessibilityRole="button"
+              accessibilityLabel="Go back 1 year"
+            >
+              <Text style={styles.yearJumpText}>-1y</Text>
+            </Pressable>
+            <View style={styles.yearLabelWrap}>
+              <Text style={styles.yearLabel}>{visibleYear}</Text>
+            </View>
+            <Pressable
+              style={styles.yearJumpButton}
+              onPress={() => setVisibleMonth(addYears(visibleMonth, 1, minDate, maxDate))}
+              accessibilityRole="button"
+              accessibilityLabel="Go forward 1 year"
+            >
+              <Text style={styles.yearJumpText}>+1y</Text>
+            </Pressable>
+            <Pressable
+              style={styles.yearJumpButton}
+              onPress={() => setVisibleMonth(addYears(visibleMonth, 10, minDate, maxDate))}
+              accessibilityRole="button"
+              accessibilityLabel="Go forward 10 years"
+            >
+              <Text style={styles.yearJumpText}>+10y</Text>
+            </Pressable>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.monthPickerRow}
+          >
+            {monthLabels.map((label, index) => {
+              const monthNumber = index + 1;
+              const month = formatMonth(visibleYear, monthNumber);
+              const isSelectedMonth = visibleMonthNumber === monthNumber;
+              const isDisabled = isMonthOutOfRange(month, minDate, maxDate);
+
+              return (
+                <Pressable
+                  key={label}
+                  style={[
+                    styles.monthPickerButton,
+                    isSelectedMonth && styles.monthPickerButtonSelected,
+                    isDisabled && styles.monthPickerButtonDisabled,
+                  ]}
+                  onPress={() => setVisibleMonth(month)}
+                  disabled={isDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show ${label} ${visibleYear}`}
+                  accessibilityState={{ selected: isSelectedMonth, disabled: isDisabled }}
+                >
+                  <Text
+                    style={[
+                      styles.monthPickerText,
+                      isSelectedMonth && styles.monthPickerTextSelected,
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
       <View style={styles.calendarShell}>
         <View style={styles.weekHeader}>
           {weekdayLabels.map((day) => (
@@ -177,6 +273,43 @@ function addMonths(month: string, amount: number): string {
   );
 }
 
+function addYears(
+  month: string,
+  amount: number,
+  minDate?: string,
+  maxDate?: string,
+): string {
+  const date = dateFromMonthInput(month);
+  const nextMonth = formatMonth(date.getFullYear() + amount, date.getMonth() + 1);
+  return clampMonth(nextMonth, minDate, maxDate);
+}
+
+function formatMonth(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function clampMonth(month: string, minDate?: string, maxDate?: string): string {
+  const minMonth = minDate?.slice(0, 7);
+  const maxMonth = maxDate?.slice(0, 7);
+
+  if (minMonth && month < minMonth) {
+    return minMonth;
+  }
+
+  if (maxMonth && month > maxMonth) {
+    return maxMonth;
+  }
+
+  return month;
+}
+
+function isMonthOutOfRange(month: string, minDate?: string, maxDate?: string): boolean {
+  return Boolean(
+    (minDate && month < minDate.slice(0, 7)) ||
+      (maxDate && month > maxDate.slice(0, 7)),
+  );
+}
+
 function normalizeMarkers(
   marker: MonthCalendarMarkerKind | MonthCalendarMarkerKind[] | undefined,
 ): MonthCalendarMarkerKind[] {
@@ -210,6 +343,71 @@ const styles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     width: 36,
+  },
+  jumpPanel: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  yearJumpRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  yearJumpButton: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 36,
+    justifyContent: 'center',
+  },
+  yearJumpText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  yearLabelWrap: {
+    alignItems: 'center',
+    flex: 1.2,
+    justifyContent: 'center',
+    minHeight: 36,
+  },
+  yearLabel: {
+    color: palette.mintDeep,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  monthPickerRow: {
+    gap: spacing.xs,
+    paddingRight: spacing.sm,
+  },
+  monthPickerButton: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    minHeight: 34,
+    minWidth: 48,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  monthPickerButtonSelected: {
+    backgroundColor: palette.mintSoft,
+    borderColor: palette.mint,
+  },
+  monthPickerButtonDisabled: {
+    opacity: 0.4,
+  },
+  monthPickerText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  monthPickerTextSelected: {
+    color: palette.mintDeep,
   },
   calendarShell: {
     backgroundColor: palette.white,

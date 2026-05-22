@@ -49,6 +49,7 @@
     "smoke:all": "npm run smoke:apicenter && npm run smoke:apicenter-webhook && npm run smoke:v1-me && npm run smoke:catalog && npm run smoke:booking && npm run smoke:availability && npm run smoke:messaging && npm run smoke:extended && npm run seed:demo && npm run smoke:demo",
     "smoke:v1-me": "node scripts/smoke-v1-me.mjs",
     "seed:demo": "node scripts/seed-demo-data.mjs",
+    "seed:mobile-production-like": "node scripts/seed-mobile-production-like-data.mjs",
     "test": "jest",
     "test:cov": "jest --coverage"
   },

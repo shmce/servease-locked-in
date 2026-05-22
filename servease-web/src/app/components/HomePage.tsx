@@ -24,7 +24,7 @@ const serviceCategories = [
   },
   {
     icon: GraduationCap,
-    title: "Education & Professional Services",
+    title: "Educational & Professional Services",
     description: "Connect with tutors, trainers, and professionals who help you learn and grow.",
     image: "https://images.unsplash.com/photo-1565688420536-11a4ddfa246f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0dXRvcmluZyUyMGVkdWNhdGlvbiUyMHByb2Zlc3Npb25hbHxlbnwxfHx8fDE3NzI3Mzk4NTJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
   },

@@ -1,5 +1,6 @@
 import {
   CurrentUserIdentity,
+  CustomerAddressSummary,
   CustomerProfileSummary,
   ProviderProfileSummary,
 } from '../current-user/current-user.types';
@@ -10,6 +11,7 @@ export interface RegisterAccountRequest {
   password: string;
   fullName: string;
   contactNumber?: string | null;
+  birthdate?: string | null;
   address?: string | null;
   businessName?: string | null;
   serviceDescription?: string | null;
@@ -19,6 +21,7 @@ export interface RegisterAccountRequest {
 export interface RegisteredAccountResponse {
   user: CurrentUserIdentity;
   customerProfile: CustomerProfileSummary | null;
+  customerAddresses: CustomerAddressSummary[];
   providerProfile: ProviderProfileSummary | null;
 }
 

@@ -128,10 +128,9 @@ export function CustomerBookingConfirmationScreen({
         </ActionRow>
 
         <PrimaryButton
-          label="Reserve payment"
+          label="View payment"
           variant="secondary"
           onPress={() => navigate('customerReservePayment', 'customer')}
-          disabled={data.isPaymentReserved}
         />
 
       </View>

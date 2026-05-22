@@ -15,6 +15,22 @@ export interface CustomerProfileSummary {
   address: string | null;
 }
 
+export interface CustomerAddressSummary {
+  id: string;
+  userId: string;
+  label: string;
+  address: string;
+  barangay: string | null;
+  city: string | null;
+  province: string | null;
+  region: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  isDefault: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
 export interface ProviderProfileSummary {
   id: string;
   businessName: string | null;
@@ -35,8 +51,23 @@ export interface ProviderOwnerSummary {
 export interface CurrentUserProfile {
   user: CurrentUserIdentity;
   customerProfile: CustomerProfileSummary | null;
+  customerAddresses: CustomerAddressSummary[];
   providerProfile: ProviderProfileSummary | null;
 }
+
+export interface CreateCustomerAddressRequest {
+  label?: string | null;
+  address: string;
+  barangay?: string | null;
+  city?: string | null;
+  province?: string | null;
+  region?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  isDefault?: boolean | null;
+}
+
+export type UpdateCustomerAddressRequest = Partial<CreateCustomerAddressRequest>;
 
 export interface UpdateCurrentUserProfileInput {
   fullName: string;

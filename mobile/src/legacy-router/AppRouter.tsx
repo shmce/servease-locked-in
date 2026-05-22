@@ -42,6 +42,7 @@ type CustomerRendererName =
   | 'messages'
   | 'more'
   | 'notifications'
+  | 'addresses'
   | 'paymentMethods'
   | 'profile'
   | 'referral'
@@ -299,6 +300,8 @@ function renderCustomerRoute(
       return renderers.customer.security();
     case 'customerPaymentMethods':
       return renderers.customer.paymentMethods();
+    case 'customerAddresses':
+      return renderers.customer.addresses();
     case 'customerHelp':
       return renderers.customer.help();
     case 'customerServiceHistory':

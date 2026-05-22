@@ -56,13 +56,12 @@ insert into payment.commission_rules (
 values
   ('platform-default', 'platform-default', 'Platform Default', 15, 15, 0, 0),
   ('home-maintenance-repair', 'home-maintenance-repair', 'Home Maintenance & Repair', 12, 10, 1250000, 150000),
-  ('beauty-wellness-personal-care', 'beauty-wellness-personal-care', 'Beauty Wellness & Personal Care', 15, 15, 850000, 127500),
+  ('beauty-wellness-personal-care', 'beauty-wellness-personal-care', 'Beauty, Wellness & Personal Care', 15, 15, 850000, 127500),
   ('domestic-cleaning-services', 'domestic-cleaning-services', 'Domestic & Cleaning Services', 10, 8, 980000, 98000),
   ('pet-services', 'pet-services', 'Pet Services', 18, 18, 450000, 81000),
   ('events-entertainment', 'events-entertainment', 'Events & Entertainment', 20, 18, 2100000, 420000),
   ('automotive-tech-support', 'automotive-tech-support', 'Automotive & Tech Support', 14, 14, 670000, 93800),
-  ('education-professional-services', 'education-professional-services', 'Education & Professional Services', 16, 15, 540000, 86400),
-  ('health-fitness', 'health-fitness', 'Health & Fitness', 13, 12, 720000, 93600)
+  ('educational-professional-services', 'educational-professional-services', 'Educational & Professional Services', 16, 15, 540000, 86400)
 on conflict (id) do nothing;
 
 create or replace function public.servease_admin_list_commission_rules()

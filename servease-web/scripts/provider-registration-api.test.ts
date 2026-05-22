@@ -56,6 +56,7 @@ const draft: ProviderRegistrationDraft = {
   step1: {
     fullName: ' Provider User ',
     email: ' Provider@ServEase.test ',
+    birthdate: '1990-05-23',
     password: 'ProviderPass123',
     contactNumber: '912 345 6789',
   },
@@ -96,6 +97,7 @@ assert.deepEqual(JSON.parse(String(calls[1]?.init?.body)), {
   email: 'Provider@ServEase.test',
   password: 'ProviderPass123',
   fullName: 'Provider User',
+  birthdate: '1990-05-23',
   contactNumber: '+639123456789',
   businessName: 'Provider Cleaning',
   serviceDescription:
@@ -117,10 +119,33 @@ const incompleteResponse = await registrationRoute.POST(
 );
 assert.equal(incompleteResponse.status, 400);
 
+const underageResponse = await registrationRoute.POST(
+  new Request('http://landing.test/api/provider-registration', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...draft,
+      step1: {
+        ...draft.step1,
+        birthdate: nextYearBirthdate(),
+      },
+    }),
+  }),
+);
+assert.equal(underageResponse.status, 400);
+
 function jsonResponse(status: number, payload: unknown): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
     json: async () => payload,
   } as Response;
+}
+
+function nextYearBirthdate(): string {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() + 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }

@@ -10,10 +10,12 @@ import {
 } from '../../../shared/utils/booking';
 import {
   CatalogServiceItem,
+  CustomerPaymentMethodSummary,
   PricingQuoteSummary,
   PromotionValidationSummary,
   ProviderListing,
 } from '../../../shared/models/types';
+import { paymentMethodMeta } from '../../../shared/utils/paymentMethods';
 
 type CustomerBookingReviewViewModelInput = {
   provider: ProviderListing;
@@ -26,6 +28,8 @@ type CustomerBookingReviewViewModelInput = {
   pricingQuote: PricingQuoteSummary | null;
   promotionValidation: PromotionValidationSummary | null;
   promoCode: string;
+  customerPaymentMethods: CustomerPaymentMethodSummary[];
+  selectedPaymentMethodId: string | null;
   busyAction: string | null;
 };
 
@@ -40,6 +44,8 @@ export function useCustomerBookingReviewViewModel({
   pricingQuote,
   promotionValidation,
   promoCode,
+  customerPaymentMethods,
+  selectedPaymentMethodId,
   busyAction,
 }: CustomerBookingReviewViewModelInput) {
   return useMemo(
@@ -55,6 +61,8 @@ export function useCustomerBookingReviewViewModel({
         pricingQuote,
         promotionValidation,
         promoCode,
+        customerPaymentMethods,
+        selectedPaymentMethodId,
         busyAction,
       }),
     [
@@ -69,6 +77,8 @@ export function useCustomerBookingReviewViewModel({
       provider,
       scheduledAt,
       selectedService,
+      customerPaymentMethods,
+      selectedPaymentMethodId,
     ],
   );
 }
@@ -84,6 +94,8 @@ export function buildCustomerBookingReviewViewModel({
   pricingQuote,
   promotionValidation,
   promoCode,
+  customerPaymentMethods,
+  selectedPaymentMethodId,
   busyAction,
 }: CustomerBookingReviewViewModelInput) {
   const baseAmount = provider.price ?? selectedService?.price ?? 0;
@@ -94,6 +106,19 @@ export function buildCustomerBookingReviewViewModel({
   const scheduledAtIso = toManilaBookingIso(scheduledAt);
   const displayedTotal = pricingQuote?.estimatedTotal ?? bookingCost;
   const providerName = provider.providerBusinessName ?? provider.title;
+  const selectedPaymentMethod =
+    customerPaymentMethods.find((method) => method.id === selectedPaymentMethodId) ??
+    customerPaymentMethods.find((method) => method.isDefault) ??
+    customerPaymentMethods[0] ??
+    null;
+  const isCashPayment =
+    !selectedPaymentMethod || selectedPaymentMethod.methodType === 'cash_on_service';
+  const paymentMethodRows = customerPaymentMethods.map((method) => ({
+    method,
+    label: paymentMethodLabel(method.methodType),
+    meta: paymentMethodMeta(method),
+    selected: method.id === selectedPaymentMethod?.id,
+  }));
   const priceBreakdownRows = pricingQuote
     ? [
         {
@@ -176,17 +201,31 @@ export function buildCustomerBookingReviewViewModel({
       promoCodeLabel: promotionValidation?.valid
         ? `${promotionValidation.code} applied`
         : promoCode.trim()
-          ? 'Enter on payment step'
+          ? 'Applied after confirmation'
           : 'No promo applied',
       displayedTotalLabel: formatMoney(displayedTotal),
+      paymentMethodRows,
+      paymentNotice: isCashPayment
+        ? 'Cash is due directly to the provider after the service is completed.'
+        : 'APICenter will collect wallet or card details in secure checkout after you confirm.',
       quoteExplanation:
         pricingQuote?.explanation ??
-        "Get a fair estimate before confirming. You won't be charged until the service is completed.",
-      confirmLabel: busyAction === 'create-booking' ? 'Creating...' : 'Confirm Booking',
+        (isCashPayment
+          ? "Get a fair estimate before confirming. You won't be charged in the app for cash bookings."
+          : 'Get a fair estimate before confirming. Secure checkout opens after the booking is created.'),
+      confirmLabel:
+        busyAction === 'create-booking' || busyAction === 'payment'
+          ? isCashPayment
+            ? 'Confirming...'
+            : 'Opening checkout...'
+          : isCashPayment
+            ? 'Confirm cash booking'
+            : 'Pay and confirm booking',
       estimateLabel:
         busyAction === 'pricing-quote' ? 'Getting fair estimate...' : 'Get fair estimate',
       confirmDisabled:
         busyAction === 'create-booking' ||
+        busyAction === 'payment' ||
         busyAction === 'pricing-quote' ||
         !address.trim() ||
         !scheduledAtIso,
@@ -194,4 +233,17 @@ export function buildCustomerBookingReviewViewModel({
     isLoading: false,
     error: null,
   };
+}
+
+function paymentMethodLabel(methodType: CustomerPaymentMethodSummary['methodType']): string {
+  switch (methodType) {
+    case 'cash_on_service':
+      return 'Cash on service';
+    case 'gcash':
+      return 'GCash checkout';
+    case 'paymaya':
+      return 'Maya checkout';
+    case 'card':
+      return 'Card checkout';
+  }
 }

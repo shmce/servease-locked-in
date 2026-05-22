@@ -1220,10 +1220,10 @@ test.describe('merged landing and provider website', () => {
     await page.goto('/provider-registration/step-1');
     await page.getByPlaceholder('Enter your full name').fill('New Provider');
     await page.getByPlaceholder('your.email@example.com').fill('new-provider@example.test');
+    await page.locator('input[name="birthdate"]').fill('1990-05-23');
     await page.getByPlaceholder('9123456789').fill('9123456789');
     await page.getByPlaceholder('Enter your password').fill('ProviderPass123');
     await page.getByPlaceholder('Confirm your password').fill('ProviderPass123');
-    await page.locator('input[name="acceptedPolicies"]').check();
     await page.getByRole('button', { name: /continue to profile/i }).click();
 
     await expect(page).toHaveURL(/\/provider-registration\/step-2$/);

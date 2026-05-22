@@ -66,7 +66,7 @@ export function CustomerReservePaymentScreen({
 
   return (
     <>
-      <TopBar title="Reserve payment" onBack={onBack} />
+      <TopBar title="Payment" onBack={onBack} />
       <ScrollView contentContainerStyle={styles.withStickyFooter}>
         <View style={styles.content}>
 

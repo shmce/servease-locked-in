@@ -34,6 +34,10 @@ import {
   validateProviderSignupRequirements,
 } from './domain/providerRegistration';
 import {
+  hasBlockingActiveProviderBooking,
+  providerOperationalLockBlocksTransition,
+} from './domain/providerOperationalLock';
+import {
   bookingTimeSlots,
   defaultScheduledAt,
   type ProviderBookingTab,
@@ -70,6 +74,7 @@ import type {
   CatalogCategory,
   CatalogServiceItem,
   CurrentUserProfile,
+  CustomerAddressSummary,
   CustomerPaymentMethodSummary,
   CustomerPaymentMethodType,
   PaymentSummary,
@@ -96,11 +101,13 @@ import type {
 } from './shared/models/types';
 import {
   addProviderPortfolioMedia,
+  createCustomerAddress,
   createCheckoutSession,
   createPayment,
   createProviderPayoutIdempotencyKey,
   createReview,
   deleteBookingAttachment,
+  deleteCustomerAddress,
   deleteCurrentUserAccount,
   disableCurrentUserTwoFactor,
   enableCurrentUserTwoFactor,
@@ -112,7 +119,6 @@ import {
   getCheckoutStatus,
   getDirections,
   getGoogleAuthorizationUrl,
-  generateOtp,
   listProviderOwnedServices,
   replaceProviderServices,
   deleteCustomerPaymentMethod,
@@ -146,6 +152,7 @@ import {
   reorderProviderPortfolio,
   requestPasswordReset,
   requestProviderPayout,
+  setDefaultCustomerAddress,
   updateProviderPortfolioMedia,
   upsertProviderPayoutMethod,
   transitionBookingStatus,
@@ -153,7 +160,6 @@ import {
   updateCurrentUserProfile,
   upsertCustomerPaymentMethod,
   updateUserPreferences,
-  verifyOtp,
   verifyCurrentUserTwoFactor,
   uploadMedia,
   validatePromotion,
@@ -174,6 +180,7 @@ const CHECKOUT_RECONCILE_RETRY_DELAYS_MS = [
   15000,
   30000,
 ] as const;
+const emptyCustomerAddresses: CustomerAddressSummary[] = [];
 
 const AuthScreens = lazy(() =>
   import('./features/auth/views/AuthScreens').then((module) => ({
@@ -183,6 +190,11 @@ const AuthScreens = lazy(() =>
 const CustomerMoreScreen = lazy(() =>
   import('./features/customer-more/views/CustomerMore').then((module) => ({
     default: module.CustomerMoreScreen,
+  })),
+);
+const CustomerAddressesScreen = lazy(() =>
+  import('./features/customer-addresses/views/CustomerAddresses').then((module) => ({
+    default: module.CustomerAddressesScreen,
   })),
 );
 const BookingsScreen = lazy(() =>
@@ -482,12 +494,15 @@ export default function App() {
   const [signupContactNumber, setSignupContactNumber] = useState('');
   const [signupAddress, setSignupAddress] = useState('');
   const [signupBusinessName, setSignupBusinessName] = useState('');
+  const [signupBirthdate, setSignupBirthdate] = useState('');
   const [signupServiceArea, setSignupServiceArea] = useState('');
   const [signupServiceDescription, setSignupServiceDescription] = useState('');
   const [signupExperienceYears, setSignupExperienceYears] = useState('');
   const [profileFullName, setProfileFullName] = useState('');
   const [profileContactNumber, setProfileContactNumber] = useState('');
   const [profileAddress, setProfileAddress] = useState('');
+  const [customerAddressLabel, setCustomerAddressLabel] = useState('Home');
+  const [customerAddressDraft, setCustomerAddressDraft] = useState('');
   const [profileBusinessName, setProfileBusinessName] = useState('');
   const [customerAvatarUri, setCustomerAvatarUri] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -612,6 +627,10 @@ export default function App() {
     (provider) => provider.providerId === selectedProviderId,
   );
   const selectedBooking = bookings.find((booking) => booking.id === selectedBookingId);
+  const hasBlockingActiveBooking = hasBlockingActiveProviderBooking(
+    bookings,
+    selectedBooking?.id,
+  );
   const selectedPayment = selectedBooking
     ? payments.find((payment) => payment.bookingId === selectedBooking.id)
     : null;
@@ -638,6 +657,46 @@ export default function App() {
     }),
     [apiBaseUrl, session?.accessToken],
   );
+  const customerAddresses = profile?.customerAddresses ?? emptyCustomerAddresses;
+  const handleCustomerAddressSaved = useStableCallback(
+    handleCustomerAddressSavedImpl,
+  );
+  const handleBookingCreated = useStableCallback(handleBookingCreatedImpl);
+  const refreshProviderAvailability = useStableCallback(
+    refreshSelectedProviderAvailability,
+  );
+  const uploadMessageAttachment = useStableCallback(uploadMessageAttachmentImpl);
+  const loadCatalog = useStableCallback(loadCatalogImpl);
+  const completeGoogleSignIn = useStableCallback(completeGoogleSignInImpl);
+  const clearCheckoutReconcileRetry = useStableCallback(
+    clearCheckoutReconcileRetryImpl,
+  );
+  const reconcilePendingCheckout = useStableCallback(
+    reconcilePendingCheckoutImpl,
+  );
+  const routeFromNotificationPayload = useStableCallback(
+    routeFromNotificationPayloadImpl,
+  );
+  const refreshBookingTracking = useStableCallback(refreshBookingTrackingImpl);
+  const refreshCustomerTrackingRoute = useStableCallback(
+    refreshCustomerTrackingRouteImpl,
+  );
+  const refreshProviderDirections = useStableCallback(
+    refreshProviderDirectionsImpl,
+  );
+  const updateSelectedBooking = useStableCallback(replaceBooking);
+  const refreshProviderPayments = useStableCallback(refreshPayments);
+  const refreshProviderBookingTimelineEvents = useStableCallback(
+    refreshProviderBookingTimelineEventsImpl,
+  );
+  const refreshProviderBookingTracking = useStableCallback(
+    refreshProviderBookingTrackingImpl,
+  );
+  const addProviderServiceUpdate = useStableCallback(upsertBookingServiceUpdate);
+  const handleProviderServiceRoute = useStableCallback(
+    handleProviderServiceRouteImpl,
+  );
+  const uploadProviderJobPhoto = useStableCallback(uploadProviderJobPhotoImpl);
 
   useEffect(() => {
     routeRef.current = route;
@@ -676,17 +735,11 @@ export default function App() {
 
   const customerBookingFlow = useCustomerBookingFlowViewModel({
     apiOptions,
+    customerAddresses,
     hasSession: Boolean(session),
-    onBookingCreated: (booking) => {
-      setBookings((current) => [booking, ...current]);
-      setSelectedBookingId(booking.id);
-      setHideSelectedBookingReservePayment(false);
-      void refreshBookingTimelineEvents(booking.id);
-      void refreshPayments();
-    },
-    onRefreshProviderAvailability: (providerId) => {
-      void refreshSelectedProviderAvailability(providerId);
-    },
+    onCustomerAddressSaved: handleCustomerAddressSaved,
+    onBookingCreated: handleBookingCreated,
+    onRefreshProviderAvailability: refreshProviderAvailability,
     selectedBooking: selectedBooking ?? null,
     selectedCustomerPaymentMethod,
     selectedProvider: selectedProvider ?? null,
@@ -704,8 +757,7 @@ export default function App() {
     setBusyAction,
     setNotice,
     setRoute: navigateRoute,
-    uploadMessageAttachment: (onUploaded) =>
-      pickAndUploadImage('message_attachment', onUploaded),
+    uploadMessageAttachment,
   });
   const supportFlow = useSupportFlowViewModel({
     apiOptions,
@@ -724,17 +776,6 @@ export default function App() {
     bookingId: selectedBookingId,
     apiOptions,
   });
-  const loadCatalog = useStableCallback(loadCatalogImpl);
-  const completeGoogleSignIn = useStableCallback(completeGoogleSignInImpl);
-  const clearCheckoutReconcileRetry = useStableCallback(
-    clearCheckoutReconcileRetryImpl,
-  );
-  const reconcilePendingCheckout = useStableCallback(
-    reconcilePendingCheckoutImpl,
-  );
-  const routeFromNotificationPayload = useStableCallback(
-    routeFromNotificationPayloadImpl,
-  );
   const notificationsFlow = useNotificationsFlowViewModel({
     apiOptions,
     appRole,
@@ -744,31 +785,19 @@ export default function App() {
     setNotice,
   });
   const replaceNotifications = notificationsFlow.actions.replaceNotifications;
-  const refreshBookingTracking = useStableCallback(refreshBookingTrackingImpl);
-  const refreshCustomerTrackingRoute = useStableCallback(
-    refreshCustomerTrackingRouteImpl,
-  );
-  const refreshProviderDirections = useStableCallback(
-    refreshProviderDirectionsImpl,
-  );
   const providerServiceFlow = useProviderServiceFlowViewModel({
     apiOptions,
-    onBookingUpdated: replaceBooking,
-    onPaymentsRefresh: refreshPayments,
-    onRefreshBookingTimelineEvents: (bookingId) => {
-      void refreshBookingTimelineEvents(bookingId);
-    },
-    onRefreshBookingTracking: (bookingId) => {
-      void refreshBookingTracking(bookingId);
-    },
-    onServiceUpdateCreated: upsertBookingServiceUpdate,
+    onBookingUpdated: updateSelectedBooking,
+    onPaymentsRefresh: refreshProviderPayments,
+    onRefreshBookingTimelineEvents: refreshProviderBookingTimelineEvents,
+    onRefreshBookingTracking: refreshProviderBookingTracking,
+    onServiceUpdateCreated: addProviderServiceUpdate,
     selectedBooking: selectedBooking ?? null,
     selectedPayment: selectedPayment ?? null,
     setBusyAction,
     setNotice,
-    setProviderRoute: (screen) => navigate(screen, 'provider'),
-    uploadProviderJobPhoto: (onUploaded) =>
-      pickAndUploadImage('provider_progress', onUploaded),
+    setProviderRoute: handleProviderServiceRoute,
+    uploadProviderJobPhoto,
   });
 
   useEffect(() => {
@@ -1111,6 +1140,44 @@ export default function App() {
     void refreshSelectedProviderPortfolio(provider.providerId);
   }
 
+  function handleCustomerAddressSavedImpl(address: CustomerAddressSummary) {
+    setProfile((current) => upsertCustomerAddressInProfile(current, address));
+  }
+
+  function handleBookingCreatedImpl(booking: BookingSummary) {
+    setBookings((current) => [booking, ...current]);
+    setSelectedBookingId(booking.id);
+    setHideSelectedBookingReservePayment(false);
+    void refreshBookingTimelineEvents(booking.id);
+    void refreshPayments();
+  }
+
+  function refreshProviderBookingTimelineEventsImpl(bookingId: string) {
+    void refreshBookingTimelineEvents(bookingId);
+  }
+
+  function refreshProviderBookingTrackingImpl(bookingId: string) {
+    void refreshBookingTracking(bookingId);
+  }
+
+  function handleProviderServiceRouteImpl(
+    screen: 'providerServiceInProgress' | 'providerServiceCompleted',
+  ) {
+    navigate(screen, 'provider');
+  }
+
+  function uploadMessageAttachmentImpl(
+    onUploaded: (uri: string, upload: UploadSummary) => void | Promise<void>,
+  ) {
+    return pickAndUploadImage('message_attachment', onUploaded);
+  }
+
+  function uploadProviderJobPhotoImpl(
+    onUploaded: (uri: string, upload: UploadSummary) => void | Promise<void>,
+  ) {
+    return pickAndUploadImage('provider_progress', onUploaded);
+  }
+
   async function refreshProviderReviews(providerId: string) {
     try {
       setReviews(await listProviderReviews(providerId, { baseUrl: apiBaseUrl }));
@@ -1196,6 +1263,7 @@ export default function App() {
     if (intendedRole === 'provider') {
       const providerRequirementError = validateProviderSignupRequirements({
         businessName: signupBusinessName,
+        birthdate: signupBirthdate,
         contactNumber: signupContactNumber,
         experienceYears: signupExperienceYears,
         serviceArea: signupServiceArea,
@@ -1217,6 +1285,10 @@ export default function App() {
           password,
           fullName: signupFullName.trim(),
           contactNumber: signupContactNumber.trim() || null,
+          birthdate:
+            intendedRole === 'provider'
+              ? signupBirthdate.trim()
+              : null,
           address: intendedRole === 'customer' ? signupAddress.trim() || null : null,
           businessName:
             intendedRole === 'provider'
@@ -1256,6 +1328,7 @@ export default function App() {
       setSignupContactNumber('');
       setSignupAddress('');
       setSignupBusinessName('');
+      setSignupBirthdate('');
       setSignupServiceArea('');
       setSignupServiceDescription('');
       setSignupExperienceYears('');
@@ -1340,57 +1413,6 @@ export default function App() {
       setNotice('Google authorization opened. Return to ServEase after signing in.');
     } catch (error) {
       setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function requestPhoneOtp(target: string): Promise<string | null> {
-    const normalized = target.trim();
-    if (!normalized) {
-      setNotice('Enter your phone number first.');
-      return null;
-    }
-
-    setBusyAction('otp-generate');
-    try {
-      const otp = await generateOtp(
-        {
-          target: normalized,
-          channel: 'sms',
-          length: 6,
-          expiresInSeconds: 300,
-        },
-        { baseUrl: apiBaseUrl },
-      );
-      setNotice(`OTP sent to ${otp.target}.`);
-      return otp.otpId;
-    } catch (error) {
-      setNotice(readError(error));
-      return null;
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function verifyPhoneOtp(otpId: string, code: string): Promise<boolean> {
-    if (!code.trim()) {
-      setNotice('Enter the OTP code first.');
-      return false;
-    }
-
-    setBusyAction('otp-verify');
-    try {
-      const result = await verifyOtp(otpId, code.trim(), { baseUrl: apiBaseUrl });
-      setNotice(
-        result.valid
-          ? 'Phone OTP verified. Continue with password login.'
-          : 'Phone OTP was not accepted.',
-      );
-      return result.valid;
-    } catch (error) {
-      setNotice(readError(error));
-      return false;
     } finally {
       setBusyAction(null);
     }
@@ -1481,6 +1503,76 @@ export default function App() {
       );
       setProfile(updatedProfile);
       setNotice('Profile updated.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function saveCustomerAddress() {
+    if (!session) {
+      setNotice('Sign in before saving an address.');
+      return;
+    }
+
+    const address = customerAddressDraft.trim();
+    if (!address) {
+      setNotice('Enter an address to save.');
+      return;
+    }
+
+    setBusyAction('save-customer-address');
+    try {
+      const savedAddress = await createCustomerAddress(
+        {
+          label: customerAddressLabel.trim() || 'Home',
+          address,
+          isDefault: (profile?.customerAddresses ?? []).length === 0,
+        },
+        apiOptions,
+      );
+      setProfile((current) => upsertCustomerAddressInProfile(current, savedAddress));
+      setCustomerAddressLabel('Home');
+      setCustomerAddressDraft('');
+      setNotice('Address saved.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function makeDefaultCustomerAddress(addressId: string) {
+    if (!session) {
+      setNotice('Sign in before changing your home address.');
+      return;
+    }
+
+    setBusyAction(`default-address-${addressId}`);
+    try {
+      const savedAddress = await setDefaultCustomerAddress(addressId, apiOptions);
+      setProfile((current) => upsertCustomerAddressInProfile(current, savedAddress));
+      setNotice(`${savedAddress.label} is now your home address.`);
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function removeCustomerAddress(addressId: string) {
+    if (!session) {
+      setNotice('Sign in before deleting an address.');
+      return;
+    }
+
+    setBusyAction(`delete-address-${addressId}`);
+    try {
+      await deleteCustomerAddress(addressId, apiOptions);
+      const nextProfile = await getCurrentUser(apiOptions);
+      setProfile(nextProfile);
+      setNotice('Address deleted.');
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -1808,6 +1900,20 @@ export default function App() {
       return false;
     }
 
+    if (
+      appRole === 'provider' &&
+      providerOperationalLockBlocksTransition(
+        bookings,
+        selectedBooking,
+        nextStatus,
+      )
+    ) {
+      setNotice(
+        'Finish the active on-the-way booking before changing another booking.',
+      );
+      return false;
+    }
+
     setBusyAction(`booking-${nextStatus}`);
     try {
       const updated = await transitionBookingStatus(
@@ -2107,8 +2213,12 @@ export default function App() {
     }
   }
 
-  async function collectPayment() {
-    if (!selectedBooking) {
+  async function collectPayment(
+    bookingOverride?: BookingSummary,
+    methodTypeOverride?: CustomerPaymentMethodType,
+  ) {
+    const bookingForPayment = bookingOverride ?? selectedBooking;
+    if (!bookingForPayment) {
       setNotice('Select a booking first.');
       return false;
     }
@@ -2120,7 +2230,7 @@ export default function App() {
 
       if (code) {
         const promotion = await validatePromotion(
-          selectedBooking.id,
+          bookingForPayment.id,
           code,
           apiOptions,
         );
@@ -2135,11 +2245,13 @@ export default function App() {
       }
 
       const methodType =
-        selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
+        methodTypeOverride ??
+        selectedCustomerPaymentMethod?.methodType ??
+        'cash_on_service';
       if (methodType !== 'cash_on_service') {
         const checkout = await createCheckoutSession(
           {
-            bookingId: selectedBooking.id,
+            bookingId: bookingForPayment.id,
             successUrl: 'servease://payment/success',
             cancelUrl: 'servease://payment/cancel',
             promoCode: promoCodeForPayment,
@@ -2149,7 +2261,7 @@ export default function App() {
         );
         setPendingCheckout({
           checkoutId: checkout.checkoutId,
-          bookingId: selectedBooking.id,
+          bookingId: bookingForPayment.id,
         });
         const nextPayments = await listPayments(apiOptions).catch(() => payments);
         setPayments(nextPayments);
@@ -2158,7 +2270,7 @@ export default function App() {
       } else {
         const payment = await createPayment(
           {
-            bookingId: selectedBooking.id,
+            bookingId: bookingForPayment.id,
             paymentMethod: methodType,
             promoCode: promoCodeForPayment,
           },
@@ -2176,6 +2288,33 @@ export default function App() {
       return false;
     } finally {
       setBusyAction(null);
+    }
+  }
+
+  async function confirmBookingWithPayment() {
+    const methodType =
+      selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
+    const booking = await customerBookingFlow.actions.submitBooking({
+      navigateOnSuccess: false,
+      showSuccessNotice: false,
+    });
+    if (!booking) {
+      return;
+    }
+
+    setHideSelectedBookingReservePayment(true);
+    if (methodType === 'cash_on_service') {
+      await refreshPayments().catch(() => undefined);
+      navigate('customerBookingConfirmation', 'customer');
+      setNotice(
+        `Booking ${booking.bookingReference} confirmed. Cash is due after service.`,
+      );
+      return;
+    }
+
+    const openedCheckout = await collectPayment(booking, methodType);
+    if (openedCheckout) {
+      navigate('customerBookingConfirmation', 'customer');
     }
   }
 
@@ -2496,10 +2635,11 @@ export default function App() {
 
     setBusyAction('review');
     try {
+      const normalizedRating = Math.min(5, Math.max(1, Number(rating) || 5));
       const review = await createReview(
         {
           bookingId: selectedBooking.id,
-          rating: Number(rating) || 5,
+          rating: normalizedRating,
           reviewText: reviewText.trim() || null,
         },
         apiOptions,
@@ -2909,6 +3049,7 @@ export default function App() {
         signupContactNumber={signupContactNumber}
         signupAddress={signupAddress}
         signupBusinessName={signupBusinessName}
+        signupBirthdate={signupBirthdate}
         signupServiceArea={signupServiceArea}
         signupServiceDescription={signupServiceDescription}
         signupExperienceYears={signupExperienceYears}
@@ -2920,17 +3061,15 @@ export default function App() {
         setSignupContactNumber={setSignupContactNumber}
         setSignupAddress={setSignupAddress}
         setSignupBusinessName={setSignupBusinessName}
+        setSignupBirthdate={setSignupBirthdate}
         setSignupServiceArea={setSignupServiceArea}
         setSignupServiceDescription={setSignupServiceDescription}
         setSignupExperienceYears={setSignupExperienceYears}
-        setNotice={setNotice}
         navigate={navigate}
         signIn={signIn}
         signUp={signUp}
         requestPasswordReset={sendPasswordReset}
         startGoogleSignIn={startGoogleSignIn}
-        requestPhoneOtp={requestPhoneOtp}
-        verifyPhoneOtp={verifyPhoneOtp}
       />
     );
   }
@@ -2997,10 +3136,14 @@ export default function App() {
         pricingQuote={customerBookingFlow.data.pricingQuote}
         promotionValidation={customerBookingFlow.data.promotionValidation}
         promoCode={customerBookingFlow.data.promoCode}
+        customerPaymentMethods={customerPaymentMethods}
+        selectedPaymentMethodId={selectedCustomerPaymentMethod?.id ?? null}
         busyAction={busyAction}
         onBack={() => goBack({ role: 'customer', screen: 'customerBookingForm' })}
         onViewProvider={() => navigate('customerProviderProfile', 'customer')}
-        onConfirm={() => void customerBookingFlow.actions.submitBooking()}
+        onSelectPaymentMethod={setSelectedCustomerPaymentMethodId}
+        onSavePaymentMethod={saveCustomerPaymentMethod}
+        onConfirm={() => void confirmBookingWithPayment()}
         onPreviewEstimate={() => void customerBookingFlow.actions.previewPricingQuote()}
         onEditBooking={() => navigate('customerBookingForm', 'customer')}
       />
@@ -3094,6 +3237,8 @@ export default function App() {
         bookingSlotError={customerBookingFlow.data.bookingSlotError}
         defaultScheduledAt={defaultScheduledAt}
         address={customerBookingFlow.data.address}
+        savedAddresses={customerBookingFlow.data.savedAddresses}
+        selectedSavedAddressId={customerBookingFlow.data.selectedSavedAddressId}
         addressGeoResult={customerBookingFlow.data.addressGeoResult}
         notes={customerBookingFlow.data.notes}
         bookingReferencePhotoUri={customerBookingFlow.data.bookingReferencePhotoUri}
@@ -3108,6 +3253,10 @@ export default function App() {
           setNotice('That time is outside the provider schedule.')
         }
         onAddressChange={customerBookingFlow.actions.setAddress}
+        onSavedAddressPress={customerBookingFlow.actions.applySavedAddress}
+        onSaveAddressAsHome={() =>
+          void customerBookingFlow.actions.saveCurrentAddressAsHome()
+        }
         onHoursRequiredChange={customerBookingFlow.actions.setHoursRequired}
         onNotesChange={customerBookingFlow.actions.setNotes}
         onUseCurrentLocation={() =>
@@ -3393,6 +3542,23 @@ export default function App() {
     );
   }
 
+  function renderCustomerAddresses() {
+    return (
+      <CustomerAddressesScreen
+        addresses={profile?.customerAddresses ?? []}
+        draftLabel={customerAddressLabel}
+        draftAddress={customerAddressDraft}
+        busyAction={busyAction}
+        onBack={() => goBack({ role: 'customer', screen: 'more' })}
+        onDraftLabelChange={setCustomerAddressLabel}
+        onDraftAddressChange={setCustomerAddressDraft}
+        onSaveAddress={() => void saveCustomerAddress()}
+        onSetDefault={(addressId) => void makeDefaultCustomerAddress(addressId)}
+        onDeleteAddress={(addressId) => void removeCustomerAddress(addressId)}
+      />
+    );
+  }
+
   function renderCustomerPaymentMethods() {
     return (
       <CustomerPaymentMethodsScreen
@@ -3582,6 +3748,7 @@ export default function App() {
         booking={selectedBooking}
         selectedPayment={selectedPayment ?? null}
         busyAction={busyAction}
+        hasBlockingActiveBooking={hasBlockingActiveBooking}
         timelineEvents={
           <BookingTimelineEventsSection events={selectedBookingTimelineEvents} />
         }
@@ -4061,6 +4228,7 @@ export default function App() {
       customerExplore: renderCustomerExplore,
       customerProviderProfile: renderCustomerProviderProfile,
       customerTopProviders: renderCustomerTopProviders,
+      addresses: renderCustomerAddresses,
       help: renderCustomerHelp,
       manageBooking: renderManageBooking,
       messages: renderMessages,
@@ -4124,6 +4292,36 @@ export default function App() {
       />
     </AppShell>
   );
+}
+
+function upsertCustomerAddressInProfile(
+  profile: CurrentUserProfile | null,
+  address: CustomerAddressSummary,
+): CurrentUserProfile | null {
+  if (!profile) {
+    return profile;
+  }
+
+  const existingAddresses = profile.customerAddresses ?? [];
+  const nextAddresses = [
+    address,
+    ...existingAddresses.filter((item) => item.id !== address.id),
+  ].map((item) =>
+    address.isDefault ? { ...item, isDefault: item.id === address.id } : item,
+  );
+
+  return {
+    ...profile,
+    customerProfile: profile.customerProfile
+      ? {
+          ...profile.customerProfile,
+          address: address.isDefault
+            ? address.address
+            : profile.customerProfile.address,
+        }
+      : profile.customerProfile,
+    customerAddresses: nextAddresses,
+  };
 }
 
 export const legacyAppStyles = StyleSheet.create({

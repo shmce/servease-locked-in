@@ -18,6 +18,7 @@ export type {
   CreateBookingRequest,
   CurrentUserProfile,
   CurrentUserSessionSummary,
+  CustomerAddressSummary,
   CustomerPaymentMethodSummary,
   CustomerPaymentMethodType,
   DayOfWeek,

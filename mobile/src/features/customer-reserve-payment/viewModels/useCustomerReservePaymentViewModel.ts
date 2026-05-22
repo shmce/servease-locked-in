@@ -117,10 +117,10 @@ export function buildCustomerReservePaymentViewModel({
           : selectedPayment.status === 'paid'
             ? 'Payment paid'
             : isCashReserved
-              ? 'Cash reserved'
-              : 'Payment reserved'
+              ? 'Cash due after service'
+              : 'Payment status'
         : isCashSelection
-          ? 'Reserve cash payment'
+          ? 'Confirm cash payment'
           : 'Open secure checkout',
       confirmDisabled:
         busyAction === 'payment' ||

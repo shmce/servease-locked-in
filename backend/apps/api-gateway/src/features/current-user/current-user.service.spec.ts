@@ -2,6 +2,7 @@ import { CurrentUserService } from './current-user.service';
 import {
   AccountDeletionDependencyUnavailableError,
   AccountInactiveError,
+  ProfileDependencyUnavailableError,
 } from './current-user.errors';
 import { AuthServiceClient } from './clients/auth-service.client';
 import { CatalogServiceClient } from './clients/catalog-service.client';
@@ -26,6 +27,23 @@ describe('CurrentUserService', () => {
           id: 'd1810af8-6172-4582-b1d8-b292ee37233a',
           address: 'Primary saved address',
         }),
+        listCustomerAddresses: jest.fn().mockResolvedValue([
+          {
+            id: 'f1810af8-6172-4582-b1d8-b292ee37233a',
+            userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+            label: 'Home',
+            address: 'Primary saved address',
+            barangay: null,
+            city: null,
+            province: null,
+            region: null,
+            latitude: null,
+            longitude: null,
+            isDefault: true,
+            createdAt: null,
+            updatedAt: null,
+          },
+        ]),
       } as unknown as UserServiceClient,
       {
         findProviderProfileByUserId: jest.fn(),
@@ -47,6 +65,23 @@ describe('CurrentUserService', () => {
         id: 'd1810af8-6172-4582-b1d8-b292ee37233a',
         address: 'Primary saved address',
       },
+      customerAddresses: [
+        {
+          id: 'f1810af8-6172-4582-b1d8-b292ee37233a',
+          userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+          label: 'Home',
+          address: 'Primary saved address',
+          barangay: null,
+          city: null,
+          province: null,
+          region: null,
+          latitude: null,
+          longitude: null,
+          isDefault: true,
+          createdAt: null,
+          updatedAt: null,
+        },
+      ],
       providerProfile: null,
     });
   });
@@ -76,6 +111,47 @@ describe('CurrentUserService', () => {
     ).rejects.toBeInstanceOf(AccountInactiveError);
   });
 
+  it('does not block customer login when saved address lookup is unavailable', async () => {
+    const service = new CurrentUserService(
+      {
+        findUserById: jest.fn().mockResolvedValue({
+          id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+          email: 'customer@example.com',
+          fullName: 'Customer Name',
+          contactNumber: '+639000000000',
+          role: 'customer',
+          status: 'active',
+        }),
+      } as unknown as AuthServiceClient,
+      {
+        findCustomerProfileByUserId: jest.fn().mockResolvedValue({
+          id: 'd1810af8-6172-4582-b1d8-b292ee37233a',
+          address: 'Primary saved address',
+        }),
+        listCustomerAddresses: jest
+          .fn()
+          .mockRejectedValue(new ProfileDependencyUnavailableError()),
+      } as unknown as UserServiceClient,
+      {
+        findProviderProfileByUserId: jest.fn(),
+      } as unknown as CatalogServiceClient,
+    );
+
+    await expect(
+      service.getCurrentUser('9b6ed52b-8a97-4b89-b6a8-364c65f8736b'),
+    ).resolves.toMatchObject({
+      user: {
+        id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+        role: 'customer',
+      },
+      customerProfile: {
+        id: 'd1810af8-6172-4582-b1d8-b292ee37233a',
+      },
+      customerAddresses: [],
+      providerProfile: null,
+    });
+  });
+
   it('updates customer profile data for active customers', async () => {
     const service = new CurrentUserService(
       {
@@ -93,6 +169,7 @@ describe('CurrentUserService', () => {
           id: 'd1810af8-6172-4582-b1d8-b292ee37233a',
           address: 'Updated address',
         }),
+        listCustomerAddresses: jest.fn().mockResolvedValue([]),
       } as unknown as UserServiceClient,
       {
         updateProviderProfile: jest.fn(),

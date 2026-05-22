@@ -7,7 +7,7 @@ import { Tag, Award, ArrowRight, ArrowLeft, Briefcase } from "lucide-react";
 const serviceCategories = [
   "Home Maintenance & Repair",
   "Beauty, Wellness & Personal Care",
-  "Education & Professional Services",
+  "Educational & Professional Services",
   "Domestic & Cleaning Services",
   "Pet Services",
   "Events & Entertainment",
@@ -17,7 +17,7 @@ const serviceCategories = [
 const subCategories: Record<string, string[]> = {
   "Home Maintenance & Repair": ["Plumbing", "Electrical", "Carpentry", "Painting", "Other"],
   "Beauty, Wellness & Personal Care": ["Hair Styling", "Makeup Artist", "Massage Therapy", "Nails", "Other"],
-  "Education & Professional Services": ["Academic Tutor", "Language Teacher", "Music Lessons", "Other"],
+  "Educational & Professional Services": ["Academic Tutor", "Language Teacher", "Music Lessons", "Other"],
   "Domestic & Cleaning Services": ["House Cleaning", "Laundry", "Ironing", "Deep Cleaning", "Other"],
   "Pet Services": ["Pet Grooming", "Dog Walking", "Pet Sitting", "Other"],
   "Events & Entertainment": ["Photography", "Hosting/MC", "Catering", "DJ/Live Music", "Other"],

@@ -13,6 +13,7 @@ import type {
   ApiOptions,
   BookingSummary,
   CatalogServiceItem,
+  CustomerAddressSummary,
   CreateBookingRequest,
   CustomerPaymentMethodSummary,
   GeoAddressResult,
@@ -22,6 +23,7 @@ import type {
   UploadSummary,
 } from '../../../shared/models/types';
 import {
+  createCustomerAddress,
   createBooking,
   createPricingQuote,
   geocodeAddress,
@@ -31,7 +33,9 @@ import {
 
 type CustomerBookingFlowViewModelInput = {
   apiOptions: ApiOptions;
+  customerAddresses: CustomerAddressSummary[];
   hasSession: boolean;
+  onCustomerAddressSaved: (address: CustomerAddressSummary) => void;
   onBookingCreated: (booking: BookingSummary) => void;
   onRefreshProviderAvailability: (providerId: string) => void;
   selectedBooking: BookingSummary | null;
@@ -45,7 +49,9 @@ type CustomerBookingFlowViewModelInput = {
 
 export function useCustomerBookingFlowViewModel({
   apiOptions,
+  customerAddresses,
   hasSession,
+  onCustomerAddressSaved,
   onBookingCreated,
   onRefreshProviderAvailability,
   selectedBooking,
@@ -73,6 +79,23 @@ export function useCustomerBookingFlowViewModel({
   const [promotionValidation, setPromotionValidation] =
     useState<PromotionValidationSummary | null>(null);
   const [pricingQuote, setPricingQuote] = useState<PricingQuoteSummary | null>(null);
+  const [selectedSavedAddressId, setSelectedSavedAddressId] =
+    useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      selectedSavedAddressId ||
+      (address.trim() && address.trim() !== 'Unit 12B Greenfield Residences')
+    ) {
+      return;
+    }
+
+    const defaultAddress =
+      customerAddresses.find((item) => item.isDefault) ?? customerAddresses[0];
+    if (defaultAddress) {
+      applySavedAddress(defaultAddress);
+    }
+  }, [address, customerAddresses, selectedSavedAddressId]);
 
   useEffect(() => {
     setPromoCode('');
@@ -82,6 +105,23 @@ export function useCustomerBookingFlowViewModel({
   function setServiceAddress(value: string) {
     setAddress(value);
     setAddressGeoResult(null);
+    setSelectedSavedAddressId(null);
+  }
+
+  function applySavedAddress(savedAddress: CustomerAddressSummary) {
+    setSelectedSavedAddressId(savedAddress.id);
+    setAddress(savedAddress.address);
+    setPricingQuote(null);
+    setAddressGeoResult(
+      savedAddress.latitude !== null && savedAddress.longitude !== null
+        ? {
+            formattedAddress: savedAddress.address,
+            latitude: savedAddress.latitude,
+            longitude: savedAddress.longitude,
+            provider: 'mock',
+          }
+        : null,
+    );
   }
 
   function setBookingReferenceUploadResult(uri: string, upload: UploadSummary) {
@@ -96,18 +136,20 @@ export function useCustomerBookingFlowViewModel({
     setBookingReferenceUpload(null);
   }
 
-  async function submitBooking() {
+  async function submitBooking(
+    options: { navigateOnSuccess?: boolean; showSuccessNotice?: boolean } = {},
+  ): Promise<BookingSummary | null> {
     if (!hasSession) {
       setNotice('Sign in before creating a booking.');
       setRoute({ role: null, screen: 'loginRole' });
-      return;
+      return null;
     }
 
     const scheduledAtIso = toManilaBookingIso(scheduledAt);
 
     if (!selectedProvider || !address.trim() || !scheduledAtIso) {
       setNotice('Choose a service provider, address, and schedule.');
-      return;
+      return null;
     }
 
     setBusyAction('create-booking');
@@ -162,8 +204,13 @@ export function useCustomerBookingFlowViewModel({
       const booking = await createBooking(request, apiOptions);
       onBookingCreated(booking);
       resetBookingReferenceUpload();
-      setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
-      setNotice(`Booking ${booking.bookingReference} created.`);
+      if (options.navigateOnSuccess ?? true) {
+        setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
+      }
+      if (options.showSuccessNotice ?? true) {
+        setNotice(`Booking ${booking.bookingReference} created.`);
+      }
+      return booking;
     } catch (error) {
       const message = readError(error);
       const slotMessage = providerUnavailableSlotPickerMessage(error, message);
@@ -175,6 +222,7 @@ export function useCustomerBookingFlowViewModel({
       } else {
         setNotice(message);
       }
+      return null;
     } finally {
       setBusyAction(null);
     }
@@ -307,6 +355,39 @@ export function useCustomerBookingFlowViewModel({
     }
   }
 
+  async function saveCurrentAddressAsHome(): Promise<void> {
+    const trimmed = address.trim();
+    if (!hasSession) {
+      setNotice('Sign in before saving an address.');
+      return;
+    }
+    if (!trimmed) {
+      setNotice('Enter a service address before saving it.');
+      return;
+    }
+
+    setBusyAction('save-address');
+    try {
+      const savedAddress = await createCustomerAddress(
+        {
+          label: 'Home',
+          address: trimmed,
+          latitude: addressGeoResult?.latitude ?? null,
+          longitude: addressGeoResult?.longitude ?? null,
+          isDefault: true,
+        },
+        apiOptions,
+      );
+      applySavedAddress(savedAddress);
+      onCustomerAddressSaved(savedAddress);
+      setNotice('Home address saved.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return {
     data: {
       address,
@@ -320,10 +401,14 @@ export function useCustomerBookingFlowViewModel({
       promoCode,
       promotionValidation,
       scheduledAt,
+      savedAddresses: customerAddresses,
+      selectedSavedAddressId,
     },
     actions: {
+      applySavedAddress,
       applyPromotionCode,
       previewPricingQuote,
+      saveCurrentAddressAsHome,
       setAddress: setServiceAddress,
       setBookingReferenceUploadResult,
       setBookingSlotError,

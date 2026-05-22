@@ -126,6 +126,7 @@ export class AuthServiceClient {
         password: input.password,
         fullName: input.fullName,
         contactNumber: input.contactNumber ?? null,
+        birthdate: input.birthdate ?? null,
         role: input.role,
       }),
     });

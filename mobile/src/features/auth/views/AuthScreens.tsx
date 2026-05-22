@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction } from 'react';
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 import {
@@ -9,6 +9,7 @@ import {
   TopBar,
 } from '../../../components/DesignKit';
 import { RoleCard } from '../../../components/AppDisplay';
+import { MonthCalendar, formatApiDate } from '../../../components/MonthCalendar';
 import { AppRole, AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
 import { providerSignupRequirements } from '../../../domain/providerRegistration';
@@ -28,6 +29,7 @@ type AuthScreensProps = {
   signupContactNumber: string;
   signupAddress: string;
   signupBusinessName: string;
+  signupBirthdate: string;
   signupServiceArea: string;
   signupServiceDescription: string;
   signupExperienceYears: string;
@@ -39,17 +41,15 @@ type AuthScreensProps = {
   setSignupContactNumber: Dispatch<SetStateAction<string>>;
   setSignupAddress: Dispatch<SetStateAction<string>>;
   setSignupBusinessName: Dispatch<SetStateAction<string>>;
+  setSignupBirthdate: Dispatch<SetStateAction<string>>;
   setSignupServiceArea: Dispatch<SetStateAction<string>>;
   setSignupServiceDescription: Dispatch<SetStateAction<string>>;
   setSignupExperienceYears: Dispatch<SetStateAction<string>>;
-  setNotice: Dispatch<SetStateAction<string>>;
   navigate: (screen: AppScreen, nextRole?: AppRole | null) => void;
   signIn: (role: AppRole) => Promise<void>;
   signUp: (role: AppRole) => Promise<void>;
   requestPasswordReset: () => Promise<void>;
   startGoogleSignIn: (role: AppRole) => Promise<void>;
-  requestPhoneOtp: (target: string) => Promise<string | null>;
-  verifyPhoneOtp: (otpId: string, code: string) => Promise<boolean>;
 };
 
 export function AuthScreens({
@@ -60,6 +60,7 @@ export function AuthScreens({
   signupContactNumber,
   signupAddress,
   signupBusinessName,
+  signupBirthdate,
   signupServiceArea,
   signupServiceDescription,
   signupExperienceYears,
@@ -71,24 +72,26 @@ export function AuthScreens({
   setSignupContactNumber,
   setSignupAddress,
   setSignupBusinessName,
+  setSignupBirthdate,
   setSignupServiceArea,
   setSignupServiceDescription,
   setSignupExperienceYears,
-  setNotice,
   navigate,
   signIn,
   signUp,
   requestPasswordReset,
   startGoogleSignIn,
-  requestPhoneOtp,
-  verifyPhoneOtp,
 }: AuthScreensProps) {
-  const auth = useAuthViewModel({
-    requestPhoneOtp,
-    verifyPhoneOtp,
-    setNotice,
-  });
+  const auth = useAuthViewModel();
   const { data, actions } = auth;
+  const providerBirthdateMaxDate = getAdultBirthdateMaxDate();
+  const [signupStep, setSignupStep] = useState(0);
+
+  useEffect(() => {
+    if (screen === 'customerRegistration' || screen === 'providerRegistration') {
+      setSignupStep(0);
+    }
+  }, [screen]);
 
   if (screen === 'loginRole') {
     return (
@@ -145,74 +148,57 @@ export function AuthScreens({
     const intendedRole: AppRole =
       screen === 'providerRegistration' ? 'provider' : 'customer';
     const isProvider = intendedRole === 'provider';
+    const signupSteps = isProvider
+      ? ['Account', 'Eligibility', 'Service']
+      : ['Account', 'Address'];
+    const stepCount = signupSteps.length;
+    const clampedStep = Math.min(signupStep, stepCount - 1);
+    const isLastStep = clampedStep === stepCount - 1;
+    const stepTitle = signupSteps[clampedStep];
+    const stepSubtitle = isProvider
+      ? getProviderSignupStepSubtitle(clampedStep)
+      : getCustomerSignupStepSubtitle(clampedStep);
+    const goBack = () => {
+      if (clampedStep > 0) {
+        setSignupStep((step) => Math.max(step - 1, 0));
+        return;
+      }
+
+      navigate('signupRole', null);
+    };
+    const goNext = () => setSignupStep((step) => Math.min(step + 1, stepCount - 1));
+    const finalButtonLabel = busyAction === 'sign-up' ? 'Creating account...' : 'Create Account';
 
     return (
       <PhoneFrame>
         <StatusStrip />
-        <TopBar title="Create Account" onBack={() => navigate('signupRole', null)} />
+        <TopBar title="Create Account" onBack={goBack} />
         <ScrollView contentContainerStyle={styles.authContent}>
           <Text style={styles.authHero}>
             {isProvider ? 'Provider Signup' : 'Customer Signup'}
           </Text>
-          <Text style={styles.authSubhead}>Set up your ServEase account</Text>
-          <Field
-            label="Full Name"
-            value={signupFullName}
-            onChangeText={setSignupFullName}
-            placeholder="Juan Dela Cruz"
+          <Text style={styles.authSubhead}>{stepSubtitle}</Text>
+          <SignupProgress
+            currentStep={clampedStep}
+            steps={signupSteps}
           />
-          <Field
-            label="Email Address"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            placeholder="your.email@example.com"
+          <SignupStepHeader
+            title={stepTitle}
+            countLabel={`Step ${clampedStep + 1} of ${stepCount}`}
           />
-          <Field
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="At least 8 characters"
-          />
-          <Field
-            label="Contact Number"
-            value={signupContactNumber}
-            onChangeText={setSignupContactNumber}
-            keyboardType="phone-pad"
-            placeholder="+639000000000"
-          />
-          {isProvider ? (
-            <>
-              <ProviderRequirementsCard />
-              <Field
-                label="Business Name"
-                value={signupBusinessName}
-                onChangeText={setSignupBusinessName}
-                placeholder="GreenFix Home Services"
-              />
-              <Field
-                label="Service Area"
-                value={signupServiceArea}
-                onChangeText={setSignupServiceArea}
-                placeholder="Metro Manila"
-              />
-              <Field
-                label="Years of Experience"
-                value={signupExperienceYears}
-                onChangeText={setSignupExperienceYears}
-                keyboardType="numeric"
-                placeholder="3"
-              />
-              <Field
-                label="Service Description"
-                value={signupServiceDescription}
-                onChangeText={setSignupServiceDescription}
-                placeholder="Tell customers what you offer"
-                multiline
-              />
-            </>
-          ) : (
+          {clampedStep === 0 ? (
+            <SignupAccountFields
+              email={email}
+              password={password}
+              signupFullName={signupFullName}
+              signupContactNumber={signupContactNumber}
+              setEmail={setEmail}
+              setPassword={setPassword}
+              setSignupFullName={setSignupFullName}
+              setSignupContactNumber={setSignupContactNumber}
+            />
+          ) : null}
+          {!isProvider && clampedStep === 1 ? (
             <Field
               label="Default Address"
               value={signupAddress}
@@ -220,11 +206,34 @@ export function AuthScreens({
               placeholder="Unit, street, city"
               multiline
             />
-          )}
-          <PrimaryButton
-            label={busyAction === 'sign-up' ? 'Creating account...' : 'Create Account'}
-            onPress={() => void signUp(intendedRole)}
-            disabled={busyAction === 'sign-up'}
+          ) : null}
+          {isProvider && clampedStep === 1 ? (
+            <ProviderEligibilityStep
+              signupBirthdate={signupBirthdate}
+              setSignupBirthdate={setSignupBirthdate}
+              providerBirthdateMaxDate={providerBirthdateMaxDate}
+            />
+          ) : null}
+          {isProvider && clampedStep === 2 ? (
+            <ProviderServiceStep
+              signupBusinessName={signupBusinessName}
+              signupServiceArea={signupServiceArea}
+              signupExperienceYears={signupExperienceYears}
+              signupServiceDescription={signupServiceDescription}
+              setSignupBusinessName={setSignupBusinessName}
+              setSignupServiceArea={setSignupServiceArea}
+              setSignupExperienceYears={setSignupExperienceYears}
+              setSignupServiceDescription={setSignupServiceDescription}
+            />
+          ) : null}
+          <SignupStepActions
+            canGoBack={clampedStep > 0}
+            isLastStep={isLastStep}
+            busy={busyAction === 'sign-up'}
+            finalButtonLabel={finalButtonLabel}
+            onBack={goBack}
+            onNext={goNext}
+            onSubmit={() => void signUp(intendedRole)}
           />
           <Text style={styles.noticeText}>{notice}</Text>
         </ScrollView>
@@ -243,7 +252,7 @@ export function AuthScreens({
           <Text style={styles.authHero}>Welcome!</Text>
           <Text style={styles.authSubhead}>Choose one sign-in method</Text>
           <View style={styles.methodTabs}>
-            {(['email', 'google', 'phone'] as const).map((method) => (
+            {(['email', 'google'] as const).map((method) => (
               <Pressable
                 key={method}
                 style={[
@@ -260,7 +269,7 @@ export function AuthScreens({
                     data.loginMethod === method && styles.methodTabTextSelected,
                   ]}
                 >
-                  {method === 'email' ? 'Email' : method === 'google' ? 'Google' : 'Phone'}
+                  {method === 'email' ? 'Email' : 'Google'}
                 </Text>
               </Pressable>
             ))}
@@ -307,49 +316,6 @@ export function AuthScreens({
               </Text>
             </Pressable>
           ) : null}
-          {data.loginMethod === 'phone' ? (
-            <>
-              <Field
-                label="Phone Verification"
-                value={data.phoneLoginTarget}
-                onChangeText={actions.updatePhoneLoginTarget}
-                keyboardType="phone-pad"
-                placeholder="+639000000000"
-              />
-              <Pressable
-                style={styles.socialButton}
-                onPress={() => void actions.sendPhoneOtp()}
-                disabled={busyAction === 'otp-generate'}
-                accessibilityRole="button"
-              >
-                <Text style={styles.phoneMark}>P</Text>
-                <Text style={styles.socialText}>
-                  {busyAction === 'otp-generate'
-                    ? 'Sending OTP...'
-                    : 'Send Phone Verification OTP'}
-                </Text>
-              </Pressable>
-            </>
-          ) : null}
-          {data.loginMethod === 'phone' && data.phoneOtpId ? (
-            <>
-              <Field
-                label="OTP Code"
-                value={data.phoneOtpCode}
-                onChangeText={actions.setPhoneOtpCode}
-                keyboardType="number-pad"
-                placeholder="6-digit code"
-              />
-              <PrimaryButton
-                label={busyAction === 'otp-verify' ? 'Verifying OTP...' : 'Verify OTP'}
-                onPress={() => void actions.verifyPhoneOtpCode()}
-                disabled={
-                  busyAction === 'otp-verify' || data.phoneOtpCode.trim().length < 4
-                }
-                variant="secondary"
-              />
-            </>
-          ) : null}
           <Text style={styles.noticeText}>{notice}</Text>
         </ScrollView>
       </PhoneFrame>
@@ -359,32 +325,40 @@ export function AuthScreens({
   return (
     <PhoneFrame>
       <View style={styles.authGate}>
-        <Image
-          source={claireImage2}
-          style={styles.claireTopLeftAsset}
-          resizeMode="contain"
-          accessible={false}
-        />
-        <Image
-          source={claireImg0157}
-          style={styles.claireTopRightAsset}
-          resizeMode="contain"
-          accessible={false}
-        />
-        <Image
-          source={claireImage3}
-          style={styles.claireBottomLeftAsset}
-          resizeMode="contain"
-          accessible={false}
-        />
-        <Image
-          source={claireImage4}
-          style={styles.claireBottomRightAsset}
-          resizeMode="contain"
-          accessible={false}
-        />
+        <View style={styles.claireTopLeftAsset} pointerEvents="none">
+          <Image
+            source={claireImage2}
+            style={styles.claireDecorativeImage}
+            resizeMode="contain"
+            accessible={false}
+          />
+        </View>
+        <View style={styles.claireTopRightAsset} pointerEvents="none">
+          <Image
+            source={claireImg0157}
+            style={styles.claireDecorativeImage}
+            resizeMode="contain"
+            accessible={false}
+          />
+        </View>
+        <View style={styles.claireBottomLeftAsset} pointerEvents="none">
+          <Image
+            source={claireImage3}
+            style={styles.claireDecorativeImage}
+            resizeMode="contain"
+            accessible={false}
+          />
+        </View>
+        <View style={styles.claireBottomRightAsset} pointerEvents="none">
+          <Image
+            source={claireImage4}
+            style={styles.claireDecorativeImage}
+            resizeMode="contain"
+            accessible={false}
+          />
+        </View>
 
-        <View style={styles.claireLogoWrap}>
+        <View style={styles.claireLogoWrap} pointerEvents="none">
           <Image
             source={claireLogo}
             style={styles.claireLogoImage}
@@ -399,78 +373,287 @@ export function AuthScreens({
 
         <View style={styles.claireActions}>
           <Pressable
-            style={[
-              styles.claireSignupButton,
-              !data.isAgreed && styles.claireButtonDisabled,
-            ]}
-            onPress={() => {
-              if (!data.isAgreed) {
-                return;
-              }
-              navigate('signupRole', null);
-            }}
-            disabled={!data.isAgreed}
+            style={styles.claireSignupButton}
+            onPress={() => navigate('signupRole', null)}
             accessibilityRole="button"
           >
-            <Text
-              style={[
-                styles.claireSignupText,
-                !data.isAgreed && styles.claireSignupTextDisabled,
-              ]}
-            >
+            <Text style={styles.claireSignupText}>
               Sign up for ServEase
             </Text>
           </Pressable>
 
           <Pressable
-            style={[
-              styles.claireLoginButton,
-              !data.isAgreed && styles.claireLoginButtonDisabled,
-            ]}
-            onPress={() => {
-              if (data.isAgreed) {
-                navigate('loginRole', null);
-              }
-            }}
-            disabled={!data.isAgreed}
+            style={styles.claireLoginButton}
+            onPress={() => navigate('loginRole', null)}
             accessibilityRole="button"
           >
-            <Text
-              style={[
-                styles.claireLoginText,
-                !data.isAgreed && styles.claireLoginTextDisabled,
-              ]}
-            >
+            <Text style={styles.claireLoginText}>
               Log in
-            </Text>
-          </Pressable>
-          {!data.isAgreed ? (
-            <Text style={styles.legalHint}>Agree to the terms to continue.</Text>
-          ) : null}
-        </View>
-
-        <View style={styles.legalWrap}>
-          <Pressable
-            style={styles.legalRow}
-            onPress={() => actions.setIsAgreed((value) => !value)}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: data.isAgreed }}
-          >
-            <View style={[styles.checkbox, data.isAgreed && styles.checkboxChecked]}>
-              {data.isAgreed ? (
-                <Check color={palette.mint} size={13} strokeWidth={3} />
-              ) : null}
-            </View>
-            <Text style={styles.legalText}>
-              I have read and agree to the{' '}
-              <Text style={styles.legalLink}>Terms & Conditions</Text>
-              {' '}and{' '}
-              <Text style={styles.legalLink}>Privacy Policy</Text>.
             </Text>
           </Pressable>
         </View>
       </View>
     </PhoneFrame>
+  );
+}
+
+function getAdultBirthdateMaxDate(): string {
+  const today = new Date();
+  return formatApiDate(
+    new Date(today.getFullYear() - 18, today.getMonth(), today.getDate()),
+  );
+}
+
+function getProviderSignupStepSubtitle(step: number): string {
+  if (step === 0) {
+    return 'Start with your login and contact details';
+  }
+
+  if (step === 1) {
+    return 'Confirm your provider eligibility';
+  }
+
+  return 'Describe the service customers will book';
+}
+
+function getCustomerSignupStepSubtitle(step: number): string {
+  if (step === 0) {
+    return 'Start with your login and contact details';
+  }
+
+  return 'Add where providers should serve you';
+}
+
+function SignupProgress({
+  currentStep,
+  steps,
+}: {
+  currentStep: number;
+  steps: string[];
+}) {
+  return (
+    <View style={styles.signupProgress}>
+      {steps.map((step, index) => {
+        const isActive = index === currentStep;
+        const isComplete = index < currentStep;
+
+        return (
+          <View key={step} style={styles.progressStep}>
+            <View
+              style={[
+                styles.progressDot,
+                (isActive || isComplete) && styles.progressDotActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.progressDotText,
+                  (isActive || isComplete) && styles.progressDotTextActive,
+                ]}
+              >
+                {index + 1}
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.progressLabel,
+                isActive && styles.progressLabelActive,
+              ]}
+              numberOfLines={1}
+            >
+              {step}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function SignupStepHeader({
+  title,
+  countLabel,
+}: {
+  title: string;
+  countLabel: string;
+}) {
+  return (
+    <View style={styles.signupStepHeader}>
+      <Text style={styles.signupStepTitle}>{title}</Text>
+      <Text style={styles.signupStepCount}>{countLabel}</Text>
+    </View>
+  );
+}
+
+function SignupAccountFields({
+  email,
+  password,
+  signupFullName,
+  signupContactNumber,
+  setEmail,
+  setPassword,
+  setSignupFullName,
+  setSignupContactNumber,
+}: {
+  email: string;
+  password: string;
+  signupFullName: string;
+  signupContactNumber: string;
+  setEmail: Dispatch<SetStateAction<string>>;
+  setPassword: Dispatch<SetStateAction<string>>;
+  setSignupFullName: Dispatch<SetStateAction<string>>;
+  setSignupContactNumber: Dispatch<SetStateAction<string>>;
+}) {
+  return (
+    <>
+      <Field
+        label="Full Name"
+        value={signupFullName}
+        onChangeText={setSignupFullName}
+        placeholder="Juan Dela Cruz"
+      />
+      <Field
+        label="Email Address"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        placeholder="your.email@example.com"
+      />
+      <Field
+        label="Password"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+        placeholder="At least 8 characters"
+      />
+      <Field
+        label="Contact Number"
+        value={signupContactNumber}
+        onChangeText={setSignupContactNumber}
+        keyboardType="phone-pad"
+        placeholder="+639000000000"
+      />
+    </>
+  );
+}
+
+function ProviderEligibilityStep({
+  signupBirthdate,
+  setSignupBirthdate,
+  providerBirthdateMaxDate,
+}: {
+  signupBirthdate: string;
+  setSignupBirthdate: Dispatch<SetStateAction<string>>;
+  providerBirthdateMaxDate: string;
+}) {
+  return (
+    <>
+      <ProviderRequirementsCard />
+      <View style={styles.birthdatePicker}>
+        <Text style={styles.birthdateLabel}>Birthdate</Text>
+        <Text style={styles.birthdateValue}>
+          {signupBirthdate || 'Select your birthdate'}
+        </Text>
+        <MonthCalendar
+          selectedDate={signupBirthdate || null}
+          onSelectDate={setSignupBirthdate}
+          maxDate={providerBirthdateMaxDate}
+          initialMonth={signupBirthdate || providerBirthdateMaxDate}
+          showMonthYearPicker
+        />
+      </View>
+    </>
+  );
+}
+
+function ProviderServiceStep({
+  signupBusinessName,
+  signupServiceArea,
+  signupExperienceYears,
+  signupServiceDescription,
+  setSignupBusinessName,
+  setSignupServiceArea,
+  setSignupExperienceYears,
+  setSignupServiceDescription,
+}: {
+  signupBusinessName: string;
+  signupServiceArea: string;
+  signupExperienceYears: string;
+  signupServiceDescription: string;
+  setSignupBusinessName: Dispatch<SetStateAction<string>>;
+  setSignupServiceArea: Dispatch<SetStateAction<string>>;
+  setSignupExperienceYears: Dispatch<SetStateAction<string>>;
+  setSignupServiceDescription: Dispatch<SetStateAction<string>>;
+}) {
+  return (
+    <>
+      <Field
+        label="Business Name"
+        value={signupBusinessName}
+        onChangeText={setSignupBusinessName}
+        placeholder="GreenFix Home Services"
+      />
+      <Field
+        label="Service Area"
+        value={signupServiceArea}
+        onChangeText={setSignupServiceArea}
+        placeholder="Metro Manila"
+      />
+      <Field
+        label="Years of Experience"
+        value={signupExperienceYears}
+        onChangeText={setSignupExperienceYears}
+        keyboardType="numeric"
+        placeholder="3"
+      />
+      <Field
+        label="Service Description"
+        value={signupServiceDescription}
+        onChangeText={setSignupServiceDescription}
+        placeholder="Tell customers what you offer"
+        multiline
+      />
+    </>
+  );
+}
+
+function SignupStepActions({
+  canGoBack,
+  isLastStep,
+  busy,
+  finalButtonLabel,
+  onBack,
+  onNext,
+  onSubmit,
+}: {
+  canGoBack: boolean;
+  isLastStep: boolean;
+  busy: boolean;
+  finalButtonLabel: string;
+  onBack: () => void;
+  onNext: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <View style={styles.signupActions}>
+      {canGoBack ? (
+        <View style={styles.signupActionButton}>
+          <PrimaryButton
+            label="Back"
+            onPress={onBack}
+            disabled={busy}
+            variant="secondary"
+          />
+        </View>
+      ) : null}
+      <View style={styles.signupActionButton}>
+        <PrimaryButton
+          label={isLastStep ? finalButtonLabel : 'Next'}
+          onPress={isLastStep ? onSubmit : onNext}
+          disabled={busy}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -530,6 +713,10 @@ const styles = StyleSheet.create({
     right: -45,
     width: 200,
   },
+  claireDecorativeImage: {
+    height: '100%',
+    width: '100%',
+  },
   claireLogoWrap: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -554,11 +741,13 @@ const styles = StyleSheet.create({
     width: 336,
   },
   claireActions: {
+    elevation: 4,
     gap: 19,
     left: 20,
     position: 'absolute',
     right: 20,
     top: 445,
+    zIndex: 4,
   },
   claireSignupButton: {
     alignItems: 'center',
@@ -599,51 +788,6 @@ const styles = StyleSheet.create({
   claireLoginTextDisabled: {
     color: 'rgba(255,255,255,0.45)',
   },
-  legalHint: {
-    color: 'rgba(255,255,255,0.86)',
-    fontSize: 12,
-    fontWeight: '700',
-    lineHeight: 17,
-    textAlign: 'center',
-  },
-  legalWrap: {
-    left: 35,
-    position: 'absolute',
-    right: 35,
-    top: 612,
-  },
-  legalRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: 10,
-  },
-  checkbox: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderColor: palette.white,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    height: 18,
-    justifyContent: 'center',
-    marginTop: 3,
-    width: 18,
-  },
-  checkboxChecked: {
-    backgroundColor: palette.white,
-  },
-  legalText: {
-    color: 'rgba(255,255,255,0.9)',
-    flex: 1,
-    fontSize: 11,
-    fontWeight: '500',
-    lineHeight: 18,
-  },
-  legalLink: {
-    color: palette.white,
-    fontSize: 11,
-    fontWeight: '800',
-    textDecorationLine: 'underline',
-  },
   authContent: {
     gap: spacing.md,
     padding: spacing.md,
@@ -657,6 +801,73 @@ const styles = StyleSheet.create({
     ...type.body,
     color: palette.muted,
     marginTop: -spacing.md,
+  },
+  signupProgress: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  progressStep: {
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.xs,
+  },
+  progressDot: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  progressDotActive: {
+    backgroundColor: palette.mint,
+    borderColor: palette.mint,
+  },
+  progressDotText: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  progressDotTextActive: {
+    color: palette.white,
+  },
+  progressLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 15,
+    textAlign: 'center',
+  },
+  progressLabelActive: {
+    color: palette.ink,
+  },
+  signupStepHeader: {
+    alignItems: 'center',
+    borderBottomColor: palette.lineSoft,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingBottom: spacing.sm,
+  },
+  signupStepTitle: {
+    color: palette.ink,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  signupStepCount: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  signupActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  signupActionButton: {
+    flex: 1,
   },
   requirementsCard: {
     backgroundColor: palette.white,
@@ -762,10 +973,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
   },
-  phoneMark: {
+  birthdatePicker: {
+    gap: spacing.sm,
+  },
+  birthdateLabel: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  birthdateValue: {
     color: palette.ink,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '700',
   },
   socialText: {
     color: palette.ink,

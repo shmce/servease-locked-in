@@ -4,6 +4,7 @@ import {
   addProviderPortfolioMedia,
   addProviderTimeOffWindow,
   checkGeoFence,
+  createCustomerAddress,
   createBooking,
   createBookingServiceUpdate,
   createCheckoutSession,
@@ -12,6 +13,7 @@ import {
   createPricingQuote,
   createSupportTicket,
   deleteCustomerPaymentMethod,
+  deleteCustomerAddress,
   deleteBookingAttachment,
   deleteCurrentUserAccount,
   deleteProviderPortfolioMedia,
@@ -35,6 +37,7 @@ import {
   listBookingServiceUpdates,
   listBookingTimelineEvents,
   listCustomerPaymentMethods,
+  listCustomerAddresses,
   listCustomerBookings,
   listProviderPayoutMethods,
   listProviderPayouts,
@@ -52,6 +55,7 @@ import {
   subscribeBookingTrackingSnapshots,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
+  setDefaultCustomerAddress,
   updateBookingLiveLocation,
   updateProviderPortfolioMedia,
   upsertCustomerPaymentMethod,
@@ -526,6 +530,23 @@ describe('serveaseApi', () => {
             id: 'customer-profile-1',
             address: '123 Test St',
           },
+          customerAddresses: [
+            {
+              id: 'address-1',
+              userId: 'user-1',
+              label: 'Home',
+              address: '123 Test St',
+              barangay: null,
+              city: null,
+              province: null,
+              region: null,
+              latitude: null,
+              longitude: null,
+              isDefault: true,
+              createdAt: null,
+              updatedAt: null,
+            },
+          ],
           providerProfile: null,
         },
       });
@@ -540,6 +561,7 @@ describe('serveaseApi', () => {
     assert.equal(authorization, 'Bearer access-token');
     assert.equal(profile.user.email, 'customer@example.com');
     assert.equal(profile.customerProfile?.address, '123 Test St');
+    assert.equal(profile.customerAddresses[0]?.label, 'Home');
   });
 
   it('registers a customer account through the gateway', async () => {
@@ -563,6 +585,7 @@ describe('serveaseApi', () => {
             id: 'customer-profile-1',
             address: '123 New Street',
           },
+          customerAddresses: [],
           providerProfile: null,
         },
       });
@@ -749,6 +772,7 @@ describe('serveaseApi', () => {
             id: 'customer-profile-1',
             address: 'Updated address',
           },
+          customerAddresses: [],
           providerProfile: null,
         },
       });
@@ -774,6 +798,117 @@ describe('serveaseApi', () => {
       contactNumber: '+639000000001',
       address: 'Updated address',
     });
+  });
+
+  it('manages customer saved addresses through the gateway', async () => {
+    const calls: Array<{ url: string; method?: string; body?: unknown }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({
+        url,
+        method: init?.method,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
+      });
+
+      if (url === 'http://gateway.test/v1/me/addresses' && init?.method === 'GET') {
+        return jsonResponse({
+          data: [
+            {
+              id: 'address-1',
+              userId: 'user-1',
+              label: 'Home',
+              address: '123 Test St',
+              barangay: null,
+              city: 'Manila',
+              province: null,
+              region: 'NCR',
+              latitude: 14.5995,
+              longitude: 120.9842,
+              isDefault: true,
+              createdAt: null,
+              updatedAt: null,
+            },
+          ],
+        });
+      }
+
+      if (url === 'http://gateway.test/v1/me/addresses' && init?.method === 'POST') {
+        return jsonResponse({
+          data: {
+            id: 'address-2',
+            userId: 'user-1',
+            label: 'Work',
+            address: '456 Office Ave',
+            barangay: null,
+            city: null,
+            province: null,
+            region: null,
+            latitude: null,
+            longitude: null,
+            isDefault: false,
+            createdAt: null,
+            updatedAt: null,
+          },
+        });
+      }
+
+      if (
+        url === 'http://gateway.test/v1/me/addresses/address-2/default' &&
+        init?.method === 'POST'
+      ) {
+        return jsonResponse({
+          data: {
+            id: 'address-2',
+            userId: 'user-1',
+            label: 'Work',
+            address: '456 Office Ave',
+            barangay: null,
+            city: null,
+            province: null,
+            region: null,
+            latitude: null,
+            longitude: null,
+            isDefault: true,
+            createdAt: null,
+            updatedAt: null,
+          },
+        });
+      }
+
+      assert.equal(url, 'http://gateway.test/v1/me/addresses/address-1');
+      assert.equal(init?.method, 'DELETE');
+      return jsonResponse({ data: { ok: true } });
+    };
+
+    const addresses = await listCustomerAddresses({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    const created = await createCustomerAddress(
+      { label: 'Work', address: '456 Office Ave' },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
+    const defaultAddress = await setDefaultCustomerAddress('address-2', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+    const deleted = await deleteCustomerAddress('address-1', {
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.equal(addresses[0]?.label, 'Home');
+    assert.equal(created.address, '456 Office Ave');
+    assert.equal(defaultAddress.isDefault, true);
+    assert.deepEqual(deleted, { ok: true });
+    assert.deepEqual(calls.map((call) => [call.method, call.url]), [
+      ['GET', 'http://gateway.test/v1/me/addresses'],
+      ['POST', 'http://gateway.test/v1/me/addresses'],
+      ['POST', 'http://gateway.test/v1/me/addresses/address-2/default'],
+      ['DELETE', 'http://gateway.test/v1/me/addresses/address-1'],
+    ]);
   });
 
   it('updates the current user password through the gateway', async () => {

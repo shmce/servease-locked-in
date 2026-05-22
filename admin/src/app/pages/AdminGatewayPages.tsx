@@ -60,6 +60,7 @@ import {
   listAdminBroadcasts,
   listAdminSupportTickets,
   listAdminUsers,
+  sendAdminProviderMessage,
   sendAdminBroadcast,
   type AdminBroadcastChannel,
   updateAdminSupportTicketStatus,
@@ -86,6 +87,11 @@ const broadcastChannelOptions: Array<{
   { value: "email", label: "Email", icon: Mail },
   { value: "sms", label: "SMS", icon: Smartphone },
 ];
+
+function parseSupportTicketBookingId(message: string | null): string {
+  const match = message?.match(/(?:^|\n)\s*Booking:\s*([^\s\n]+)/i);
+  return match?.[1]?.trim() ?? "";
+}
 
 export function Customers() {
   const { accessToken } = useAuth();
@@ -411,6 +417,10 @@ export function Support() {
   const [replyMessage, setReplyMessage] = useState("");
   const [isSendingReply, setIsSendingReply] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  const [providerBookingId, setProviderBookingId] = useState("");
+  const [providerMessage, setProviderMessage] = useState("");
+  const [isSendingProviderMessage, setIsSendingProviderMessage] = useState(false);
+  const [providerMessageError, setProviderMessageError] = useState<string | null>(null);
   const [pendingStatusChange, setPendingStatusChange] = useState<{
     ticket: AdminSupportTicketSummary;
     nextStatus: AdminSupportTicketStatus;
@@ -477,6 +487,9 @@ export function Support() {
       setTicketReplies([]);
       setReplyMessage("");
       setReplyError(null);
+      setProviderBookingId(parseSupportTicketBookingId(ticket.message));
+      setProviderMessage("");
+      setProviderMessageError(null);
 
       if (!accessToken) return;
 
@@ -501,6 +514,39 @@ export function Support() {
     setTicketReplies([]);
     setReplyMessage("");
     setReplyError(null);
+    setProviderBookingId("");
+    setProviderMessage("");
+    setProviderMessageError(null);
+  };
+
+  const sendProviderMessage = async () => {
+    if (!accessToken || !selectedTicket) return;
+
+    const bookingId = providerBookingId.trim();
+    const message = providerMessage.trim();
+
+    if (!bookingId || !message) {
+      setProviderMessageError("Enter a booking ID and provider message.");
+      return;
+    }
+
+    setIsSendingProviderMessage(true);
+    setProviderMessageError(null);
+
+    try {
+      await sendAdminProviderMessage(accessToken, bookingId, message);
+      setProviderMessage("");
+      toast.success(`Message sent to provider for booking ${bookingId}.`);
+    } catch (sendError) {
+      const errorMessage =
+        sendError instanceof Error
+          ? sendError.message
+          : "Unable to message provider.";
+      setProviderMessageError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsSendingProviderMessage(false);
+    }
   };
 
   const sendTicketReply = async () => {
@@ -876,6 +922,62 @@ export function Support() {
                 <p className="mt-1 whitespace-pre-wrap text-gray-900">
                   {selectedTicket.message ?? "No message provided."}
                 </p>
+              </div>
+              <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium text-gray-900">Message provider</p>
+                    <p className="text-xs text-gray-500">
+                      Sends a booking-scoped admin message to the provider owner.
+                    </p>
+                  </div>
+                  {providerBookingId ? (
+                    <span className="rounded-md border border-blue-200 bg-white px-2 py-1 font-mono text-xs text-blue-700">
+                      {providerBookingId}
+                    </span>
+                  ) : null}
+                </div>
+                {!parseSupportTicketBookingId(selectedTicket.message) ? (
+                  <div className="mb-3 space-y-2">
+                    <label
+                      htmlFor="support-provider-booking-id"
+                      className="block text-sm font-medium text-gray-700"
+                    >
+                      Booking ID
+                    </label>
+                    <Input
+                      id="support-provider-booking-id"
+                      value={providerBookingId}
+                      onChange={(event) => setProviderBookingId(event.target.value)}
+                      placeholder="Enter the booking ID for this provider"
+                    />
+                  </div>
+                ) : null}
+                {providerMessageError && (
+                  <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {providerMessageError}
+                  </div>
+                )}
+                <Textarea
+                  value={providerMessage}
+                  onChange={(event) => setProviderMessage(event.target.value)}
+                  placeholder="Type a message to the provider..."
+                  className="min-h-24 bg-white"
+                />
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    onClick={() => void sendProviderMessage()}
+                    disabled={
+                      isSendingProviderMessage ||
+                      !providerBookingId.trim() ||
+                      !providerMessage.trim()
+                    }
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <MessageSquare className="mr-2 h-4 w-4" />
+                    {isSendingProviderMessage ? "Sending..." : "Message Provider"}
+                  </Button>
+                </div>
               </div>
               <div className="rounded-lg border border-gray-200 p-3">
                 <div className="mb-3 flex items-center justify-between gap-3">

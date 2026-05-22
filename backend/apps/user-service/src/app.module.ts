@@ -3,6 +3,12 @@ import { ConfigModule } from '@nestjs/config';
 import { AdminUserController } from './features/admin-users/admin-user.controller';
 import { AdminUserService } from './features/admin-users/admin-user.service';
 import { SupabaseAdminUserRepository } from './features/admin-users/supabase-admin-user.repository';
+import { CustomerAddressController } from './features/customer-addresses/customer-address.controller';
+import {
+  CUSTOMER_ADDRESS_REPOSITORY,
+  CustomerAddressService,
+} from './features/customer-addresses/customer-address.service';
+import { SupabaseCustomerAddressRepository } from './features/customer-addresses/supabase-customer-address.repository';
 import { CustomerProfileController } from './features/customer-profile/customer-profile.controller';
 import {
   CUSTOMER_PROFILE_REPOSITORY,
@@ -30,6 +36,7 @@ import { SharedGeoService } from './features/shared-geo/shared-geo.service';
   controllers: [
     HealthController,
     AdminUserController,
+    CustomerAddressController,
     CustomerProfileController,
     ReferralController,
     UserPreferenceController,
@@ -41,10 +48,15 @@ import { SharedGeoService } from './features/shared-geo/shared-geo.service';
       provide: SupabaseAdminUserRepository,
       useFactory: () => new SupabaseAdminUserRepository(),
     },
+    CustomerAddressService,
     CustomerProfileService,
     ReferralService,
     UserPreferenceService,
     SharedGeoService,
+    {
+      provide: CUSTOMER_ADDRESS_REPOSITORY,
+      useFactory: () => new SupabaseCustomerAddressRepository(),
+    },
     {
       provide: CUSTOMER_PROFILE_REPOSITORY,
       useFactory: () => new SupabaseCustomerProfileRepository(),

@@ -300,7 +300,7 @@ export function Revenue() {
                   <SelectItem value="pet">Pet Services</SelectItem>
                   <SelectItem value="events">Events & Entertainment</SelectItem>
                   <SelectItem value="auto">Automotive & Tech Support</SelectItem>
-                  <SelectItem value="education">Education & Professional Services</SelectItem>
+                  <SelectItem value="education">Educational & Professional Services</SelectItem>
                 </SelectContent>
               </Select>
             </div>

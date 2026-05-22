@@ -26,6 +26,7 @@ export type ProviderBookingDetailAction =
 type ProviderBookingDetailViewModelInput = {
   booking: BookingSummary;
   busyAction: string | null;
+  hasBlockingActiveBooking?: boolean;
   selectedPayment: PaymentSummary | null;
 };
 
@@ -40,6 +41,7 @@ type ProviderStatusActionRow = {
 export function useProviderBookingDetailViewModel({
   booking,
   busyAction,
+  hasBlockingActiveBooking = false,
   selectedPayment,
 }: ProviderBookingDetailViewModelInput) {
   return useMemo(
@@ -47,15 +49,17 @@ export function useProviderBookingDetailViewModel({
       buildProviderBookingDetailViewModel({
         booking,
         busyAction,
+        hasBlockingActiveBooking,
         selectedPayment,
       }),
-    [booking, busyAction, selectedPayment],
+    [booking, busyAction, hasBlockingActiveBooking, selectedPayment],
   );
 }
 
 export function buildProviderBookingDetailViewModel({
   booking,
   busyAction,
+  hasBlockingActiveBooking = false,
   selectedPayment,
 }: ProviderBookingDetailViewModelInput) {
   const serviceDetailRows = [
@@ -110,7 +114,12 @@ export function buildProviderBookingDetailViewModel({
       estimatedEarningsLabel,
       serviceDetailRows,
       serviceTitle: booking.serviceTitle ?? 'Service booking',
-      statusActions: buildStatusActions(booking, busyAction, selectedPayment),
+      statusActions: buildStatusActions(
+        booking,
+        busyAction,
+        hasBlockingActiveBooking,
+        selectedPayment,
+      ),
       statusChip: bookingStatusChip(booking.status),
       timelineSteps: timelineForStatus(booking.status),
     },
@@ -122,6 +131,7 @@ export function buildProviderBookingDetailViewModel({
 function buildStatusActions(
   booking: BookingSummary,
   busyAction: string | null,
+  hasBlockingActiveBooking: boolean,
   selectedPayment: PaymentSummary | null,
 ): ProviderStatusActionRow[] {
   const completionBlockedByPayment =
@@ -134,13 +144,15 @@ function buildStatusActions(
       return [
         {
           action: 'confirm',
-          disabled: busyAction === 'booking-confirmed',
+          disabled:
+            hasBlockingActiveBooking || busyAction === 'booking-confirmed',
           key: 'confirm',
           label: 'Confirm Booking',
         },
         {
           action: 'decline',
-          disabled: busyAction === 'booking-rejected',
+          disabled:
+            hasBlockingActiveBooking || busyAction === 'booking-rejected',
           key: 'decline',
           label: 'Decline Request',
           variant: 'danger',
@@ -150,17 +162,20 @@ function buildStatusActions(
       return [
         {
           action: 'startNavigation',
+          disabled: hasBlockingActiveBooking,
           key: 'start-navigation',
           label: 'Start Navigation',
         },
         {
           action: 'startService',
+          disabled: hasBlockingActiveBooking,
           key: 'start-service',
           label: 'Start Service',
           variant: 'secondary',
         },
         {
           action: 'cancel',
+          disabled: hasBlockingActiveBooking,
           key: 'cancel',
           label: 'Cancel Booking',
           variant: 'danger',

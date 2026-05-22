@@ -35,6 +35,7 @@ export type DetailScreen =
   | 'customerServiceHistory'
   | 'customerNotifications'
   | 'customerPaymentMethods'
+  | 'customerAddresses'
   | 'customerReferral'
   | 'customerTerms'
   | 'providerBookingDetail'

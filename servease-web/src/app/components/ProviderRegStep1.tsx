@@ -2,15 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { User, Mail, Phone, Lock, ArrowRight, Eye, EyeOff, Check } from "lucide-react";
-import { TermsConditions } from "./TermsConditions";
-import { PrivacyPolicy } from "./PrivacyPolicy";
+import { User, Mail, Phone, Lock, ArrowRight, Eye, EyeOff, Check, Calendar } from "lucide-react";
 
 export function ProviderRegStep1() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
+    birthdate: "",
     contactNumber: "",
     password: "",
     confirmPassword: "",
@@ -19,9 +18,6 @@ export function ProviderRegStep1() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [acceptedPolicies, setAcceptedPolicies] = useState(false);
-  const [showTermsModal, setShowTermsModal] = useState(false);
-  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
   // Password validation checks
   const passwordValidation = {
@@ -43,6 +39,10 @@ export function ProviderRegStep1() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       newErrors.email = "Please enter a valid email address";
+    }
+
+    if (!isAdultBirthdate(formData.birthdate)) {
+      newErrors.birthdate = "Service providers must be at least 18 years old";
     }
 
     // Contact Number validation (10 digits for Philippine numbers)
@@ -67,7 +67,7 @@ export function ProviderRegStep1() {
 
   const handleNext = (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm() && acceptedPolicies) {
+    if (validateForm()) {
       // Store data in sessionStorage
       sessionStorage.setItem("providerRegStep1", JSON.stringify(formData));
       router.push("/provider-registration/step-2");
@@ -161,6 +161,27 @@ export function ProviderRegStep1() {
               </div>
               {errors.email && (
                 <p className="font-['Poppins',sans-serif] text-xs text-red-500 mt-1">{errors.email}</p>
+              )}
+            </div>
+
+            {/* Birthdate */}
+            <div>
+              <label className="block font-['Poppins',sans-serif] text-sm text-gray-700 mb-2">
+                Birthdate <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                  type="date"
+                  name="birthdate"
+                  value={formData.birthdate}
+                  onChange={handleInputChange}
+                  className={`w-full pl-11 pr-4 py-3 border ${errors.birthdate ? 'border-red-500' : 'border-gray-300'} rounded-lg font-['Poppins',sans-serif] text-sm focus:outline-none focus:ring-2 focus:ring-[#00BF63]/50 focus:border-[#00BF63]`}
+                  required
+                />
+              </div>
+              {errors.birthdate && (
+                <p className="font-['Poppins',sans-serif] text-xs text-red-500 mt-1">{errors.birthdate}</p>
               )}
             </div>
 
@@ -277,42 +298,6 @@ export function ProviderRegStep1() {
               )}
             </div>
 
-            {/* Accept Policies */}
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                name="acceptedPolicies"
-                checked={acceptedPolicies}
-                onChange={() => setAcceptedPolicies(!acceptedPolicies)}
-                className="w-4 h-4 text-[#00BF63] bg-gray-100 border-gray-300 rounded focus:ring-[#00BF63] focus:ring-2"
-                required
-              />
-              <label className="ml-2 font-['Poppins',sans-serif] text-sm text-gray-700">
-                I accept the{" "}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setShowTermsModal(true);
-                  }}
-                  className="text-[#00BF63] font-semibold hover:underline"
-                >
-                  Terms & Conditions
-                </button>{" "}
-                and{" "}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setShowPrivacyModal(true);
-                  }}
-                  className="text-[#00BF63] font-semibold hover:underline"
-                >
-                  Privacy Policy
-                </button>
-              </label>
-            </div>
-
             {/* Next Button */}
             <div className="pt-4">
               <button
@@ -326,12 +311,68 @@ export function ProviderRegStep1() {
           </form>
         </div>
       </div>
-
-      {/* Terms and Conditions Modal */}
-      <TermsConditions isOpen={showTermsModal} onClose={() => setShowTermsModal(false)} />
-
-      {/* Privacy Policy Modal */}
-      <PrivacyPolicy isOpen={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
     </div>
   );
+}
+
+function isAdultBirthdate(value: string): boolean {
+  const birthdate = parseDateParts(value.trim());
+  const today = parseDateParts(formatLocalDate(new Date()));
+  if (!birthdate || !today || compareDateParts(birthdate, today) > 0) {
+    return false;
+  }
+
+  const age =
+    today.year -
+    birthdate.year -
+    (today.month < birthdate.month ||
+    (today.month === birthdate.month && today.day < birthdate.day)
+      ? 1
+      : 0);
+
+  return age >= 18;
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateParts(
+  value: string,
+): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function compareDateParts(
+  left: { year: number; month: number; day: number },
+  right: { year: number; month: number; day: number },
+): number {
+  if (left.year !== right.year) {
+    return left.year - right.year;
+  }
+  if (left.month !== right.month) {
+    return left.month - right.month;
+  }
+  return left.day - right.day;
 }

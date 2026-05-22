@@ -94,6 +94,15 @@ async function main() {
     ]);
   assert(Array.isArray(portfolio), 'demo provider portfolio did not return an array');
   assert(Array.isArray(reviews), 'demo provider reviews did not return an array');
+  assert(
+    reviews.some(
+      (item) =>
+        item.bookingId === expected.bookingId &&
+        item.providerId === expected.providerId &&
+        item.rating === 5,
+    ),
+    'demo provider review missing',
+  );
   assert(publicAvailability.windows.length >= 1, 'public demo availability missing');
   assert(privateAvailability.windows.length >= 1, 'private demo availability missing');
 

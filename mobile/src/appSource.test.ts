@@ -41,7 +41,7 @@ test('Google auth callback exchanges the APICenter code before returning to pass
 test('Google auth opens APICenter authorization in the system browser, not WebView', () => {
   const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const oauthStart = source.indexOf('async function startGoogleSignIn');
-  const oauthEnd = source.indexOf('async function requestPhoneOtp');
+  const oauthEnd = source.indexOf('function signOut');
   assert.notEqual(oauthStart, -1);
   assert.notEqual(oauthEnd, -1);
 
@@ -54,9 +54,11 @@ test('Google auth opens APICenter authorization in the system browser, not WebVi
 
 test('customer payment flow refreshes server payment state after booking and checkout creation', () => {
   const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
-  const bookingCreatedStart = source.indexOf('onBookingCreated: (booking) => {');
+  const bookingCreatedStart = source.indexOf(
+    'function handleBookingCreatedImpl(booking: BookingSummary) {',
+  );
   const bookingCreatedEnd = source.indexOf(
-    'onRefreshProviderAvailability:',
+    'function refreshProviderBookingTimelineEventsImpl',
     bookingCreatedStart,
   );
   const checkoutStart = source.indexOf('const checkout = await createCheckoutSession');

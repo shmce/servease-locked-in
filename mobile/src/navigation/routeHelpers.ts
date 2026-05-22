@@ -33,6 +33,7 @@ export function getCustomerTab(screen: AppScreen): CustomerTab {
   }
   if (
     screen === 'more' ||
+    screen === 'customerAddresses' ||
     screen === 'customerPaymentMethods' ||
     screen === 'customerProfile' ||
     screen === 'customerSettings' ||

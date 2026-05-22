@@ -25,6 +25,21 @@ describe('RegistrationGatewayService', () => {
         id: 'customer-profile-1',
         address: '123 Test St',
       }),
+      createCustomerAddress: jest.fn().mockResolvedValue({
+        id: 'customer-address-1',
+        userId: 'user-1',
+        label: 'Home',
+        address: '123 Test St',
+        barangay: null,
+        city: null,
+        province: null,
+        region: null,
+        latitude: null,
+        longitude: null,
+        isDefault: true,
+        createdAt: null,
+        updatedAt: null,
+      }),
     } as unknown as UserServiceClient;
     const catalogServiceClient = {
       createProviderProfile: jest.fn(),
@@ -50,12 +65,24 @@ describe('RegistrationGatewayService', () => {
       customerProfile: {
         address: '123 Test St',
       },
+      customerAddresses: [
+        {
+          label: 'Home',
+          address: '123 Test St',
+          isDefault: true,
+        },
+      ],
       providerProfile: null,
     });
     expect(userServiceClient.createCustomerProfile).toHaveBeenCalledWith(
       'user-1',
       '123 Test St',
     );
+    expect(userServiceClient.createCustomerAddress).toHaveBeenCalledWith('user-1', {
+      label: 'Home',
+      address: '123 Test St',
+      isDefault: true,
+    });
     expect(catalogServiceClient.createProviderProfile).not.toHaveBeenCalled();
   });
 
@@ -85,10 +112,56 @@ describe('RegistrationGatewayService', () => {
         email: 'provider@example.com',
         password: 'Password#2026',
         fullName: 'Provider Example',
+        birthdate: '1990-05-23',
         businessName: 'Provider Co',
       }),
     ).rejects.toThrow('downstream');
     expect(authServiceClient.deleteRegisteredUser).toHaveBeenCalledWith('user-1');
+  });
+
+  it('forwards provider birthdate to Auth Service registration', async () => {
+    const authServiceClient = {
+      registerUser: jest.fn().mockResolvedValue({
+        id: 'user-1',
+        email: 'provider@example.com',
+        fullName: 'Provider Example',
+        contactNumber: '+639171234567',
+        role: 'provider',
+        status: 'active',
+      }),
+      deleteRegisteredUser: jest.fn(),
+    } as unknown as AuthServiceClient;
+    const catalogServiceClient = {
+      createProviderProfile: jest.fn().mockResolvedValue({
+        id: 'provider-profile-1',
+        businessName: 'Provider Co',
+        verificationStatus: 'pending',
+        averageRating: 0,
+        reviewCount: 0,
+      }),
+    } as unknown as CatalogServiceClient;
+    const service = new RegistrationGatewayService(
+      authServiceClient,
+      {} as UserServiceClient,
+      catalogServiceClient,
+    );
+
+    await service.register({
+      role: 'provider',
+      email: 'provider@example.com',
+      password: 'Password#2026',
+      fullName: 'Provider Example',
+      contactNumber: '+639171234567',
+      birthdate: '1990-05-23',
+      businessName: 'Provider Co',
+    });
+
+    expect(authServiceClient.registerUser).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'provider',
+        birthdate: '1990-05-23',
+      }),
+    );
   });
 
   it('rejects provider registration without a business name', async () => {
@@ -104,6 +177,35 @@ describe('RegistrationGatewayService', () => {
         email: 'provider@example.com',
         password: 'Password#2026',
         fullName: 'Provider Example',
+      }),
+    ).rejects.toBeInstanceOf(InvalidRegistrationRequestError);
+  });
+
+  it('rejects provider registration without an adult birthdate', async () => {
+    const service = new RegistrationGatewayService(
+      { registerUser: jest.fn() } as unknown as AuthServiceClient,
+      {} as UserServiceClient,
+      {} as CatalogServiceClient,
+    );
+
+    await expect(
+      service.register({
+        role: 'provider',
+        email: 'provider@example.com',
+        password: 'Password#2026',
+        fullName: 'Provider Example',
+        businessName: 'Provider Co',
+      }),
+    ).rejects.toBeInstanceOf(InvalidRegistrationRequestError);
+
+    await expect(
+      service.register({
+        role: 'provider',
+        email: 'provider@example.com',
+        password: 'Password#2026',
+        fullName: 'Provider Example',
+        birthdate: nextYearBirthdate(),
+        businessName: 'Provider Co',
       }),
     ).rejects.toBeInstanceOf(InvalidRegistrationRequestError);
   });
@@ -202,3 +304,12 @@ describe('RegistrationGatewayService', () => {
     });
   });
 });
+
+function nextYearBirthdate(): string {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() + 1);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}

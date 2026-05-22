@@ -17,8 +17,8 @@ export interface ClaireRouteManifestItem {
 export const claireRouteManifest: ClaireRouteManifestItem[] = [
   { key: 'authGate', sourcePath: '/auth-gate', group: 'auth', backendMode: 'connected' },
   { key: 'loginRoleSelection', sourcePath: '/login-role-selection', group: 'auth', backendMode: 'connected' },
-  { key: 'customerLogin', sourcePath: '/customer/login', group: 'auth', backendMode: 'connected', notes: 'Password login remains Supabase-backed; Google authorization and phone OTP prompts use APICenter gateway endpoints.' },
-  { key: 'providerLogin', sourcePath: '/provider/login', group: 'auth', backendMode: 'connected', notes: 'Password login remains Supabase-backed; Google authorization and phone OTP prompts use APICenter gateway endpoints.' },
+  { key: 'customerLogin', sourcePath: '/customer/login', group: 'auth', backendMode: 'connected', notes: 'Password login remains Supabase-backed; Google authorization uses APICenter gateway endpoints.' },
+  { key: 'providerLogin', sourcePath: '/provider/login', group: 'auth', backendMode: 'connected', notes: 'Password login remains Supabase-backed; Google authorization uses APICenter gateway endpoints.' },
   { key: 'signupRoleSelection', sourcePath: '/signup-role-selection', group: 'auth', backendMode: 'connected' },
   { key: 'customerRegistration', sourcePath: '/customer/registration', group: 'auth', backendMode: 'connected' },
   { key: 'providerSignupStep1', sourcePath: '/provider/signup/step1', group: 'auth', backendMode: 'connected', notes: 'Claire multi-step provider signup is consolidated into the functional React Native provider registration screen.' },
@@ -45,6 +45,7 @@ export const claireRouteManifest: ClaireRouteManifestItem[] = [
   { key: 'trackServiceProvider', sourcePath: '/customer/booking/:id/track', group: 'customer', backendMode: 'connected', notes: 'Uses booking tracking snapshot; live GPS remains native follow-up.' },
   { key: 'customerMore', sourcePath: '/customer/more', group: 'customer', backendMode: 'connected' },
   { key: 'customerProfile', sourcePath: '/customer/profile', group: 'customer', backendMode: 'connected' },
+  { key: 'customerAddresses', sourcePath: '/customer/addresses', group: 'customer', backendMode: 'connected', notes: 'Uses authenticated saved-address profile routes.' },
   { key: 'customerSettings', sourcePath: '/customer/settings', group: 'customer', backendMode: 'connected' },
   { key: 'customerHelp', sourcePath: '/customer/help', group: 'customer', backendMode: 'connected', notes: 'Support tickets use existing API.' },
   { key: 'customerServiceHistory', sourcePath: '/customer/service-history', group: 'customer', backendMode: 'connected' },

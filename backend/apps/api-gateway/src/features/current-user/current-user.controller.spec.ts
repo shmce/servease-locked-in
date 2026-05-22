@@ -15,6 +15,7 @@ describe('CurrentUserController', () => {
           status: 'active',
         },
         customerProfile: null,
+        customerAddresses: [],
         providerProfile: null,
       }),
     } as unknown as CurrentUserService;
@@ -39,6 +40,7 @@ describe('CurrentUserController', () => {
           status: 'active',
         },
         customerProfile: null,
+        customerAddresses: [],
         providerProfile: null,
       },
     });
@@ -65,6 +67,7 @@ describe('CurrentUserController', () => {
           id: 'customer-profile-1',
           address: 'Updated address',
         },
+        customerAddresses: [],
         providerProfile: null,
       }),
     } as unknown as CurrentUserService;

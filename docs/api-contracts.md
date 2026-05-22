@@ -119,6 +119,11 @@ Schema source:
 | `pricing.createQuote(input)` | `POST /v1/pricing/quotes` | Bearer | `CreatePricingQuoteRequest` | `PricingQuoteSummary` |
 | `pricing.getProviderGuidance(input)` | `POST /v1/provider/pricing/guidance` | Bearer | `ProviderPricingGuidanceRequest` | `ProviderPricingGuidanceSummary` |
 | `providerApplications.getMine()` | `GET /v1/auth/provider-application/me` | Bearer | None | `ProviderApplicationStatus` |
+| `profile.listAddresses()` | `GET /v1/me/addresses` | Bearer | None | `CustomerAddressSummary[]` |
+| `profile.createAddress(input)` | `POST /v1/me/addresses` | Bearer | `CreateCustomerAddressInput` | `CustomerAddressSummary` |
+| `profile.updateAddress(id, input)` | `PATCH /v1/me/addresses/:addressId` | Bearer | `UpdateCustomerAddressInput` | `CustomerAddressSummary` |
+| `profile.setDefaultAddress(id)` | `POST /v1/me/addresses/:addressId/default` | Bearer | Path `addressId` | `CustomerAddressSummary` |
+| `profile.deleteAddress(id)` | `DELETE /v1/me/addresses/:addressId` | Bearer | Path `addressId` | `{ ok: true }` |
 | `payments.list()` | `GET /v1/payments` | Bearer | None | `PaymentSummary[]` |
 | `payments.create(input)` | `POST /v1/payments` | Bearer | `CreatePaymentRequest` | `PaymentSummary` |
 | `payments.createCheckoutSession(input)` | `POST /v1/payments/checkout-sessions` | Bearer | `CreateCheckoutSessionRequest` | `PaymentCheckoutSessionSummary` |
@@ -192,6 +197,11 @@ Source: `backend/apps/api-gateway/src/features/current-user/current-user.control
 | PATCH | `/v1/me` | Bearer | - | `UpdateCurrentUserProfileInput` | `CurrentUserProfile` |
 | PATCH | `/v1/me/password` | Bearer | - | `UpdateCurrentUserPasswordInput` | `UpdateCurrentUserPasswordResponse` |
 | DELETE | `/v1/me` | Bearer | - | - | `{ ok: true }` |
+| GET | `/v1/me/addresses` | Bearer | - | - | `CustomerAddressSummary[]` |
+| POST | `/v1/me/addresses` | Bearer | - | `CreateCustomerAddressRequest` | `CustomerAddressSummary` |
+| PATCH | `/v1/me/addresses/:addressId` | Bearer | - | `UpdateCustomerAddressRequest` | `CustomerAddressSummary` |
+| POST | `/v1/me/addresses/:addressId/default` | Bearer | - | - | `CustomerAddressSummary` |
+| DELETE | `/v1/me/addresses/:addressId` | Bearer | - | - | `{ ok: true }` |
 | GET | `/v1/me/sessions` | Bearer | - | - | `CurrentUserSessionSummary[]` |
 | POST | `/v1/me/two-factor/enable` | Bearer | - | - | `TwoFactorProvisioningResponse` |
 | POST | `/v1/me/two-factor/verify` | Bearer | - | `TwoFactorVerificationInput` | `TwoFactorStatusResponse` |
