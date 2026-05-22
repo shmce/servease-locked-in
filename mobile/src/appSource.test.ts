@@ -22,12 +22,27 @@ test('booking form verifies service addresses through the APICenter geo gateway'
     ),
     'utf8',
   );
+  const mapSource = readFileSync(
+    join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
+    'utf8',
+  );
+  const addressPreviewStart = mapSource.indexOf('export function AddressVerificationPreview');
+  const webViewStart = mapSource.indexOf('function TrackingMapWebView');
+  assert.notEqual(addressPreviewStart, -1);
+  assert.notEqual(webViewStart, -1);
+
+  const addressPreviewSource = mapSource.slice(addressPreviewStart, webViewStart);
 
   assert.match(bookingFlowViewModel, /geocodeAddress/);
   assert.match(bookingFlowViewModel, /verifyServiceAddress/);
   assert.match(bookingFormSource, /verifyAddressLabel/);
   assert.match(bookingFormSource, /AddressVerificationPreview/);
   assert.match(bookingFormViewModel, /Verify address/);
+  assert.match(addressPreviewSource, /addressTrackingMapFrame/);
+  assert.match(addressPreviewSource, /addressVerificationMapOverlay/);
+  assert.match(addressPreviewSource, /Service pin verified/);
+  assert.match(addressPreviewSource, /provider=\{null\}/);
+  assert.match(addressPreviewSource, /routeGeometry=\{null\}/);
 });
 
 test('Google auth callback exchanges the APICenter code before returning to password login', () => {
