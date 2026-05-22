@@ -204,12 +204,26 @@ test('tracking navigation uses compact collapsible sheet states', () => {
   assert.match(customerTrackSource, /navBottomSheetPeek/);
   assert.match(customerTrackSource, /navBottomSheetHalf/);
   assert.match(customerTrackSource, /navBottomSheetExpanded/);
-  assert.match(customerTrackSource, /sheetStyle\(sheetLevel\)/);
+  assert.match(customerTrackSource, /Animated\.View/);
+  assert.match(customerTrackSource, /useWindowDimensions/);
+  assert.match(customerTrackSource, /sheetHeight/);
+  assert.match(customerTrackSource, /nearestSheetLevel/);
+  assert.match(customerTrackSource, /PanResponder/);
+  assert.match(customerTrackSource, /customerSheetPanResponder\.panHandlers/);
+  assert.doesNotMatch(customerTrackSource, /sheetLevelControls/);
+  assert.doesNotMatch(customerTrackSource, /sheetShortLabel/);
   assert.match(providerNavigationSource, /NavigationSheetHeader/);
   assert.match(providerNavigationSource, /navBottomSheetPeek/);
   assert.match(providerNavigationSource, /navBottomSheetHalf/);
   assert.match(providerNavigationSource, /navBottomSheetExpanded/);
-  assert.match(providerNavigationSource, /navigationSheetStyle\(sheetLevel\)/);
+  assert.match(providerNavigationSource, /Animated\.View/);
+  assert.match(providerNavigationSource, /useWindowDimensions/);
+  assert.match(providerNavigationSource, /navigationSheetHeight/);
+  assert.match(providerNavigationSource, /nearestNavigationSheetLevel/);
+  assert.match(providerNavigationSource, /PanResponder/);
+  assert.match(providerNavigationSource, /providerSheetPanResponder\.panHandlers/);
+  assert.doesNotMatch(providerNavigationSource, /sheetLevelControls/);
+  assert.doesNotMatch(providerNavigationSource, /navigationSheetShortLabel/);
 });
 
 test('tracking map canvas remains absolutely filled behind the sheet', () => {
