@@ -11,7 +11,48 @@ import {
   SharedSmsSendRequest,
 } from './shared-messaging.types';
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_EMAIL_LENGTH = 254;
+const MAX_EMAIL_LOCAL_LENGTH = 64;
+const MAX_EMAIL_DOMAIN_LABEL_LENGTH = 63;
+
+function hasWhitespace(value: string): boolean {
+  for (const character of value) {
+    if (character.trim() === '') {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isValidEmailAddress(value: string | undefined): value is string {
+  if (!value || value.length > MAX_EMAIL_LENGTH || hasWhitespace(value)) {
+    return false;
+  }
+
+  const atIndex = value.indexOf('@');
+  if (atIndex <= 0 || atIndex !== value.lastIndexOf('@')) {
+    return false;
+  }
+
+  const local = value.slice(0, atIndex);
+  const domain = value.slice(atIndex + 1);
+  if (
+    !domain.includes('.') ||
+    local.length > MAX_EMAIL_LOCAL_LENGTH ||
+    domain.startsWith('.') ||
+    domain.endsWith('.') ||
+    domain.includes('..')
+  ) {
+    return false;
+  }
+
+  return domain
+    .split('.')
+    .every(
+      (label) =>
+        label.length > 0 && label.length <= MAX_EMAIL_DOMAIN_LABEL_LENGTH,
+    );
+}
 
 @Injectable()
 export class SharedMessagingService {
@@ -23,7 +64,7 @@ export class SharedMessagingService {
         email: recipient.email?.trim().toLowerCase(),
         name: recipient.name?.trim() || undefined,
       }))
-      .filter((recipient) => EMAIL_PATTERN.test(recipient.email));
+      .filter((recipient) => isValidEmailAddress(recipient.email));
 
     if (
       !to?.length ||

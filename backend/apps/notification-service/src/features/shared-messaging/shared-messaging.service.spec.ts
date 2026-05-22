@@ -50,6 +50,19 @@ describe('SharedMessagingService', () => {
     expect(mockCreateApicenterClient).not.toHaveBeenCalled();
   });
 
+  it('rejects invalid email recipients before APICenter calls', async () => {
+    const service = new SharedMessagingService();
+
+    await expect(
+      service.sendEmail({
+        to: [{ email: 'user @example.com' }],
+        subject: 'Subject',
+        text: 'Body',
+      }),
+    ).rejects.toBeInstanceOf(InvalidSharedMessagingRequestError);
+    expect(mockCreateApicenterClient).not.toHaveBeenCalled();
+  });
+
   it('sends SMS through APICenter SMS', async () => {
     const smsSend = jest.fn().mockResolvedValue({
       messageId: 'sms-1',
@@ -72,4 +85,3 @@ describe('SharedMessagingService', () => {
     });
   });
 });
-
