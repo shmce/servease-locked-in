@@ -222,6 +222,16 @@ test('tracking navigation uses compact collapsible sheet states', () => {
   assert.match(providerNavigationSource, /nearestNavigationSheetLevel/);
   assert.match(providerNavigationSource, /PanResponder/);
   assert.match(providerNavigationSource, /providerSheetPanResponder\.panHandlers/);
+  assert.match(providerNavigationSource, /ScrollView/);
+  assert.match(providerNavigationSource, /providerSheetScrollContent/);
+  assert.match(
+    providerNavigationSource,
+    /<View \{\.\.\.providerSheetPanResponder\.panHandlers\}>[\s\S]*<NavigationSheetHeader/,
+  );
+  assert.doesNotMatch(
+    providerNavigationSource,
+    /<Animated\.View[^>]*\{\.\.\.providerSheetPanResponder\.panHandlers\}/,
+  );
   assert.doesNotMatch(providerNavigationSource, /sheetLevelControls/);
   assert.doesNotMatch(providerNavigationSource, /navigationSheetShortLabel/);
 });

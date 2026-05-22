@@ -3,6 +3,7 @@ import {
   Animated,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -187,66 +188,73 @@ export function ProviderNavigationModeScreen({
           navigationSheetStyle(sheetLevel),
           { height: navigationSheetHeight },
         ]}
-        {...providerSheetPanResponder.panHandlers}
       >
-        <NavigationSheetHeader
-          level={sheetLevel}
-          setLevel={onSheetLevelChange}
-          title="Head to the service location"
-          subtitle={data.routeLabel}
-        />
-        <ProviderNavigationDriveStats
-          distanceLabel={data.distanceLabel}
-          liveLocationLabel={data.liveLocationLabel}
-          routeDurationLabel={data.routeDurationLabel}
-        />
-        {data.isHalfSheet ? (
-          <>
-            <Text style={styles.cardBody} numberOfLines={data.isExpandedSheet ? 4 : 2}>
-              {data.addressLabel}
-            </Text>
-            <InfoRow label="Route" value={data.routeLabel} />
-            <InfoRow label="Live location" value={data.liveLocationLabel} />
-          </>
-        ) : null}
-        {data.routeInstructionRows.length ? (
-          <View style={styles.routeInstructionList}>
-            {data.routeInstructionRows.map((step) => (
-              <View key={step.id} style={styles.routeInstructionRow}>
-                <View style={styles.routeInstructionNumber}>
-                  <Text style={styles.routeInstructionNumberText}>{step.number}</Text>
+        <View {...providerSheetPanResponder.panHandlers}>
+          <NavigationSheetHeader
+            level={sheetLevel}
+            setLevel={onSheetLevelChange}
+            title="Head to the service location"
+            subtitle={data.routeLabel}
+          />
+        </View>
+        <ScrollView
+          style={styles.providerSheetScroll}
+          contentContainerStyle={styles.providerSheetScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <ProviderNavigationDriveStats
+            distanceLabel={data.distanceLabel}
+            liveLocationLabel={data.liveLocationLabel}
+            routeDurationLabel={data.routeDurationLabel}
+          />
+          {data.isHalfSheet ? (
+            <>
+              <Text style={styles.cardBody} numberOfLines={data.isExpandedSheet ? 4 : 2}>
+                {data.addressLabel}
+              </Text>
+              <InfoRow label="Route" value={data.routeLabel} />
+              <InfoRow label="Live location" value={data.liveLocationLabel} />
+            </>
+          ) : null}
+          {data.routeInstructionRows.length ? (
+            <View style={styles.routeInstructionList}>
+              {data.routeInstructionRows.map((step) => (
+                <View key={step.id} style={styles.routeInstructionRow}>
+                  <View style={styles.routeInstructionNumber}>
+                    <Text style={styles.routeInstructionNumberText}>{step.number}</Text>
+                  </View>
+                  <Text style={styles.cardMeta} numberOfLines={2}>
+                    {step.instruction}
+                  </Text>
                 </View>
-                <Text style={styles.cardMeta} numberOfLines={2}>
-                  {step.instruction}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-        <PrimaryButton label="I've Arrived" onPress={onArrived} />
-        <ActionRow>
-          <View style={styles.flex}>
-            <PrimaryButton label="Call" variant="secondary" onPress={onCall} />
-          </View>
-          <View style={styles.flex}>
-            <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
-          </View>
-        </ActionRow>
-        {data.isHalfSheet ? (
+              ))}
+            </View>
+          ) : null}
+          <PrimaryButton label="I've Arrived" onPress={onArrived} />
           <ActionRow>
             <View style={styles.flex}>
-              <PrimaryButton
-                label={data.refreshRouteLabel}
-                variant="secondary"
-                onPress={onRefreshRoute}
-                disabled={data.refreshRouteDisabled}
-              />
+              <PrimaryButton label="Call" variant="secondary" onPress={onCall} />
             </View>
             <View style={styles.flex}>
-              <PrimaryButton label="End" variant="danger" onPress={onClose} />
+              <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
             </View>
           </ActionRow>
-        ) : null}
+          {data.isHalfSheet ? (
+            <ActionRow>
+              <View style={styles.flex}>
+                <PrimaryButton
+                  label={data.refreshRouteLabel}
+                  variant="secondary"
+                  onPress={onRefreshRoute}
+                  disabled={data.refreshRouteDisabled}
+                />
+              </View>
+              <View style={styles.flex}>
+                <PrimaryButton label="End" variant="danger" onPress={onClose} />
+              </View>
+            </ActionRow>
+          ) : null}
+        </ScrollView>
       </Animated.View>
     </View>
   );
@@ -545,6 +553,13 @@ const styles = StyleSheet.create({
   },
   navigationSheetHeader: {
     gap: spacing.sm,
+  },
+  providerSheetScroll: {
+    flex: 1,
+  },
+  providerSheetScrollContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.sm,
   },
   dragHandleButton: {
     alignItems: 'center',
