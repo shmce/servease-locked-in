@@ -8,6 +8,7 @@ import {
   CreditCard,
   TrendingUp,
   BarChart3,
+  LineChart,
   PieChart,
   UserPlus,
   Shield,
@@ -139,6 +140,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         { to: "/reports/business",          icon: Briefcase,   label: "Business Reports" },
         { to: "/reports/financial",         icon: DollarSign,  label: "Financial Reports" },
         { to: "/reports/user",              icon: Users,       label: "User Reports" },
+        { to: "/reports/looker-studio",     icon: LineChart,   label: "Data Studio" },
       ],
     },
     {

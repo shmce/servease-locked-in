@@ -37,6 +37,7 @@ import { BookingAnalytics } from "./pages/reports/BookingAnalytics";
 import { AddNewAdmin } from "./pages/AddNewAdmin";
 import { BusinessReports } from "./pages/reports/BusinessReports";
 import { FinancialReports } from "./pages/reports/FinancialReports";
+import { LookerStudioReport } from "./pages/reports/LookerStudioReport";
 import { UserReports } from "./pages/reports/UserReports";
 import { BackendSupportMatrix } from "./pages/BackendSupportMatrix";
 import { Reviews } from "./pages/Reviews";
@@ -117,6 +118,7 @@ export const router = createBrowserRouter([
       { path: "reports/business", Component: BusinessReports },
       { path: "reports/financial", Component: FinancialReports },
       { path: "reports/user", Component: UserReports },
+      { path: "reports/looker-studio", Component: LookerStudioReport },
 
       // Platform Settings
       { path: "commission-rules", Component: CommissionRules },

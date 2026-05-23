@@ -274,16 +274,6 @@ export function Login() {
                 No account? Ask a Super Admin to create your admin user.
               </p>
 
-              {/* Backend Configuration Helper */}
-              <div className="mt-6 pt-6 border-t">
-                <p className="text-xs text-gray-500 text-center mb-3">Backend Login</p>
-                <div className="p-3 bg-gray-50 rounded-lg space-y-1 text-xs text-gray-600">
-                  <p>Uses Supabase password auth, then validates admin access through the gateway.</p>
-                  <p className="font-mono">NEXT_PUBLIC_API_BASE_URL</p>
-                  <p className="font-mono">NEXT_PUBLIC_SUPABASE_URL</p>
-                  <p className="font-mono">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</p>
-                </div>
-              </div>
             </form>
           </div>
 
