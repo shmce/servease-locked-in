@@ -215,7 +215,7 @@ export function CustomerBookingReviewScreen({
                 last={false}
               />
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Booking Cost</Text>
+                <Text style={styles.totalLabel}>{data.totalLabel}</Text>
                 <Text style={styles.totalValue}>{data.displayedTotalLabel}</Text>
               </View>
             </Card>

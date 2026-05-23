@@ -3403,7 +3403,15 @@ export default function App() {
         bookingReferencePhotoUrl={customerBookingFlow.data.bookingReferencePhotoUrl}
         busyAction={busyAction}
         onBack={() => goBack({ role: 'customer', screen: 'customerProviderProfile' })}
-        onContinue={() => navigate('customerBookingReview', 'customer')}
+        onContinue={() => {
+          void (async () => {
+            const canReview =
+              await customerBookingFlow.actions.prepareBookingReview();
+            if (canReview) {
+              navigate('customerBookingReview', 'customer');
+            }
+          })();
+        }}
         onBackToProvider={() => navigate('customerProviderProfile', 'customer')}
         onScheduledAtChange={customerBookingFlow.actions.setScheduledAt}
         onBookingSlotErrorChange={customerBookingFlow.actions.setBookingSlotError}

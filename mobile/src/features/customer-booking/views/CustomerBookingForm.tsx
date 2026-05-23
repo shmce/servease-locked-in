@@ -260,9 +260,9 @@ export function CustomerBookingFormScreen({
       <StickyFooter>
         <View style={styles.footerTotalRow}>
           <View>
-            <Text style={styles.footerTotalLabel}>Estimated total</Text>
+            <Text style={styles.footerTotalLabel}>Provider rate estimate</Text>
             <Text style={styles.cardMeta}>
-              {data.footerRateLabel} - callout fee {data.calloutFeeLabel}
+              {data.footerRateLabel} - travel and fuel {data.calloutFeeLabel}
             </Text>
           </View>
           <Text style={styles.footerTotalValue}>{data.estimatedTotalLabel}</Text>
@@ -271,7 +271,7 @@ export function CustomerBookingFormScreen({
           <Text style={styles.noticeText}>{data.continueNotice}</Text>
         ) : null}
         <PrimaryButton
-          label="Continue to Review"
+          label={data.continueLabel}
           onPress={onContinue}
           disabled={!data.canContinue}
         />

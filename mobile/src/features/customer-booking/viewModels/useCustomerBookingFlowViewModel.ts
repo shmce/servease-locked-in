@@ -102,6 +102,16 @@ export function useCustomerBookingFlowViewModel({
     setPromotionValidation(null);
   }, [selectedBooking?.id]);
 
+  useEffect(() => {
+    setPricingQuote(null);
+  }, [
+    address,
+    hoursRequired,
+    scheduledAt,
+    selectedProvider?.providerId,
+    selectedService?.id,
+  ]);
+
   function setServiceAddress(value: string) {
     setAddress(value);
     setAddressGeoResult(null);
@@ -155,28 +165,19 @@ export function useCustomerBookingFlowViewModel({
     setBusyAction('create-booking');
     try {
       const serviceId = selectedService?.id ?? selectedProvider.serviceId;
-      const quote =
-        serviceId && selectedProvider.providerId
-          ? await createPricingQuote(
-              {
-                providerId: selectedProvider.providerId,
-                serviceId,
-                serviceAddress: address.trim(),
-                scheduledAt: scheduledAtIso,
-                hoursRequired: Number(hoursRequired) || 1,
-                bookingUrgency: 'standard',
-                region: 'default',
-                destination: addressGeoResult
-                  ? {
-                      latitude: addressGeoResult.latitude,
-                      longitude: addressGeoResult.longitude,
-                    }
-                  : null,
-              },
-              apiOptions,
-            )
-          : null;
-      setPricingQuote(quote);
+      let quote = pricingQuote;
+
+      if (serviceId && selectedProvider.providerId) {
+        if (!isPricingQuoteFresh(quote)) {
+          quote = await fetchPricingQuote();
+          setPricingQuote(quote);
+          setNotice('Pricing estimate refreshed. Review the updated total before confirming.');
+          return null;
+        }
+      } else {
+        quote = null;
+      }
+
       const request: CreateBookingRequest = {
         providerId: selectedProvider.providerId,
         serviceId,
@@ -228,39 +229,64 @@ export function useCustomerBookingFlowViewModel({
     }
   }
 
+  async function fetchPricingQuote(): Promise<PricingQuoteSummary> {
+    const scheduledAtIso = toManilaBookingIso(scheduledAt);
+    const serviceId = selectedService?.id ?? selectedProvider?.serviceId ?? null;
+    if (!selectedProvider || !serviceId || !address.trim() || !scheduledAtIso) {
+      throw new Error('Choose a service provider, address, and schedule first.');
+    }
+
+    return createPricingQuote(
+      {
+        providerId: selectedProvider.providerId,
+        serviceId,
+        serviceAddress: address.trim(),
+        scheduledAt: scheduledAtIso,
+        hoursRequired: Number(hoursRequired) || 1,
+        bookingUrgency: 'standard',
+        region: 'default',
+        destination: addressGeoResult
+          ? {
+              latitude: addressGeoResult.latitude,
+              longitude: addressGeoResult.longitude,
+            }
+          : null,
+      },
+      apiOptions,
+    );
+  }
+
+  async function prepareBookingReview() {
+    if (!hasSession) {
+      setNotice('Sign in before requesting a fair estimate.');
+      return false;
+    }
+
+    setBusyAction('pricing-quote');
+    try {
+      const quote = await fetchPricingQuote();
+      setPricingQuote(quote);
+      return true;
+    } catch (error) {
+      setPricingQuote(null);
+      setNotice(
+        `${readError(error)} Review the provider rate now; confirmation will need a fresh pricing estimate.`,
+      );
+      return true;
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   async function previewPricingQuote() {
     if (!hasSession) {
       setNotice('Sign in before requesting a fair estimate.');
       return null;
     }
 
-    const scheduledAtIso = toManilaBookingIso(scheduledAt);
-    const serviceId = selectedService?.id ?? selectedProvider?.serviceId ?? null;
-    if (!selectedProvider || !serviceId || !address.trim() || !scheduledAtIso) {
-      setNotice('Choose a service provider, address, and schedule first.');
-      return null;
-    }
-
     setBusyAction('pricing-quote');
     try {
-      const quote = await createPricingQuote(
-        {
-          providerId: selectedProvider.providerId,
-          serviceId,
-          serviceAddress: address.trim(),
-          scheduledAt: scheduledAtIso,
-          hoursRequired: Number(hoursRequired) || 1,
-          bookingUrgency: 'standard',
-          region: 'default',
-          destination: addressGeoResult
-            ? {
-                latitude: addressGeoResult.latitude,
-                longitude: addressGeoResult.longitude,
-              }
-            : null,
-        },
-        apiOptions,
-      );
+      const quote = await fetchPricingQuote();
       setPricingQuote(quote);
       return quote;
     } catch (error) {
@@ -407,6 +433,7 @@ export function useCustomerBookingFlowViewModel({
     actions: {
       applySavedAddress,
       applyPromotionCode,
+      prepareBookingReview,
       previewPricingQuote,
       saveCurrentAddressAsHome,
       setAddress: setServiceAddress,
@@ -436,4 +463,16 @@ function mediaAttachmentFromUpload(upload: UploadSummary) {
     fileSize: upload.size,
     caption: null,
   };
+}
+
+export function isPricingQuoteFresh(
+  quote: PricingQuoteSummary | null,
+  now: number = Date.now(),
+): quote is PricingQuoteSummary {
+  if (!quote) {
+    return false;
+  }
+
+  const expiresAt = new Date(quote.expiresAt).getTime();
+  return Number.isFinite(expiresAt) && expiresAt > now;
 }

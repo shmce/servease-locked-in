@@ -3,6 +3,7 @@ import test from 'node:test';
 import { buildCustomerBookingReviewViewModel } from './useCustomerBookingReviewViewModel';
 import type {
   CustomerPaymentMethodSummary,
+  PricingQuoteSummary,
   ProviderListing,
 } from '../../../shared/models/types';
 
@@ -85,4 +86,68 @@ test('customer booking review shows secure checkout copy for online methods', ()
   assert.equal(model.data.paymentMethodRows[1]?.label, 'GCash checkout');
   assert.equal(model.data.paymentMethodRows[1]?.selected, true);
   assert.match(model.data.paymentNotice, /secure checkout/i);
+});
+
+test('customer booking review separates provider rate from pricing engine total', () => {
+  const quote: PricingQuoteSummary = {
+    quoteId: 'quote-1',
+    expiresAt: '2026-06-01T08:45:00.000Z',
+    currency: 'PHP',
+    estimatedTotal: 2144,
+    fairRangeMin: 1822,
+    fairRangeMax: 2466,
+    fairnessStatus: 'within_range',
+    confidence: 'medium',
+    lineItems: [
+      { code: 'labor', label: 'Labor', amount: 2000 },
+      { code: 'travel_fuel', label: 'Travel and fuel estimate', amount: 144 },
+    ],
+    signals: {
+      distanceKm: null,
+      durationMinutes: null,
+      fuelPricePerLiter: 89.84,
+      fuelIndexUpdatedAt: '2026-05-19T00:00:00.000Z',
+      staleFuelIndex: false,
+      fallbackUsed: true,
+    },
+    explanation: 'Within typical rates.',
+  };
+  const model = buildCustomerBookingReviewViewModel({
+    provider: {
+      ...provider,
+      price: 1575,
+    },
+    selectedService: null,
+    scheduledAt: '2026-06-01T09:00',
+    hoursRequired: '1',
+    address: '123 Test St',
+    notes: '',
+    bookingReferencePhotoUrl: null,
+    pricingQuote: quote,
+    promotionValidation: null,
+    promoCode: '',
+    busyAction: null,
+    customerPaymentMethods: [cashMethod],
+    selectedPaymentMethodId: cashMethod.id,
+  });
+
+  assert.equal(model.data.totalLabel, 'Pricing engine estimate');
+  assert.equal(model.data.displayedTotalLabel, 'PHP 2,144');
+  assert.deepEqual(model.data.priceBreakdownRows.slice(0, 3), [
+    {
+      key: 'provider-rate',
+      label: 'Provider rate',
+      value: 'PHP 1,575',
+    },
+    {
+      key: 'fair-range',
+      label: 'Fair range',
+      value: 'PHP 1,822 - PHP 2,466',
+    },
+    {
+      key: 'fairness',
+      label: 'Fairness',
+      value: 'Within fair range',
+    },
+  ]);
 });

@@ -106,7 +106,8 @@ export function buildCustomerBookingFormViewModel({
   const estimatedTotal =
     provider.pricingMode === 'hourly' ? baseRate * duration : baseRate;
   const displayName = provider.providerBusinessName ?? provider.title;
-  const canContinue = missingFields.length === 0;
+  const isPreparingEstimate = busyAction === 'pricing-quote';
+  const canContinue = missingFields.length === 0 && !isPreparingEstimate;
 
   return {
     data: {
@@ -118,6 +119,7 @@ export function buildCustomerBookingFormViewModel({
       providerRatingLabel: `${provider.averageRating.toFixed(1)} star rating`,
       duration,
       canContinue,
+      continueLabel: isPreparingEstimate ? 'Getting estimate...' : 'Continue to Review',
       canVerifyAddress: Boolean(address.trim()) && busyAction !== 'geo-address',
       useCurrentLocationDisabled: busyAction === 'geo-current-location',
       verifyAddressDisabled: !address.trim() || busyAction === 'geo-address',
@@ -136,7 +138,7 @@ export function buildCustomerBookingFormViewModel({
         provider.pricingMode === 'hourly'
           ? `${formatMoney(provider.price)} x ${duration}h`
           : 'Service rate',
-      calloutFeeLabel: formatMoney(0),
+      calloutFeeLabel: 'Calculated on review',
       estimatedTotalLabel: formatMoney(estimatedTotal),
       continueNotice: canContinue
         ? null

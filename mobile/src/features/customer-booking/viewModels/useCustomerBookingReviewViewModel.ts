@@ -105,6 +105,7 @@ export function buildCustomerBookingReviewViewModel({
   const bookingCost = subtotal + processingFee;
   const scheduledAtIso = toManilaBookingIso(scheduledAt);
   const displayedTotal = pricingQuote?.estimatedTotal ?? bookingCost;
+  const totalLabel = pricingQuote ? 'Pricing engine estimate' : 'Provider rate estimate';
   const providerName = provider.providerBusinessName ?? provider.title;
   const selectedPaymentMethod =
     customerPaymentMethods.find((method) => method.id === selectedPaymentMethodId) ??
@@ -121,6 +122,11 @@ export function buildCustomerBookingReviewViewModel({
   }));
   const priceBreakdownRows = pricingQuote
     ? [
+        {
+          key: 'provider-rate',
+          label: 'Provider rate',
+          value: formatMoney(subtotal),
+        },
         {
           key: 'fair-range',
           label: 'Fair range',
@@ -204,6 +210,7 @@ export function buildCustomerBookingReviewViewModel({
           ? 'Applied after confirmation'
           : 'No promo applied',
       displayedTotalLabel: formatMoney(displayedTotal),
+      totalLabel,
       paymentMethodRows,
       paymentNotice: isCashPayment
         ? 'Cash is due directly to the provider after the service is completed.'
@@ -211,8 +218,8 @@ export function buildCustomerBookingReviewViewModel({
       quoteExplanation:
         pricingQuote?.explanation ??
         (isCashPayment
-          ? "Get a fair estimate before confirming. You won't be charged in the app for cash bookings."
-          : 'Get a fair estimate before confirming. Secure checkout opens after the booking is created.'),
+          ? "Pricing estimate is not ready yet. You won't be charged in the app for cash bookings."
+          : 'Pricing estimate is not ready yet. Secure checkout opens after the booking is created.'),
       confirmLabel:
         busyAction === 'create-booking' || busyAction === 'payment'
           ? isCashPayment
