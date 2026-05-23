@@ -259,13 +259,20 @@ export function CustomerBookingFormScreen({
       </ScrollView>
       <StickyFooter>
         <View style={styles.footerTotalRow}>
-          <View>
+          <View style={styles.footerTotalCopy}>
             <Text style={styles.footerTotalLabel}>Provider rate estimate</Text>
-            <Text style={styles.cardMeta}>
+            <Text style={styles.cardMeta} numberOfLines={2}>
               {data.footerRateLabel} - travel and fuel {data.calloutFeeLabel}
             </Text>
           </View>
-          <Text style={styles.footerTotalValue}>{data.estimatedTotalLabel}</Text>
+          <Text
+            style={styles.footerTotalValue}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+          >
+            {data.estimatedTotalLabel}
+          </Text>
         </View>
         {data.continueNotice ? (
           <Text style={styles.noticeText}>{data.continueNotice}</Text>
@@ -398,6 +405,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingBottom: spacing.sm,
   },
+  footerTotalCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   footerTotalLabel: {
     color: palette.ink,
     fontSize: 13,
@@ -405,8 +416,11 @@ const styles = StyleSheet.create({
   },
   footerTotalValue: {
     color: palette.ink,
+    flexShrink: 0,
     fontSize: 18,
     fontWeight: '700',
+    maxWidth: '48%',
+    textAlign: 'right',
   },
   footerLink: {
     color: palette.mint,

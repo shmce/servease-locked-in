@@ -60,3 +60,16 @@ test('customer booking flow renders blocked slots as unavailable and refreshes a
   const backstopBranch = bookingFlowViewModel.slice(backstopBranchStart, backstopBranchEnd);
   assert.match(backstopBranch, /screen: 'customerBookingForm'/);
 });
+
+test('customer booking form constrains the sticky footer estimate row', () => {
+  const bookingFormView = readFileSync(
+    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    'utf8',
+  );
+
+  assert.match(bookingFormView, /style=\{styles\.footerTotalCopy\}/);
+  assert.match(bookingFormView, /numberOfLines=\{2\}/);
+  assert.match(bookingFormView, /adjustsFontSizeToFit/);
+  assert.match(bookingFormView, /minimumFontScale=\{0\.78\}/);
+  assert.match(bookingFormView, /maxWidth: '48%'/);
+});
