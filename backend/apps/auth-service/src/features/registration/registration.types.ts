@@ -5,6 +5,7 @@ export interface RegisterUserInput {
   password: string;
   fullName: string;
   contactNumber?: string | null;
+  birthdate?: string | null;
   role: UserRole;
 }
 

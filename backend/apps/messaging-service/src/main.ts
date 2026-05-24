@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { resolveServicePort } from '../../../libs/common/src';
 import { AppModule } from './app.module';

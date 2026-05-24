@@ -1,11 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 for (const key of [
   'SUPABASE_URL',
@@ -71,8 +70,13 @@ async function main() {
     { windows },
   );
 
-  if (replaced.providerId !== cleanupState.providerId || replaced.windows.length !== 7) {
-    throw new Error('Availability windows were not replaced for the smoke provider');
+  if (
+    replaced.providerId !== cleanupState.providerId ||
+    replaced.windows.length !== 7
+  ) {
+    throw new Error(
+      'Availability windows were not replaced for the smoke provider',
+    );
   }
 
   await expectJsonError(
@@ -123,7 +127,10 @@ async function main() {
     accessToken,
   );
 
-  if (fetched.providerId !== cleanupState.providerId || fetched.windows.length !== 7) {
+  if (
+    fetched.providerId !== cleanupState.providerId ||
+    fetched.windows.length !== 7
+  ) {
     throw new Error('Fetched availability did not match the smoke provider');
   }
 
@@ -145,20 +152,27 @@ async function createAuthUser(email, password) {
   });
 
   if (error || !data.user) {
-    throw new Error(`Failed to create smoke auth user: ${error?.message ?? 'missing user'}`);
+    throw new Error(
+      `Failed to create smoke auth user: ${error?.message ?? 'missing user'}`,
+    );
   }
 
   return data.user;
 }
 
 async function seedProviderAccount(userId, email) {
-  const { data, error } = await serviceClient.rpc('servease_smoke_seed_provider_account', {
-    p_user_id: userId,
-    p_email: email,
-  });
+  const { data, error } = await serviceClient.rpc(
+    'servease_smoke_seed_provider_account',
+    {
+      p_user_id: userId,
+      p_email: email,
+    },
+  );
 
   if (error || !data) {
-    throw new Error(`Failed to seed smoke provider: ${error?.message ?? 'missing provider id'}`);
+    throw new Error(
+      `Failed to seed smoke provider: ${error?.message ?? 'missing provider id'}`,
+    );
   }
 
   return data;
@@ -171,7 +185,9 @@ async function signIn(email, password) {
   });
 
   if (error || !data.session?.access_token) {
-    throw new Error(`Failed to sign in smoke provider: ${error?.message ?? 'missing session'}`);
+    throw new Error(
+      `Failed to sign in smoke provider: ${error?.message ?? 'missing session'}`,
+    );
   }
 
   return data.session.access_token;
@@ -189,13 +205,22 @@ async function sendJson(url, method, token, body) {
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(`${method} ${url} failed with ${response.status}: ${JSON.stringify(payload)}`);
+    throw new Error(
+      `${method} ${url} failed with ${response.status}: ${JSON.stringify(payload)}`,
+    );
   }
 
   return payload.data;
 }
 
-async function expectJsonError(url, method, token, body, expectedStatus, expectedCode) {
+async function expectJsonError(
+  url,
+  method,
+  token,
+  body,
+  expectedStatus,
+  expectedCode,
+) {
   const response = await fetch(url, {
     method,
     headers: {
@@ -206,7 +231,10 @@ async function expectJsonError(url, method, token, body, expectedStatus, expecte
   });
   const payload = await response.json();
 
-  if (response.status !== expectedStatus || payload?.error?.code !== expectedCode) {
+  if (
+    response.status !== expectedStatus ||
+    payload?.error?.code !== expectedCode
+  ) {
     throw new Error(
       `Expected ${expectedStatus} ${expectedCode}, received ${response.status}: ${JSON.stringify(payload)}`,
     );

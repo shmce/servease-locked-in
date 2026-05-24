@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import {
-  buildProviderHomeViewModel,
+import { buildProviderHomeViewModel } from './providerHomeModel';
+import type {
   ProviderHomeViewModel,
 } from './providerHomeModel';
-import {
+import type {
   BookingSummary,
   CurrentUserProfile,
   PaymentSummary,

@@ -1,187 +1,48 @@
-# Admin Backend Contracts Needed
+# Admin Backend Contract Status
 
-This document lists backend changes needed to make the remaining admin screens fully functional. It is documentation only; no backend files were changed.
+Last verified from repository files: 2026-05-23.
 
-## Rules For Backend Work
+## Purpose
 
-- Keep the existing HTTP microservices architecture.
-- Route admin requests through the API Gateway on port `5001`.
-- Do not add message buses, cross-service database access, or gateway database ownership.
-- Each service should own its data and expose HTTP endpoints consumed by the gateway.
-- Admin mutations should include authorization checks, audit logging, and structured error responses.
+This document used to list admin contracts that were still needed. The admin surface has since been wired much more broadly. Keep this file as a dated status note for the May 16 admin contract pass; use `admin/src/app/config/backendSupportMatrix.ts` for the current screen-by-screen source of truth.
 
-## Already Wired From Admin
+## Current Rule
 
-These contracts already exist and are consumed by the Next.js admin app:
+- Admin requests route through the API Gateway on port `5001`.
+- The admin app does not call internal service ports or service-owned database schemas.
+- Admin mutations require admin authorization, structured errors, and audit logging when the workflow changes business state.
+- Missing product features should be hidden or shown as explicit unsupported states; do not fake backend success in the UI.
 
-- `GET /v1/me`
-- `GET /v1/admin/payments`
-- `PATCH /v1/admin/payments/:paymentId/status`
-- `GET /v1/admin/support/tickets`
-- `PATCH /v1/admin/support/tickets/:ticketId/status`
-- `GET /v1/catalog/categories`
-- `GET /v1/catalog/services`
-- `GET /v1/catalog/providers`
+## Current Live Contract Areas
 
-## Needed Contracts
+The following areas now have gateway-backed admin contracts:
 
-### Dashboard And Platform Summary
+- Dashboard summary data, booking summaries, operations alerts, user summaries, payments, support tickets, catalog reads, and provider listing counts.
+- Payment operations, failed-payment metadata, retries, APICenter sync, payouts, payout history, refunds, settlements, bank-reference reconciliation, and commission rules.
+- Support ticket list/detail/status/replies/assignee.
+- Catalog category and service CRUD.
+- Provider listing/detail/status, provider application review, approval/rejection, request-info notifications, document preview/download, provider availability read, and portfolio moderation.
+- Booking list/detail/cancel/escalate/provider messages/admin booking thread.
+- Review moderation.
+- Promotions and broadcasts.
+- Current-user profile, password, sessions, preferences, and TOTP 2FA.
+- Reports, report generation, report schedules, audit logs, integrations, admin users, and access-role management.
+- Pricing engine rules, fuel index rows, GasWatch fuel sync, and quote audits.
 
-- `GET /v1/admin/dashboard/summary`
-- `GET /v1/admin/operations/alerts`
-- `GET /v1/admin/users/summary`
-- `GET /v1/admin/bookings/summary`
+## Remaining Product Decisions
 
-Needed for real top-level customer counts, booking counts, dispute counts, fraud/system alerts, trend deltas, and dashboard charts.
+The current matrix has no `backendNeeded` rows, but some optional product decisions remain intentionally out of scope until dedicated contracts are designed:
 
-### Customers
+- Persisted service-area CRUD beyond the current read-only derived coverage view.
+- Custom admin permission editing beyond fixed backend-defined admin access roles.
+- Admin password-reset resend from the Admin Roles page.
+- Performance/compliance report families beyond the supported bookings, revenue, users, and financial reports.
+- Provider social links, profile media, licenses, certifications, and languages if those optional profile fields are reintroduced.
 
-- `GET /v1/admin/customers`
-- `GET /v1/admin/customers/:customerId`
-- `PATCH /v1/admin/customers/:customerId/status`
-- `GET /v1/admin/customers/export`
+## Verification Pointers
 
-Needed for customer list, detail, suspend/reactivate, and export.
-
-### Provider Applications
-
-- `GET /v1/admin/provider-applications`
-- `GET /v1/admin/provider-applications/:applicationId`
-- `POST /v1/admin/provider-applications/:applicationId/approve`
-- `POST /v1/admin/provider-applications/:applicationId/reject`
-
-Approval queue, application review, approve/reject decisions, rejection reasons, request-info notifications, and document preview/download now have gateway-backed contracts.
-
-### Service Providers
-
-- `GET /v1/admin/providers`
-- `GET /v1/admin/providers/:providerId`
-- `PATCH /v1/admin/providers/:providerId/status`
-- `PATCH /v1/admin/providers/:providerId/verification`
-- `GET /v1/admin/providers/:providerId/earnings`
-
-Needed because `GET /v1/catalog/providers` returns public listings, not full admin provider profiles.
-
-### Bookings And Operations
-
-- `GET /v1/admin/bookings`
-- `GET /v1/admin/bookings/:bookingId`
-- `POST /v1/admin/bookings/:bookingId/cancel`
-- `POST /v1/admin/bookings/:bookingId/escalate`
-- `POST /v1/admin/bookings/:bookingId/provider-messages`
-
-Needed for all bookings, ongoing services, force cancel, escalation, provider contact, and booking detail drawers.
-
-### Disputes
-
-- `GET /v1/admin/disputes`
-- `GET /v1/admin/disputes/:disputeId`
-- `PATCH /v1/admin/disputes/:disputeId/assignee`
-- `POST /v1/admin/disputes/:disputeId/resolve`
-- `POST /v1/admin/disputes/:disputeId/refund`
-
-Needed for disputes and resolutions workflows.
-
-### Payments, Refunds, Payouts, Settlements
-
-- `GET /v1/admin/payments/:paymentId`
-- `GET /v1/admin/refunds`
-- `POST /v1/admin/refunds/:refundId/approve`
-- `POST /v1/admin/refunds/:refundId/reject`
-- `GET /v1/admin/payout-requests`
-- `POST /v1/admin/payout-requests/:payoutId/approve`
-- `POST /v1/admin/payout-requests/:payoutId/reject`
-- `POST /v1/admin/payout-requests/:payoutId/release`
-
-Needed for real failure reasons, refund processing, payout approval, release flows, and finance audit trails. Failed-payment exception listing and settlement list/approve/reject actions are now gateway-backed workflows.
-
-### Catalog Admin
-
-- `POST /v1/admin/catalog/categories`
-- `PATCH /v1/admin/catalog/categories/:categoryId`
-- `DELETE /v1/admin/catalog/categories/:categoryId`
-- `POST /v1/admin/catalog/services`
-- `PATCH /v1/admin/catalog/services/:serviceId`
-- `DELETE /v1/admin/catalog/services/:serviceId`
-- `PATCH /v1/admin/catalog/services/:serviceId/status`
-
-Needed for category/service CRUD and status management.
-
-### Service Areas
-
-- `GET /v1/admin/service-areas`
-- `POST /v1/admin/service-areas`
-- `PATCH /v1/admin/service-areas/:areaId`
-- `PATCH /v1/admin/service-areas/:areaId/status`
-- `DELETE /v1/admin/service-areas/:areaId`
-
-Needed for geographic coverage management.
-
-### Promotions And Broadcasts
-
-- `GET /v1/admin/promotions`
-- `POST /v1/admin/promotions`
-- `PATCH /v1/admin/promotions/:promotionId`
-- `PATCH /v1/admin/promotions/:promotionId/status`
-- `DELETE /v1/admin/promotions/:promotionId`
-- `GET /v1/admin/broadcasts`
-
-Promotion lifecycle and immediate broadcast delivery are gateway-backed. Broadcast history, scheduling, and richer targeting still need dedicated contracts.
-
-### Commission Rules
-
-- `GET /v1/admin/commission-rules`
-- `PATCH /v1/admin/commission-rules/:ruleId`
-- `POST /v1/admin/commission-rules`
-
-Needed for commission rule edits and financial audit trails.
-
-### Admin Users, Roles, Audit Trail
-
-- `GET /v1/admin/users`
-- `PATCH /v1/admin/users/:adminId`
-- `PATCH /v1/admin/users/:adminId/status`
-- `POST /v1/admin/users/:adminId/invitations`
-- `GET /v1/admin/roles`
-- `PATCH /v1/admin/roles/:roleId`
-- `GET /v1/admin/audit-logs`
-- `GET /v1/admin/audit-logs/export`
-
-Needed for admin profile edits, invitations, RBAC, and activity/audit exports. Admin user creation is now gateway-backed and creates the auth/profile record with `role=admin`.
-
-### Account And Security
-
-- `PATCH /v1/me`
-- `GET /v1/me/settings`
-- `PATCH /v1/me/settings`
-- `PATCH /v1/me/password`
-- `GET /v1/me/sessions`
-- `DELETE /v1/me/sessions/:sessionId`
-- `POST /v1/me/two-factor/enable`
-- `POST /v1/me/two-factor/disable`
-
-Needed for admin profile updates, synced settings, password changes, active sessions, and 2FA.
-
-### Integrations
-
-- `GET /v1/admin/integrations`
-- `PATCH /v1/admin/integrations/:provider/credentials`
-- `POST /v1/admin/integrations/:provider/test`
-- `PATCH /v1/admin/integrations/:provider/status`
-
-Needed for payment, messaging, maps, analytics, and push-provider configuration. Secret values should stay server-side.
-
-### Reports
-
-- `GET /v1/admin/reports/revenue.pdf`
-- `GET /v1/admin/reports/bookings.pdf`
-- `POST /v1/admin/reports/:reportType`
-- `GET /v1/admin/reports/:reportId/download`
-- `POST /v1/admin/reports/:reportType/schedules`
-- `PATCH /v1/admin/reports/:reportType/schedules/:scheduleId/status`
-
-Booking analytics CSV export is now gateway-backed. Remaining needs are PDF generation, scheduled reports, historical report downloads, and non-payment analytics.
-
-## Frontend Status
-
-The admin app now exposes `/backend-support` as an in-app matrix. It shows which screens are wired, partial, local-only, or blocked, and exports the same information as CSV.
+- `admin/src/app/config/backendSupportMatrix.ts` lists current endpoints and notes.
+- `admin/src/services/serveaseAdminApi.test.ts` verifies admin gateway client calls.
+- `admin/src/app/pages/AdminGatewayPages.test.tsx` verifies support/broadcast/admin-gateway flows.
+- `admin/src/app/pages/PricingEngine.test.tsx` verifies pricing-engine UI behavior.
+- `admin/scripts/smoke-admin-integration.mjs` verifies live admin contract reads when credentials are configured.

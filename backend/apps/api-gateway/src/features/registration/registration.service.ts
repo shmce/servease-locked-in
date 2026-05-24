@@ -24,12 +24,15 @@ import {
   OtpVerifyResponse,
   PasswordResetRequest,
   PasswordResetResponse,
+  ProviderApplicationDocumentsResponse,
   ProviderApplicationStatusResponse,
   RegisterAccountRequest,
   RegisteredAccountResponse,
 } from './registration.types';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 @Injectable()
 export class RegistrationGatewayService {
@@ -49,9 +52,19 @@ export class RegistrationGatewayService {
           user.id,
           input.address,
         );
+        const customerAddresses = input.address?.trim()
+          ? [
+              await this.userServiceClient.createCustomerAddress(user.id, {
+                label: 'Home',
+                address: input.address.trim(),
+                isDefault: true,
+              }),
+            ]
+          : [];
         return {
           user,
           customerProfile,
+          customerAddresses,
           providerProfile: null,
         };
       }
@@ -63,6 +76,7 @@ export class RegistrationGatewayService {
       return {
         user,
         customerProfile: null,
+        customerAddresses: [],
         providerProfile,
       };
     } catch (error) {
@@ -175,6 +189,31 @@ export class RegistrationGatewayService {
     }
   }
 
+  async getProviderApplicationDocuments(
+    userId: string,
+  ): Promise<ProviderApplicationDocumentsResponse> {
+    try {
+      const application =
+        await this.catalogServiceClient.getProviderApplicationByUserId(userId);
+
+      if (!application) {
+        throw new ProviderApplicationNotFoundError();
+      }
+
+      const { documents, ...status } = application;
+      return {
+        application: status,
+        documents: documents ?? [],
+      };
+    } catch (error) {
+      if (error instanceof ProviderApplicationNotFoundError) {
+        throw error;
+      }
+
+      throw new ProviderApplicationDependencyUnavailableError();
+    }
+  }
+
   private validate(input: RegisterAccountRequest): void {
     const email = input.email?.trim() ?? '';
     if (
@@ -188,7 +227,18 @@ export class RegistrationGatewayService {
       throw new InvalidRegistrationRequestError();
     }
 
-    if (input.role === 'provider' && !input.businessName?.trim()) {
+    if (
+      input.role === 'provider' &&
+      (!input.businessName?.trim() || !isAdultBirthdate(input.birthdate))
+    ) {
+      throw new InvalidRegistrationRequestError();
+    }
+
+    if (
+      input.role === 'provider' &&
+      input.serviceId?.trim() &&
+      !UUID_PATTERN.test(input.serviceId.trim())
+    ) {
       throw new InvalidRegistrationRequestError();
     }
   }
@@ -212,4 +262,66 @@ function isValidUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isAdultBirthdate(value?: string | null): boolean {
+  const birthdate = parseDateParts(value?.trim() ?? '');
+  const today = parseDateParts(formatLocalDate(new Date()));
+  if (!birthdate || !today || compareDateParts(birthdate, today) > 0) {
+    return false;
+  }
+
+  const age =
+    today.year -
+    birthdate.year -
+    (today.month < birthdate.month ||
+    (today.month === birthdate.month && today.day < birthdate.day)
+      ? 1
+      : 0);
+
+  return age >= 18;
+}
+
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateParts(
+  value: string,
+): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function compareDateParts(
+  left: { year: number; month: number; day: number },
+  right: { year: number; month: number; day: number },
+): number {
+  if (left.year !== right.year) {
+    return left.year - right.year;
+  }
+  if (left.month !== right.month) {
+    return left.month - right.month;
+  }
+  return left.day - right.day;
 }

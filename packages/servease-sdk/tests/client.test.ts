@@ -428,7 +428,48 @@ describe('createServEaseClient', () => {
               status: 'active',
             },
             customerProfile: null,
+            customerAddresses: [],
             providerProfile: null,
+          },
+        });
+      }
+      if (request.url.endsWith('/v1/me/addresses')) {
+        return jsonResponse({
+          data: [
+            {
+              id: 'address-1',
+              userId: 'user-1',
+              label: 'Home',
+              address: '123 Test St',
+              barangay: null,
+              city: null,
+              province: null,
+              region: null,
+              latitude: null,
+              longitude: null,
+              isDefault: true,
+              createdAt: null,
+              updatedAt: null,
+            },
+          ],
+        });
+      }
+      if (request.url.endsWith('/v1/me/addresses/address-1/default')) {
+        return jsonResponse({
+          data: {
+            id: 'address-1',
+            userId: 'user-1',
+            label: 'Home',
+            address: '123 Test St',
+            barangay: null,
+            city: null,
+            province: null,
+            region: null,
+            latitude: null,
+            longitude: null,
+            isDefault: true,
+            createdAt: null,
+            updatedAt: null,
           },
         });
       }
@@ -482,15 +523,22 @@ describe('createServEaseClient', () => {
     });
 
     await client.profile.getCurrent();
+    await client.profile.listAddresses();
+    await client.profile.setDefaultAddress('address-1');
     await client.reviews.create({ bookingId: 'booking-1', rating: 5, reviewText: 'Great' });
     await client.support.createTicket({ subject: 'Help', message: 'Need help' });
     await client.notifications.markRead('notification-1');
 
     assert.equal(requests[0]?.url, 'https://api.servease.test/v1/me');
-    assert.equal(requests[1]?.url, 'https://api.servease.test/v1/reviews');
-    assert.equal(requests[2]?.url, 'https://api.servease.test/v1/support/tickets');
+    assert.equal(requests[1]?.url, 'https://api.servease.test/v1/me/addresses');
     assert.equal(
-      requests[3]?.url,
+      requests[2]?.url,
+      'https://api.servease.test/v1/me/addresses/address-1/default',
+    );
+    assert.equal(requests[3]?.url, 'https://api.servease.test/v1/reviews');
+    assert.equal(requests[4]?.url, 'https://api.servease.test/v1/support/tickets');
+    assert.equal(
+      requests[5]?.url,
       'https://api.servease.test/v1/notifications/notification-1/read',
     );
   });

@@ -493,7 +493,7 @@ export function ProviderHelpCenterPage() {
       category: "Payments & Earnings",
       categoryColor: "#F59E0B",
       categoryBg: "#FFFBEF",
-      answer: "Once a booking is completed and confirmed by the customer, your earnings are automatically credited to your registered payout method. Payouts are processed every Monday and Thursday. You can track all your earnings and payout history from the Earnings tab on your dashboard. Make sure your Google bank account, or wallet details are up to date under Payout Methods in Settings."
+      answer: "Once a booking is completed and confirmed by the customer, eligible earnings are reflected in your provider earnings and can be withdrawn to a saved payout method. You can track earnings and payout history from the Earnings tab on your dashboard. Make sure your bank account or wallet details are up to date under Payout Methods in Settings."
     },
     {
       icon: <BookOpen size={20} />,
@@ -503,7 +503,7 @@ export function ProviderHelpCenterPage() {
       category: "Managing Bookings",
       categoryColor: "#6366F1",
       categoryBg: "#EEF2FF",
-      answer: "If a customer cancels a booking more than 24 hours before the scheduled time, no cancellation fee applies. Cancellations within 24 hours may result in a partial payment to you as a compensation for the late notice. If you need to cancel, please do so as early as possible through the bookings tab - repeated provider cancellations may affect your rating and visibility on the platform."
+      answer: "Cancellation outcomes depend on the booking status and the latest ServEase operations review. If you need to cancel, please do so as early as possible through the bookings tab so the customer can be notified and support can review any follow-up."
     },
     {
       icon: <ShieldCheck size={20} />,
@@ -513,7 +513,7 @@ export function ProviderHelpCenterPage() {
       category: "Profile & Verification",
       categoryColor: "#8B5CF6",
       categoryBg: "#F5F3FF",
-      answer: "Profile verification helps build trust with customers. You'll need to submit a valid Philippine government ID (e.g., PhilSys, Passport, Driver's License) and a clear selfie for identity matching. Verification is reviewed within 1-3 business days. Verified providers receive a badge on their profile and are prioritized in search results. You can check your verification status under Settings > Profile & Verification."
+      answer: "Profile verification helps build trust with customers. You'll need to submit a valid Philippine government ID (e.g., PhilSys, Passport, Driver's License) and a clear selfie for identity matching. You can check your verification status under Settings > Profile & Verification."
     },
     {
       icon: (
@@ -529,7 +529,7 @@ export function ProviderHelpCenterPage() {
       category: "Payments & Earnings",
       categoryColor: "#F59E0B",
       categoryBg: "#FFFBEF",
-      answer: "Go to your Provider Dashboard, tap on Settings, then Service Configuration. From there you can update your base rate, price unit (per hour, per project, or per sqm), and estimated duration for each service. Changes take effect immediately and will be reflected on your public profile. We recommend keeping your rates competitive by checking similar providers in your area."
+      answer: "Go to your Provider Dashboard, tap on Settings, then Service Configuration. From there you can update your service name, description, base rate, price unit, and active status. Changes take effect immediately and will be reflected on your public profile."
     },
   ];
 
@@ -900,7 +900,7 @@ export function ProviderHelpCenterPage() {
         <div style={styles.needHelpSection}>
           <h2 style={styles.needHelpTitle}>Still need help?</h2>
           <p style={styles.needHelpSubtitle}>
-            Our team replies instantly, within 24 hours
+            Support tickets are tracked in your help center
           </p>
 
           <div style={styles.contactGrid}>

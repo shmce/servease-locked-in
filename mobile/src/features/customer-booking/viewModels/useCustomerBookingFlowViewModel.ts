@@ -13,6 +13,7 @@ import type {
   ApiOptions,
   BookingSummary,
   CatalogServiceItem,
+  CustomerAddressSummary,
   CreateBookingRequest,
   CustomerPaymentMethodSummary,
   GeoAddressResult,
@@ -22,6 +23,7 @@ import type {
   UploadSummary,
 } from '../../../shared/models/types';
 import {
+  createCustomerAddress,
   createBooking,
   createPricingQuote,
   geocodeAddress,
@@ -31,7 +33,9 @@ import {
 
 type CustomerBookingFlowViewModelInput = {
   apiOptions: ApiOptions;
+  customerAddresses: CustomerAddressSummary[];
   hasSession: boolean;
+  onCustomerAddressSaved: (address: CustomerAddressSummary) => void;
   onBookingCreated: (booking: BookingSummary) => void;
   onRefreshProviderAvailability: (providerId: string) => void;
   selectedBooking: BookingSummary | null;
@@ -45,7 +49,9 @@ type CustomerBookingFlowViewModelInput = {
 
 export function useCustomerBookingFlowViewModel({
   apiOptions,
+  customerAddresses,
   hasSession,
+  onCustomerAddressSaved,
   onBookingCreated,
   onRefreshProviderAvailability,
   selectedBooking,
@@ -73,15 +79,59 @@ export function useCustomerBookingFlowViewModel({
   const [promotionValidation, setPromotionValidation] =
     useState<PromotionValidationSummary | null>(null);
   const [pricingQuote, setPricingQuote] = useState<PricingQuoteSummary | null>(null);
+  const [selectedSavedAddressId, setSelectedSavedAddressId] =
+    useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      selectedSavedAddressId ||
+      (address.trim() && address.trim() !== 'Unit 12B Greenfield Residences')
+    ) {
+      return;
+    }
+
+    const defaultAddress =
+      customerAddresses.find((item) => item.isDefault) ?? customerAddresses[0];
+    if (defaultAddress) {
+      applySavedAddress(defaultAddress);
+    }
+  }, [address, customerAddresses, selectedSavedAddressId]);
 
   useEffect(() => {
     setPromoCode('');
     setPromotionValidation(null);
   }, [selectedBooking?.id]);
 
+  useEffect(() => {
+    setPricingQuote(null);
+  }, [
+    address,
+    hoursRequired,
+    scheduledAt,
+    selectedProvider?.providerId,
+    selectedService?.id,
+  ]);
+
   function setServiceAddress(value: string) {
     setAddress(value);
     setAddressGeoResult(null);
+    setSelectedSavedAddressId(null);
+  }
+
+  function applySavedAddress(savedAddress: CustomerAddressSummary) {
+    setSelectedSavedAddressId(savedAddress.id);
+    setAddress(savedAddress.address);
+    setPricingQuote(null);
+    setAddressGeoResult(
+      savedAddress.latitude !== null && savedAddress.longitude !== null
+        ? {
+            formattedAddress: savedAddress.address,
+            latitude: savedAddress.latitude,
+            longitude: savedAddress.longitude,
+            provider: 'mock',
+          }
+        : null,
+    );
   }
 
   function setBookingReferenceUploadResult(uri: string, upload: UploadSummary) {
@@ -96,45 +146,38 @@ export function useCustomerBookingFlowViewModel({
     setBookingReferenceUpload(null);
   }
 
-  async function submitBooking() {
+  async function submitBooking(
+    options: { navigateOnSuccess?: boolean; showSuccessNotice?: boolean } = {},
+  ): Promise<BookingSummary | null> {
     if (!hasSession) {
       setNotice('Sign in before creating a booking.');
       setRoute({ role: null, screen: 'loginRole' });
-      return;
+      return null;
     }
 
     const scheduledAtIso = toManilaBookingIso(scheduledAt);
 
     if (!selectedProvider || !address.trim() || !scheduledAtIso) {
       setNotice('Choose a service provider, address, and schedule.');
-      return;
+      return null;
     }
 
     setBusyAction('create-booking');
     try {
       const serviceId = selectedService?.id ?? selectedProvider.serviceId;
-      const quote =
-        serviceId && selectedProvider.providerId
-          ? await createPricingQuote(
-              {
-                providerId: selectedProvider.providerId,
-                serviceId,
-                serviceAddress: address.trim(),
-                scheduledAt: scheduledAtIso,
-                hoursRequired: Number(hoursRequired) || 1,
-                bookingUrgency: 'standard',
-                region: 'default',
-                destination: addressGeoResult
-                  ? {
-                      latitude: addressGeoResult.latitude,
-                      longitude: addressGeoResult.longitude,
-                    }
-                  : null,
-              },
-              apiOptions,
-            )
-          : null;
-      setPricingQuote(quote);
+      let quote = pricingQuote;
+
+      if (serviceId && selectedProvider.providerId) {
+        if (!isPricingQuoteFresh(quote)) {
+          quote = await fetchPricingQuote();
+          setPricingQuote(quote);
+          setNotice('Pricing estimate refreshed. Review the updated total before confirming.');
+          return null;
+        }
+      } else {
+        quote = null;
+      }
+
       const request: CreateBookingRequest = {
         providerId: selectedProvider.providerId,
         serviceId,
@@ -162,8 +205,13 @@ export function useCustomerBookingFlowViewModel({
       const booking = await createBooking(request, apiOptions);
       onBookingCreated(booking);
       resetBookingReferenceUpload();
-      setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
-      setNotice(`Booking ${booking.bookingReference} created.`);
+      if (options.navigateOnSuccess ?? true) {
+        setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
+      }
+      if (options.showSuccessNotice ?? true) {
+        setNotice(`Booking ${booking.bookingReference} created.`);
+      }
+      return booking;
     } catch (error) {
       const message = readError(error);
       const slotMessage = providerUnavailableSlotPickerMessage(error, message);
@@ -175,6 +223,56 @@ export function useCustomerBookingFlowViewModel({
       } else {
         setNotice(message);
       }
+      return null;
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function fetchPricingQuote(): Promise<PricingQuoteSummary> {
+    const scheduledAtIso = toManilaBookingIso(scheduledAt);
+    const serviceId = selectedService?.id ?? selectedProvider?.serviceId ?? null;
+    if (!selectedProvider || !serviceId || !address.trim() || !scheduledAtIso) {
+      throw new Error('Choose a service provider, address, and schedule first.');
+    }
+
+    return createPricingQuote(
+      {
+        providerId: selectedProvider.providerId,
+        serviceId,
+        serviceAddress: address.trim(),
+        scheduledAt: scheduledAtIso,
+        hoursRequired: Number(hoursRequired) || 1,
+        bookingUrgency: 'standard',
+        region: 'default',
+        destination: addressGeoResult
+          ? {
+              latitude: addressGeoResult.latitude,
+              longitude: addressGeoResult.longitude,
+            }
+          : null,
+      },
+      apiOptions,
+    );
+  }
+
+  async function prepareBookingReview() {
+    if (!hasSession) {
+      setNotice('Sign in before requesting a fair estimate.');
+      return false;
+    }
+
+    setBusyAction('pricing-quote');
+    try {
+      const quote = await fetchPricingQuote();
+      setPricingQuote(quote);
+      return true;
+    } catch (error) {
+      setPricingQuote(null);
+      setNotice(
+        `${readError(error)} Review the provider rate now; confirmation will need a fresh pricing estimate.`,
+      );
+      return true;
     } finally {
       setBusyAction(null);
     }
@@ -186,33 +284,9 @@ export function useCustomerBookingFlowViewModel({
       return null;
     }
 
-    const scheduledAtIso = toManilaBookingIso(scheduledAt);
-    const serviceId = selectedService?.id ?? selectedProvider?.serviceId ?? null;
-    if (!selectedProvider || !serviceId || !address.trim() || !scheduledAtIso) {
-      setNotice('Choose a service provider, address, and schedule first.');
-      return null;
-    }
-
     setBusyAction('pricing-quote');
     try {
-      const quote = await createPricingQuote(
-        {
-          providerId: selectedProvider.providerId,
-          serviceId,
-          serviceAddress: address.trim(),
-          scheduledAt: scheduledAtIso,
-          hoursRequired: Number(hoursRequired) || 1,
-          bookingUrgency: 'standard',
-          region: 'default',
-          destination: addressGeoResult
-            ? {
-                latitude: addressGeoResult.latitude,
-                longitude: addressGeoResult.longitude,
-              }
-            : null,
-        },
-        apiOptions,
-      );
+      const quote = await fetchPricingQuote();
       setPricingQuote(quote);
       return quote;
     } catch (error) {
@@ -307,6 +381,39 @@ export function useCustomerBookingFlowViewModel({
     }
   }
 
+  async function saveCurrentAddressAsHome(): Promise<void> {
+    const trimmed = address.trim();
+    if (!hasSession) {
+      setNotice('Sign in before saving an address.');
+      return;
+    }
+    if (!trimmed) {
+      setNotice('Enter a service address before saving it.');
+      return;
+    }
+
+    setBusyAction('save-address');
+    try {
+      const savedAddress = await createCustomerAddress(
+        {
+          label: 'Home',
+          address: trimmed,
+          latitude: addressGeoResult?.latitude ?? null,
+          longitude: addressGeoResult?.longitude ?? null,
+          isDefault: true,
+        },
+        apiOptions,
+      );
+      applySavedAddress(savedAddress);
+      onCustomerAddressSaved(savedAddress);
+      setNotice('Home address saved.');
+    } catch (error) {
+      setNotice(readError(error));
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
   return {
     data: {
       address,
@@ -320,10 +427,15 @@ export function useCustomerBookingFlowViewModel({
       promoCode,
       promotionValidation,
       scheduledAt,
+      savedAddresses: customerAddresses,
+      selectedSavedAddressId,
     },
     actions: {
+      applySavedAddress,
       applyPromotionCode,
+      prepareBookingReview,
       previewPricingQuote,
+      saveCurrentAddressAsHome,
       setAddress: setServiceAddress,
       setBookingReferenceUploadResult,
       setBookingSlotError,
@@ -351,4 +463,16 @@ function mediaAttachmentFromUpload(upload: UploadSummary) {
     fileSize: upload.size,
     caption: null,
   };
+}
+
+export function isPricingQuoteFresh(
+  quote: PricingQuoteSummary | null,
+  now: number = Date.now(),
+): quote is PricingQuoteSummary {
+  if (!quote) {
+    return false;
+  }
+
+  const expiresAt = new Date(quote.expiresAt).getTime();
+  return Number.isFinite(expiresAt) && expiresAt > now;
 }

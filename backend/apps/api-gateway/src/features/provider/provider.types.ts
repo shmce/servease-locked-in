@@ -38,11 +38,9 @@ export interface ProviderDashboardSummary {
   performance: {
     acceptanceRate: number;
     completionRate: number;
+    cancellationRate: number;
     responseTimeMinutes: number | null;
   };
 }
 
-export type {
-  ProviderOwnedServiceInput,
-  ProviderOwnedServiceSummary,
-};
+export type { ProviderOwnedServiceInput, ProviderOwnedServiceSummary };

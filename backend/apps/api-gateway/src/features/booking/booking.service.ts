@@ -31,6 +31,13 @@ import {
 } from './booking.errors';
 
 const TRACKING_STREAM_INTERVAL_MS = 2000;
+const PROVIDER_OPERATIONAL_TRANSITIONS = new Set<BookingStatus>([
+  'confirmed',
+  'rejected',
+  'in_progress',
+  'completed',
+  'cancelled',
+]);
 
 @Injectable()
 export class BookingGatewayService {
@@ -184,28 +191,75 @@ export class BookingGatewayService {
       providerId,
     );
     this.assertActorCanTransition(visibleBooking, actorId, providerId, nextStatus);
+    await this.assertProviderOperationalLockAllowsTransition(
+      visibleBooking,
+      providerId,
+      nextStatus,
+    );
     const completionPayment = await this.assertPaymentAllowsCompletion(
       visibleBooking,
       nextStatus,
     );
 
+    const didTransition = visibleBooking.status !== nextStatus;
     const booking = await this.enrichBooking(
-      await this.bookingServiceClient.transitionStatus(
-        bookingId,
-        actorId,
-        currentStatus,
-        nextStatus,
-        reason,
-        explanation,
-      ),
+      didTransition
+        ? await this.transitionBookingStatusSafely(
+            bookingId,
+            actorId,
+            visibleBooking.status,
+            nextStatus,
+            reason,
+            explanation,
+          )
+        : visibleBooking,
     );
     await this.confirmCashPaymentAfterCompletion(
       booking,
       nextStatus,
       completionPayment,
     );
-    await this.notifyBookingStatusChanged(booking, actorId, providerId);
+    if (didTransition) {
+      await this.notifyBookingStatusChanged(booking, actorId, providerId);
+    }
     return booking;
+  }
+
+  private async transitionBookingStatusSafely(
+    bookingId: string,
+    actorId: string,
+    currentStatus: BookingStatus,
+    nextStatus: BookingStatus,
+    reason?: string | null,
+    explanation?: string | null,
+  ): Promise<BookingSummary> {
+    if (currentStatus === 'confirmed' && nextStatus === 'completed') {
+      const startedBooking = await this.bookingServiceClient.transitionStatus(
+        bookingId,
+        actorId,
+        'confirmed',
+        'in_progress',
+        undefined,
+        undefined,
+      );
+      return this.bookingServiceClient.transitionStatus(
+        bookingId,
+        actorId,
+        startedBooking.status,
+        'completed',
+        reason,
+        explanation,
+      );
+    }
+
+    return this.bookingServiceClient.transitionStatus(
+      bookingId,
+      actorId,
+      currentStatus,
+      nextStatus,
+      reason,
+      explanation,
+    );
   }
 
   private async ensureCashPaymentReserved(
@@ -423,6 +477,29 @@ export class BookingGatewayService {
     throw new InvalidBookingTransitionError();
   }
 
+  private async assertProviderOperationalLockAllowsTransition(
+    booking: BookingSummary,
+    providerId: string | null,
+    nextStatus: BookingStatus,
+  ): Promise<void> {
+    if (
+      providerId === null ||
+      booking.status === nextStatus ||
+      booking.status === 'in_progress' ||
+      !PROVIDER_OPERATIONAL_TRANSITIONS.has(nextStatus)
+    ) {
+      return;
+    }
+
+    const activeBooking = (
+      await this.bookingServiceClient.listBookings(null, providerId)
+    ).find((candidate) => candidate.status === 'in_progress');
+
+    if (activeBooking && activeBooking.id !== booking.id) {
+      throw new InvalidBookingTransitionError();
+    }
+  }
+
   addAttachment(
     bookingId: string,
     actorId: string,
@@ -547,12 +624,20 @@ export class BookingGatewayService {
     if (!provider) {
       provider = this.catalogServiceClient
         .findProviderBusinessNameByProviderId(providerId)
-        .catch(() =>
-          Promise.resolve(
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Could not resolve provider business name for ${providerId}: ${this.errorMessage(error)}`,
+          );
+          return Promise.resolve(
             this.catalogServiceClient?.findProviderOwnerByProviderId(providerId),
-          ).then((owner) => owner?.businessName ?? null),
-        )
-        .catch(() => null);
+          ).then((owner) => owner?.businessName ?? null);
+        })
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Could not resolve provider owner for ${providerId}: ${this.errorMessage(error)}`,
+          );
+          return null;
+        });
       providerCache.set(providerId, provider);
     }
 
@@ -586,9 +671,16 @@ export class BookingGatewayService {
           longitude: destination.longitude,
         },
       };
-    } catch {
+    } catch (error) {
+      this.logger.warn(
+        `Could not geocode booking tracking destination: ${this.errorMessage(error)}`,
+      );
       return snapshot;
     }
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private async getTrackingSnapshotForStream(

@@ -150,6 +150,7 @@ export function BookingAnalytics() {
     }, {});
 
     return Object.entries(byDate)
+      .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
       .map(([date, bookings]) => ({ date, bookings }))
       .slice(-10);
   }, [liveBookingRows]);
@@ -274,7 +275,7 @@ export function BookingAnalytics() {
                   <SelectItem value="pet">Pet Services</SelectItem>
                   <SelectItem value="events">Events & Entertainment</SelectItem>
                   <SelectItem value="auto">Automotive & Tech Support</SelectItem>
-                  <SelectItem value="education">Education & Professional Services</SelectItem>
+                  <SelectItem value="education">Educational & Professional Services</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -3,6 +3,7 @@ import {
   CatalogCategory,
   CatalogServiceItem,
   ProviderServiceListing,
+  ServiceAreaSummary,
 } from './catalog-browse.types';
 import { SupabaseCatalogBrowseRepository } from './supabase-catalog-browse.repository';
 
@@ -18,6 +19,10 @@ export class CatalogBrowseService {
 
   listServices(categoryId?: string): Promise<CatalogServiceItem[]> {
     return this.catalogBrowseRepository.listServices(categoryId);
+  }
+
+  listServiceAreas(): Promise<ServiceAreaSummary[]> {
+    return this.catalogBrowseRepository.listServiceAreas();
   }
 
   listProviderListings(

@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['.next/**', 'node_modules/**', 'src/imports/**', 'tsconfig.tsbuildinfo'],
+    ignores: ['.next/**', 'node_modules/**', 'tsconfig.tsbuildinfo'],
   },
   {
     files: ['src/**/*.{ts,tsx}', 'scripts/**/*.{js,mjs,ts}'],

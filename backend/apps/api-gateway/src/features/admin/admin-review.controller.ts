@@ -5,6 +5,7 @@ import {
   Headers,
   HttpException,
   HttpStatus,
+  Logger,
   Optional,
   Param,
   Patch,
@@ -29,6 +30,8 @@ import { AdminRequiredError } from './admin-support.errors';
 
 @Controller('v1/admin/reviews')
 export class AdminReviewController {
+  private readonly logger = new Logger(AdminReviewController.name);
+
   constructor(
     private readonly reviewServiceClient: ReviewServiceClient,
     private readonly authTokenService: AuthTokenService,
@@ -75,7 +78,12 @@ export class AdminReviewController {
       if (this.adminAuditGatewayService) {
         const profile = await this.currentUserService
           .getCurrentUser(adminId)
-          .catch(() => null);
+          .catch((error: unknown) => {
+            this.logger.warn(
+              `Could not load admin profile ${adminId} before creating review audit log: ${this.errorMessage(error)}`,
+            );
+            return null;
+          });
         void this.adminAuditGatewayService
           .createAuditLog({
             adminUserId: adminId,
@@ -97,7 +105,11 @@ export class AdminReviewController {
               isFlagged: review.isFlagged,
             },
           })
-          .catch(() => undefined);
+          .catch((error: unknown) => {
+            this.logger.warn(
+              `Could not create audit log for review ${review.id} flag update: ${this.errorMessage(error)}`,
+            );
+          });
       }
       return { data: review };
     } catch (error) {
@@ -155,5 +167,9 @@ export class AdminReviewController {
       },
       status,
     );
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

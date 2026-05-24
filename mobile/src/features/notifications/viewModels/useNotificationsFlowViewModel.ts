@@ -36,6 +36,7 @@ export function useNotificationsFlowViewModel({
 }: NotificationsFlowViewModelInput) {
   const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
   const handledPushNotificationIds = useRef<Set<string>>(new Set());
+  const refreshFailureNotified = useRef(false);
 
   const visibleNotifications = useMemo(
     () =>
@@ -69,10 +70,14 @@ export function useNotificationsFlowViewModel({
   const refreshNotifications = useCallback(async () => {
     try {
       setNotifications(await listNotifications(apiOptions));
-    } catch {
-      // Notification refreshes are best-effort.
+      refreshFailureNotified.current = false;
+    } catch (error) {
+      if (!refreshFailureNotified.current) {
+        setNotice(`Notifications could not be refreshed: ${readError(error)}`);
+        refreshFailureNotified.current = true;
+      }
     }
-  }, [apiOptions]);
+  }, [apiOptions, setNotice]);
 
   const openNotification = useCallback(
     async (notification: NotificationSummary) => {

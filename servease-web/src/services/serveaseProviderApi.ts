@@ -279,6 +279,22 @@ export interface CreateSupportTicketRequest {
   category?: string | null
 }
 
+export interface CatalogCategory {
+  id: string
+  name: string
+  description: string | null
+  icon: string | null
+}
+
+export interface CatalogServiceItem {
+  id: string
+  categoryId: string | null
+  name: string
+  description: string | null
+  price: number | null
+  pricingMode: 'flat' | 'hourly'
+}
+
 export interface ProviderServiceListing {
   id: string
   providerId: string
@@ -441,6 +457,7 @@ export interface ProviderDashboardSummary {
   performance: {
     acceptanceRate: number
     completionRate: number
+    cancellationRate: number
     responseTimeMinutes: number | null
   }
 }
@@ -537,6 +554,17 @@ export interface ReferralSummary {
   completedReferrals: number
   pendingReferrals: number
   totalRewards: number
+}
+
+export interface ServiceAreaSummary {
+  id: string
+  name: string
+  city: string
+  region: string
+  status: 'active' | 'inactive'
+  providerCount: number
+  latitude: number | null
+  longitude: number | null
 }
 
 export interface AddPortfolioMediaRequest {
@@ -752,6 +780,19 @@ export function getProviderDashboard(
   return request<ProviderDashboardSummary>('/v1/provider/dashboard', {
     token,
   })
+}
+
+export function listCatalogServiceAreas(): Promise<ServiceAreaSummary[]> {
+  return request<ServiceAreaSummary[]>('/v1/catalog/service-areas')
+}
+
+export function listCatalogCategories(): Promise<CatalogCategory[]> {
+  return request<CatalogCategory[]>('/v1/catalog/categories')
+}
+
+export function listCatalogServices(categoryId?: string | null): Promise<CatalogServiceItem[]> {
+  const qs = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : ''
+  return request<CatalogServiceItem[]>(`/v1/catalog/services${qs}`)
 }
 
 export function listProviderOwnedServices(
@@ -1221,6 +1262,14 @@ export function enableCurrentUserTwoFactor(
 ): Promise<TwoFactorProvisioningResponse> {
   return request<TwoFactorProvisioningResponse>('/v1/me/two-factor/enable', {
     method: 'POST',
+    token,
+  })
+}
+
+export function getCurrentUserTwoFactorStatus(
+  token: string,
+): Promise<TwoFactorStatusResponse> {
+  return request<TwoFactorStatusResponse>('/v1/me/two-factor', {
     token,
   })
 }

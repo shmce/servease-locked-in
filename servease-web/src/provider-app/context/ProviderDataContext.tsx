@@ -37,12 +37,6 @@ interface ProviderProfile {
   bio: string;
   serviceAreas: string;
   yearsExperience: string;
-  languages: string[];
-  facebook: string;
-  instagram: string;
-  website: string;
-  coverPhotoUrl: string;
-  profilePhotoUrl: string;
 }
 
 interface DaySchedule {
@@ -64,6 +58,8 @@ interface ProviderData {
 interface ProviderDataContextType {
   providerData: ProviderData;
   setProviderData: (data: ProviderData) => void;
+  isProfileLoading: boolean;
+  profileError: string | null;
   isAvailabilityLoading: boolean;
   availabilityError: string | null;
   refreshAvailability: () => Promise<void>;
@@ -168,12 +164,6 @@ const emptyProfile: ProviderProfile = {
   bio: "",
   serviceAreas: "",
   yearsExperience: "",
-  languages: [],
-  facebook: "",
-  instagram: "",
-  website: "",
-  coverPhotoUrl: "",
-  profilePhotoUrl: "",
 };
 
 function toAvailabilityWindows(
@@ -265,6 +255,8 @@ function applyProviderProfileSnapshot(
 
 export function ProviderDataProvider({ children }: { children: ReactNode }) {
   const { accessToken, isLoading: isAuthLoading } = useProviderAuth();
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [providerData, setProviderData] = useState<ProviderData>({
@@ -300,11 +292,18 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    setIsProfileLoading(true);
+    setProfileError(null);
+
     try {
       const snapshot = await getProviderProfile(accessToken);
       setProviderData((prev) => applyProviderProfileSnapshot(prev, snapshot));
-    } catch {
-      // Profile screens keep local editable state if the live profile is unavailable.
+    } catch (error) {
+      setProfileError(
+        error instanceof Error ? error.message : "Unable to load provider profile.",
+      );
+    } finally {
+      setIsProfileLoading(false);
     }
   }, [accessToken]);
 
@@ -420,6 +419,8 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
       value={{
         providerData,
         setProviderData,
+        isProfileLoading,
+        profileError,
         isAvailabilityLoading,
         availabilityError,
         refreshAvailability,

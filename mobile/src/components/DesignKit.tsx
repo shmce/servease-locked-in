@@ -1,13 +1,16 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Check } from 'lucide-react-native';
 import {
+  AccessibilityInfo,
   Animated,
   KeyboardTypeOptions,
   Pressable,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
   View,
+  ViewStyle,
 } from 'react-native';
 import { useEntranceMotion, usePressScale } from './Motion';
 import { palette, radius, spacing, type } from '../theme/serveaseDesign';
@@ -110,6 +113,93 @@ export function Card({
     >
       {content}
     </Pressable>
+  );
+}
+
+type SkeletonSize = number | `${number}%`;
+
+export function SkeletonBlock({
+  width = '100%',
+  height,
+  radius: blockRadius = radius.sm,
+  style,
+}: {
+  width?: SkeletonSize;
+  height: number;
+  radius?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const opacity = useSkeletonOpacity();
+
+  return (
+    <Animated.View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[
+        styles.skeletonBlock,
+        {
+          borderRadius: blockRadius,
+          height,
+          opacity,
+          width,
+        },
+        style,
+      ]}
+    />
+  );
+}
+
+export function SkeletonLine({
+  width = '100%',
+  height = 10,
+  style,
+}: {
+  width?: SkeletonSize;
+  height?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <SkeletonBlock
+      width={width}
+      height={height}
+      radius={radius.pill}
+      style={style}
+    />
+  );
+}
+
+export function SkeletonCircle({
+  size,
+  style,
+}: {
+  size: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <SkeletonBlock
+      width={size}
+      height={size}
+      radius={size / 2}
+      style={style}
+    />
+  );
+}
+
+export function SkeletonCard({
+  children,
+  style,
+}: {
+  children: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={[styles.card, style]}
+    >
+      {children}
+    </View>
   );
 }
 
@@ -385,6 +475,60 @@ export function StatusTimeline({
   );
 }
 
+function useSkeletonOpacity() {
+  const opacity = useRef(new Animated.Value(0.58)).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (mounted) {
+          setReduceMotion(enabled);
+        }
+      })
+      .catch(() => undefined);
+
+    const subscription = AccessibilityInfo.addEventListener(
+      'reduceMotionChanged',
+      setReduceMotion,
+    );
+
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      opacity.setValue(0.72);
+      return undefined;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          duration: 850,
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          duration: 850,
+          toValue: 0.58,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+    return () => animation.stop();
+  }, [opacity, reduceMotion]);
+
+  return opacity;
+}
+
 const badgeTone = {
   success: { backgroundColor: '#EAF8F0' },
   warning: { backgroundColor: '#FEF3C7' },
@@ -484,6 +628,9 @@ const styles = StyleSheet.create({
   selectedCard: {
     borderColor: palette.mint,
     boxShadow: '0 4px 8px rgba(86,196,144,0.18)',
+  },
+  skeletonBlock: {
+    backgroundColor: '#E9ECEF',
   },
   button: {
     alignItems: 'center',

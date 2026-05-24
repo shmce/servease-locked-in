@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Post,
   Query,
   Req,
@@ -39,6 +40,8 @@ type AuditRequest = {
 
 @Controller('v1/admin/broadcasts')
 export class AdminBroadcastController {
+  private readonly logger = new Logger(AdminBroadcastController.name);
+
   constructor(
     private readonly authTokenService: AuthTokenService,
     private readonly currentUserService: CurrentUserService,
@@ -298,7 +301,15 @@ export class AdminBroadcastController {
           failedCount: input.failedCount,
         },
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Could not create broadcast audit log for ${input.title}: ${this.errorMessage(error)}`,
+        );
+      });
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private getClientIp(request: AuditRequest): string | null {

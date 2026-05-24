@@ -193,6 +193,19 @@ export class InternalUserController {
     }
   }
 
+  @Get(':userId/two-factor')
+  async getTwoFactorStatus(
+    @Param('userId') userId: string,
+  ): Promise<{ data: TwoFactorStatusResponse }> {
+    try {
+      return {
+        data: await this.internalUserService.getTwoFactorStatus(userId),
+      };
+    } catch (error) {
+      throw this.toTwoFactorHttpException(error);
+    }
+  }
+
   @Post(':userId/two-factor/verify')
   async verifyTwoFactor(
     @Param('userId') userId: string,

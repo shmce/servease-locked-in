@@ -11,6 +11,7 @@ import {
   ProviderPortfolioOrderItem,
   ProviderPortfolioMediaSummary,
   ProviderServiceListing,
+  ServiceAreaSummary,
 } from '../catalog.types';
 
 @Injectable()
@@ -24,6 +25,10 @@ export class CatalogServiceClient {
   async listServices(categoryId?: string): Promise<CatalogServiceItem[]> {
     const search = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : '';
     return this.get<CatalogServiceItem[]>(`/internal/catalog/services${search}`);
+  }
+
+  async listServiceAreas(): Promise<ServiceAreaSummary[]> {
+    return this.get<ServiceAreaSummary[]>('/internal/catalog/service-areas');
   }
 
   async listProviderListings(

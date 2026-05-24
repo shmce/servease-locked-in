@@ -28,7 +28,7 @@ Bring the customer booking date picker to visual and behavioral parity with the 
    - Customer markers (suggested): no dot for available, grey/disabled cell for fully unavailable, small dot for partial availability (some slots blocked).
 4. **Additive only.** Do not rename or remove existing fields, props, or exports.
 5. **TDD.** Snapshot or render-tests for the shared component plus customer screen integration tests.
-6. **Scope:** `mobile/` only. Do not edit `backend/`, `FE_Web(Provider)/`, `admin/`, `Landing Page/`, or `packages/`.
+6. **Scope:** `mobile/` only. Do not edit `backend/`, `servease-web/`, `admin/`, or `packages/`.
 
 ## Step 1 — Locate
 

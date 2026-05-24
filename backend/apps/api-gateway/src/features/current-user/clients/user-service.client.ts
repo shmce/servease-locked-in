@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ProfileDependencyUnavailableError } from '../current-user.errors';
-import { CustomerProfileSummary } from '../current-user.types';
+import {
+  CreateCustomerAddressRequest,
+  CustomerAddressSummary,
+  CustomerProfileSummary,
+  UpdateCustomerAddressRequest,
+} from '../current-user.types';
 import { RegistrationDependencyUnavailableError } from '../../registration/registration.errors';
 import { ReferralDependencyUnavailableError } from '../../referrals/referral.errors';
 import { ReferralSummary } from '../../referrals/referral.types';
@@ -82,6 +87,114 @@ export class UserServiceClient {
 
     const payload = (await response.json()) as {
       data: CustomerProfileSummary;
+    };
+    return payload.data;
+  }
+
+  async listCustomerAddresses(userId: string): Promise<CustomerAddressSummary[]> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/addresses`,
+    );
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: CustomerAddressSummary[];
+    };
+    return payload.data;
+  }
+
+  async createCustomerAddress(
+    userId: string,
+    body: CreateCustomerAddressRequest,
+  ): Promise<CustomerAddressSummary> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/addresses`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: CustomerAddressSummary;
+    };
+    return payload.data;
+  }
+
+  async updateCustomerAddress(
+    userId: string,
+    addressId: string,
+    body: UpdateCustomerAddressRequest,
+  ): Promise<CustomerAddressSummary> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/addresses/${addressId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: CustomerAddressSummary;
+    };
+    return payload.data;
+  }
+
+  async setDefaultCustomerAddress(
+    userId: string,
+    addressId: string,
+  ): Promise<CustomerAddressSummary> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/addresses/${addressId}/default`,
+      {
+        method: 'POST',
+      },
+    );
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: CustomerAddressSummary;
+    };
+    return payload.data;
+  }
+
+  async deleteCustomerAddress(
+    userId: string,
+    addressId: string,
+  ): Promise<{ ok: true }> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/users/${userId}/addresses/${addressId}`,
+      {
+        method: 'DELETE',
+      },
+    );
+
+    if (!response.ok) {
+      throw new ProfileDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: { ok: true };
     };
     return payload.data;
   }

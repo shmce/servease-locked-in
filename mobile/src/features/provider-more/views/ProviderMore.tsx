@@ -3,6 +3,7 @@ import {
   Bell,
   Calendar,
   ChevronRight,
+  FileText,
   HelpCircle,
   Layers,
   LogOut,
@@ -30,6 +31,7 @@ const itemIcon: Record<string, typeof User> = {
   'Profile': User,
   'Portfolio': Layers,
   'Services': Wrench,
+  'Application': FileText,
   'Availability': Calendar,
   'Payouts': Wallet,
   'Request Payout': Send,
@@ -41,7 +43,10 @@ const itemIcon: Record<string, typeof User> = {
 };
 
 const menuGroups = [
-  { title: 'Business', labels: ['Profile', 'Portfolio', 'Services', 'Availability'] },
+  {
+    title: 'Business',
+    labels: ['Profile', 'Portfolio', 'Services', 'Application', 'Availability'],
+  },
   { title: 'Finance', labels: ['Payouts', 'Request Payout'] },
   { title: 'Activity', labels: ['Insights', 'Notifications'] },
   { title: 'Support', labels: ['Help Center', 'Security', 'Settings'] },

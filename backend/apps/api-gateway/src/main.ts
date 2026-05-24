@@ -1,6 +1,8 @@
-import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
-import { createGatewayCorsOptions, resolveServicePort } from '../../../libs/common/src';
+import {
+  createGatewayCorsOptions,
+  resolveServicePort,
+} from '../../../libs/common/src';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {

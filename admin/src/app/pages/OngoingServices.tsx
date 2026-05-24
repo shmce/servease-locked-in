@@ -68,139 +68,6 @@ interface OngoingService {
   amount: number;
 }
 
-const initialServices: OngoingService[] = [
-  {
-    id: "SVC-001",
-    bookingId: "BK-2026-001850",
-    customer: "Maria Santos",
-    provider: "HomeFixPro Manila",
-    category: "Home Maintenance & Repair",
-    startTime: "2026-03-04T09:00:00",
-    expectedCompletion: "2026-03-04T12:00:00",
-    liveStatus: "In Progress",
-    paymentStatus: "Paid",
-    location: "Makati City, Metro Manila",
-    amount: 3500,
-  },
-  {
-    id: "SVC-002",
-    bookingId: "BK-2026-001851",
-    customer: "Roberto Garcia",
-    provider: "Glow Beauty Spa",
-    category: "Beauty, Wellness & Personal Care",
-    startTime: "2026-03-04T10:00:00",
-    expectedCompletion: "2026-03-04T11:30:00",
-    liveStatus: "In Progress",
-    paymentStatus: "Paid",
-    location: "Quezon City, Metro Manila",
-    amount: 2800,
-  },
-  {
-    id: "SVC-003",
-    bookingId: "BK-2026-001852",
-    customer: "Ana Cruz",
-    provider: "Party Perfect Planners",
-    category: "Events & Entertainment",
-    startTime: "2026-03-04T08:00:00",
-    expectedCompletion: "2026-03-04T14:00:00",
-    liveStatus: "In Progress",
-    paymentStatus: "Paid",
-    location: "Pasig City, Metro Manila",
-    amount: 12500,
-  },
-  {
-    id: "SVC-004",
-    bookingId: "BK-2026-001853",
-    customer: "Gabriel Sanchez",
-    provider: "FitLife Wellness Center",
-    category: "Health & Fitness",
-    startTime: "2026-03-04T13:00:00",
-    expectedCompletion: "2026-03-04T14:00:00",
-    liveStatus: "Scheduled",
-    paymentStatus: "Paid",
-    location: "Taguig City, Metro Manila",
-    amount: 2000,
-  },
-  {
-    id: "SVC-005",
-    bookingId: "BK-2026-001854",
-    customer: "Carlos Aquino",
-    provider: "Pawsome Pet Care",
-    category: "Pet Services",
-    startTime: "2026-03-04T11:00:00",
-    expectedCompletion: "2026-03-04T12:30:00",
-    liveStatus: "In Progress",
-    paymentStatus: "Paid",
-    location: "Mandaluyong City, Metro Manila",
-    amount: 1500,
-  },
-  {
-    id: "SVC-006",
-    bookingId: "BK-2026-001855",
-    customer: "Jose Reyes",
-    provider: "GadgetFix Tech Services",
-    category: "Automotive & Tech Support",
-    startTime: "2026-03-04T14:00:00",
-    expectedCompletion: "2026-03-04T16:00:00",
-    liveStatus: "Scheduled",
-    paymentStatus: "Paid",
-    location: "Manila City, Metro Manila",
-    amount: 3500,
-  },
-  {
-    id: "SVC-007",
-    bookingId: "BK-2026-001856",
-    customer: "Fernando Lopez",
-    provider: "ElectroPro Electricians",
-    category: "Home Maintenance & Repair",
-    startTime: "2026-03-04T07:00:00",
-    expectedCompletion: "2026-03-04T10:00:00",
-    liveStatus: "Completed",
-    paymentStatus: "Paid",
-    location: "Paranaque City, Metro Manila",
-    amount: 3800,
-  },
-  {
-    id: "SVC-008",
-    bookingId: "BK-2026-001857",
-    customer: "Antonio Rivera",
-    provider: "Radiant Skin Clinic",
-    category: "Beauty, Wellness & Personal Care",
-    startTime: "2026-03-04T08:30:00",
-    expectedCompletion: "2026-03-04T10:00:00",
-    liveStatus: "Completed",
-    paymentStatus: "Paid",
-    location: "Quezon City, Metro Manila",
-    amount: 3500,
-  },
-  {
-    id: "SVC-009",
-    bookingId: "BK-2026-001858",
-    customer: "Angelica Ramos",
-    provider: "QuickFix Plumbing",
-    category: "Home Maintenance & Repair",
-    startTime: "2026-03-04T06:00:00",
-    expectedCompletion: "2026-03-04T09:00:00",
-    liveStatus: "In Progress",
-    paymentStatus: "Paid",
-    location: "Makati City, Metro Manila",
-    amount: 2800,
-  },
-  {
-    id: "SVC-010",
-    bookingId: "BK-2026-001859",
-    customer: "Luisa Mendoza",
-    provider: "Happy Paws Veterinary",
-    category: "Pet Services",
-    startTime: "2026-03-04T15:00:00",
-    expectedCompletion: "2026-03-04T16:30:00",
-    liveStatus: "Scheduled",
-    paymentStatus: "Paid",
-    location: "Pasay City, Metro Manila",
-    amount: 2800,
-  },
-];
-
 function toLiveStatus(status: AdminBookingStatus): LiveStatus {
   switch (status) {
     case "confirmed":
@@ -237,7 +104,7 @@ function toOngoingService(booking: AdminBookingSummary): OngoingService {
 
 export function OngoingServices() {
   const { accessToken } = useAuth();
-  const [services, setServices] = useState<OngoingService[]>(initialServices.slice(0, 0));
+  const [services, setServices] = useState<OngoingService[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -259,8 +126,13 @@ export function OngoingServices() {
     try {
       const data = await listAdminBookingMessages(accessToken, bookingId);
       setThreadMessages(data);
-    } catch {
+    } catch (error) {
       setThreadMessages([]);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to load provider message thread.",
+      );
     } finally {
       setIsLoadingThread(false);
     }
@@ -560,9 +432,10 @@ export function OngoingServices() {
                 <SelectItem value="all">All Categories</SelectItem>
                 <SelectItem value="Home Maintenance & Repair">Home Maintenance</SelectItem>
                 <SelectItem value="Beauty, Wellness & Personal Care">Beauty & Wellness</SelectItem>
+                <SelectItem value="Educational & Professional Services">Education & Professional</SelectItem>
+                <SelectItem value="Domestic & Cleaning Services">Domestic & Cleaning</SelectItem>
                 <SelectItem value="Events & Entertainment">Events</SelectItem>
                 <SelectItem value="Pet Services">Pet Services</SelectItem>
-                <SelectItem value="Health & Fitness">Health & Fitness</SelectItem>
                 <SelectItem value="Automotive & Tech Support">Auto & Tech</SelectItem>
               </SelectContent>
             </Select>

@@ -516,6 +516,7 @@ describe('BookingGatewayService', () => {
   it('allows assigned providers to confirm pending bookings', async () => {
     const client = {
       findBooking: jest.fn().mockResolvedValue(createBookingSummary()),
+      listBookings: jest.fn().mockResolvedValue([]),
       transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
         status: 'confirmed',
       })),
@@ -539,6 +540,73 @@ describe('BookingGatewayService', () => {
       undefined,
     );
     expect(booking.status).toBe('confirmed');
+  });
+
+  it('blocks providers from accepting another booking while on the way', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        id: 'pending-booking-1',
+        status: 'pending',
+      })),
+      listBookings: jest.fn().mockResolvedValue([
+        createBookingSummary({
+          id: 'active-booking-1',
+          status: 'in_progress',
+        }),
+      ]),
+      transitionStatus: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.transitionStatus(
+        'pending-booking-1',
+        'provider-user-1',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        'pending',
+        'confirmed',
+      ),
+    ).rejects.toBeInstanceOf(InvalidBookingTransitionError);
+
+    expect(client.listBookings).toHaveBeenCalledWith(
+      null,
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    );
+    expect(client.transitionStatus).not.toHaveBeenCalled();
+  });
+
+  it('allows providers to complete the booking that is already on the way', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        id: 'active-booking-1',
+        status: 'in_progress',
+      })),
+      listBookings: jest.fn(),
+      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
+        id: 'active-booking-1',
+        status: 'completed',
+      })),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    const booking = await service.transitionStatus(
+      'active-booking-1',
+      'provider-user-1',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      'in_progress',
+      'completed',
+    );
+
+    expect(client.listBookings).not.toHaveBeenCalled();
+    expect(client.transitionStatus).toHaveBeenCalledWith(
+      'active-booking-1',
+      'provider-user-1',
+      'in_progress',
+      'completed',
+      undefined,
+      undefined,
+    );
+    expect(booking.status).toBe('completed');
   });
 
   it('marks cash-on-service payment paid when the provider completes the booking', async () => {
@@ -589,6 +657,103 @@ describe('BookingGatewayService', () => {
     expect(booking.status).toBe('completed');
   });
 
+  it('uses the authoritative booking status when a stale client completes a started booking', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'in_progress',
+      })),
+      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'completed',
+      })),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    const booking = await service.transitionStatus(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      'confirmed',
+      'completed',
+    );
+
+    expect(client.transitionStatus).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'in_progress',
+      'completed',
+      undefined,
+      undefined,
+    );
+    expect(booking.status).toBe('completed');
+  });
+
+  it('starts a confirmed booking before completing it from the provider completion action', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'confirmed',
+      })),
+      listBookings: jest.fn().mockResolvedValue([]),
+      transitionStatus: jest
+        .fn()
+        .mockResolvedValueOnce(createBookingSummary({
+          status: 'in_progress',
+        }))
+        .mockResolvedValueOnce(createBookingSummary({
+          status: 'completed',
+        })),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    const booking = await service.transitionStatus(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      'confirmed',
+      'completed',
+    );
+
+    expect(client.transitionStatus).toHaveBeenNthCalledWith(
+      1,
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'confirmed',
+      'in_progress',
+      undefined,
+      undefined,
+    );
+    expect(client.transitionStatus).toHaveBeenNthCalledWith(
+      2,
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'in_progress',
+      'completed',
+      undefined,
+      undefined,
+    );
+    expect(booking.status).toBe('completed');
+  });
+
+  it('returns an already completed booking when completion is retried', async () => {
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'completed',
+      })),
+      transitionStatus: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    const booking = await service.transitionStatus(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      'in_progress',
+      'completed',
+    );
+
+    expect(client.transitionStatus).not.toHaveBeenCalled();
+    expect(booking.status).toBe('completed');
+  });
+
   it('rejects completing an online-payment booking until the payment is paid', async () => {
     const client = {
       findBooking: jest.fn().mockResolvedValue(createBookingSummary({
@@ -632,6 +797,7 @@ describe('BookingGatewayService', () => {
   it('creates a customer notification when a provider changes booking status', async () => {
     const client = {
       findBooking: jest.fn().mockResolvedValue(createBookingSummary()),
+      listBookings: jest.fn().mockResolvedValue([]),
       transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
         status: 'confirmed',
       })),

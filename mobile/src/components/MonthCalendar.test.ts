@@ -21,6 +21,10 @@ test('month calendar component owns the shared month grid behavior', () => {
   assert.match(source, /onSelectDate\(date\)/);
   assert.match(source, /Previous month/);
   assert.match(source, /Next month/);
+  assert.match(source, /showMonthYearPicker/);
+  assert.match(source, /Go back 10 years/);
+  assert.match(source, /Go forward 10 years/);
+  assert.match(source, /monthPickerButton/);
 });
 
 test('month calendar pure cell builder respects range and explicit disabled dates', async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Camera, Plus, X, Save, ChevronRight } from "lucide-react";
+import { Save, ChevronRight } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { useNavigate } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
@@ -107,42 +107,25 @@ const styles = {
   },
 };
 
-interface License {
-  type: string;
-  number: string;
-  expiry: string;
-}
-
-interface Certification {
-  name: string;
-}
-
 export function EditProfilePage() {
   const navigate = useNavigate();
   const providerData = useProviderData();
   const providerAuth = useProviderAuth();
-  const { profile, updateProfile, services, portfolioItems } = providerData;
+  const {
+    profile,
+    updateProfile,
+    services,
+    portfolioItems,
+    isProfileLoading,
+    profileError,
+  } = providerData;
   
   const [businessName, setBusinessName] = useState(profile.businessName);
   const [bio, setBio] = useState(profile.bio);
   const [serviceAreas, setServiceAreas] = useState(profile.serviceAreas);
   const [yearsExperience, setYearsExperience] = useState(profile.yearsExperience);
-  const [languages, setLanguages] = useState<string[]>(profile.languages);
-  const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
-  const [licenses, setLicenses] = useState<License[]>([
-    { type: "Professional Cleaning License", number: "PCL-2018-001234", expiry: "2026-12-31" },
-  ]);
-  const [certifications, setCertifications] = useState<Certification[]>([
-    { name: "Professional Cleaning Certification - ISSA" },
-    { name: "Green Cleaning Specialist" },
-  ]);
-  const [facebook, setFacebook] = useState(profile.facebook);
-  const [instagram, setInstagram] = useState(profile.instagram);
-  const [website, setWebsite] = useState(profile.website);
-  const [coverPhotoUrl, setCoverPhotoUrl] = useState(profile.coverPhotoUrl);
-  const [profilePhotoUrl, setProfilePhotoUrl] = useState(profile.profilePhotoUrl);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
 
   const maxBioLength = 500;
 
@@ -151,91 +134,7 @@ export function EditProfilePage() {
     setBio(profile.bio);
     setServiceAreas(profile.serviceAreas);
     setYearsExperience(profile.yearsExperience);
-    setLanguages(profile.languages);
-    setFacebook(profile.facebook);
-    setInstagram(profile.instagram);
-    setWebsite(profile.website);
-    setCoverPhotoUrl(profile.coverPhotoUrl);
-    setProfilePhotoUrl(profile.profilePhotoUrl);
   }, [profile]);
-
-  const availableLanguages = [
-    "English",
-    "Filipino",
-    "Tagalog",
-    "Cebuano",
-    "Ilocano",
-    "Mandarin",
-    "Spanish",
-    "Japanese",
-    "Korean",
-  ];
-
-  const toggleLanguage = (language: string) => {
-    if (languages.includes(language)) {
-      setLanguages(languages.filter((l) => l !== language));
-    } else {
-      setLanguages([...languages, language]);
-    }
-  };
-
-  const handleCoverPhotoUpload = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        setCoverPhotoUrl(url);
-        updateProfile({ coverPhotoUrl: url });
-      }
-    };
-    input.click();
-  };
-
-  const handleProfilePhotoUpload = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        setProfilePhotoUrl(url);
-        updateProfile({ profilePhotoUrl: url });
-      }
-    };
-    input.click();
-  };
-
-  const addLicense = () => {
-    setLicenses([...licenses, { type: "", number: "", expiry: "" }]);
-  };
-
-  const removeLicense = (index: number) => {
-    setLicenses(licenses.filter((_, i) => i !== index));
-  };
-
-  const updateLicense = (index: number, field: keyof License, value: string) => {
-    const updated = [...licenses];
-    updated[index][field] = value;
-    setLicenses(updated);
-  };
-
-  const addCertification = () => {
-    setCertifications([...certifications, { name: "" }]);
-  };
-
-  const removeCertification = (index: number) => {
-    setCertifications(certifications.filter((_, i) => i !== index));
-  };
-
-  const updateCertification = (index: number, value: string) => {
-    const updated = [...certifications];
-    updated[index].name = value;
-    setCertifications(updated);
-  };
 
   const handleSave = async () => {
     const token = getStoredProviderAccessToken();
@@ -244,12 +143,22 @@ export function EditProfilePage() {
       : null;
 
     if (!token) {
-      setProfileError("Sign in to save provider profile changes.");
+      setProfileSaveError("Sign in to save provider profile changes.");
+      return;
+    }
+
+    if (isProfileLoading) {
+      setProfileSaveError("Wait for the live provider profile to finish loading before saving.");
+      return;
+    }
+
+    if (profileError) {
+      setProfileSaveError("Resolve the live provider profile load error before saving changes.");
       return;
     }
 
     if (!businessName.trim()) {
-      setProfileError("Business name is required.");
+      setProfileSaveError("Business name is required.");
       return;
     }
 
@@ -257,12 +166,12 @@ export function EditProfilePage() {
       yearsExperienceValue !== null &&
       (!Number.isFinite(yearsExperienceValue) || yearsExperienceValue < 0)
     ) {
-      setProfileError("Years of experience must be a valid number.");
+      setProfileSaveError("Years of experience must be a valid number.");
       return;
     }
 
     setIsSavingProfile(true);
-    setProfileError(null);
+    setProfileSaveError(null);
 
     try {
       const nextProfile = await updateCurrentUserProfile(token, {
@@ -290,17 +199,11 @@ export function EditProfilePage() {
           nextProfile.providerProfile?.yearsExperience === undefined
             ? yearsExperience
             : String(nextProfile.providerProfile.yearsExperience),
-        languages,
-        facebook,
-        instagram,
-        website,
-        coverPhotoUrl,
-        profilePhotoUrl,
       });
 
       navigate("/provider/profile");
     } catch (error) {
-      setProfileError(
+      setProfileSaveError(
         error instanceof Error ? error.message : "Unable to save provider profile.",
       );
     } finally {
@@ -315,109 +218,23 @@ export function EditProfilePage() {
         <div style={styles.pageHeader}>
           <h1 style={styles.pageTitle}>Edit Profile</h1>
           <p style={{ fontSize: "16px", color: "#6B7280" }}>
-            Update your business information and professional details
+            Update the provider profile fields shown to customers
           </p>
+          {isProfileLoading && (
+            <p style={{ fontSize: "14px", color: "#1D4ED8", marginTop: "12px" }}>
+              Loading live provider profile...
+            </p>
+          )}
           {profileError && (
             <p style={{ fontSize: "14px", color: "#B91C1C", marginTop: "12px" }}>
               {profileError}
             </p>
           )}
-        </div>
-
-        {/* Cover Photo */}
-        <div style={{ ...styles.card, padding: 0, overflow: "hidden" }}>
-          <div
-            style={{
-              width: "100%",
-              height: "240px",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <ImageWithFallback
-              src={coverPhotoUrl}
-              alt="Cover"
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                background: "linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.3))",
-              }}
-            />
-            <button
-              style={{
-                position: "absolute",
-                bottom: "16px",
-                right: "16px",
-                ...styles.button,
-                ...styles.secondaryButton,
-                backgroundColor: "rgba(255, 255, 255, 0.95)",
-              }}
-              onClick={handleCoverPhotoUpload}
-            >
-              <Camera style={{ width: "16px", height: "16px" }} />
-              Change Cover Photo
-            </button>
-          </div>
-        </div>
-
-        {/* Profile Photo */}
-        <div style={{ ...styles.card, display: "flex", alignItems: "center", gap: "24px" }}>
-          <div style={{ position: "relative" }}>
-            <div
-              style={{
-                width: "120px",
-                height: "120px",
-                borderRadius: "50%",
-                overflow: "hidden",
-                border: "4px solid #F3F4F6",
-              }}
-            >
-              <ImageWithFallback
-                src={profilePhotoUrl}
-                alt="Profile"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                }}
-              />
-            </div>
-            <button
-              style={{
-                position: "absolute",
-                bottom: "0",
-                right: "0",
-                width: "36px",
-                height: "36px",
-                borderRadius: "50%",
-                backgroundColor: "#00BF63",
-                border: "3px solid white",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.15)",
-              }}
-              onClick={handleProfilePhotoUpload}
-            >
-              <Camera style={{ width: "16px", height: "16px", color: "white" }} />
-            </button>
-          </div>
-          <div>
-            <p style={{ fontSize: "14px", fontWeight: "600", color: "#111827", marginBottom: "4px" }}>
-              Profile Photo
+          {profileSaveError && (
+            <p style={{ fontSize: "14px", color: "#B91C1C", marginTop: "12px" }}>
+              {profileSaveError}
             </p>
-            <p style={{ fontSize: "13px", color: "#6B7280" }}>
-              Upload a professional photo. PNG or JPG, max 5MB.
-            </p>
-          </div>
+          )}
         </div>
 
         {/* Basic Information */}
@@ -491,416 +308,21 @@ export function EditProfilePage() {
             />
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-            <div>
-              <label style={styles.label}>Service Areas</label>
-              <input
-                type="text"
-                value={serviceAreas}
-                onChange={(e) => setServiceAreas(e.target.value)}
-                placeholder="e.g., Metro Manila, Quezon City"
-                style={styles.input}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#00BF63";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "#E5E7EB";
-                }}
-              />
-            </div>
-            <div>
-              <label style={styles.label}>Languages Spoken</label>
-              <div style={{ position: "relative" }}>
-                <div
-                  style={{
-                    ...styles.input,
-                    display: "flex",
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: "6px",
-                    cursor: "pointer",
-                    minHeight: "48px",
-                  }}
-                  onClick={() => setShowLanguageDropdown(!showLanguageDropdown)}
-                >
-                  {languages.length > 0 ? (
-                    languages.map((lang, index) => (
-                      <span
-                        key={index}
-                        style={{
-                          backgroundColor: "#D1FAE5",
-                          color: "#059669",
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          fontSize: "13px",
-                          fontWeight: "500",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "4px",
-                        }}
-                      >
-                        {lang}
-                        <X
-                          style={{ width: "12px", height: "12px", cursor: "pointer" }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleLanguage(lang);
-                          }}
-                        />
-                      </span>
-                    ))
-                  ) : (
-                    <span style={{ color: "#9CA3AF", fontSize: "14px" }}>Select languages...</span>
-                  )}
-                </div>
-                {showLanguageDropdown && (
-                  <>
-                    <div
-                      style={{
-                        position: "fixed",
-                        inset: 0,
-                        zIndex: 10,
-                      }}
-                      onClick={() => setShowLanguageDropdown(false)}
-                    />
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 8px)",
-                        left: 0,
-                        right: 0,
-                        backgroundColor: "white",
-                        borderRadius: "12px",
-                        boxShadow: "0 8px 24px rgba(0, 0, 0, 0.15)",
-                        border: "1px solid #E5E7EB",
-                        zIndex: 20,
-                        overflow: "hidden",
-                        maxHeight: "240px",
-                        overflowY: "auto",
-                      }}
-                    >
-                      {availableLanguages.map((lang) => (
-                        <div
-                          key={lang}
-                          onClick={() => toggleLanguage(lang)}
-                          style={{
-                            padding: "12px 16px",
-                            cursor: "pointer",
-                            backgroundColor: languages.includes(lang) ? "#F0FDF8" : "white",
-                            color: languages.includes(lang) ? "#00BF63" : "#374151",
-                            fontSize: "14px",
-                            fontWeight: languages.includes(lang) ? "600" : "500",
-                            transition: "background-color 0.2s ease",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                          onMouseEnter={(e) => {
-                            if (!languages.includes(lang)) {
-                              e.currentTarget.style.backgroundColor = "#F9FAFB";
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if (!languages.includes(lang)) {
-                              e.currentTarget.style.backgroundColor = "white";
-                            }
-                          }}
-                        >
-                          <span>{lang}</span>
-                          {languages.includes(lang) && (
-                            <div
-                              style={{
-                                width: "18px",
-                                height: "18px",
-                                borderRadius: "4px",
-                                backgroundColor: "#00BF63",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <svg
-                                width="12"
-                                height="12"
-                                viewBox="0 0 12 12"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path
-                                  d="M10 3L4.5 8.5L2 6"
-                                  stroke="white"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Professional Licenses */}
-        <div style={styles.card}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "20px",
-            }}
-          >
-            <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#111827" }}>
-              Professional Licenses
-            </h2>
-            <button
-              onClick={addLicense}
-              style={{
-                ...styles.button,
-                ...styles.secondaryButton,
+          <div>
+            <label style={styles.label}>Service Areas</label>
+            <input
+              type="text"
+              value={serviceAreas}
+              onChange={(e) => setServiceAreas(e.target.value)}
+              placeholder="e.g., Metro Manila, Quezon City"
+              style={styles.input}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = "#00BF63";
               }}
-            >
-              <Plus style={{ width: "16px", height: "16px" }} />
-              Add License
-            </button>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            {licenses.map((license, index) => (
-              <div
-                key={index}
-                style={{
-                  padding: "20px",
-                  backgroundColor: "#F9FAFB",
-                  borderRadius: "12px",
-                  border: "1px solid #E5E7EB",
-                }}
-              >
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1.5fr auto", gap: "16px", alignItems: "end" }}>
-                  <div>
-                    <label style={styles.label}>License Type</label>
-                    <input
-                      type="text"
-                      value={license.type}
-                      onChange={(e) => updateLicense(index, "type", e.target.value)}
-                      placeholder="e.g., Professional Cleaning License"
-                      style={styles.input}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = "#00BF63";
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = "#E5E7EB";
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>License Number</label>
-                    <input
-                      type="text"
-                      value={license.number}
-                      onChange={(e) => updateLicense(index, "number", e.target.value)}
-                      placeholder="e.g., PCL-2018-001234"
-                      style={styles.input}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = "#00BF63";
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = "#E5E7EB";
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label style={styles.label}>Expiry Date</label>
-                    <input
-                      type="date"
-                      value={license.expiry}
-                      onChange={(e) => updateLicense(index, "expiry", e.target.value)}
-                      style={styles.input}
-                      onFocus={(e) => {
-                        e.currentTarget.style.borderColor = "#00BF63";
-                      }}
-                      onBlur={(e) => {
-                        e.currentTarget.style.borderColor = "#E5E7EB";
-                      }}
-                    />
-                  </div>
-                  <button
-                    onClick={() => removeLicense(index)}
-                    style={{
-                      width: "40px",
-                      height: "40px",
-                      borderRadius: "8px",
-                      backgroundColor: "#FEE2E2",
-                      border: "1px solid #FCA5A5",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "background-color 0.3s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#FEF2F2";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "#FEE2E2";
-                    }}
-                  >
-                    <X style={{ width: "16px", height: "16px", color: "#DC2626" }} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Certifications */}
-        <div style={styles.card}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "20px",
-            }}
-          >
-            <h2 style={{ fontSize: "18px", fontWeight: "bold", color: "#111827" }}>
-              Certifications
-            </h2>
-            <button
-              onClick={addCertification}
-              style={{
-                ...styles.button,
-                ...styles.secondaryButton,
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = "#E5E7EB";
               }}
-            >
-              <Plus style={{ width: "16px", height: "16px" }} />
-              Add Certification
-            </button>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {certifications.map((cert, index) => (
-              <div
-                key={index}
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  alignItems: "center",
-                }}
-              >
-                <input
-                  type="text"
-                  value={cert.name}
-                  onChange={(e) => updateCertification(index, e.target.value)}
-                  placeholder="e.g., Professional Cleaning Certification"
-                  style={styles.input}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = "#00BF63";
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = "#E5E7EB";
-                  }}
-                />
-                <button
-                  onClick={() => removeCertification(index)}
-                  style={{
-                    width: "40px",
-                    height: "40px",
-                    borderRadius: "8px",
-                    backgroundColor: "#FEE2E2",
-                    border: "1px solid #FCA5A5",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                    transition: "background-color 0.3s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#FEF2F2";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#FEE2E2";
-                  }}
-                >
-                  <X style={{ width: "16px", height: "16px", color: "#DC2626" }} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Social Media Links */}
-        <div style={styles.card}>
-          <h2
-            style={{
-              fontSize: "18px",
-              fontWeight: "bold",
-              color: "#111827",
-              marginBottom: "8px",
-            }}
-          >
-            Social Media Links
-          </h2>
-          <p style={{ fontSize: "13px", color: "#6B7280", marginBottom: "20px" }}>
-            All fields are optional
-          </p>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div>
-              <label style={styles.label}>Facebook URL</label>
-              <input
-                type="url"
-                value={facebook}
-                onChange={(e) => setFacebook(e.target.value)}
-                placeholder="https://facebook.com/yourbusiness"
-                style={styles.input}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#00BF63";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "#E5E7EB";
-                }}
-              />
-            </div>
-            <div>
-              <label style={styles.label}>Instagram URL</label>
-              <input
-                type="url"
-                value={instagram}
-                onChange={(e) => setInstagram(e.target.value)}
-                placeholder="https://instagram.com/yourbusiness"
-                style={styles.input}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#00BF63";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "#E5E7EB";
-                }}
-              />
-            </div>
-            <div>
-              <label style={styles.label}>Website URL</label>
-              <input
-                type="url"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                placeholder="https://yourbusiness.com"
-                style={styles.input}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = "#00BF63";
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = "#E5E7EB";
-                }}
-              />
-            </div>
+            />
           </div>
         </div>
 
@@ -1059,20 +481,20 @@ export function EditProfilePage() {
         </button>
         <button
           onClick={() => void handleSave()}
-          disabled={isSavingProfile}
+          disabled={isSavingProfile || isProfileLoading || Boolean(profileError)}
           style={{
             ...styles.button,
             ...styles.primaryButton,
-            opacity: isSavingProfile ? 0.7 : 1,
-            cursor: isSavingProfile ? "not-allowed" : "pointer",
+            opacity: isSavingProfile || isProfileLoading || profileError ? 0.7 : 1,
+            cursor: isSavingProfile || isProfileLoading || profileError ? "not-allowed" : "pointer",
           }}
           onMouseEnter={(e) => {
-            if (!isSavingProfile) {
+            if (!isSavingProfile && !isProfileLoading && !profileError) {
               e.currentTarget.style.backgroundColor = "#059669";
             }
           }}
           onMouseLeave={(e) => {
-            if (!isSavingProfile) {
+            if (!isSavingProfile && !isProfileLoading && !profileError) {
               e.currentTarget.style.backgroundColor = "#00BF63";
             }
           }}

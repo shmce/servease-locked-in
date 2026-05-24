@@ -6,6 +6,7 @@ import {
   Headers,
   HttpCode,
   HttpException,
+  Logger,
   Param,
   Patch,
   Post,
@@ -41,6 +42,8 @@ type AuditRequest = {
 
 @Controller('v1/admin/catalog')
 export class AdminCatalogController {
+  private readonly logger = new Logger(AdminCatalogController.name);
+
   constructor(
     private readonly adminCatalogGatewayService: AdminCatalogGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -260,7 +263,15 @@ export class AdminCatalogController {
         ipAddress: this.getClientIp(request),
         metadata: input.metadata,
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Could not create catalog audit log for ${input.entityType} ${input.entityId}: ${this.errorMessage(error)}`,
+        );
+      });
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private getClientIp(request: AuditRequest): string | null {

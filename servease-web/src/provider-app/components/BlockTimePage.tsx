@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Ban, ChevronDown, CheckCircle2 } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
 
 const styles = {
@@ -83,6 +83,7 @@ const styles = {
 
 export function BlockTimePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addBlockedDates, availabilityError, isAvailabilityLoading } = useProviderData();
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -90,9 +91,6 @@ export function BlockTimePage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [showReasonDropdown, setShowReasonDropdown] = useState(false);
   const [notes, setNotes] = useState("");
-  const [isRecurring, setIsRecurring] = useState(false);
-  const [frequency, setFrequency] = useState("Weekly");
-  const [recurringEndDate, setRecurringEndDate] = useState("");
 
   const reasonOptions = [
     "Personal time off",
@@ -101,6 +99,17 @@ export function BlockTimePage() {
     "Maintenance",
     "Other",
   ];
+
+  useEffect(() => {
+    const date = searchParams.get("date");
+
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return;
+    }
+
+    setStartDate((current) => current || date);
+    setEndDate((current) => current || date);
+  }, [searchParams]);
 
   const handleBlockTime = async () => {
     if (!startDate || !endDate) {
@@ -157,7 +166,7 @@ export function BlockTimePage() {
         <div style={styles.pageHeader}>
           <h1 style={styles.pageTitle}>Block Time</h1>
           <p style={{ fontSize: "16px", color: "#6B7280" }}>
-            Block time slots when you're unavailable for bookings
+            Block full dates when you're unavailable for bookings
           </p>
           {(formError || availabilityError) && (
             <p style={{ fontSize: "14px", color: "#B91C1C", marginTop: "12px" }}>
@@ -340,109 +349,6 @@ export function BlockTimePage() {
             />
           </div>
 
-          {/* Recurring Block Section */}
-          <div
-            style={{
-              paddingTop: "24px",
-              borderTop: "1px solid #F3F4F6",
-            }}
-          >
-            <div style={{ marginBottom: "20px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <input
-                  type="checkbox"
-                  id="recurring"
-                  checked={isRecurring}
-                  onChange={(e) => setIsRecurring(e.target.checked)}
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    cursor: "pointer",
-                    accentColor: "#00BF63",
-                  }}
-                />
-                <label
-                  htmlFor="recurring"
-                  style={{
-                    fontSize: "15px",
-                    fontWeight: "600",
-                    color: "#111827",
-                    cursor: "pointer",
-                  }}
-                >
-                  Make this a recurring block
-                </label>
-              </div>
-              <p
-                style={{
-                  fontSize: "13px",
-                  color: "#6B7280",
-                  marginTop: "6px",
-                  marginLeft: "30px",
-                }}
-              >
-                Block the same time period on a regular schedule
-              </p>
-            </div>
-
-            {/* Recurring Options - Only visible when checkbox is checked */}
-            {isRecurring && (
-              <div
-                style={{
-                  backgroundColor: "#F9FAFB",
-                  borderRadius: "12px",
-                  padding: "20px",
-                }}
-              >
-                <div style={{ marginBottom: "20px" }}>
-                  <label style={styles.label}>Frequency</label>
-                  <div style={{ display: "flex", gap: "12px" }}>
-                    {["Weekly", "Monthly"].map((freq) => (
-                      <button
-                        key={freq}
-                        onClick={() => setFrequency(freq)}
-                        style={{
-                          flex: 1,
-                          padding: "12px",
-                          borderRadius: "8px",
-                          fontSize: "14px",
-                          fontWeight: "600",
-                          cursor: "pointer",
-                          border: "2px solid",
-                          borderColor: frequency === freq ? "#00BF63" : "#E5E7EB",
-                          backgroundColor: frequency === freq ? "#F0FDF8" : "white",
-                          color: frequency === freq ? "#00BF63" : "#6B7280",
-                          transition: "all 0.3s ease",
-                        }}
-                      >
-                        {freq}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label style={styles.label}>End Date</label>
-                  <input
-                    type="date"
-                    value={recurringEndDate}
-                    onChange={(e) => setRecurringEndDate(e.target.value)}
-                    style={styles.input}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = "#00BF63";
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = "#E5E7EB";
-                    }}
-                  />
-                  <p style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "6px" }}>
-                    When should this recurring block end?
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
           {/* Submit Button */}
           <div style={{ marginTop: "32px" }}>
             <button
@@ -473,7 +379,7 @@ export function BlockTimePage() {
               }}
             >
               <Ban style={{ width: "18px", height: "18px" }} />
-              {isAvailabilityLoading ? "Blocking..." : "Block Time Slot"}
+              {isAvailabilityLoading ? "Blocking..." : "Block Selected Dates"}
             </button>
           </div>
         </div>
@@ -502,7 +408,7 @@ export function BlockTimePage() {
               Important Information
             </p>
             <p style={{ fontSize: "13px", color: "#7F1D1D", lineHeight: "1.6" }}>
-              Blocking time will prevent new bookings during the selected period. Existing
+              Blocking dates will prevent new bookings during the selected period. Existing
               bookings will not be affected. You'll need to contact customers directly to
               reschedule if needed.
             </p>

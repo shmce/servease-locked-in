@@ -31,10 +31,9 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,9 +62,7 @@ async function loadAppliedMigrationNames() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    throw new Error(
-      'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.',
-    );
+    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.');
   }
 
   const client = createClient(url, key, {

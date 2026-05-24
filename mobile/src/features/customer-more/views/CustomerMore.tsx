@@ -5,6 +5,7 @@ import {
   FileText,
   Gift,
   HelpCircle,
+  MapPin,
   LogOut,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -27,6 +28,7 @@ const itemIcon: Record<string, typeof User> = {
   'My Profile': User,
   'Notifications': Bell,
   'Refer a Friend': Gift,
+  'Saved Addresses': MapPin,
   'Payment Methods': CreditCard,
   'Security': ShieldCheck,
   'Settings': SettingsIcon,
@@ -35,7 +37,7 @@ const itemIcon: Record<string, typeof User> = {
 };
 
 const menuGroups = [
-  { title: 'Account', labels: ['My Profile', 'Refer a Friend', 'Payment Methods'] },
+  { title: 'Account', labels: ['My Profile', 'Saved Addresses', 'Refer a Friend', 'Payment Methods'] },
   { title: 'Preferences', labels: ['Notifications', 'Security', 'Settings'] },
   { title: 'Support', labels: ['Help & Support', 'Terms & Privacy'] },
 ];

@@ -1,16 +1,21 @@
-import { Search } from 'lucide-react-native';
+import { ChevronRight, Search } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { EmptyState, TopBar } from '../../../components/DesignKit';
+import {
+  EmptyState,
+  SkeletonBlock,
+  SkeletonLine,
+  TopBar,
+} from '../../../components/DesignKit';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { CatalogServiceItem } from '../../../shared/models/types';
 import { ScreenContent, ScreenScroll } from '../../../shared/components/ScreenLayout';
 import { useCustomerAllServicesViewModel } from '../viewModels/useCustomerAllServicesViewModel';
-import { ChevronRight } from 'lucide-react-native';
 
 type CustomerAllServicesScreenProps = {
   title: string;
   services: CatalogServiceItem[];
   marketplaceSearchQuery: string;
+  isLoading?: boolean;
   onBack: () => void;
   onSearchQueryChange: (value: string) => void;
   onOpenService: (service: CatalogServiceItem) => void;
@@ -20,6 +25,7 @@ export function CustomerAllServicesScreen({
   title,
   services,
   marketplaceSearchQuery,
+  isLoading = false,
   onBack,
   onSearchQueryChange,
   onOpenService,
@@ -29,6 +35,7 @@ export function CustomerAllServicesScreen({
     marketplaceSearchQuery,
   });
   const { data } = serviceList;
+  const showSkeletons = isLoading && services.length === 0;
 
   return (
     <>
@@ -59,31 +66,35 @@ export function CustomerAllServicesScreen({
           </View>
 
           <View style={styles.list}>
-            {data.visibleServices.map((row) => (
-              <Pressable
-                key={row.service.id}
-                style={styles.serviceCard}
-                onPress={() => onOpenService(row.service)}
-                accessibilityRole="button"
-                accessibilityLabel={`View providers for ${row.service.name}`}
-              >
-                <View style={styles.serviceBody}>
-                  <Text style={styles.serviceName} numberOfLines={1}>
-                    {row.service.name}
-                  </Text>
-                  <Text style={styles.serviceDescription} numberOfLines={2}>
-                    {row.description}
-                  </Text>
-                </View>
-                <View style={styles.serviceRight}>
-                  <Text style={styles.priceLabel}>{row.priceLabel}</Text>
-                  <ChevronRight color={palette.faint} size={18} />
-                </View>
-              </Pressable>
-            ))}
+            {showSkeletons
+              ? Array.from({ length: 5 }).map((_, index) => (
+                  <ServiceRowSkeleton key={`service-row-skeleton-${index}`} />
+                ))
+              : data.visibleServices.map((row) => (
+                  <Pressable
+                    key={row.service.id}
+                    style={styles.serviceCard}
+                    onPress={() => onOpenService(row.service)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View providers for ${row.service.name}`}
+                  >
+                    <View style={styles.serviceBody}>
+                      <Text style={styles.serviceName} numberOfLines={1}>
+                        {row.service.name}
+                      </Text>
+                      <Text style={styles.serviceDescription} numberOfLines={2}>
+                        {row.description}
+                      </Text>
+                    </View>
+                    <View style={styles.serviceRight}>
+                      <Text style={styles.priceLabel}>{row.priceLabel}</Text>
+                      <ChevronRight color={palette.faint} size={18} />
+                    </View>
+                  </Pressable>
+                ))}
           </View>
 
-          {!data.hasVisibleServices ? (
+          {!showSkeletons && !data.hasVisibleServices ? (
             <EmptyState
               title="No services found"
               body="Try searching with different keywords."
@@ -92,6 +103,26 @@ export function CustomerAllServicesScreen({
         </ScreenContent>
       </ScreenScroll>
     </>
+  );
+}
+
+function ServiceRowSkeleton() {
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={styles.serviceCard}
+    >
+      <View style={styles.serviceBody}>
+        <SkeletonLine width="52%" height={14} />
+        <SkeletonLine width="88%" height={10} />
+        <SkeletonLine width="66%" height={10} />
+      </View>
+      <View style={styles.serviceRight}>
+        <SkeletonLine width={74} height={12} />
+        <SkeletonBlock width={18} height={18} radius={radius.pill} />
+      </View>
+    </View>
   );
 }
 

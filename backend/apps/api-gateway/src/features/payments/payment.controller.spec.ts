@@ -534,6 +534,49 @@ describe('PaymentController', () => {
     });
   });
 
+  it('rejects APICenter mock payment provider webhooks in production', async () => {
+    const paymentGatewayService = {
+      syncApicenterCheckoutWebhook: jest.fn(),
+    } as unknown as PaymentGatewayService;
+    const configService = {
+      get: jest.fn((key: string) => {
+        if (key === 'APICENTER_WEBHOOK_SECRET') return 'webhook-secret';
+        if (key === 'NODE_ENV') return 'production';
+        return undefined;
+      }),
+    } as unknown as ConfigService;
+    const controller = new PaymentController(
+      paymentGatewayService,
+      {} as unknown as BookingGatewayService,
+      {} as unknown as AuthTokenService,
+      {} as unknown as CatalogServiceClient,
+      undefined,
+      configService,
+    );
+
+    await expect(
+      controller.apicenterWebhook(
+        'webhook-secret',
+        undefined,
+        String(Date.now()),
+        {
+          checkoutId: 'checkout-1',
+          provider: 'mock',
+          status: 'paid',
+          referenceId: 'booking-1',
+          redirectUrl: 'https://pay.test/checkout-1',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        error: {
+          code: 'invalid_payment_request',
+        },
+      },
+    });
+    expect(paymentGatewayService.syncApicenterCheckoutWebhook).not.toHaveBeenCalled();
+  });
+
   it('rejects stale APICenter payment webhook timestamps before forwarding', async () => {
     const paymentGatewayService = {
       syncApicenterCheckoutWebhook: jest.fn(),

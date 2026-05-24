@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Post,
   Put,
@@ -39,6 +40,8 @@ const validStatuses = new Set(['pending', 'approved', 'rejected']);
 
 @Controller('v1/admin/provider-applications')
 export class AdminProviderApplicationController {
+  private readonly logger = new Logger(AdminProviderApplicationController.name);
+
   constructor(
     private readonly providerApplicationService: AdminProviderApplicationGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -299,24 +302,30 @@ export class AdminProviderApplicationController {
           decision: input.decision,
           reason: input.reason,
         });
-      void this.notificationServiceClient.createNotification({
-        userId: application.userId,
-        type:
-          input.decision === 'approved'
-            ? 'provider_application_approved'
-            : 'provider_application_rejected',
-        title:
-          input.decision === 'approved'
-            ? 'Provider application approved'
-            : 'Provider application rejected',
-        body: input.reason,
-        metadata: {
-          applicationId: application.id,
-          applicationReference: application.applicationReference,
-          adminUserId: admin.user.id,
-          decision: input.decision,
-        },
-      }).catch(() => undefined);
+      void this.notificationServiceClient
+        .createNotification({
+          userId: application.userId,
+          type:
+            input.decision === 'approved'
+              ? 'provider_application_approved'
+              : 'provider_application_rejected',
+          title:
+            input.decision === 'approved'
+              ? 'Provider application approved'
+              : 'Provider application rejected',
+          body: input.reason,
+          metadata: {
+            applicationId: application.id,
+            applicationReference: application.applicationReference,
+            adminUserId: admin.user.id,
+            decision: input.decision,
+          },
+        })
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Could not create provider application ${input.decision} notification for ${application.id}: ${this.errorMessage(error)}`,
+          );
+        });
       void this.recordAudit(admin, request, application, input);
       return { data: application };
     } catch (error) {
@@ -346,8 +355,8 @@ export class AdminProviderApplicationController {
     application: AdminProviderApplicationSummary,
     input: { decision: 'approved' | 'rejected'; reason: string },
   ): Promise<unknown> {
-    return this.adminAuditGatewayService
-      .createAuditLog({
+    return this.auditProviderApplicationAction(
+      {
         adminUserId: admin.user.id,
         adminEmail: admin.user.email,
         adminName: admin.user.fullName,
@@ -363,8 +372,9 @@ export class AdminProviderApplicationController {
           decision: input.decision,
           reason: input.reason,
         },
-      })
-      .catch(() => undefined);
+      },
+      `${input.decision} provider application ${application.id}`,
+    );
   }
 
   private recordInfoRequestAudit(
@@ -376,8 +386,8 @@ export class AdminProviderApplicationController {
     application: AdminProviderApplicationSummary,
     message: string,
   ): Promise<unknown> {
-    return this.adminAuditGatewayService
-      .createAuditLog({
+    return this.auditProviderApplicationAction(
+      {
         adminUserId: admin.user.id,
         adminEmail: admin.user.email,
         adminName: admin.user.fullName,
@@ -392,8 +402,9 @@ export class AdminProviderApplicationController {
           userId: application.userId,
           message,
         },
-      })
-      .catch(() => undefined);
+      },
+      `request more information for provider application ${application.id}`,
+    );
   }
 
   private recordReviewNoteAudit(
@@ -405,8 +416,8 @@ export class AdminProviderApplicationController {
     application: AdminProviderApplicationSummary,
     note: string,
   ): Promise<unknown> {
-    return this.adminAuditGatewayService
-      .createAuditLog({
+    return this.auditProviderApplicationAction(
+      {
         adminUserId: admin.user.id,
         adminEmail: admin.user.email,
         adminName: admin.user.fullName,
@@ -421,8 +432,22 @@ export class AdminProviderApplicationController {
           userId: application.userId,
           note,
         },
-      })
-      .catch(() => undefined);
+      },
+      `add review note for provider application ${application.id}`,
+    );
+  }
+
+  private async auditProviderApplicationAction(
+    input: Parameters<AdminAuditGatewayService['createAuditLog']>[0],
+    context: string,
+  ): Promise<void> {
+    try {
+      await this.adminAuditGatewayService.createAuditLog(input);
+    } catch (error) {
+      this.logger.warn(
+        `Could not create audit log for provider application action (${context}): ${this.errorMessage(error)}`,
+      );
+    }
   }
 
   private getClientIp(request: {
@@ -496,5 +521,9 @@ export class AdminProviderApplicationController {
       },
       status,
     );
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 }

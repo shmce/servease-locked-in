@@ -1,6 +1,6 @@
 # Internal Service Contracts
 
-Last verified from code: 2026-05-20.
+Last verified from code: 2026-05-23.
 
 This document is the exact internal HTTP route inventory for the NestJS service controllers under `backend/apps/*-service/src`. Public clients must not call these routes. The API Gateway and sibling services call them over HTTP through environment-defined service URLs.
 
@@ -82,12 +82,14 @@ DTO source: Use admin feature-local `*.types.ts` files under `backend/apps/admin
 | POST | `/internal/admin/payments/:paymentId/failure` | payments | `backend/apps/admin-service/src/features/payments/admin-payment.controller.ts` |
 | POST | `/internal/admin/payments/:paymentId/retry` | payments | `backend/apps/admin-service/src/features/payments/admin-payment.controller.ts` |
 | POST | `/internal/admin/payments/:paymentId/apicenter-sync` | payments | `backend/apps/admin-service/src/features/payments/admin-payment.controller.ts` |
+| POST | `/internal/admin/payments/:paymentId/release` | payments | `backend/apps/admin-service/src/features/payments/admin-payment.controller.ts` |
 | GET | `/internal/admin/payments/:paymentId` | payments | `backend/apps/admin-service/src/features/payments/admin-payment.controller.ts` |
 | PATCH | `/internal/admin/payments/:paymentId/status` | payments | `backend/apps/admin-service/src/features/payments/admin-payment.controller.ts` |
 | GET | `/internal/admin/pricing/rules` | payments | `backend/apps/admin-service/src/features/payments/admin-pricing.controller.ts` |
 | PUT | `/internal/admin/pricing/rules` | payments | `backend/apps/admin-service/src/features/payments/admin-pricing.controller.ts` |
 | GET | `/internal/admin/pricing/fuel-index` | payments | `backend/apps/admin-service/src/features/payments/admin-pricing.controller.ts` |
 | POST | `/internal/admin/pricing/fuel-index` | payments | `backend/apps/admin-service/src/features/payments/admin-pricing.controller.ts` |
+| POST | `/internal/admin/pricing/fuel-index/sync` | payments | `backend/apps/admin-service/src/features/payments/admin-pricing.controller.ts` |
 | GET | `/internal/admin/pricing/quote-audits` | payments | `backend/apps/admin-service/src/features/payments/admin-pricing.controller.ts` |
 | GET | `/internal/admin/promotions` | payments | `backend/apps/admin-service/src/features/payments/admin-promotion.controller.ts` |
 | POST | `/internal/admin/promotions` | payments | `backend/apps/admin-service/src/features/payments/admin-promotion.controller.ts` |
@@ -130,6 +132,7 @@ DTO source: Use feature-local `*.types.ts` files under `backend/apps/auth-servic
 | PATCH | `/internal/users/:userId` | internal-user | `backend/apps/auth-service/src/features/internal-user/internal-user.controller.ts` |
 | DELETE | `/internal/users/:userId/account` | internal-user | `backend/apps/auth-service/src/features/internal-user/internal-user.controller.ts` |
 | POST | `/internal/users/:userId/two-factor/enable` | internal-user | `backend/apps/auth-service/src/features/internal-user/internal-user.controller.ts` |
+| GET | `/internal/users/:userId/two-factor` | internal-user | `backend/apps/auth-service/src/features/internal-user/internal-user.controller.ts` |
 | POST | `/internal/users/:userId/two-factor/verify` | internal-user | `backend/apps/auth-service/src/features/internal-user/internal-user.controller.ts` |
 | POST | `/internal/users/:userId/two-factor/disable` | internal-user | `backend/apps/auth-service/src/features/internal-user/internal-user.controller.ts` |
 | POST | `/internal/auth/password-change` | password-change | `backend/apps/auth-service/src/features/password-change/password-change.controller.ts` |
@@ -216,6 +219,7 @@ DTO source: Use feature-local `*.types.ts` files under `backend/apps/catalog-ser
 | PATCH | `/internal/admin/catalog/providers/:providerId/status` | admin-catalog | `backend/apps/catalog-service/src/features/admin-catalog/admin-catalog.controller.ts` |
 | GET | `/internal/catalog/categories` | catalog-browse | `backend/apps/catalog-service/src/features/catalog-browse/catalog-browse.controller.ts` |
 | GET | `/internal/catalog/services` | catalog-browse | `backend/apps/catalog-service/src/features/catalog-browse/catalog-browse.controller.ts` |
+| GET | `/internal/catalog/service-areas` | catalog-browse | `backend/apps/catalog-service/src/features/catalog-browse/catalog-browse.controller.ts` |
 | GET | `/internal/catalog/providers` | catalog-browse | `backend/apps/catalog-service/src/features/catalog-browse/catalog-browse.controller.ts` |
 | GET | `/health/live` | health | `backend/apps/catalog-service/src/features/health/health.controller.ts` |
 | GET | `/health/ready` | health | `backend/apps/catalog-service/src/features/health/health.controller.ts` |
@@ -307,6 +311,7 @@ DTO source: Use payment and pricing-engine type files under `backend/apps/paymen
 | PATCH | `/internal/admin/payments/:paymentId/status` | payments | `backend/apps/payment-service/src/features/payments/payment-admin.controller.ts` |
 | GET | `/internal/payments` | payments | `backend/apps/payment-service/src/features/payments/payment.controller.ts` |
 | POST | `/internal/payments` | payments | `backend/apps/payment-service/src/features/payments/payment.controller.ts` |
+| POST | `/internal/payments/bookings/:bookingId/cash-on-service/confirm` | payments | `backend/apps/payment-service/src/features/payments/payment.controller.ts` |
 | POST | `/internal/payments/promotions/validate` | payments | `backend/apps/payment-service/src/features/payments/payment.controller.ts` |
 | POST | `/internal/payments/checkout-sessions` | payments | `backend/apps/payment-service/src/features/payments/payment.controller.ts` |
 | GET | `/internal/payments/checkout-sessions/:checkoutId/status` | payments | `backend/apps/payment-service/src/features/payments/payment.controller.ts` |
@@ -332,6 +337,7 @@ DTO source: Use payment and pricing-engine type files under `backend/apps/paymen
 | PUT | `/internal/pricing/admin/rules` | pricing-engine | `backend/apps/payment-service/src/features/pricing-engine/pricing-engine.controller.ts` |
 | GET | `/internal/pricing/admin/fuel-index` | pricing-engine | `backend/apps/payment-service/src/features/pricing-engine/pricing-engine.controller.ts` |
 | POST | `/internal/pricing/admin/fuel-index` | pricing-engine | `backend/apps/payment-service/src/features/pricing-engine/pricing-engine.controller.ts` |
+| POST | `/internal/pricing/admin/fuel-index/sync` | pricing-engine | `backend/apps/payment-service/src/features/pricing-engine/pricing-engine.controller.ts` |
 | GET | `/internal/pricing/admin/quote-audits` | pricing-engine | `backend/apps/payment-service/src/features/pricing-engine/pricing-engine.controller.ts` |
 
 ### review-service
@@ -384,6 +390,11 @@ DTO source: Use feature-local `*.types.ts` files under `backend/apps/user-servic
 | GET | `/internal/admin/users/summary` | admin-users | `backend/apps/user-service/src/features/admin-users/admin-user.controller.ts` |
 | GET | `/internal/admin/users` | admin-users | `backend/apps/user-service/src/features/admin-users/admin-user.controller.ts` |
 | PATCH | `/internal/admin/users/:userId/status` | admin-users | `backend/apps/user-service/src/features/admin-users/admin-user.controller.ts` |
+| GET | `/internal/users/:userId/addresses` | customer-addresses | `backend/apps/user-service/src/features/customer-addresses/customer-address.controller.ts` |
+| POST | `/internal/users/:userId/addresses` | customer-addresses | `backend/apps/user-service/src/features/customer-addresses/customer-address.controller.ts` |
+| PATCH | `/internal/users/:userId/addresses/:addressId` | customer-addresses | `backend/apps/user-service/src/features/customer-addresses/customer-address.controller.ts` |
+| POST | `/internal/users/:userId/addresses/:addressId/default` | customer-addresses | `backend/apps/user-service/src/features/customer-addresses/customer-address.controller.ts` |
+| DELETE | `/internal/users/:userId/addresses/:addressId` | customer-addresses | `backend/apps/user-service/src/features/customer-addresses/customer-address.controller.ts` |
 | GET | `/internal/users/:userId/customer-profile` | customer-profile | `backend/apps/user-service/src/features/customer-profile/customer-profile.controller.ts` |
 | POST | `/internal/users/:userId/customer-profile` | customer-profile | `backend/apps/user-service/src/features/customer-profile/customer-profile.controller.ts` |
 | PATCH | `/internal/users/:userId/customer-profile` | customer-profile | `backend/apps/user-service/src/features/customer-profile/customer-profile.controller.ts` |

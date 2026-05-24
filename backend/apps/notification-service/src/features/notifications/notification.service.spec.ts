@@ -2,6 +2,7 @@ import { InvalidNotificationRequestError } from './notification.errors';
 import { NotificationService } from './notification.service';
 import { PushDeliveryClient } from './push-delivery.client';
 import { SupabaseNotificationRepository } from './supabase-notification.repository';
+import { UserPreferenceClient } from './user-preference.client';
 
 describe('NotificationService', () => {
   const createPushDeliveryClient = (): PushDeliveryClient =>
@@ -138,6 +139,89 @@ describe('NotificationService', () => {
       devices,
       notification,
     );
+  });
+
+  it('skips push delivery when global push preferences are disabled', async () => {
+    const notification = {
+      id: 'notification-1',
+      userId: 'user-1',
+      type: 'booking_created',
+      title: 'New booking',
+      body: 'A customer booked you.',
+      isRead: false,
+      metadata: null,
+      createdAt: '2026-05-18T00:00:00.000Z',
+    };
+    const repository = {
+      createNotification: jest.fn().mockResolvedValue(notification),
+      listActivePushDevices: jest.fn(),
+    } as unknown as SupabaseNotificationRepository;
+    const pushDeliveryClient = {
+      sendNotification: jest.fn(),
+    } as unknown as PushDeliveryClient;
+    const preferenceClient = {
+      getByUserId: jest.fn().mockResolvedValue({
+        pushNotificationsEnabled: false,
+        emailNotificationsEnabled: true,
+        smsNotificationsEnabled: true,
+        notificationPreferences: { newBookingRequests: true },
+      }),
+    } as unknown as UserPreferenceClient;
+    const service = new NotificationService(
+      repository,
+      pushDeliveryClient,
+      preferenceClient,
+    );
+
+    await service.createNotification({
+      userId: 'user-1',
+      type: 'booking_created',
+    });
+
+    expect(preferenceClient.getByUserId).toHaveBeenCalledWith('user-1');
+    expect(repository.listActivePushDevices).not.toHaveBeenCalled();
+    expect(pushDeliveryClient.sendNotification).not.toHaveBeenCalled();
+  });
+
+  it('skips push delivery when a notification type preference is disabled', async () => {
+    const notification = {
+      id: 'notification-1',
+      userId: 'user-1',
+      type: 'booking_created',
+      title: 'New booking',
+      body: 'A customer booked you.',
+      isRead: false,
+      metadata: null,
+      createdAt: '2026-05-18T00:00:00.000Z',
+    };
+    const repository = {
+      createNotification: jest.fn().mockResolvedValue(notification),
+      listActivePushDevices: jest.fn(),
+    } as unknown as SupabaseNotificationRepository;
+    const pushDeliveryClient = {
+      sendNotification: jest.fn(),
+    } as unknown as PushDeliveryClient;
+    const preferenceClient = {
+      getByUserId: jest.fn().mockResolvedValue({
+        pushNotificationsEnabled: true,
+        emailNotificationsEnabled: true,
+        smsNotificationsEnabled: true,
+        notificationPreferences: { newBookingRequests: false },
+      }),
+    } as unknown as UserPreferenceClient;
+    const service = new NotificationService(
+      repository,
+      pushDeliveryClient,
+      preferenceClient,
+    );
+
+    await service.createNotification({
+      userId: 'user-1',
+      type: 'booking_created',
+    });
+
+    expect(repository.listActivePushDevices).not.toHaveBeenCalled();
+    expect(pushDeliveryClient.sendNotification).not.toHaveBeenCalled();
   });
 
   it('deactivates stale push tokens reported by Expo delivery', async () => {

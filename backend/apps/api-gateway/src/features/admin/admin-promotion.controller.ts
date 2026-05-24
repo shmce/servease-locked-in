@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Patch,
   Post,
@@ -41,6 +42,8 @@ const validDiscountTypes = new Set(['percent', 'fixed']);
 
 @Controller('v1/admin/promotions')
 export class AdminPromotionController {
+  private readonly logger = new Logger(AdminPromotionController.name);
+
   constructor(
     private readonly adminPaymentGatewayService: AdminPaymentGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -219,7 +222,15 @@ export class AdminPromotionController {
         ipAddress: this.getClientIp(request),
         metadata: input.metadata,
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Could not create promotion audit log for ${input.entityId}: ${this.errorMessage(error)}`,
+        );
+      });
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private getClientIp(request: {

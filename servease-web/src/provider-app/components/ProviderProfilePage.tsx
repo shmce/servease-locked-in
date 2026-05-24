@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Star,
   CheckCircle2,
-  Shield,
   Award,
   MessageCircle,
   Clock,
@@ -120,25 +119,38 @@ function formatReviewDate(value: string | null): string {
   });
 }
 
+function getProfileInitials(name: string): string {
+  const words = name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.length === 0) {
+    return "SP";
+  }
+
+  return words
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
 export function ProviderProfilePage() {
   const [activeTab, setActiveTab] = useState("About");
   const [dashboard, setDashboard] = useState<ProviderDashboardSummary | null>(null);
   const [reviews, setReviews] = useState<ReviewSummary[]>([]);
+  const [verificationStatus, setVerificationStatus] = useState<
+    "pending" | "approved" | "rejected" | null
+  >(null);
   const [isReviewsLoading, setIsReviewsLoading] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
-  const isOwnProfile = true; // This would be determined by auth state
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
 
   const tabs = ["About", "Services & Pricing", "Portfolio", "Reviews", "Availability"];
 
-  const badges = [
-    { icon: CheckCircle2, label: "Verified", color: "#00BF63", bg: "#DCFCE7" },
-    { icon: Shield, label: "Licensed", color: "#2563EB", bg: "#DBEAFE" },
-    { icon: Shield, label: "Insured", color: "#7C3AED", bg: "#EDE9FE" },
-    { icon: Award, label: "Top Rated", color: "#F59E0B", bg: "#FEF3C7" },
-  ];
-
   const navigate = useNavigate();
   const providerData = useProviderData();
+  const { isProfileLoading, profileError } = providerData;
   const activeServices = providerData.services.filter((service) => service.isActive);
   const averageRating =
     dashboard?.summary.overallRating ??
@@ -148,6 +160,14 @@ export function ProviderProfilePage() {
         ) / 10
       : 0);
   const reviewCount = dashboard?.summary.reviewCount ?? reviews.length;
+  const badges = [
+    ...(verificationStatus === "approved"
+      ? [{ icon: CheckCircle2, label: "Verified", color: "#00BF63", bg: "#DCFCE7" }]
+      : []),
+    ...(averageRating >= 4.8 && reviewCount >= 5
+      ? [{ icon: Award, label: "Top Rated", color: "#F59E0B", bg: "#FEF3C7" }]
+      : []),
+  ];
   const responseTimeMinutes = dashboard?.performance.responseTimeMinutes ?? null;
   const availableDays = useMemo(
     () =>
@@ -160,6 +180,8 @@ export function ProviderProfilePage() {
     name: service.name,
     price: `₱${service.baseRate.toLocaleString("en-PH")} ${service.priceUnit}`,
   }));
+  const displayName = providerData.profile.businessName || "Provider Profile";
+  const profileInitials = getProfileInitials(displayName);
 
   useEffect(() => {
     const token = getStoredProviderAccessToken();
@@ -171,15 +193,22 @@ export function ProviderProfilePage() {
 
     setIsReviewsLoading(true);
     setReviewError(null);
+    setDashboardError(null);
 
     void getProviderDashboard(token)
       .then(setDashboard)
-      .catch(() => {
+      .catch((error) => {
         setDashboard(null);
+        setDashboardError(
+          error instanceof Error ? error.message : "Unable to load provider dashboard metrics.",
+        );
       });
 
     getProviderProfile(token)
-      .then((snapshot) => listProviderReviews(token, snapshot.provider.id))
+      .then((snapshot) => {
+        setVerificationStatus(snapshot.provider.verificationStatus);
+        return listProviderReviews(token, snapshot.provider.id);
+      })
       .then(setReviews)
       .catch((error) => {
         setReviews([]);
@@ -190,29 +219,23 @@ export function ProviderProfilePage() {
 
   return (
     <div style={styles.container}>
-      {/* Cover Photo */}
+      {/* Profile Header Band */}
       <div
         style={{
           width: "100%",
           height: "320px",
           position: "relative",
           overflow: "hidden",
+          background:
+            "linear-gradient(135deg, #064E3B 0%, #00BF63 50%, #0F766E 100%)",
         }}
       >
-        <ImageWithFallback
-          src={providerData.profile.coverPhotoUrl}
-          alt="Cover"
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
-        />
         <div
           style={{
             position: "absolute",
             inset: 0,
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.3))",
+            background:
+              "linear-gradient(to bottom, rgba(0,0,0,0.05), rgba(0,0,0,0.25))",
           }}
         />
       </div>
@@ -232,7 +255,7 @@ export function ProviderProfilePage() {
             position: "relative",
           }}
         >
-          {/* Profile Photo & Header Info */}
+          {/* Profile Header Info */}
           <div
             style={{
               display: "flex",
@@ -242,9 +265,9 @@ export function ProviderProfilePage() {
               paddingBottom: "32px",
             }}
           >
-            {/* Left: Profile Photo & Info */}
+            {/* Left: Profile Badge & Info */}
             <div style={{ display: "flex", alignItems: "flex-end", gap: "24px" }}>
-              {/* Profile Photo - Overlapping the cover */}
+              {/* Profile Badge - Overlapping the cover */}
               <div
                 style={{
                   width: "160px",
@@ -253,20 +276,25 @@ export function ProviderProfilePage() {
                   border: "6px solid white",
                   boxShadow: "0 8px 24px rgba(0, 0, 0, 0.15)",
                   overflow: "hidden",
-                  backgroundColor: "white",
+                  background:
+                    "linear-gradient(135deg, #ECFDF5 0%, #BBF7D0 100%)",
                   flexShrink: 0,
                   marginTop: "-80px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <ImageWithFallback
-                  src={providerData.profile.profilePhotoUrl}
-                  alt="Provider"
+                <span
                   style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
+                    fontSize: "44px",
+                    fontWeight: "800",
+                    color: "#047857",
+                    letterSpacing: "0",
                   }}
-                />
+                >
+                  {profileInitials}
+                </span>
               </div>
 
               {/* Name & Badges */}
@@ -280,7 +308,7 @@ export function ProviderProfilePage() {
                     letterSpacing: "-0.025em",
                   }}
                 >
-                  {providerData.profile.businessName || "Provider Profile"}
+                  {displayName}
                 </h1>
                 
                 {/* Additional Info - Location, Rating, Completed Jobs */}
@@ -329,24 +357,22 @@ export function ProviderProfilePage() {
             </div>
 
             {/* Right: Edit Profile Button */}
-            {isOwnProfile && (
-              <button
-                style={{
-                  ...styles.button,
-                  ...styles.primaryButton,
-                }}
-                onClick={() => navigate("/provider/edit-profile")}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#059669";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#00BF63";
-                }}
-              >
-                <Edit2 style={{ width: "16px", height: "16px" }} />
-                Edit Profile
-              </button>
-            )}
+            <button
+              style={{
+                ...styles.button,
+                ...styles.primaryButton,
+              }}
+              onClick={() => navigate("/provider/edit-profile")}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#059669";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "#00BF63";
+              }}
+            >
+              <Edit2 style={{ width: "16px", height: "16px" }} />
+              Edit Profile
+            </button>
           </div>
         </div>
       </div>
@@ -359,6 +385,48 @@ export function ProviderProfilePage() {
           padding: "32px",
         }}
       >
+        {(isProfileLoading || profileError) && (
+          <div
+            style={{
+              ...styles.card,
+              borderColor: profileError ? "#FCA5A5" : "#BFDBFE",
+              backgroundColor: profileError ? "#FEF2F2" : "#EFF6FF",
+              marginBottom: "24px",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "14px",
+                fontWeight: "600",
+                color: profileError ? "#B91C1C" : "#1D4ED8",
+              }}
+            >
+              {profileError || "Loading live provider profile..."}
+            </p>
+          </div>
+        )}
+
+        {dashboardError && (
+          <div
+            style={{
+              ...styles.card,
+              borderColor: "#FCA5A5",
+              backgroundColor: "#FEF2F2",
+              marginBottom: "24px",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "14px",
+                fontWeight: "600",
+                color: "#B91C1C",
+              }}
+            >
+              {dashboardError}
+            </p>
+          </div>
+        )}
+
         {/* Stats Row */}
         <div
           style={{
@@ -620,41 +688,6 @@ export function ProviderProfilePage() {
                   </p>
                 </div>
 
-                {/* Certifications */}
-                <div style={styles.card}>
-                  <h2
-                    style={{
-                      fontSize: "20px",
-                      fontWeight: "bold",
-                      color: "#111827",
-                      marginBottom: "16px",
-                    }}
-                  >
-                    Certifications & Training
-                  </h2>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    {[
-                      "Professional Cleaning Certification - ISSA",
-                      "Green Cleaning Specialist",
-                      "Workplace Safety & Health Training",
-                    ].map((cert, index) => (
-                      <div
-                        key={index}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
-                          padding: "12px",
-                          backgroundColor: "#F9FAFB",
-                          borderRadius: "8px",
-                        }}
-                      >
-                        <Award style={{ width: "20px", height: "20px", color: "#00BF63" }} />
-                        <span style={{ fontSize: "14px", color: "#374151" }}>{cert}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               {/* Sidebar */}

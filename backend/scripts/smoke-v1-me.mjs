@@ -1,11 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 const requiredEnv = [
   'SUPABASE_URL',
@@ -68,7 +67,9 @@ async function main() {
   const body = await response.json();
 
   if (!response.ok) {
-    throw new Error(`GET /v1/me failed with ${response.status}: ${JSON.stringify(body)}`);
+    throw new Error(
+      `GET /v1/me failed with ${response.status}: ${JSON.stringify(body)}`,
+    );
   }
 
   if (body.data.user.id !== createdUser.id) {
@@ -99,7 +100,9 @@ async function createAuthUser(email, password) {
   });
 
   if (error || !data.user) {
-    throw new Error(`Failed to create smoke auth user: ${error?.message ?? 'missing user'}`);
+    throw new Error(
+      `Failed to create smoke auth user: ${error?.message ?? 'missing user'}`,
+    );
   }
 
   return data.user;
@@ -123,7 +126,9 @@ async function signIn(email, password) {
   });
 
   if (error || !data.session?.access_token) {
-    throw new Error(`Failed to sign in smoke user: ${error?.message ?? 'missing session'}`);
+    throw new Error(
+      `Failed to sign in smoke user: ${error?.message ?? 'missing session'}`,
+    );
   }
 
   return data.session.access_token;

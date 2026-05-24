@@ -16,7 +16,7 @@ export interface SharedEmailSendRequest {
 export interface SharedMessageResponse {
   messageId: string;
   provider: string;
-  status: 'queued' | 'sent' | 'failed';
+  status: 'queued' | 'sent' | 'failed' | 'skipped';
 }
 
 export interface SharedMessageStatus {
@@ -33,4 +33,3 @@ export interface SharedSmsSendRequest {
   senderId?: string;
   metadata?: Record<string, string>;
 }
-

@@ -129,7 +129,6 @@ export function Dashboard() {
     [adminGateway.categories, adminGateway.providerListings, adminGateway.services],
   );
 
-  // ── Chart 3: Bookings Overview — preserved exactly ───────────────
   const bookingsOverviewData = [
     {
       period: "This Week",
@@ -144,13 +143,11 @@ export function Dashboard() {
     [adminGateway.payments, currentTime],
   );
 
-  // ── Chart 5: Issues & Operations — preserved exactly ─────────────
   const issuesOperationsData = [
     { type: "Pending Payout Requests", count: pendingPayouts,  fill: "#f59e0b" },
     { type: "Open Disputes",           count: openDisputes,    fill: "#ef4444" },
   ];
 
-  // ── Top providers — preserved exactly ───────────────────────────
   const topProviders = useMemo(() => {
     if (adminGateway.providerListings.length > 0) {
       const groupedProviders = new Map<

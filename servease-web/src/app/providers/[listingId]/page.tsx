@@ -10,7 +10,7 @@ export default async function Page({
   params: Promise<{ listingId: string }>;
 }) {
   const { listingId } = await params;
-  const detail = await fetchProviderDetail(listingId).catch(() => null);
+  const detail = await fetchProviderDetail(listingId);
 
   if (!detail) {
     notFound();

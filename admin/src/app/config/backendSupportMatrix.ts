@@ -1,4 +1,4 @@
-export type BackendSupportStatus = "wired" | "partial" | "local" | "blocked";
+export type BackendSupportStatus = "wired";
 
 export interface BackendSupportItem {
   area: string;
@@ -13,12 +13,16 @@ export interface BackendSupportItem {
 export const backendSupportMatrix: BackendSupportItem[] = [
   {
     area: "Authentication",
-    screen: "Login",
+    screen: "Login and Password Reset",
     status: "wired",
-    currentSupport: "Supabase password sign-in followed by gateway admin validation.",
-    existingEndpoints: ["POST /auth/v1/token?grant_type=password", "GET /v1/me"],
+    currentSupport: "Supabase password sign-in followed by gateway admin validation. Forgot Password submits through the gateway-backed password reset endpoint.",
+    existingEndpoints: [
+      "POST /auth/v1/token?grant_type=password",
+      "GET /v1/me",
+      "POST /v1/auth/password-reset",
+    ],
     backendNeeded: [],
-    notes: "Non-admin or inactive users are rejected in the admin frontend.",
+    notes: "Non-admin or inactive users are rejected in the admin frontend. The unauthenticated admin-access request modal was removed; new admin accounts are created by Super Admins from Admin Roles.",
   },
   {
     area: "Dashboard",
@@ -112,6 +116,15 @@ export const backendSupportMatrix: BackendSupportItem[] = [
     notes: "Admin service CRUD is now fully wired.",
   },
   {
+    area: "Marketplace",
+    screen: "Service Areas",
+    status: "wired",
+    currentSupport: "Read-only coverage view derives service-area provider counts from live provider listings.",
+    existingEndpoints: ["GET /v1/admin/providers"],
+    backendNeeded: [],
+    notes: "Service-area CRUD controls were removed because no persisted service-area contract exists yet.",
+  },
+  {
     area: "Providers",
     screen: "Service Providers",
     status: "wired",
@@ -128,7 +141,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
   {
     area: "Providers",
     screen: "Provider Applications",
-    status: "partial",
+    status: "wired",
     currentSupport: "Backend exposes live provider profile applications, approve/reject verification decisions, provider document preview/download URLs, and request-info notifications through the gateway.",
     existingEndpoints: [
       "GET /v1/admin/provider-applications",
@@ -215,8 +228,8 @@ export const backendSupportMatrix: BackendSupportItem[] = [
   {
     area: "Finance",
     screen: "Payouts, Refunds, Settlements, Commission",
-    status: "partial",
-    currentSupport: "Payout requests, payment release, refund review, and settlement list/approve/reject actions are backend-backed with admin mutations and audit logs.",
+    status: "wired",
+    currentSupport: "Payout requests, payment release, refund review, settlement list/approve/reject actions, settlement history, and manual bank-reference reconciliation are backend-backed with admin mutations and audit logs.",
     existingEndpoints: [
       "GET /v1/admin/payments/payouts",
       "POST /v1/admin/payments/:paymentId/release",
@@ -233,7 +246,7 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "POST /v1/admin/settlements/:id/reconcile",
     ],
     backendNeeded: [],
-    notes: "Settlement list uses payout summaries. Payment release creates a processing payout, while approval, rejection, release history, and bank-reference reconciliation are backed by payout events and admin audit logs.",
+    notes: "Settlement list uses payout summaries as the settlement source of truth. Payment release creates a processing payout; approval, rejection, release history, and bank-reference reconciliation are backed by payout events and admin audit logs. External disbursement execution is intentionally not implied by the admin UI.",
   },
   {
     area: "Marketing",
@@ -294,25 +307,27 @@ export const backendSupportMatrix: BackendSupportItem[] = [
       "GET /v1/admin/reports/:type/schedules",
     ],
     backendNeeded: [],
-    notes: "Report endpoints validate type, format, frequency, and recipients. Schedule metadata and delivery state are stored in admin.report_schedules; the optional worker is enabled with ADMIN_REPORT_DELIVERY_WORKER_ENABLED=true and uses @implementsprint/sdk emailSend.",
+    notes: "Report endpoints validate the supported report types (bookings, revenue, users, financial), CSV/PDF format, frequency, and recipients. Schedule metadata and delivery state are stored in admin.report_schedules; the optional worker is enabled with ADMIN_REPORT_DELIVERY_WORKER_ENABLED=true and uses @implementsprint/sdk emailSend. Schedule edit/pause/resume controls and unsupported performance/compliance report wrappers were removed until matching backend contracts exist.",
   },
   {
     area: "Platform",
     screen: "Admin Roles, Audit Trail, Integrations",
     status: "wired",
-    currentSupport: "Audit Trail lists and exports backend audit logs; user listing, admin user creation, and user status management are wired. Integrations page now reads, toggles, and tests live integration records.",
+    currentSupport: "Audit Trail lists and exports backend audit logs; admin user listing, creation, access-role updates, status management, and deletion are wired. Integrations page reads, toggles, and tests live integration records.",
     existingEndpoints: [
       "GET /v1/admin/audit-logs",
       "GET /v1/admin/audit-logs/export",
       "GET /v1/admin/users",
       "GET /v1/admin/users/summary",
       "PATCH /v1/admin/users/:userId/status",
+      "PATCH /v1/admin/users/:userId/access",
+      "DELETE /v1/admin/users/:userId",
       "POST /v1/admin/users",
       "GET /v1/admin/integrations",
       "PATCH /v1/admin/integrations/:provider/credentials",
       "POST /v1/admin/integrations/:provider/test",
     ],
     backendNeeded: [],
-    notes: "Integrations are stored in admin.integrations table with audit_logs trail. Real RBAC/invitations still need a dedicated contract.",
+    notes: "Integrations are stored in admin.integrations table with audit_logs trail. Admin access roles are fixed backend-defined roles. Custom permission editing and admin password-reset resend are intentionally not shown until dedicated backend contracts exist.",
   },
 ];

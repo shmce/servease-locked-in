@@ -11,7 +11,15 @@ import type { ProviderDetailData } from "../lib/provider-detail";
 import { BookingRequestForm } from "./BookingRequestForm";
 
 export function ProviderDetailPage({ detail }: { detail: ProviderDetailData }) {
-  const { listing, service, portfolio, availability, relatedListings, reviews } = detail;
+  const {
+    listing,
+    service,
+    portfolio,
+    availability,
+    relatedListings,
+    reviews,
+    loadErrors,
+  } = detail;
   const activeAvailabilityWindows =
     availability?.windows
       .filter((window) => window.isActive)
@@ -105,7 +113,11 @@ export function ProviderDetailPage({ detail }: { detail: ProviderDetailData }) {
                 </div>
               </div>
 
-              {portfolio.length === 0 ? (
+              {loadErrors.portfolio ? (
+                <SectionLoadWarning
+                  message={`Portfolio could not be refreshed: ${loadErrors.portfolio}`}
+                />
+              ) : portfolio.length === 0 ? (
                 <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
                   No portfolio media has been added yet.
                 </p>
@@ -144,7 +156,11 @@ export function ProviderDetailPage({ detail }: { detail: ProviderDetailData }) {
                 </div>
               </div>
 
-              {!availability ? (
+              {loadErrors.availability ? (
+                <SectionLoadWarning
+                  message={`Availability could not be refreshed: ${loadErrors.availability}`}
+                />
+              ) : !availability ? (
                 <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
                   Availability is not published yet.
                 </p>
@@ -207,7 +223,11 @@ export function ProviderDetailPage({ detail }: { detail: ProviderDetailData }) {
                 </div>
               </div>
 
-              {reviews.length === 0 ? (
+              {loadErrors.reviews ? (
+                <SectionLoadWarning
+                  message={`Reviews could not be refreshed: ${loadErrors.reviews}`}
+                />
+              ) : reviews.length === 0 ? (
                 <p className="font-['Poppins',sans-serif] text-sm text-gray-600">
                   No public reviews are available yet.
                 </p>
@@ -283,6 +303,16 @@ export function ProviderDetailPage({ detail }: { detail: ProviderDetailData }) {
           </aside>
         </div>
       </section>
+    </div>
+  );
+}
+
+function SectionLoadWarning({ message }: { message: string }) {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+      <p className="font-['Poppins',sans-serif] text-sm text-amber-800">
+        {message}
+      </p>
     </div>
   );
 }

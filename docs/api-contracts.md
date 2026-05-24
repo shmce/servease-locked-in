@@ -1,6 +1,6 @@
 # ServEase API Contracts
 
-Last verified from code: 2026-05-20.
+Last verified from code: 2026-05-23.
 
 This document describes the HTTP contracts currently exposed by ServEase. It is
 based on the NestJS gateway controllers, internal service controllers, and the
@@ -119,6 +119,11 @@ Schema source:
 | `pricing.createQuote(input)` | `POST /v1/pricing/quotes` | Bearer | `CreatePricingQuoteRequest` | `PricingQuoteSummary` |
 | `pricing.getProviderGuidance(input)` | `POST /v1/provider/pricing/guidance` | Bearer | `ProviderPricingGuidanceRequest` | `ProviderPricingGuidanceSummary` |
 | `providerApplications.getMine()` | `GET /v1/auth/provider-application/me` | Bearer | None | `ProviderApplicationStatus` |
+| `profile.listAddresses()` | `GET /v1/me/addresses` | Bearer | None | `CustomerAddressSummary[]` |
+| `profile.createAddress(input)` | `POST /v1/me/addresses` | Bearer | `CreateCustomerAddressInput` | `CustomerAddressSummary` |
+| `profile.updateAddress(id, input)` | `PATCH /v1/me/addresses/:addressId` | Bearer | `UpdateCustomerAddressInput` | `CustomerAddressSummary` |
+| `profile.setDefaultAddress(id)` | `POST /v1/me/addresses/:addressId/default` | Bearer | Path `addressId` | `CustomerAddressSummary` |
+| `profile.deleteAddress(id)` | `DELETE /v1/me/addresses/:addressId` | Bearer | Path `addressId` | `{ ok: true }` |
 | `payments.list()` | `GET /v1/payments` | Bearer | None | `PaymentSummary[]` |
 | `payments.create(input)` | `POST /v1/payments` | Bearer | `CreatePaymentRequest` | `PaymentSummary` |
 | `payments.createCheckoutSession(input)` | `POST /v1/payments/checkout-sessions` | Bearer | `CreateCheckoutSessionRequest` | `PaymentCheckoutSessionSummary` |
@@ -181,6 +186,7 @@ Source: `backend/apps/api-gateway/src/features/registration/registration.control
 | POST | `/v1/auth/google/token/refresh` | None | - | `GoogleTokenRefreshRequest` | `GoogleOAuthTokenResponse` |
 | POST | `/v1/auth/google/logout` | None | - | `GoogleLogoutRequest` | `GoogleLogoutResponse` |
 | GET | `/v1/auth/provider-application/me` | Bearer | - | - | `ProviderApplicationStatusResponse` |
+| GET | `/v1/auth/provider-application/me/documents` | Bearer | - | - | `ProviderApplicationDocumentSummary[]` |
 
 ### `v1/me`
 
@@ -192,8 +198,14 @@ Source: `backend/apps/api-gateway/src/features/current-user/current-user.control
 | PATCH | `/v1/me` | Bearer | - | `UpdateCurrentUserProfileInput` | `CurrentUserProfile` |
 | PATCH | `/v1/me/password` | Bearer | - | `UpdateCurrentUserPasswordInput` | `UpdateCurrentUserPasswordResponse` |
 | DELETE | `/v1/me` | Bearer | - | - | `{ ok: true }` |
+| GET | `/v1/me/addresses` | Bearer | - | - | `CustomerAddressSummary[]` |
+| POST | `/v1/me/addresses` | Bearer | - | `CreateCustomerAddressRequest` | `CustomerAddressSummary` |
+| PATCH | `/v1/me/addresses/:addressId` | Bearer | - | `UpdateCustomerAddressRequest` | `CustomerAddressSummary` |
+| POST | `/v1/me/addresses/:addressId/default` | Bearer | - | - | `CustomerAddressSummary` |
+| DELETE | `/v1/me/addresses/:addressId` | Bearer | - | - | `{ ok: true }` |
 | GET | `/v1/me/sessions` | Bearer | - | - | `CurrentUserSessionSummary[]` |
 | POST | `/v1/me/two-factor/enable` | Bearer | - | - | `TwoFactorProvisioningResponse` |
+| GET | `/v1/me/two-factor` | Bearer | - | - | `TwoFactorStatusResponse` |
 | POST | `/v1/me/two-factor/verify` | Bearer | - | `TwoFactorVerificationInput` | `TwoFactorStatusResponse` |
 | POST | `/v1/me/two-factor/disable` | Bearer | - | `TwoFactorVerificationInput` | `TwoFactorStatusResponse` |
 
@@ -214,6 +226,7 @@ Source: `backend/apps/api-gateway/src/features/catalog/catalog.controller.ts`
 | --- | --- | --- | --- | --- | --- |
 | GET | `/v1/catalog/categories` | None | - | - | `CatalogCategory[]` |
 | GET | `/v1/catalog/services` | None | `categoryId: string` | - | `CatalogServiceItem[]` |
+| GET | `/v1/catalog/service-areas` | None | - | - | `ServiceAreaSummary[]` |
 | GET | `/v1/catalog/providers` | None | `serviceId: string`, `providerId: string` | - | `ProviderServiceListing[]` |
 | GET | `/v1/catalog/providers/:providerId/portfolio` | None | - | - | `ProviderPortfolioMediaSummary[]` |
 | POST | `/v1/catalog/provider/portfolio` | Bearer | - | `ProviderPortfolioMediaInput` | `ProviderPortfolioMediaSummary` |
@@ -232,7 +245,6 @@ Source: `backend/apps/api-gateway/src/features/booking/booking.controller.ts`
 | GET | `/v1/bookings/:bookingId` | Bearer | - | - | `BookingSummary` |
 | PATCH | `/v1/bookings/:bookingId/status` | Bearer | - | Inline status transition body | `BookingSummary` |
 | GET | `/v1/bookings/:bookingId/tracking` | Bearer | - | - | `BookingTrackingSnapshot` |
-| GET | `/v1/bookings/:bookingId/tracking/stream` | Bearer | - | - | SSE `tracking` events with `BookingTrackingSnapshot` data |
 | PATCH | `/v1/bookings/:bookingId/tracking/location` | Bearer | - | `UpdateBookingLiveLocationRequest` | `BookingTrackingLocation` |
 | POST | `/v1/bookings/:bookingId/attachments` | Bearer | - | `AddBookingAttachmentRequest` | `BookingAttachmentSummary` |
 | DELETE | `/v1/bookings/:bookingId/attachments/:attachmentId` | Bearer | - | - | `BookingAttachmentSummary` |
@@ -264,7 +276,7 @@ Sources:
 | POST | `/v1/provider/availability/time-off` | Bearer | - | `AddProviderTimeOffWindowInput` | `ProviderAvailabilitySchedule` |
 | DELETE | `/v1/provider/availability/time-off/:id` | Bearer | - | - | `ProviderAvailabilitySchedule` |
 | POST | `/v1/pricing/quotes` | Bearer | - | `CreatePricingQuoteRequest` | `PricingQuoteSummary` |
-| POST | `/v1/provider/pricing/guidance` | Bearer | - | Inline provider guidance body | `PricingQuoteSummary` |
+| POST | `/v1/provider/pricing/guidance` | Bearer | - | `ProviderPricingGuidanceRequest` | `ProviderPricingGuidanceSummary` |
 
 Availability schedules return:
 
@@ -346,10 +358,10 @@ All admin routes require `Authorization: Bearer <adminAccessToken>`.
 | Commission rules | `GET /v1/admin/commission-rules`, `PATCH /v1/admin/commission-rules/:ruleId` |
 | Disputes | `GET /v1/admin/disputes`, `GET /v1/admin/disputes/:disputeId`, `POST /v1/admin/disputes/:disputeId/resolve` |
 | Integrations | `GET /v1/admin/integrations`, `PATCH /v1/admin/integrations/:provider/credentials`, `POST /v1/admin/integrations/:provider/test` |
-| Payments | `GET /v1/admin/payments`, `GET /v1/admin/payments/payouts`, `GET /v1/admin/payments/failures`, `POST /v1/admin/payments/settlements/:settlementId/approve`, `PATCH /v1/admin/payments/payouts/:payoutId/status`, `GET /v1/admin/payments/:paymentId`, `PATCH /v1/admin/payments/:paymentId/status`, `POST /v1/admin/payments/:paymentId/failure`, `POST /v1/admin/payments/:paymentId/retry`, `POST /v1/admin/payments/:paymentId/apicenter-sync` |
-| Pricing | `GET /v1/admin/pricing/rules`, `PUT /v1/admin/pricing/rules`, `GET /v1/admin/pricing/fuel-index`, `POST /v1/admin/pricing/fuel-index`, `GET /v1/admin/pricing/quote-audits` |
+| Payments | `GET /v1/admin/payments`, `GET /v1/admin/payments/payouts`, `GET /v1/admin/payments/failures`, `POST /v1/admin/payments/settlements/:settlementId/approve`, `PATCH /v1/admin/payments/payouts/:payoutId/status`, `GET /v1/admin/payments/:paymentId`, `PATCH /v1/admin/payments/:paymentId/status`, `POST /v1/admin/payments/:paymentId/failure`, `POST /v1/admin/payments/:paymentId/retry`, `POST /v1/admin/payments/:paymentId/apicenter-sync`, `POST /v1/admin/payments/:paymentId/release` |
+| Pricing | `GET /v1/admin/pricing/rules`, `PUT /v1/admin/pricing/rules`, `GET /v1/admin/pricing/fuel-index`, `POST /v1/admin/pricing/fuel-index`, `POST /v1/admin/pricing/fuel-index/sync`, `GET /v1/admin/pricing/quote-audits` |
 | Promotions | `GET /v1/admin/promotions`, `POST /v1/admin/promotions`, `PATCH /v1/admin/promotions/:promotionId`, `DELETE /v1/admin/promotions/:promotionId` |
-| Provider applications | `GET /v1/admin/provider-applications`, `GET /v1/admin/provider-applications/:applicationId`, `GET /v1/admin/provider-applications/:applicationId/documents/:documentId`, `GET /v1/admin/provider-applications/:applicationId/documents/:documentId/download`, `GET /v1/admin/provider-applications/:applicationId/review`, `PUT /v1/admin/provider-applications/:applicationId/review`, `POST /v1/admin/provider-applications/:applicationId/review/notes`, `POST /v1/admin/provider-applications/:applicationId/ocr`, `POST /v1/admin/provider-applications/:applicationId/approve`, `POST /v1/admin/provider-applications/:applicationId/reject`, `POST /v1/admin/provider-applications/:applicationId/request-info` |
+| Provider applications | `GET /v1/admin/provider-applications`, `GET /v1/admin/provider-applications/:applicationId`, `GET /v1/admin/provider-applications/:applicationId/documents/:documentId`, `GET /v1/admin/provider-applications/:applicationId/documents/:documentId/download`, `GET /v1/admin/provider-applications/:applicationId/review`, `PUT /v1/admin/provider-applications/:applicationId/review`, `POST /v1/admin/provider-applications/:applicationId/review/notes`, `POST /v1/admin/provider-applications/:applicationId/approve`, `POST /v1/admin/provider-applications/:applicationId/reject`, `POST /v1/admin/provider-applications/:applicationId/request-info` |
 | Providers | `GET /v1/admin/providers`, `GET /v1/admin/providers/:providerId`, `PATCH /v1/admin/providers/:providerId/status`, `GET /v1/admin/providers/:providerId/portfolio`, `DELETE /v1/admin/providers/:providerId/portfolio/:mediaId` |
 | Refunds | `GET /v1/admin/refunds`, `POST /v1/admin/refunds/:refundId/approve`, `POST /v1/admin/refunds/:refundId/reject` |
 | Reports | `GET /v1/admin/reports/:type/schedules`, `GET /v1/admin/reports/:type.pdf`, `GET /v1/admin/reports/revenue.csv`, `GET /v1/admin/reports/users.csv`, `GET /v1/admin/reports/financial.csv`, `GET /v1/admin/reports/bookings.csv`, `POST /v1/admin/reports/:type`, `POST /v1/admin/reports/:type/schedules` |
@@ -368,8 +380,8 @@ route-by-route inventory generated from service controllers.
 | Service | Port | Internal route groups |
 | --- | ---: | --- |
 | `auth-service` | 8501 | `/internal/auth/registrations`, `/internal/auth/password-reset`, `/internal/auth/password-change`, `/internal/auth/shared/otp/*`, `/internal/auth/shared/google/*`, `/internal/auth/admin-users`, `/internal/users/:userId`, `/internal/users/:userId/sessions`, `/internal/users/:userId/two-factor/*` |
-| `user-service` | 8502 | `/internal/users/:userId/customer-profile`, `/internal/users/:userId/preferences`, `/internal/users/:userId/referral-summary`, `/internal/shared-geo/*`, `/internal/admin/users/*` |
-| `catalog-service` | 8503 | `/internal/catalog/categories`, `/internal/catalog/services`, `/internal/catalog/providers`, `/internal/providers/*`, `/internal/providers/applications/*`, `/internal/admin/catalog/*` |
+| `user-service` | 8502 | `/internal/users/:userId/customer-profile`, `/internal/users/:userId/addresses`, `/internal/users/:userId/preferences`, `/internal/users/:userId/referral-summary`, `/internal/shared-geo/*`, `/internal/admin/users/*` |
+| `catalog-service` | 8503 | `/internal/catalog/categories`, `/internal/catalog/services`, `/internal/catalog/service-areas`, `/internal/catalog/providers`, `/internal/providers/*`, `/internal/providers/applications/*`, `/internal/admin/catalog/*` |
 | `booking-service` | 8504 | `/internal/bookings/*`, `/internal/admin/bookings/*`, `/internal/admin/disputes/*` |
 | `availability-service` | 8505 | `/internal/providers/:providerId/availability`, `/internal/providers/:providerId/availability/windows`, `/internal/providers/:providerId/availability/days-off`, `/internal/providers/:providerId/availability/time-off` |
 | `messaging-service` | 8506 | `/internal/conversations`, `/internal/conversations/:conversationId`, `/internal/conversations/:conversationId/messages` |

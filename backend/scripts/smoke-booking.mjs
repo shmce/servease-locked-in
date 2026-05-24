@@ -1,11 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 for (const key of [
   'SUPABASE_URL',
@@ -58,15 +57,24 @@ async function main() {
   cleanupState.userId = user.id;
   cleanupState.providerUserId = providerUser.id;
 
-  const { error: customerSeedError } = await serviceClient.rpc('servease_smoke_seed_customer', {
-    p_user_id: user.id,
-    p_email: email,
-  });
+  const { error: customerSeedError } = await serviceClient.rpc(
+    'servease_smoke_seed_customer',
+    {
+      p_user_id: user.id,
+      p_email: email,
+    },
+  );
   if (customerSeedError) {
-    throw new Error(`Failed to seed smoke customer: ${customerSeedError.message}`);
+    throw new Error(
+      `Failed to seed smoke customer: ${customerSeedError.message}`,
+    );
   }
   const catalogSeed = await seedCatalog();
-  await bindProviderUser(catalogSeed.providerId, providerUser.id, providerEmail);
+  await bindProviderUser(
+    catalogSeed.providerId,
+    providerUser.id,
+    providerEmail,
+  );
   const scheduledAt = nextManilaSlotIso(10);
   const outsideWindowAt = nextManilaSlotIso(20);
   await seedAvailability(catalogSeed.providerId, scheduledAt);
@@ -78,25 +86,37 @@ async function main() {
   await startService('booking-service', 8504);
   await startService('api-gateway', 5001);
 
-  const created = await postJson('http://localhost:5001/v1/bookings', accessToken, {
-    providerId: catalogSeed.providerId,
-    serviceId: catalogSeed.serviceId,
-    serviceTitle: 'Smoke Deep Clean Package',
-    serviceName: 'Smoke Deep Clean',
-    serviceDescription: 'Temporary smoke test booking',
-    serviceAddress: '123 Smoke Test St',
-    scheduledAt,
-    hoursRequired: 1,
-    serviceAmount: 1200,
-    pricingMode: 'flat',
-    paymentMethod: 'cash_on_service',
-    customerNotes: 'Smoke test booking',
-  });
+  const created = await postJson(
+    'http://localhost:5001/v1/bookings',
+    accessToken,
+    {
+      providerId: catalogSeed.providerId,
+      serviceId: catalogSeed.serviceId,
+      serviceTitle: 'Smoke Deep Clean Package',
+      serviceName: 'Smoke Deep Clean',
+      serviceDescription: 'Temporary smoke test booking',
+      serviceAddress: '123 Smoke Test St',
+      scheduledAt,
+      hoursRequired: 1,
+      serviceAmount: 1200,
+      pricingMode: 'flat',
+      paymentMethod: 'cash_on_service',
+      customerNotes: 'Smoke test booking',
+    },
+  );
   cleanupState.bookingId = created.id;
 
-  const listed = await getJson('http://localhost:5001/v1/bookings', accessToken);
-  if (!Array.isArray(listed) || !listed.some((booking) => booking.id === created.id)) {
-    throw new Error('Created booking was not returned by customer booking list');
+  const listed = await getJson(
+    'http://localhost:5001/v1/bookings',
+    accessToken,
+  );
+  if (
+    !Array.isArray(listed) ||
+    !listed.some((booking) => booking.id === created.id)
+  ) {
+    throw new Error(
+      'Created booking was not returned by customer booking list',
+    );
   }
 
   const detail = await getJson(
@@ -202,17 +222,23 @@ async function createAuthUser(email, password) {
   });
 
   if (error || !data.user) {
-    throw new Error(`Failed to create smoke auth user: ${error?.message ?? 'missing user'}`);
+    throw new Error(
+      `Failed to create smoke auth user: ${error?.message ?? 'missing user'}`,
+    );
   }
 
   return data.user;
 }
 
 async function seedCatalog() {
-  const { data, error } = await serviceClient.rpc('servease_smoke_seed_catalog');
+  const { data, error } = await serviceClient.rpc(
+    'servease_smoke_seed_catalog',
+  );
 
   if (error || !data) {
-    throw new Error(`Failed to seed catalog smoke data: ${error?.message ?? 'missing seed data'}`);
+    throw new Error(
+      `Failed to seed catalog smoke data: ${error?.message ?? 'missing seed data'}`,
+    );
   }
 
   cleanupState.categoryId = data.categoryId;
@@ -223,21 +249,27 @@ async function seedCatalog() {
 }
 
 async function bindProviderUser(providerId, userId, email) {
-  const { error } = await serviceClient.rpc('servease_smoke_bind_provider_user', {
-    p_provider_id: providerId,
-    p_user_id: userId,
-    p_email: email,
-  });
+  const { error } = await serviceClient.rpc(
+    'servease_smoke_bind_provider_user',
+    {
+      p_provider_id: providerId,
+      p_user_id: userId,
+      p_email: email,
+    },
+  );
   if (error) {
     throw new Error(`Failed to bind smoke provider user: ${error.message}`);
   }
 }
 
 async function seedAvailability(providerId, scheduledAt) {
-  const { error } = await serviceClient.rpc('servease_smoke_seed_provider_availability', {
-    p_provider_id: providerId,
-    p_scheduled_at: scheduledAt,
-  });
+  const { error } = await serviceClient.rpc(
+    'servease_smoke_seed_provider_availability',
+    {
+      p_provider_id: providerId,
+      p_scheduled_at: scheduledAt,
+    },
+  );
 
   if (error) {
     throw new Error(`Failed to seed smoke availability: ${error.message}`);
@@ -251,7 +283,9 @@ async function signIn(email, password) {
   });
 
   if (error || !data.session?.access_token) {
-    throw new Error(`Failed to sign in smoke user: ${error?.message ?? 'missing session'}`);
+    throw new Error(
+      `Failed to sign in smoke user: ${error?.message ?? 'missing session'}`,
+    );
   }
 
   return data.session.access_token;
@@ -302,7 +336,9 @@ async function sendJson(url, method, token, body) {
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(`${method} ${url} failed with ${response.status}: ${JSON.stringify(payload)}`);
+    throw new Error(
+      `${method} ${url} failed with ${response.status}: ${JSON.stringify(payload)}`,
+    );
   }
 
   return payload.data;
@@ -374,7 +410,11 @@ async function cleanup() {
     });
   }
 
-  if (cleanupState.categoryId && cleanupState.serviceId && cleanupState.providerId) {
+  if (
+    cleanupState.categoryId &&
+    cleanupState.serviceId &&
+    cleanupState.providerId
+  ) {
     await serviceClient.rpc('servease_smoke_cleanup_provider_availability', {
       p_provider_id: cleanupState.providerId,
     });

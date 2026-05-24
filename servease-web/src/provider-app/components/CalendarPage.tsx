@@ -65,19 +65,13 @@ const styles = {
   },
 };
 
-const defaultTimeSlots = [
-  "8:00 AM",
-  "9:00 AM",
-  "10:00 AM",
-  "11:00 AM",
-  "12:00 PM",
-  "1:00 PM",
-  "2:00 PM",
-  "3:00 PM",
-  "4:00 PM",
-  "5:00 PM",
-  "6:00 PM",
-];
+type DaySchedule = {
+  available: boolean;
+  startTime: string;
+  endTime: string;
+  breakStart?: string;
+  breakEnd?: string;
+};
 
 export function CalendarPage() {
   const navigate = useNavigate();
@@ -94,7 +88,6 @@ export function CalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [eventTitle, setEventTitle] = useState("");
-  const [eventTime, setEventTime] = useState("");
   const [eventFeedback, setEventFeedback] = useState<string | null>(null);
   const [eventError, setEventError] = useState<string | null>(null);
   const [bookings, setBookings] = useState<Record<string, ProviderCalendarBooking[]>>({});
@@ -179,22 +172,17 @@ export function CalendarPage() {
     return blockedDates.includes(dateStr);
   };
 
-const isAvailable = (day: number) => {
-  const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-  const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
-  
-  // Only return false if user explicitly set this day as unavailable
-  if (
-    providerData?.availability &&
-    providerData.availability[dayName] &&
-    providerData.availability[dayName].available === false
-  ) {
-    return false;
-  }
+  const getScheduleForDate = (date: Date): DaySchedule | null => {
+    const dayName = date.toLocaleDateString("en-US", { weekday: "long" });
+    return providerData.availability[dayName] ?? null;
+  };
 
-  // Default: ALL days including Saturday and Sunday are green
-  return true;
-};
+  const isAvailable = (day: number) => {
+    const schedule = getScheduleForDate(
+      new Date(currentDate.getFullYear(), currentDate.getMonth(), day),
+    );
+    return schedule?.available ?? false;
+  };
   const goToPreviousMonth = () => {
     setCurrentDate(
       new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)
@@ -254,13 +242,11 @@ const isAvailable = (day: number) => {
     const title = eventTitle.trim();
 
     if (!title) {
-      setEventError("Enter an event title.");
+      setEventError("Enter a reason for blocking this day.");
       return;
     }
 
-    const reason = eventTime
-      ? `Personal event: ${title} at ${eventTime}`
-      : `Personal event: ${title}`;
+    const reason = `Blocked day: ${title}`;
 
     try {
       setEventError(null);
@@ -268,11 +254,10 @@ const isAvailable = (day: number) => {
       await addBlockedDates([selectedDateStr], reason);
       setShowEventModal(false);
       setEventTitle("");
-      setEventTime("");
-      setEventFeedback(`Personal event added for ${selectedDateStr}.`);
+      setEventFeedback(`Blocked ${selectedDateStr}.`);
     } catch (error) {
       setEventError(
-        error instanceof Error ? error.message : "Unable to add personal event.",
+        error instanceof Error ? error.message : "Unable to block this day.",
       );
     }
   };
@@ -283,16 +268,19 @@ const isAvailable = (day: number) => {
 
   const selectedDateStr = selectedDate ? formatDate(selectedDate) : "";
   const selectedBookings = selectedDateStr ? bookings[selectedDateStr] || [] : [];
+  const selectedDateSchedule = selectedDate ? getScheduleForDate(selectedDate) : null;
 
   const timeSlots = useMemo(() => {
     const bookingTimes = Object.values(bookings)
       .flat()
       .map((booking) => booking.time);
+    const scheduleSlots = Object.values(providerData.availability)
+      .flatMap((schedule) => buildScheduleTimeSlots(schedule));
 
-    return Array.from(new Set([...defaultTimeSlots, ...bookingTimes])).sort(
+    return Array.from(new Set([...scheduleSlots, ...bookingTimes])).sort(
       compareCalendarTimes,
     );
-  }, [bookings]);
+  }, [bookings, providerData.availability]);
 
   const weekDays = getWeekDays(currentDate);
 
@@ -1056,12 +1044,15 @@ const isAvailable = (day: number) => {
                       Working Hours
                     </p>
                   </div>
-                  <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "4px" }}>
-                    8:00 AM – 5:00 PM
-                  </p>
-                  <p style={{ fontSize: "11px", color: "#9CA3AF" }}>
-                    Break: 12:00 PM – 1:00 PM
-                  </p>
+                  {selectedDateSchedule?.available ? (
+                    <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "4px" }}>
+                      {formatScheduleTime(selectedDateSchedule.startTime)} – {formatScheduleTime(selectedDateSchedule.endTime)}
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "4px" }}>
+                      Not available this day
+                    </p>
+                  )}
                 </div>
 
                 {/* Available Time Slots */}
@@ -1179,7 +1170,7 @@ const isAvailable = (day: number) => {
                     }}
                   >
                     <CalendarIcon size={16} />
-                    Add personal event
+                    Block day with reason
                   </button>
                   <button
                     onClick={() => navigate(`/provider/block-time?date=${selectedDateStr}`)}
@@ -1246,8 +1237,11 @@ const isAvailable = (day: number) => {
                 marginBottom: "16px",
               }}
             >
-              Add Personal Event
+              Block Selected Day
             </h2>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "16px" }}>
+              This blocks the full selected date in your provider availability.
+            </p>
             <div
               style={{
                 display: "flex",
@@ -1257,11 +1251,11 @@ const isAvailable = (day: number) => {
             >
               <div>
                 <label style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "8px", display: "block" }}>
-                  Event Title
+                  Reason
                 </label>
                 <input
                   type="text"
-                  placeholder="Event Title"
+                  placeholder="Reason for blocking this day"
                   value={eventTitle}
                   onChange={(e) => {
                     setEventTitle(e.target.value);
@@ -1283,45 +1277,6 @@ const isAvailable = (day: number) => {
                     e.currentTarget.style.borderColor = "#E5E7EB";
                   }}
                 />
-              </div>
-              <div>
-                <label style={{ fontSize: "14px", fontWeight: "600", color: "#374151", marginBottom: "8px", display: "block" }}>
-                  Time
-                </label>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <Clock
-                    style={{ width: "16px", height: "16px", color: "#00BF63" }}
-                  />
-                  <input
-                    type="time"
-                    value={eventTime}
-                    onChange={(e) => {
-                      setEventTime(e.target.value);
-                      setEventError(null);
-                    }}
-                    style={{
-                      padding: "12px",
-                      borderRadius: "8px",
-                      border: "2px solid #E5E7EB",
-                      fontSize: "14px",
-                      color: "#111827",
-                      flex: 1,
-                      outline: "none",
-                    }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = "#00BF63";
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = "#E5E7EB";
-                    }}
-                  />
-                </div>
               </div>
             </div>
             <div
@@ -1375,7 +1330,7 @@ const isAvailable = (day: number) => {
                   e.currentTarget.style.backgroundColor = "#00BF63";
                 }}
               >
-                {isAvailabilityLoading ? "Adding..." : "Add Event"}
+                {isAvailabilityLoading ? "Blocking..." : "Block Day"}
               </button>
             </div>
           </div>
@@ -1387,6 +1342,61 @@ const isAvailable = (day: number) => {
 
 function compareCalendarTimes(left: string, right: string): number {
   return timeToMinutes(left) - timeToMinutes(right);
+}
+
+function buildScheduleTimeSlots(schedule: DaySchedule): string[] {
+  if (!schedule.available) {
+    return [];
+  }
+
+  const start = parseClockTime(schedule.startTime);
+  const end = parseClockTime(schedule.endTime);
+
+  if (start === null || end === null || start >= end) {
+    return [];
+  }
+
+  const slots: string[] = [];
+  const firstSlot = Math.ceil(start / 60) * 60;
+
+  for (let minutes = firstSlot; minutes < end; minutes += 60) {
+    slots.push(formatMinutesAsMeridiem(minutes));
+  }
+
+  return slots;
+}
+
+function formatScheduleTime(value: string): string {
+  const minutes = parseClockTime(value);
+  return minutes === null ? value : formatMinutesAsMeridiem(minutes);
+}
+
+function parseClockTime(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+
+  if (hour > 23 || minute > 59) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function formatMinutesAsMeridiem(value: number): string {
+  const minutesInDay = 24 * 60;
+  const normalized = ((value % minutesInDay) + minutesInDay) % minutesInDay;
+  const hour24 = Math.floor(normalized / 60);
+  const minute = normalized % 60;
+  const hour12 = hour24 % 12 || 12;
+  const meridiem = hour24 >= 12 ? "PM" : "AM";
+
+  return `${hour12}:${String(minute).padStart(2, "0")} ${meridiem}`;
 }
 
 function timeToMinutes(time: string): number {

@@ -1,5 +1,6 @@
 import {
   CurrentUserIdentity,
+  CustomerAddressSummary,
   CustomerProfileSummary,
   ProviderProfileSummary,
 } from '../current-user/current-user.types';
@@ -10,8 +11,10 @@ export interface RegisterAccountRequest {
   password: string;
   fullName: string;
   contactNumber?: string | null;
+  birthdate?: string | null;
   address?: string | null;
   businessName?: string | null;
+  serviceId?: string | null;
   serviceDescription?: string | null;
   serviceArea?: string | null;
 }
@@ -19,6 +22,7 @@ export interface RegisterAccountRequest {
 export interface RegisteredAccountResponse {
   user: CurrentUserIdentity;
   customerProfile: CustomerProfileSummary | null;
+  customerAddresses: CustomerAddressSummary[];
   providerProfile: ProviderProfileSummary | null;
 }
 
@@ -33,6 +37,24 @@ export interface ProviderApplicationStatusResponse {
   latestDecisionAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+}
+
+export interface ProviderApplicationDocumentResponse {
+  id: string;
+  applicationId: string;
+  userId: string;
+  documentType: string;
+  fileUrl: string | null;
+  storagePath: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string | null;
+  previewUrl: string | null;
+  downloadUrl: string | null;
+}
+
+export interface ProviderApplicationDocumentsResponse {
+  application: ProviderApplicationStatusResponse;
+  documents: ProviderApplicationDocumentResponse[];
 }
 
 export interface PasswordResetRequest {

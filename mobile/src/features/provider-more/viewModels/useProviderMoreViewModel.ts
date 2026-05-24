@@ -15,6 +15,7 @@ const actionRows: ProviderMoreAction[][] = [
   ],
   [
     { label: 'Services', screen: 'providerServices' },
+    { label: 'Application', screen: 'providerApplicationDocuments' },
     { label: 'Availability', screen: 'calendar' },
   ],
   [

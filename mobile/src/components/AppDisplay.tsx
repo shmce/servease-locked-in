@@ -20,7 +20,16 @@ import {
   Wallet,
   WalletCards,
 } from 'lucide-react-native';
-import { Badge, Card, EmptyState, TopBar } from './DesignKit';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  SkeletonBlock,
+  SkeletonCard,
+  SkeletonCircle,
+  SkeletonLine,
+  TopBar,
+} from './DesignKit';
 import {
   bookingStatusChip,
   formatDateTime,
@@ -77,6 +86,26 @@ export function BookingCard({
   );
 }
 
+export function BookingCardSkeleton() {
+  return (
+    <SkeletonCard>
+      <View style={styles.bookingCardHeader}>
+        <SkeletonLine width="56%" height={16} />
+        <SkeletonBlock width={74} height={24} radius={radius.pill} />
+      </View>
+      <SkeletonLine width="66%" />
+      <SkeletonLine width="38%" />
+      <View style={styles.bookingCardFooter}>
+        <View style={styles.skeletonFooterCopy}>
+          <SkeletonLine width={68} height={9} />
+          <SkeletonLine width={122} height={12} />
+        </View>
+        <SkeletonBlock width={96} height={34} radius={radius.sm} />
+      </View>
+    </SkeletonCard>
+  );
+}
+
 export function ServiceListItem({
   service,
   onPress,
@@ -98,6 +127,25 @@ export function ServiceListItem({
       </View>
       <ChevronRight color={palette.faint} size={20} />
     </Pressable>
+  );
+}
+
+export function ServiceListItemSkeleton() {
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={styles.serviceListItem}
+    >
+      <SkeletonBlock width={90} height={90} radius={radius.md} />
+      <View style={styles.skeletonListBody}>
+        <SkeletonLine width="58%" height={15} />
+        <SkeletonLine width="92%" />
+        <SkeletonLine width="74%" />
+        <SkeletonLine width={84} height={12} />
+      </View>
+      <SkeletonCircle size={20} />
+    </View>
   );
 }
 
@@ -136,6 +184,28 @@ export function ProviderListItem({
       </View>
       <ChevronRight color={palette.faint} size={20} />
     </Pressable>
+  );
+}
+
+export function ProviderListItemSkeleton() {
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={styles.providerListItem}
+    >
+      <SkeletonCircle size={56} />
+      <View style={styles.skeletonListBody}>
+        <View style={styles.rowBetween}>
+          <SkeletonLine width="62%" height={15} />
+          <SkeletonCircle size={16} />
+        </View>
+        <SkeletonLine width="48%" />
+        <SkeletonLine width="74%" />
+        <SkeletonLine width={72} height={12} />
+      </View>
+      <SkeletonCircle size={20} />
+    </View>
   );
 }
 
@@ -401,6 +471,13 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
     padding: spacing.xl,
+  },
+  skeletonListBody: {
+    flex: 1,
+    gap: spacing.sm,
+  },
+  skeletonFooterCopy: {
+    gap: spacing.xs,
   },
   cardTitle: {
     ...type.section,

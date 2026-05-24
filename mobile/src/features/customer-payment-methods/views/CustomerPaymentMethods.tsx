@@ -4,11 +4,13 @@ import {
   Text,
   View,
 } from 'react-native';
-import { CreditCard, PlusCircle, Trash2, Wallet } from 'lucide-react-native';
+import { Trash2, Wallet } from 'lucide-react-native';
 import {
   EmptyState,
   PrimaryButton,
   Section,
+  SkeletonBlock,
+  SkeletonLine,
   TopBar,
 } from '../../../components/DesignKit';
 import {
@@ -26,6 +28,7 @@ type CustomerPaymentMethodsScreenProps = {
   customerPaymentMethods: CustomerPaymentMethodSummary[];
   selectedMethodId: string | null;
   busyAction: string | null;
+  isLoading?: boolean;
   onBack: () => void;
   setSelectedCustomerPaymentMethodId: (methodId: string) => void;
   saveCustomerPaymentMethod: (methodType: CustomerPaymentMethodType) => Promise<void>;
@@ -36,6 +39,7 @@ export function CustomerPaymentMethodsScreen({
   customerPaymentMethods,
   selectedMethodId,
   busyAction,
+  isLoading = false,
   onBack,
   setSelectedCustomerPaymentMethodId,
   saveCustomerPaymentMethod,
@@ -45,6 +49,7 @@ export function CustomerPaymentMethodsScreen({
     customerPaymentMethods,
     selectedMethodId,
     busyAction,
+    isLoading,
   });
   const walletActions = paymentMethods.data.actions.filter(
     (action) => action.methodType !== 'card',
@@ -52,6 +57,7 @@ export function CustomerPaymentMethodsScreen({
   const cardAction = paymentMethods.data.actions.find(
     (action) => action.methodType === 'card',
   );
+  const showSkeletons = paymentMethods.isLoading && customerPaymentMethods.length === 0;
 
   return (
     <>
@@ -60,7 +66,13 @@ export function CustomerPaymentMethodsScreen({
         <ScreenContent>
 
           <Section title="Saved methods">
-            {paymentMethods.data.hasMethods ? (
+            {showSkeletons ? (
+              <View style={styles.methodList}>
+                {Array.from({ length: 2 }).map((_, index) => (
+                  <PaymentMethodSkeleton key={`payment-method-skeleton-${index}`} />
+                ))}
+              </View>
+            ) : paymentMethods.data.hasMethods ? (
               <View style={styles.methodList}>
                 {paymentMethods.data.methods.map((item) => (
                   <Pressable
@@ -160,6 +172,24 @@ export function CustomerPaymentMethodsScreen({
   );
 }
 
+function PaymentMethodSkeleton() {
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={styles.methodCard}
+    >
+      <SkeletonBlock width={20} height={20} radius={radius.pill} />
+      <SkeletonBlock width={36} height={36} radius={radius.sm} />
+      <View style={styles.flex}>
+        <SkeletonLine width="48%" height={13} />
+        <SkeletonLine width="68%" height={10} style={styles.methodSkeletonMeta} />
+      </View>
+      <SkeletonBlock width={32} height={32} radius={radius.sm} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
 
@@ -221,6 +251,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     marginTop: 2,
+  },
+  methodSkeletonMeta: {
+    marginTop: 6,
   },
   deleteButton: {
     alignItems: 'center',

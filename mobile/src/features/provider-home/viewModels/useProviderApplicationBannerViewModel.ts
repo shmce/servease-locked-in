@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { formatDateTime } from '../../../domain/booking';
-import {
+import type {
   CurrentUserProfile,
   ProviderApplicationStatus,
 } from '../../../shared/models/types';
@@ -72,7 +72,9 @@ export function buildProviderApplicationBannerViewModel({
         ? 'Application needs attention'
         : 'Application pending review',
       tone: isRejected ? 'danger' : 'warning',
-      uploadDisabled: busyAction === 'upload-provider_document',
+      uploadDisabled:
+        busyAction === 'provider-application-documents' ||
+        Boolean(busyAction?.startsWith('upload-provider_document')),
       visible,
     },
     isLoading: false,

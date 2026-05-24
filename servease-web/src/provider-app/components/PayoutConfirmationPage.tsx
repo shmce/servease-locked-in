@@ -1,5 +1,11 @@
 import { CheckCircle2 } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import {
+  getStoredProviderAccessToken,
+  listProviderPayouts,
+  type PayoutSummary,
+} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -37,46 +43,90 @@ const styles = {
   },
 };
 
-interface StoredPayoutConfirmation {
-  amount?: number
-  netAmount?: number
-  processingFee?: number
-  method?: string
-  requestDate?: string | null
-  referenceNumber?: string
+interface PayoutConfirmationDetails {
+  amount: number;
+  netAmount: number | null;
+  processingFee: number | null;
+  method: string;
+  requestDate: string | null;
+  referenceNumber: string | null;
 }
 
-function readPayoutConfirmation(): StoredPayoutConfirmation | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const stored = sessionStorage.getItem("servease_payout_confirmation");
-  if (!stored) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(stored) as StoredPayoutConfirmation;
-  } catch {
-    return null;
-  }
+function toPayoutConfirmationDetails(
+  payout: PayoutSummary,
+): PayoutConfirmationDetails {
+  return {
+    amount: payout.amount,
+    netAmount: payout.netAmount,
+    processingFee: payout.processingFee,
+    method: payout.accountLabel ?? "Selected payout method",
+    requestDate: payout.requestedAt ?? payout.createdAt,
+    referenceNumber: payout.reference ?? payout.id,
+  };
 }
 
 export function PayoutConfirmationPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const payoutId = searchParams.get("payoutId");
+  const [payoutDetails, setPayoutDetails] =
+    useState<PayoutConfirmationDetails | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const storedConfirmation = readPayoutConfirmation();
-  const payoutDetails = {
-    amount: storedConfirmation?.netAmount ?? storedConfirmation?.amount ?? 0,
-    method: storedConfirmation?.method ?? "Selected payout method",
-    requestDate: new Date(storedConfirmation?.requestDate ?? Date.now()).toLocaleDateString("en-US", {
-      month: "long", 
-      day: "numeric", 
-      year: "numeric" 
-    }),
-    referenceNumber: storedConfirmation?.referenceNumber ?? "Pending reference",
-  };
+  useEffect(() => {
+    if (!payoutId) {
+      setPayoutDetails(null);
+      setLoadError("Payout request details are not available.");
+      return;
+    }
+
+    const token = getStoredProviderAccessToken();
+    if (!token) {
+      setPayoutDetails(null);
+      setLoadError("Sign in again to view payout request details.");
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+    void listProviderPayouts(token)
+      .then((payouts) => {
+        if (cancelled) return;
+        const payout = payouts.find((item) => item.id === payoutId);
+        if (!payout) {
+          setPayoutDetails(null);
+          setLoadError("Payout request details were not found.");
+          return;
+        }
+        setPayoutDetails(toPayoutConfirmationDetails(payout));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setPayoutDetails(null);
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load payout request details.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [payoutId]);
+
+  const formattedRequestDate = payoutDetails?.requestDate
+    ? new Date(payoutDetails.requestDate).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
   return (
     <div style={styles.container}>
@@ -110,53 +160,79 @@ export function PayoutConfirmationPage() {
           Payout Request Received
         </h1>
 
-        {/* Email Confirmation */}
+        {/* Confirmation Summary */}
         <p
           style={{
             fontSize: "14px",
-            color: "#00BF63",
+            color: "#4B5563",
             marginBottom: "24px",
             fontWeight: "500",
           }}
         >
-          A confirmation email has been sent
+          {isLoading
+            ? "Loading payout request details..."
+            : payoutDetails
+              ? "The payout service returned the request details below."
+              : loadError}
         </p>
 
         {/* Transaction Details */}
-        <div
-          style={{
-            backgroundColor: "#F9FAFB",
-            borderRadius: "12px",
-            padding: "20px",
-            marginBottom: "24px",
-            textAlign: "left" as const,
-          }}
-        >
-          <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "14px", color: "#6B7280" }}>Amount Requested</span>
-            <span style={{ fontSize: "16px", fontWeight: "600", color: "#111827" }}>
-              ₱{payoutDetails.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
+        {payoutDetails ? (
+          <div
+            style={{
+              backgroundColor: "#F9FAFB",
+              borderRadius: "12px",
+              padding: "20px",
+              marginBottom: "24px",
+              textAlign: "left" as const,
+            }}
+          >
+            <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "14px", color: "#6B7280" }}>Amount Requested</span>
+              <span style={{ fontSize: "16px", fontWeight: "600", color: "#111827" }}>
+                ₱{payoutDetails.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            {payoutDetails.processingFee !== null && (
+              <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "14px", color: "#6B7280" }}>Processing Fee</span>
+                <span style={{ fontSize: "14px", fontWeight: "500", color: "#DC2626" }}>
+                  -₱{payoutDetails.processingFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+            {payoutDetails.netAmount !== null && (
+              <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "14px", color: "#6B7280" }}>Net Amount</span>
+                <span style={{ fontSize: "16px", fontWeight: "600", color: "#00BF63" }}>
+                  ₱{payoutDetails.netAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+            <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "14px", color: "#6B7280" }}>Payout Method</span>
+              <span style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>
+                {payoutDetails.method}
+              </span>
+            </div>
+            {formattedRequestDate && (
+              <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "14px", color: "#6B7280" }}>Request Date</span>
+                <span style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>
+                  {formattedRequestDate}
+                </span>
+              </div>
+            )}
+            {payoutDetails.referenceNumber && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "14px", color: "#6B7280" }}>Reference Number</span>
+                <span style={{ fontSize: "14px", fontWeight: "600", color: "#00BF63", fontFamily: "monospace" }}>
+                  {payoutDetails.referenceNumber}
+                </span>
+              </div>
+            )}
           </div>
-          <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "14px", color: "#6B7280" }}>Payout Method</span>
-            <span style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>
-              {payoutDetails.method}
-            </span>
-          </div>
-          <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "14px", color: "#6B7280" }}>Request Date</span>
-            <span style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>
-              {payoutDetails.requestDate}
-            </span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: "14px", color: "#6B7280" }}>Reference Number</span>
-            <span style={{ fontSize: "14px", fontWeight: "600", color: "#00BF63", fontFamily: "monospace" }}>
-              {payoutDetails.referenceNumber}
-            </span>
-          </div>
-        </div>
+        ) : null}
 
         {/* Processing Info */}
         <div
@@ -170,10 +246,11 @@ export function PayoutConfirmationPage() {
           }}
         >
           <p style={{ fontSize: "14px", fontWeight: "600", color: "#92400E", marginBottom: "4px" }}>
-            Processing Time: 1–3 business days
+            Track Status in Payout History
           </p>
           <p style={{ fontSize: "13px", color: "#78350F", lineHeight: "1.5", margin: 0 }}>
-            You will receive a notification once your payout has been processed and transferred to your account.
+            Use the payout page as the source of truth for processing status,
+            transferred amount, and any operational follow-up.
           </p>
         </div>
 

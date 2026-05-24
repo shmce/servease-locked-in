@@ -1,4 +1,4 @@
-import { Shield, Bell, FileText, Users, CheckCircle, Clock, MoreVertical, RefreshCw, Copy, Check, Eye, UserX, Lock, Settings, Edit2, UserCheck, Key, Search, Download, Filter, Plug, Wifi, WifiOff, ExternalLink, CreditCard, MapPin, BarChart3 } from "lucide-react";
+import { Bell, FileText, Users, CheckCircle, Clock, MoreVertical, RefreshCw, Copy, Check, Eye, UserX, Edit2, UserCheck, Key, Search, Download, Filter, Plug, Wifi, WifiOff, ExternalLink, CreditCard, MapPin, BarChart3 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
@@ -24,7 +24,6 @@ import {
   TableHeader,
   TableRow,
 } from "../components/ui/table";
-import { notifyBackendRequired } from "../utils/backendRequired";
 import {
   exportAdminAuditLogsCsv,
   getUserPreferences,
@@ -105,7 +104,7 @@ export function NotificationSettings() {
 
   const handleSave = async () => {
     if (!accessToken) {
-      notifyBackendRequired("Saving notification settings", "PUT /v1/me/preferences");
+      toast.error("Sign in to save notification settings.");
       return;
     }
 
@@ -251,104 +250,6 @@ export function NotificationSettings() {
           onClick={() => void handleSave()}
         >
           {isSaving ? "Saving..." : "Save Settings"}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// Security Settings
-export function SecuritySettings() {
-  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
-  const [sessionTimeout, setSessionTimeout] = useState("30");
-  const [ipWhitelisting, setIpWhitelisting] = useState(false);
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Security Settings</h1>
-        <p className="text-gray-500 mt-1">
-          Manage security and access control settings
-        </p>
-      </div>
-
-      {/* Authentication */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-[#00BF63]" />
-            Authentication
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
-            <div>
-              <p className="text-sm font-medium text-gray-900">Two-Factor Authentication</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Require 2FA for all admin logins
-              </p>
-            </div>
-            <Switch
-              checked={twoFactorAuth}
-              onCheckedChange={setTwoFactorAuth}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="sessionTimeout">Session Timeout (minutes)</Label>
-            <Input
-              id="sessionTimeout"
-              type="number"
-              value={sessionTimeout}
-              onChange={(e) => setSessionTimeout(e.target.value)}
-              className="max-w-xs"
-            />
-            <p className="text-xs text-gray-500">
-              Auto-logout after period of inactivity
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Access Control */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Access Control</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border">
-            <div>
-              <p className="text-sm font-medium text-gray-900">IP Whitelisting</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Only allow access from approved IP addresses
-              </p>
-            </div>
-            <Switch
-              checked={ipWhitelisting}
-              onCheckedChange={setIpWhitelisting}
-            />
-          </div>
-
-          {ipWhitelisting && (
-            <div className="space-y-2">
-              <Label htmlFor="ipAddresses">Allowed IP Addresses</Label>
-              <Input
-                id="ipAddresses"
-                placeholder="e.g., 192.168.1.1, 192.168.1.2"
-              />
-              <p className="text-xs text-gray-500">
-                Enter comma-separated IP addresses
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <Button className="bg-[#00BF63] hover:bg-[#00A055]">
-          Save Security Settings
         </Button>
       </div>
     </div>
@@ -501,7 +402,7 @@ export function AuditTrail() {
 
   const handleExportLogs = async () => {
     if (!accessToken) {
-      notifyBackendRequired("Exporting audit logs", "GET /v1/admin/audit-logs/export");
+      toast.error("Sign in to export audit logs.");
       return;
     }
 

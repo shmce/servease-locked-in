@@ -67,6 +67,7 @@ export class SupabaseRegistrationRepository {
         user_metadata: {
           full_name: input.fullName.trim(),
           contact_number: input.contactNumber?.trim() || null,
+          birthdate: input.birthdate?.trim() || null,
           role: input.role,
         },
       });
@@ -90,6 +91,7 @@ export class SupabaseRegistrationRepository {
           p_email: input.email.trim().toLowerCase(),
           p_full_name: input.fullName.trim(),
           p_contact_number: input.contactNumber?.trim() || null,
+          p_birthdate: input.birthdate?.trim() || null,
           p_role: input.role,
         })
         .maybeSingle();
@@ -99,6 +101,9 @@ export class SupabaseRegistrationRepository {
           throw new RegistrationConflictError();
         }
         if (error.message.includes('invalid_registration_role')) {
+          throw new InvalidRegistrationRequestError();
+        }
+        if (error.message.includes('invalid_provider_birthdate')) {
           throw new InvalidRegistrationRequestError();
         }
         throw new Error(`Failed to create internal user: ${error.message}`);

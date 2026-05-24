@@ -69,13 +69,13 @@ These were 503/500 errors hitting the admin UI before this session. All resolved
 | File | Mock used | Live equivalent that exists |
 | --- | --- | --- |
 | `app/pages/Dashboard.tsx` | Dashboard KPIs, customer growth, provider category overview, booking status, revenue/commission, issues, top providers, and activity feed now use gateway data. | No `useData` dependency remains in routed admin pages. |
-| `contexts/DataContext.tsx` | Entire mock store (customers, bookings, payoutRequests, refunds, audit logs) | `RootLayout` no longer mounts `DataProvider`; this is now an unused cleanup candidate rather than a runtime source. |
-| `services/dataStore.ts` | Mock data file (~600 lines) | Only referenced by the now-unmounted `DataContext`; cleanup candidate. |
-| `imports/pasted_text/dashboard-overview.tsx` | Imported design dump, not used at runtime | Safe to remove. |
+| `contexts/DataContext.tsx` | Entire mock store (customers, bookings, payoutRequests, refunds, audit logs) | Removed from the runtime tree. |
+| `services/dataStore.ts` | Mock data file (~600 lines) | Removed from the runtime tree. |
+| `imports/pasted_text/dashboard-overview.tsx` | Imported design dump, not used at runtime | Removed from the runtime tree. |
 
 ### Sidebar pages that are visual stubs
 
-These pages exist as files but are not in the sidebar and not in `routes.tsx`:
+These old vertical template files have been removed from the runtime tree:
 
 - `MarketplaceSellers.tsx`
 - `RestaurantSellers.tsx`
@@ -86,18 +86,19 @@ These pages exist as files but are not in the sidebar and not in `routes.tsx`:
 - `Franchises.tsx`
 - `Logistics.tsx`
 
-These are old vertical templates from the Figma source. They are orphan files — either delete or repurpose.
+These were old vertical templates from the Figma source and no longer appear in `routes.tsx` or the sidebar.
 
 ### Pages that render mock UI elements
 
 | Page | What's mock |
 | --- | --- |
-| `ServiceProviderDetails.tsx` | Documents tab now resolves provider application documents through the gateway and uses signed preview/download URLs. It still falls back to `DOCUMENT_TYPES`/`DEFAULT_PROVIDER` when no application match exists for legacy mock IDs. |
-| `ServiceAreas.tsx` | "Interactive Map Coming Soon" panel — no geo backend exists. |
+| `ServiceProviderDetails.tsx` / `ProviderApplicationReview.tsx` | Documents tabs now resolve provider application documents through the gateway and use signed preview/download URLs. Missing application documents render an empty live state instead of mock document filenames. `ServiceProviderDetails` also distinguishes audit-log load failures from a legitimate empty activity log. |
+| `ServiceAreas.tsx` | The old "Interactive Map Coming Soon" panel has been replaced with a gateway-derived coverage map using provider service areas and approximate city coordinates. A dedicated geo/coverage backend is still recommended before treating the map as authoritative. |
 | `Analytics.tsx`, `ReportsInsights.tsx`, `RevenueReports.tsx`, `reports/*.tsx` | CSV/PDF exports for bookings, revenue, users, and financial reports are gateway-backed. `Analytics.tsx` now derives KPI cards and charts from gateway users, bookings, payments, providers, categories, and services. `RevenueReports.tsx` now derives monthly revenue, payment-method commission breakdowns, and top-provider earnings from gateway payments/refunds/providers, and exports through the gateway revenue CSV endpoint. Business, financial, and user schedule tables now load persisted schedule rows from the gateway, prepend newly created schedules, and show delivered schedule activity in Recent Reports instead of static generated-file history. `ReportsInsights` revenue, booking, provider, and customer tabs plus `reports/BookingAnalytics.tsx` and `reports/Revenue.tsx` now render gateway-derived data with empty states instead of demo fallbacks. |
-| `Profile.tsx` | Admin identity now hydrates from `GET /v1/me` for name, email, and phone; 2FA/login-history UI remains partially static. |
+| `Profile.tsx` | Admin identity now hydrates from `GET /v1/me` for name, email, and phone. 2FA actions link to the wired `Security.tsx` flow. |
 | `Security.tsx` | Active Sessions reads `/v1/me/sessions`; password change and TOTP 2FA setup/verify/disable are wired. |
-| `AddNewAdmin.tsx` | Now submits to the gateway-backed admin user creation flow. Invitation email and RBAC templates are still not implemented. |
+| `PlatformSettingsPages.tsx` ➜ removed `SecuritySettings` | The duplicate local-only platform security route has been removed. Use the wired `/security` page for account password, active sessions, and TOTP 2FA until platform-wide security policy contracts exist. |
+| `AddNewAdmin.tsx` | Now submits to the gateway-backed admin user creation flow. Invitation email delivery is handled by admin-service through APICenter, with optional configured template IDs and role template data. |
 | `PlatformSettingsPages.tsx` ➜ `Integrations` | Reads/toggles/tests/updates credentials through `/v1/admin/integrations` (wired this session). |
 | `PlatformSettingsPages.tsx` ➜ `NotificationSettings` | Loads/saves the signed-in admin's notification preferences through `/v1/me/preferences`. Push preference now feeds the same preference contract mobile uses before registering push tokens. |
 
@@ -109,7 +110,7 @@ These are old vertical templates from the Figma source. They are orphan files �
 
 ## 3. `FE_Web(Provider)` — Provider web app
 
-Service module `serveaseProviderApi.ts` exposes a near-complete API surface, but several components ignore it and use local mock state.
+Service module `serveaseProviderApi.ts` exposes a near-complete API surface. The remaining items are product contracts or richer optional metadata, not local mock state replacing an existing backend.
 
 ### Components with remaining backend integration gaps
 
@@ -117,11 +118,11 @@ Service module `serveaseProviderApi.ts` exposes a near-complete API surface, but
 | --- | --- | --- |
 | `PortfolioManagementPage.tsx` | Now loads the current provider portfolio from `/v1/provider/profile` and uses gateway add/delete/reorder/replace endpoints. Existing media replacement uploads through `/v1/uploads` with `provider_portfolio`, then saves the new media metadata through catalog. | Optional richer multi-image/before-after metadata would need an expanded portfolio contract. |
 | `MessagesPage.tsx` | Loads gateway conversations/messages, enriches threads from provider bookings, polls for updates, sends text and uploaded image attachments when a provider token exists, and honors `conversationId` deep links. | Landing customers can now use booking-scoped chat from booking detail; a standalone customer inbox remains optional. |
-| `EditProfilePage.tsx` | Saves business name, bio/description, service area, and years of experience through `PATCH /v1/me`; the gateway, catalog service, and Supabase RPC now share the same update contract for those fields. Social links, photos, licenses, and certifications remain local-only fields. | Add explicit provider social/profile-media/license contracts before persisting those optional fields. |
-| `ProviderProfilePage.tsx` | Renders the provider profile context, which starts empty and hydrates portfolio, services, business name, bio/description, service area, and experience from `/v1/provider/profile` on app load. Edit Profile updates the backend-backed fields. | Add profile media, languages, and social-link contracts if those should be cross-device. |
+| `EditProfilePage.tsx` | Saves business name, bio/description, service area, and years of experience through `PATCH /v1/me`; the gateway, catalog service, and Supabase RPC now share the same update contract for those fields. Social links, profile media, licenses, certifications, and language fields are no longer shown as editable local-only profile fields. | Add explicit provider social/profile-media/license/language contracts before reintroducing those optional fields. |
+| `ProviderProfilePage.tsx` | Renders the provider profile context, which starts empty and hydrates portfolio, services, business name, bio/description, service area, and experience from `/v1/provider/profile` on app load. Edit Profile updates the backend-backed fields. Unbacked cover/profile photo placeholders were replaced with a deterministic initials header. | Add profile media, languages, and social-link contracts before showing those fields cross-device. |
 | `ProviderHelpCenterPage.tsx` | Now lists provider support tickets, creates new tickets, and reads/posts ticket replies through `/v1/support/tickets`. Static FAQ remains as help content. | Attachments and status changes stay with support/admin contracts. |
-| `BlockTimePage.tsx` | Uses `ProviderDataContext.addBlockedDates`, which writes each selected date through `/v1/provider/availability/days-off`. Recurring controls are visual-only. | Add a recurring unavailability backend contract before enabling recurring blocks. |
-| `CalendarPage.tsx` | Loads provider bookings through `listProviderBookings`, groups them by Manila calendar day, and uses live totals for month/week/day views. | Personal events remain UI-only because no personal-calendar backend exists. |
+| `BlockTimePage.tsx` | Uses `ProviderDataContext.addBlockedDates`, which writes each selected date through `/v1/provider/availability/days-off`. Calendar deep links now prefill the selected date. | Add a recurring unavailability backend contract before adding recurring block controls. |
+| `CalendarPage.tsx` | Loads provider bookings through `listProviderBookings`, groups them by Manila calendar day, uses live totals for month/week/day views, and derives availability colors/time slots/working-hours labels from the saved provider availability windows. The old personal-event modal now writes a real blocked day through `/v1/provider/availability/days-off`. | Add a dedicated personal-calendar backend only if providers should store non-availability events separately from blocked days. |
 | `SetAvailabilityPage.tsx` | Uses `ProviderDataContext.saveAvailability`, which calls the backend and refreshes from `/v1/provider/availability`. The local `defaultAvailability` is only the editable weekly skeleton before the live schedule response arrives. |
 | `LoginPage.tsx` | Calls Supabase directly + `getCurrentUser` (live) | `ProviderAuthContext` rejects non-provider roles, missing provider profiles, and inactive accounts before storing the provider session. |
 
@@ -183,9 +184,9 @@ The remaining provider context fallback is structural availability defaults, not
 ### Mock or placeholder UI
 
 - `FAQPage.tsx`, `PrivacyPolicy.tsx`, `TermsConditions.tsx`, `AboutPage.tsx` — static copy only, acceptable for legal/help pages.
-- `ContactPage.tsx` — signed-in users can submit the form as a gateway-backed support ticket. Remaining polish is replacing the static address/map copy with real business contact/location data.
+- `ContactPage.tsx` — signed-in users can submit the form as a gateway-backed support ticket. The unbacked placeholder phone/address/map panel has been removed until real business contact/location data exists.
 - `StoreBadges.tsx` — environment-driven through `NEXT_PUBLIC_GOOGLE_PLAY_URL` and `NEXT_PUBLIC_APP_STORE_URL`; badges render disabled when real listing URLs are not configured.
-- `ProviderRegSuccess.tsx` still has static submitted copy, but its status link now lands on `ApplicationApproved.tsx`, which reads `/api/provider-application/status` and displays the signed-in provider's live pending/approved/rejected application state.
+- `ProviderRegSuccess.tsx` still has static submitted copy, but no longer hardcodes a fake registration date or status when a provider session is present. It reads `/api/provider-application/status` for the live pending/approved/rejected state, and its status link lands on `ApplicationApproved.tsx`, which uses the same endpoint.
 
 ---
 
@@ -256,7 +257,7 @@ These are the **bridges** that have to be built for "one product" feel.
 4. **Wire `FE_Web(Provider)` Help center & profile**
    - Current status: `ProviderHelpCenterPage` lists/creates tickets and lists/posts replies through the gateway.
    - Current status: `EditProfilePage` saves business name, bio/description, service area, and years of experience through `updateCurrentUserProfile`; the checked-in database migration now matches the catalog-service RPC call.
-   - Remaining: persist social links, profile media, languages, licenses, and certifications only after dedicated backend contracts exist.
+   - Remaining: persist social links, profile media, languages, licenses, and certifications only after dedicated backend contracts exist; the current provider UI no longer exposes those as local-only editable fields.
 
 ### P1 — Closes the customer loop on the web
 
@@ -285,25 +286,23 @@ These are the **bridges** that have to be built for "one product" feel.
 
 14. **Push notification delivery hardening** — mobile device registration/deactivation, `notification_and_support.push_devices`, service-role lookup/deactivation RPCs, Expo delivery fan-out, transient send retry, delayed receipt lookup, stale-token deactivation, foreground presentation/list refresh, and Expo tap routing are wired. Remaining work: direct APN/FCM support only if non-Expo native tokens are introduced.
 15. **Provider application status endpoint** — `GET /v1/auth/provider-application/me` now backs the Landing status page; remaining polish is unauthenticated lookup by application reference if email-link status checks are required.
-16. **Admin Dashboard migration off `useData`** — Dashboard and Analytics now build KPIs and charts from gateway users, bookings, payments, providers, categories, services, and operational summaries. Booking/revenue report analytics also use gateway payment rows without demo fallback, the combined `ReportsInsights` revenue, booking, provider, and customer tabs derive from gateway users, providers, reviews, and payments, and business/financial/user Recent Reports now derive from delivered scheduled-report rows. Remaining admin mock data is in secondary report series and orphan legacy files.
-17. **Admin orphan pages cleanup** — delete the eight non-routed vertical templates.
+16. **Admin Dashboard migration off `useData`** — Dashboard and Analytics now build KPIs and charts from gateway users, bookings, payments, providers, categories, services, and operational summaries. Booking/revenue report analytics also use gateway payment rows without demo fallback, the combined `ReportsInsights` revenue, booking, provider, and customer tabs derive from gateway users, providers, reviews, and payments, and business/financial/user Recent Reports now derive from delivered scheduled-report rows.
+17. **Admin orphan pages cleanup** — the eight non-routed vertical templates and duplicate local-only platform security settings page have been removed.
 18. **Native realtime** — Supabase Realtime channels on bookings/conversations would replace polling in mobile + web.
 
 ---
 
-## Files where mock data is still seeded
+## Mock-era cleanup status
 
-To make the cleanup explicit:
+The original mock-data seed files and orphan admin vertical templates have been removed from the runtime tree:
 
-- `admin/src/contexts/DataContext.tsx` (unused cleanup candidate; routed pages no longer import `useData`)
-- `admin/src/services/dataStore.ts` (unused cleanup candidate except through `DataContext`)
-- `admin/src/app/pages/reports/*.tsx` (exports, scheduled-report lists, delivered Recent Reports, the main Analytics page, combined report insight tabs, legacy RevenueReports, and dedicated booking/revenue payment analytics are gateway-backed)
-- `admin/src/imports/pasted_text/dashboard-overview.tsx` (unused)
-- `admin/src/app/pages/{MarketplaceSellers,RestaurantSellers,GrocerySellers,PharmacySellers,HospitalDoctors,TaxiVendors,Franchises,Logistics}.tsx` (8 orphan vertical pages)
-- `FE_Web(Provider)/src/app/context/ProviderDataContext.tsx` (availability skeleton remains local; profile, services, portfolio, and blocked dates hydrate from gateway APIs)
-- `FE_Web(Provider)/src/app/components/MessagesPage.tsx` (conversations/messages/text sends/image attachments and booking/customer labels are gateway-backed)
-- `FE_Web(Provider)/src/app/components/PortfolioManagementPage.tsx` (load/add/delete/reorder/replace are gateway-backed; provider context starts empty until live data arrives)
-- `Landing Page/src/app/components/StoreBadges.tsx` (disabled until real app-store env URLs are configured)
+- `admin/src/contexts/DataContext.tsx`
+- `admin/src/services/dataStore.ts`
+- `admin/src/imports/pasted_text/*`
+- `admin/src/app/pages/{MarketplaceSellers,RestaurantSellers,GrocerySellers,PharmacySellers,HospitalDoctors,TaxiVendors,Franchises,Logistics}.tsx`
+- the generated `servease-web/src/imports` page bundle and its unused image assets
+
+Current recommendation: keep the remaining report/provider/customer pages live-backed and continue using section-level load errors instead of silent empty-state fallbacks. Store badge links and native APN/FCM support remain product/config decisions, not mock-data cleanup tasks. APICenter `mock` checkout/geocode providers are now rejected in production-like environments.
 
 ---
 

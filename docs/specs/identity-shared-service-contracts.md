@@ -10,7 +10,10 @@
 
 ## Problem
 
-The API Gateway exposes identity, account, preferences, referrals, and shared geo routes that are used across mobile, provider web, landing page, and admin-adjacent flows. These contracts need one place that names the public route, internal service route, owner, auth requirement, and failure envelope.
+The API Gateway exposes identity, account, preferences, referrals, and shared
+geo routes that are used across mobile, `servease-web`, SDK, and
+admin-adjacent flows. These contracts need one place that names the public
+route, internal service route, owner, auth requirement, and failure envelope.
 
 ## Goals
 
@@ -77,10 +80,27 @@ The API Gateway exposes identity, account, preferences, referrals, and shared ge
 - Internal route: `GET /internal/users/:userId/sessions`
 - Auth: required
 
+### Saved Addresses
+
+- Public routes:
+  - `GET /v1/me/addresses`
+  - `POST /v1/me/addresses`
+  - `PATCH /v1/me/addresses/:addressId`
+  - `POST /v1/me/addresses/:addressId/default`
+  - `DELETE /v1/me/addresses/:addressId`
+- Internal route group: `/internal/users/:userId/addresses`
+- Auth: required
+
 ### Two-Factor Enable
 
 - Public route: `POST /v1/me/two-factor/enable`
 - Internal route: `POST /internal/users/:userId/two-factor/enable`
+- Auth: required
+
+### Two-Factor Status
+
+- Public route: `GET /v1/me/two-factor`
+- Internal route: `GET /internal/users/:userId/two-factor`
 - Auth: required
 
 ### Two-Factor Verify
@@ -159,6 +179,12 @@ The API Gateway exposes identity, account, preferences, referrals, and shared ge
 ### Provider Application Status
 
 - Public route: `GET /v1/auth/provider-application/me`
+- Internal route: `GET /internal/providers/applications/by-user/:userId`
+- Auth: required
+
+### Provider Application Documents
+
+- Public route: `GET /v1/auth/provider-application/me/documents`
 - Internal route: `GET /internal/providers/applications/by-user/:userId`
 - Auth: required
 

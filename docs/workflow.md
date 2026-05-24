@@ -2,7 +2,10 @@
 
 ## Purpose
 
-This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend services, the API Gateway, the Expo mobile app, the admin dashboard, the provider dashboard, the landing page, the public SDK package, Supabase changes, and documentation-only changes.
+This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend
+services, the API Gateway, the Expo mobile app, the admin dashboard,
+`servease-web` public/provider surfaces, the public SDK package, Supabase
+changes, and documentation-only changes.
 
 ## Standard Feature Lifecycle
 
@@ -68,8 +71,8 @@ This workflow operationalizes `AGENTS.md` for ServEase. It applies to backend se
 ## Web Workflow
 
 - Keep the admin dashboard in `admin/`.
-- Keep the provider dashboard in `FE_Web(Provider)/`.
-- Keep the public site and browser account flows in `Landing Page/`.
+- Keep the public site, browser account flows, and provider dashboard in `servease-web/`.
+- Keep provider dashboard code under `servease-web/src/provider-app` and route it through `servease-web/src/app/provider/[[...slug]]`.
 - Browser apps should use gateway routes or their own Next.js API proxy routes.
 - Use `NEXT_PUBLIC_*` only for values safe to expose to browsers.
 - Keep Supabase service-role keys in backend environment files only.

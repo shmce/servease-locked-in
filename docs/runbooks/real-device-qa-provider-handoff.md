@@ -1,6 +1,6 @@
 # Real-Device QA And Provider Handoff
 
-Last updated: 2026-05-18
+Last updated: 2026-05-23
 
 ## Purpose
 
@@ -14,7 +14,7 @@ reports final delivery.
 ## Current Verification Snapshot
 
 The following checks were run locally on 2026-05-18 after the OpenRouteService,
-APICenter, admin, mobile, and Landing Page changes.
+APICenter, admin, mobile, and servease-web changes.
 
 | Area | Evidence | Result |
 | --- | --- | --- |
@@ -31,9 +31,9 @@ APICenter, admin, mobile, and Landing Page changes.
 | Admin static/tests/build | `cd admin && npm run typecheck && npm test && npm run build` | Passed |
 | Admin route smoke | `cd admin && npm run smoke:routes` against `next start -p 3001` | 10 routes returned 200 |
 | Admin integration smoke | `cd admin && npm run smoke:integration` against backend dev stack | Passed |
-| Landing Page tests | `cd "Landing Page" && npm run test` | Passed |
-| Landing Page static checks | `cd "Landing Page" && npm run typecheck && npm run lint` | Passed |
-| Landing Page build/e2e | `cd "Landing Page" && npm run e2e` | Build passed; 6 Playwright tests passed, 1 skipped |
+| ServEase web tests | `cd servease-web && npm run test` | Passed |
+| ServEase web static checks | `cd servease-web && npm run typecheck && npm run lint` | Passed |
+| ServEase web build/e2e | `cd servease-web && npm run e2e` | Build passed; 6 Playwright tests passed, 1 skipped |
 
 ## APICenter Live Audit
 
@@ -246,7 +246,7 @@ route geometry and directions.
 Required production configuration:
 
 - `OPENROUTESERVICE_API_KEY` set only in backend environments.
-- No OpenRouteService key in mobile, Landing Page, or Admin public env files.
+- No OpenRouteService key in mobile, servease-web, or Admin public env files.
 - Quota, rate limit, and paid-plan threshold reviewed for expected provider
   navigation usage.
 - Fallback UX retained for missing route data.
@@ -349,11 +349,11 @@ npm run smoke:routes
 npm run smoke:integration
 ```
 
-## Landing Page And Provider Web QA Checklist
+## ServEase Web QA Checklist
 
 Setup:
 
-- Start Landing Page with `cd "Landing Page" && npm run dev`.
+- Start servease-web with `cd servease-web && npm run dev`.
 - Start backend if testing authenticated or proxied API routes.
 
 Public checks:
@@ -376,7 +376,7 @@ Provider web checks:
 Automated checks:
 
 ```sh
-cd "Landing Page"
+cd servease-web
 npm run test
 npm run typecheck
 npm run lint
@@ -436,14 +436,14 @@ Admin public/server runtime:
 - Public Supabase URL and publishable key.
 - Admin smoke credentials only in local or CI secret stores.
 
-Landing Page runtime:
+ServEase web runtime:
 
 - Gateway/API base URL.
 - Public Supabase URL and publishable key.
 - Any Next.js public env values must not include service-role, APICenter secret,
   webhook secret, or OpenRouteService key.
 
-Never put these in mobile, Admin public env, or Landing Page public env:
+Never put these in mobile, Admin public env, or servease-web public env:
 
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `APICENTER_TRIBE_SECRET`

@@ -21,11 +21,10 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
   if (!process.env[key]) {
@@ -55,7 +54,9 @@ function assertEq(actual, expected, label) {
 
 function assertOk(label, value) {
   if (value === undefined || value === null) {
-    throw new Error(`Assertion failed (${label}): expected a value, got ${value}`);
+    throw new Error(
+      `Assertion failed (${label}): expected a value, got ${value}`,
+    );
   }
 }
 
@@ -134,7 +135,9 @@ async function exerciseMessaging() {
       fileSize: 2048,
     },
   });
-  const attachmentRow = Array.isArray(attachmentMsg) ? attachmentMsg[0] : attachmentMsg;
+  const attachmentRow = Array.isArray(attachmentMsg)
+    ? attachmentMsg[0]
+    : attachmentMsg;
   assertEq(attachmentRow.sender_role, 'provider', 'attachment sender role');
   assertOk('attachment payload', attachmentRow.attachment);
   assertEq(
@@ -142,7 +145,11 @@ async function exerciseMessaging() {
     'https://smoke.example/image.png',
     'attachment URL round-trip',
   );
-  assertEq(attachmentRow.attachment.fileSize, 2048, 'attachment size round-trip');
+  assertEq(
+    attachmentRow.attachment.fileSize,
+    2048,
+    'attachment size round-trip',
+  );
   assertEq(
     attachmentRow.content,
     'Sent an attachment',
@@ -204,13 +211,19 @@ async function exerciseMessaging() {
     p_customer_id: customerId,
     p_provider_id: null,
   });
-  assertOk('customer can see conversation', Array.isArray(fromCustomer) ? fromCustomer[0]?.id : fromCustomer?.id);
+  assertOk(
+    'customer can see conversation',
+    Array.isArray(fromCustomer) ? fromCustomer[0]?.id : fromCustomer?.id,
+  );
   const fromProvider = await rpc('servease_get_visible_conversation', {
     p_conversation_id: conversationId,
     p_customer_id: null,
     p_provider_id: providerId,
   });
-  assertOk('provider can see conversation', Array.isArray(fromProvider) ? fromProvider[0]?.id : fromProvider?.id);
+  assertOk(
+    'provider can see conversation',
+    Array.isArray(fromProvider) ? fromProvider[0]?.id : fromProvider?.id,
+  );
 }
 
 async function teardown() {

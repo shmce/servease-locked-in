@@ -1,10 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 for (const key of ['SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY']) {
   if (!process.env[key]) {
@@ -62,12 +61,13 @@ async function main() {
   assert(providerMe.user.role === 'provider', 'provider /v1/me role mismatch');
   assert(adminMe.user.role === 'admin', 'admin /v1/me role mismatch');
 
-  const [categories, services, providers, filteredProviders] = await Promise.all([
-    getPublicJson('/v1/catalog/categories'),
-    getPublicJson(`/v1/catalog/services?categoryId=${expected.categoryId}`),
-    getPublicJson('/v1/catalog/providers'),
-    getPublicJson(`/v1/catalog/providers?serviceId=${expected.serviceId}`),
-  ]);
+  const [categories, services, providers, filteredProviders] =
+    await Promise.all([
+      getPublicJson('/v1/catalog/categories'),
+      getPublicJson(`/v1/catalog/services?categoryId=${expected.categoryId}`),
+      getPublicJson('/v1/catalog/providers'),
+      getPublicJson(`/v1/catalog/providers?serviceId=${expected.serviceId}`),
+    ]);
   assert(
     categories.some((item) => item.id === expected.categoryId),
     'demo category missing from catalog',
@@ -92,10 +92,31 @@ async function main() {
       getPublicJson(`/v1/provider/availability/${expected.providerId}`),
       getJson('/v1/provider/availability', providerToken),
     ]);
-  assert(Array.isArray(portfolio), 'demo provider portfolio did not return an array');
-  assert(Array.isArray(reviews), 'demo provider reviews did not return an array');
-  assert(publicAvailability.windows.length >= 1, 'public demo availability missing');
-  assert(privateAvailability.windows.length >= 1, 'private demo availability missing');
+  assert(
+    Array.isArray(portfolio),
+    'demo provider portfolio did not return an array',
+  );
+  assert(
+    Array.isArray(reviews),
+    'demo provider reviews did not return an array',
+  );
+  assert(
+    reviews.some(
+      (item) =>
+        item.bookingId === expected.bookingId &&
+        item.providerId === expected.providerId &&
+        item.rating === 5,
+    ),
+    'demo provider review missing',
+  );
+  assert(
+    publicAvailability.windows.length >= 1,
+    'public demo availability missing',
+  );
+  assert(
+    privateAvailability.windows.length >= 1,
+    'private demo availability missing',
+  );
 
   const [customerBookings, providerBookings] = await Promise.all([
     getJson('/v1/bookings', customerToken),
@@ -131,11 +152,17 @@ async function main() {
     tickets,
     notifications,
   ] = await Promise.all([
-    getJson(`/v1/bookings/${expected.bookingId}/service-updates`, customerToken),
+    getJson(
+      `/v1/bookings/${expected.bookingId}/service-updates`,
+      customerToken,
+    ),
     getJson(`/v1/bookings/${expected.bookingId}/timeline`, customerToken),
     getJson(`/v1/bookings/${expected.bookingId}/tracking`, customerToken),
     getJson('/v1/conversations', customerToken),
-    getJson(`/v1/conversations/${expected.conversationId}/messages`, customerToken),
+    getJson(
+      `/v1/conversations/${expected.conversationId}/messages`,
+      customerToken,
+    ),
     getJson('/v1/payments', customerToken),
     getJson('/v1/support/tickets', customerToken),
     getJson('/v1/notifications', customerToken),
@@ -147,8 +174,14 @@ async function main() {
     conversations.some((item) => item.id === expected.conversationId),
     'demo conversation missing',
   );
-  assert(messages.some((item) => item.id === expected.messageId), 'demo message missing');
-  assert(payments.some((item) => item.id === expected.paymentId), 'demo payment missing');
+  assert(
+    messages.some((item) => item.id === expected.messageId),
+    'demo message missing',
+  );
+  assert(
+    payments.some((item) => item.id === expected.paymentId),
+    'demo payment missing',
+  );
   const promotion = await postJson(
     '/v1/payments/promotions/validate',
     customerToken,
@@ -177,14 +210,13 @@ async function main() {
     adminDisputes,
     adminDisputeDetail,
     adminPromotions,
-  ] =
-    await Promise.all([
-      getJson('/v1/admin/payments', adminToken),
-      getJson('/v1/admin/support/tickets', adminToken),
-      getJson('/v1/admin/disputes', adminToken),
-      getJson(`/v1/admin/disputes/${expected.disputeId}`, adminToken),
-      getJson('/v1/admin/promotions?status=active', adminToken),
-    ]);
+  ] = await Promise.all([
+    getJson('/v1/admin/payments', adminToken),
+    getJson('/v1/admin/support/tickets', adminToken),
+    getJson('/v1/admin/disputes', adminToken),
+    getJson(`/v1/admin/disputes/${expected.disputeId}`, adminToken),
+    getJson('/v1/admin/promotions?status=active', adminToken),
+  ]);
   assert(
     adminPayments.some((item) => item.id === expected.paymentId),
     'admin payment list missing demo payment',
@@ -241,7 +273,9 @@ async function signIn(email) {
   });
 
   if (error || !data.session?.access_token) {
-    throw new Error(`Failed demo sign-in for ${email}: ${error?.message ?? 'missing session'}`);
+    throw new Error(
+      `Failed demo sign-in for ${email}: ${error?.message ?? 'missing session'}`,
+    );
   }
 
   return data.session.access_token;
@@ -256,7 +290,9 @@ async function getJson(path, token) {
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(`GET ${path} failed ${response.status}: ${JSON.stringify(payload)}`);
+    throw new Error(
+      `GET ${path} failed ${response.status}: ${JSON.stringify(payload)}`,
+    );
   }
 
   return payload.data;
@@ -267,7 +303,9 @@ async function getPublicJson(path) {
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(`GET ${path} failed ${response.status}: ${JSON.stringify(payload)}`);
+    throw new Error(
+      `GET ${path} failed ${response.status}: ${JSON.stringify(payload)}`,
+    );
   }
 
   return payload.data;
@@ -285,7 +323,9 @@ async function postJson(path, token, body) {
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(`POST ${path} failed ${response.status}: ${JSON.stringify(payload)}`);
+    throw new Error(
+      `POST ${path} failed ${response.status}: ${JSON.stringify(payload)}`,
+    );
   }
 
   return payload.data;

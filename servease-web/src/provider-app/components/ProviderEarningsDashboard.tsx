@@ -27,8 +27,12 @@ import {
 } from "recharts";
 import {
   getStoredProviderAccessToken,
+  listProviderBookings,
   listProviderPayments,
+  listProviderPayouts,
+  type BookingSummary,
   type PaymentSummary,
+  type PayoutSummary,
 } from "../../services/serveaseProviderApi";
 import { pickQueryItemId } from "../utils/providerDeeplinks";
 
@@ -204,6 +208,38 @@ function paymentDate(payment: PaymentSummary): Date {
   return new Date(payment.paidAt || payment.createdAt || "");
 }
 
+function isPaymentInPeriod(
+  payment: PaymentSummary,
+  selectedPeriod: "today" | "week" | "month" | "all",
+): boolean {
+  if (selectedPeriod === "all") {
+    return true;
+  }
+
+  const date = paymentDate(payment);
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+
+  const now = new Date();
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  if (selectedPeriod === "today") {
+    return date >= start;
+  }
+
+  if (selectedPeriod === "week") {
+    start.setDate(start.getDate() - 6);
+    return date >= start;
+  }
+
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth()
+  );
+}
+
 function buildTrendData(payments: PaymentSummary[]) {
   const totals = new Map<string, number>();
 
@@ -226,11 +262,115 @@ function buildTrendData(payments: PaymentSummary[]) {
   return Array.from(totals.entries()).map(([date, amount]) => ({ date, amount }));
 }
 
+const categoryColors = ["#00BF63", "#059669", "#10B981", "#34D399", "#6EE7B7"];
+
+function buildServiceCategoryData(
+  payments: PaymentSummary[],
+  bookings: BookingSummary[],
+) {
+  const bookingTitles = new Map(
+    bookings.map((booking) => [
+      booking.id,
+      booking.serviceTitle?.trim() || "Uncategorized",
+    ]),
+  );
+  const totals = new Map<string, number>();
+
+  payments
+    .filter((payment) => payment.status === "paid")
+    .forEach((payment) => {
+      const title = bookingTitles.get(payment.bookingId) ?? "Uncategorized";
+      totals.set(title, (totals.get(title) ?? 0) + payment.providerPayout);
+    });
+
+  return Array.from(totals.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, categoryColors.length)
+    .map(([name, value], index) => ({
+      name,
+      value,
+      color: categoryColors[index],
+    }));
+}
+
+function buildTopEarningDays(payments: PaymentSummary[]) {
+  const totals = new Map<string, number>();
+
+  payments
+    .filter((payment) => payment.status === "paid")
+    .forEach((payment) => {
+      const date = paymentDate(payment);
+      if (Number.isNaN(date.getTime())) {
+        return;
+      }
+
+      const day = date.toLocaleDateString("en-US", { weekday: "long" });
+      totals.set(day, (totals.get(day) ?? 0) + payment.providerPayout);
+    });
+
+  const maxAmount = Math.max(0, ...totals.values());
+
+  return Array.from(totals.entries())
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 4)
+    .map(([day, amount]) => ({
+      day,
+      amount,
+      percentage: maxAmount > 0 ? Math.round((amount / maxAmount) * 100) : 0,
+    }));
+}
+
+function downloadProviderStatement(payments: PaymentSummary[]) {
+  if (payments.length === 0) {
+    return;
+  }
+
+  const header = [
+    "Payment ID",
+    "Booking ID",
+    "Status",
+    "Amount",
+    "Platform Fee",
+    "Provider Payout",
+    "Payment Method",
+    "Paid At",
+    "Created At",
+  ];
+  const rows = payments.map((payment) => [
+    payment.id,
+    payment.bookingId,
+    payment.status,
+    String(payment.amount),
+    String(payment.platformFee),
+    String(payment.providerPayout),
+    payment.paymentMethod ?? "",
+    payment.paidAt ?? "",
+    payment.createdAt ?? "",
+  ]);
+  const csv = [header, ...rows]
+    .map((row) =>
+      row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","),
+    )
+    .join("\n");
+  const url = URL.createObjectURL(
+    new Blob([csv], { type: "text/csv;charset=utf-8" }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `servease-provider-statement-${new Date()
+    .toISOString()
+    .slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export function ProviderEarningsDashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const [selectedPeriod, setSelectedPeriod] = useState<"today" | "week" | "month" | "all">("month");
   const [payments, setPayments] = useState<PaymentSummary[]>([]);
+  const [bookings, setBookings] = useState<BookingSummary[]>([]);
+  const [payouts, setPayouts] = useState<PayoutSummary[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -246,7 +386,12 @@ export function ProviderEarningsDashboard() {
       setLoadError(null);
 
       try {
-        const providerPayments = await listProviderPayments(token);
+        const [providerPayments, providerBookings, providerPayouts] =
+          await Promise.all([
+            listProviderPayments(token),
+            listProviderBookings(token),
+            listProviderPayouts(token),
+          ]);
         const requestedPaymentId = pickQueryItemId(
           location.search,
           "paymentId",
@@ -254,6 +399,8 @@ export function ProviderEarningsDashboard() {
         );
 
         setPayments(providerPayments);
+        setBookings(providerBookings);
+        setPayouts(providerPayouts);
 
         if (requestedPaymentId) {
           navigate(`/provider/earningsdetails?paymentId=${encodeURIComponent(String(requestedPaymentId))}`, {
@@ -270,60 +417,43 @@ export function ProviderEarningsDashboard() {
     void loadPayments();
   }, [location.search, navigate]);
 
-  // Sample data
-  const earningsTrendData = [
-    { date: "Mar 6", amount: 1870 },
-    { date: "Mar 7", amount: 1425 },
-    { date: "Mar 8", amount: 3020 },
-    { date: "Mar 9", amount: 1530 },
-    { date: "Mar 10", amount: 2325 },
-    { date: "Mar 11", amount: 2850 },
-    { date: "Mar 12", amount: 3100 },
-  ];
-
-  const serviceCategoryData = [
-    { name: "House Cleaning", value: 4500, color: "#00BF63" },
-    { name: "Plumbing", value: 3200, color: "#059669" },
-    { name: "Electrical", value: 2800, color: "#10B981" },
-    { name: "Aircon Services", value: 1950, color: "#34D399" },
-  ];
-
-  const topEarningDays = [
-    { day: "Monday", amount: 3200, percentage: 100 },
-    { day: "Wednesday", amount: 2850, percentage: 89 },
-    { day: "Saturday", amount: 2650, percentage: 83 },
-    { day: "Friday", amount: 2100, percentage: 66 },
-  ];
-
-  const liveTrendData = useMemo(() => buildTrendData(payments), [payments]);
-  const hasLivePayments = payments.length > 0;
-  const totalEarnings = hasLivePayments
-    ? payments
+  const displayedPayments = useMemo(
+    () =>
+      payments.filter((payment) => isPaymentInPeriod(payment, selectedPeriod)),
+    [payments, selectedPeriod],
+  );
+  const earningsTrendData = useMemo(
+    () => buildTrendData(displayedPayments),
+    [displayedPayments],
+  );
+  const serviceCategoryData = useMemo(
+    () => buildServiceCategoryData(displayedPayments, bookings),
+    [bookings, displayedPayments],
+  );
+  const topEarningDays = useMemo(
+    () => buildTopEarningDays(displayedPayments),
+    [displayedPayments],
+  );
+  const totalEarnings = displayedPayments
         .filter((payment) => payment.status !== "cancelled" && payment.status !== "refunded")
-        .reduce((sum, payment) => sum + payment.providerPayout, 0)
-    : selectedPeriod === "month" ? 12450 : 42300;
-  const pendingEarnings = hasLivePayments
-    ? payments
+        .reduce((sum, payment) => sum + payment.providerPayout, 0);
+  const pendingEarnings = displayedPayments
         .filter((payment) => payment.status === "pending")
-        .reduce((sum, payment) => sum + payment.providerPayout, 0)
-    : 1530;
-  const inProcessing = 0;
-  const paidOut = hasLivePayments
-    ? payments
+        .reduce((sum, payment) => sum + payment.providerPayout, 0);
+  const inProcessing = payouts
+    .filter((payout) => payout.status === "requested" || payout.status === "processing")
+    .reduce((sum, payout) => sum + payout.netAmount, 0);
+  const paidOut = displayedPayments
         .filter((payment) => payment.status === "paid")
-        .reduce((sum, payment) => sum + payment.providerPayout, 0)
-    : 10920;
-  const completedBookings = hasLivePayments
-    ? payments.filter((payment) => payment.status === "paid").length
-    : 47;
+        .reduce((sum, payment) => sum + payment.providerPayout, 0);
+  const completedBookings = displayedPayments.filter((payment) => payment.status === "paid").length;
   const avgBookingValue = completedBookings > 0
     ? Math.round(paidOut / completedBookings)
     : 0;
-  const totalTips = 1340;
-  const platformFees = hasLivePayments
-    ? payments.reduce((sum, payment) => sum + payment.platformFee, 0)
-    : 1868;
-  const displayedTrendData = liveTrendData.length > 0 ? liveTrendData : earningsTrendData;
+  const grossSales = displayedPayments
+    .filter((payment) => payment.status !== "cancelled" && payment.status !== "refunded")
+    .reduce((sum, payment) => sum + payment.amount, 0);
+  const platformFees = displayedPayments.reduce((sum, payment) => sum + payment.platformFee, 0);
 
   return (
     <div style={styles.container}>
@@ -396,10 +526,9 @@ export function ProviderEarningsDashboard() {
             </div>
             <p style={styles.kpiLabel}>Total Earnings</p>
             <p style={styles.kpiValue}>₱{totalEarnings.toLocaleString()}</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
-              <TrendingUp style={{ width: '14px', height: '14px', color: '#00BF63' }} />
-              <span style={{ fontSize: '12px', fontWeight: '600', color: '#00BF63' }}>+12%</span>
-            </div>
+            <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '8px' }}>
+              Net of platform fees
+            </p>
           </Link>
 
           {/* Pending */}
@@ -440,7 +569,7 @@ export function ProviderEarningsDashboard() {
             </div>
             <div style={styles.chartContainer}>
               <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={displayedTrendData}>
+                <LineChart data={earningsTrendData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                   <XAxis 
                     dataKey="date" 
@@ -481,42 +610,50 @@ export function ProviderEarningsDashboard() {
             </div>
             <div style={styles.chartContainer}>
               <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={serviceCategoryData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={90}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {serviceCategoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value: any) => [`₱${value}`, 'Earnings']}
-                    contentStyle={{
-                      backgroundColor: '#FFFFFF',
-                      border: '1px solid #E5E7EB',
-                      borderRadius: '8px',
-                      fontSize: '12px'
-                    }}
-                  />
-                </PieChart>
+                {serviceCategoryData.length > 0 ? (
+                  <PieChart>
+                    <Pie
+                      data={serviceCategoryData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={90}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {serviceCategoryData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(value: any) => [`₱${value}`, 'Earnings']}
+                      contentStyle={{
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: '8px',
+                        fontSize: '12px'
+                      }}
+                    />
+                  </PieChart>
+                ) : (
+                  <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: '#6B7280', fontSize: '14px' }}>
+                    No paid service earnings for this period.
+                  </div>
+                )}
               </ResponsiveContainer>
               
               {/* Legend */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '16px' }}>
-                {serviceCategoryData.map((item) => (
-                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: item.color }} />
-                    <span style={{ fontSize: '12px', color: '#6B7280' }}>{item.name}</span>
-                  </div>
-                ))}
-              </div>
+              {serviceCategoryData.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '16px' }}>
+                  {serviceCategoryData.map((item) => (
+                    <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '12px', height: '12px', borderRadius: '3px', backgroundColor: item.color }} />
+                      <span style={{ fontSize: '12px', color: '#6B7280' }}>{item.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -554,16 +691,16 @@ export function ProviderEarningsDashboard() {
                 <p style={{ fontSize: '11px', color: '#9CA3AF' }}>Per Booking</p>
               </div>
 
-              {/* Total Tips */}
+              {/* Gross Sales */}
               <div style={styles.metricsCard}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                   <div style={{...styles.metricIcon, backgroundColor: '#D1FAE5'}}>
                     <DollarSign style={{ width: '20px', height: '20px', color: '#00BF63' }} />
                   </div>
-                  <p style={{ fontSize: '12px', color: '#6B7280', fontWeight: '600' }}>Total Tips</p>
+                  <p style={{ fontSize: '12px', color: '#6B7280', fontWeight: '600' }}>Gross Sales</p>
                 </div>
-                <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#111827' }}>₱{totalTips.toLocaleString()}</p>
-                <p style={{ fontSize: '11px', color: '#00BF63' }}>+8% vs last period</p>
+                <p style={{ fontSize: '28px', fontWeight: 'bold', color: '#111827' }}>₱{grossSales.toLocaleString()}</p>
+                <p style={{ fontSize: '11px', color: '#9CA3AF' }}>Before platform fees</p>
               </div>
 
               {/* Platform Fees */}
@@ -587,20 +724,26 @@ export function ProviderEarningsDashboard() {
               <h2 style={styles.sectionTitleText}>Top Earning Days</h2>
             </div>
             <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #E5E7EB', padding: '20px' }}>
-              {topEarningDays.map((item) => (
-                <div key={item.day} style={styles.topDayItem}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontWeight: '600', fontSize: '14px', color: '#374151' }}>{item.day}</span>
-                      <span style={{ fontSize: '13px', color: '#6B7280' }}>₱{item.amount.toLocaleString()}</span>
+              {topEarningDays.length > 0 ? (
+                topEarningDays.map((item) => (
+                  <div key={item.day} style={styles.topDayItem}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontWeight: '600', fontSize: '14px', color: '#374151' }}>{item.day}</span>
+                        <span style={{ fontSize: '13px', color: '#6B7280' }}>₱{item.amount.toLocaleString()}</span>
+                      </div>
+                      <span style={{ fontSize: '12px', fontWeight: '600', color: '#00BF63' }}>{item.percentage}%</span>
                     </div>
-                    <span style={{ fontSize: '12px', fontWeight: '600', color: '#00BF63' }}>{item.percentage}%</span>
+                    <div style={styles.progressBar}>
+                      <div style={{...styles.progressFill, width: `${item.percentage}%`}} />
+                    </div>
                   </div>
-                  <div style={styles.progressBar}>
-                    <div style={{...styles.progressFill, width: `${item.percentage}%`}} />
-                  </div>
-                </div>
-              ))}
+                ))
+              ) : (
+                <p style={{ color: '#6B7280', fontSize: '14px', textAlign: 'center', padding: '32px 0' }}>
+                  No paid earnings for this period.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -645,7 +788,16 @@ export function ProviderEarningsDashboard() {
               <Wallet style={{ width: '20px', height: '20px' }} />
               <span>Request Payout</span>
             </Link>
-            <button style={{...styles.button, ...styles.secondaryButton}}>
+            <button
+              style={{
+                ...styles.button,
+                ...styles.secondaryButton,
+                opacity: displayedPayments.length === 0 ? 0.6 : 1,
+                cursor: displayedPayments.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+              disabled={displayedPayments.length === 0}
+              onClick={() => downloadProviderStatement(displayedPayments)}
+            >
               <Download style={{ width: '20px', height: '20px' }} />
               <span>Download Statement</span>
             </button>
@@ -661,8 +813,8 @@ export function ProviderEarningsDashboard() {
                 Efficiency Tip
               </p>
               <p style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6' }}>
-                Your peak earning hours are <span style={{ fontWeight: '600', color: '#00BF63' }}>10 AM - 2 PM on weekdays</span>. 
-                Consider scheduling more availability during these times to maximize earnings.
+                Use the earnings details page to reconcile individual payments and payout timing.
+                Add more availability on days where paid bookings already perform well.
               </p>
             </div>
           </div>

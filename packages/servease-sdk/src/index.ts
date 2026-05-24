@@ -108,10 +108,13 @@ export type {
   RegisterPushDeviceRequest,
 } from './types/notifications.js';
 export type {
+  CreateCustomerAddressInput,
   CurrentUserIdentity,
   CurrentUserProfile,
+  CustomerAddressSummary,
   CustomerProfileSummary,
   ProviderProfileSummary,
+  UpdateCustomerAddressInput,
   UpdateCurrentUserProfileInput,
   UpdateUserPreferencesRequest,
   UserPreferenceSummary,

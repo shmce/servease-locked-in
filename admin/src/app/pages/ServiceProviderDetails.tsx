@@ -309,6 +309,7 @@ export function ServiceProviderDetails() {
     }>
   >([]);
   const [isLoadingAuditTrail, setIsLoadingAuditTrail] = useState(false);
+  const [auditTrailError, setAuditTrailError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!apiProvider?.id || !accessToken || activeTab !== "Availability") return;
@@ -358,6 +359,7 @@ export function ServiceProviderDetails() {
     };
 
     setIsLoadingAuditTrail(true);
+    setAuditTrailError(null);
     listAdminAuditLogs(accessToken, {
       entityType: "ProviderApplication",
       limit: 100,
@@ -377,9 +379,14 @@ export function ServiceProviderDetails() {
           );
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (!cancelled) {
           setProviderAuditTrail([]);
+          setAuditTrailError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load provider activity logs.",
+          );
         }
       })
       .finally(() => {
@@ -836,6 +843,10 @@ export function ServiceProviderDetails() {
                 {isLoadingAuditTrail ? (
                   <p className="text-sm text-gray-500 py-6 text-center">
                     Loading provider activity logs...
+                  </p>
+                ) : auditTrailError ? (
+                  <p className="text-sm text-red-600 py-6 text-center">
+                    {auditTrailError}
                   </p>
                 ) : providerAuditTrail.length === 0 ? (
                   <p className="text-sm text-gray-500 py-6 text-center">

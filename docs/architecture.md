@@ -2,13 +2,12 @@
 
 ## System Shape
 
-ServEase is a marketplace platform with five active application surfaces:
+ServEase is a marketplace platform with four active application workspaces:
 
 - `backend/`: NestJS monorepo with an API Gateway and independent HTTP services.
 - `mobile/`: Expo React Native customer and provider app.
 - `admin/`: Next.js admin dashboard for internal operations.
-- `FE_Web(Provider)/`: Next.js provider dashboard.
-- `Landing Page/`: Next.js public site, account flows, and browser API proxy routes.
+- `servease-web/`: Next.js public site, account flows, browser API proxy routes, and provider dashboard mounted under `/provider/*`.
 - Supabase: service-owned persistence, public auth keys for clients, backend-only service-role access, and Storage for uploads.
 
 The backend uses true microservices with pure HTTP communication. Do not add Kafka, RabbitMQ, event buses, or direct cross-service database access.
@@ -70,8 +69,8 @@ The mobile app:
 The web apps use the gateway as their backend boundary:
 
 - `admin/` calls `/v1/admin/...` gateway routes with an admin Supabase bearer token.
-- `FE_Web(Provider)/` is the provider dashboard surface and should use gateway-backed provider APIs as live wiring is completed.
-- `Landing Page/` serves public marketing/account flows and has Next.js API proxy routes under `src/app/api/*` that forward to the gateway through `SERVEASE_API_BASE_URL`.
+- `servease-web/` serves public marketing/account flows, exposes Next.js API proxy routes under `src/app/api/*`, and mounts the provider dashboard under `src/app/provider/[[...slug]]`.
+- `servease-web/src/provider-app` uses gateway-backed provider APIs through `src/services/serveaseProviderApi.ts`.
 
 Browser apps may use Supabase publishable keys for authentication. They must never include Supabase service-role keys.
 

@@ -95,9 +95,96 @@ const detail = await fetchProviderDetail('listing-1');
 assert.equal(detail?.availability?.providerId, providerId);
 assert.equal(detail?.availability?.windows[0]?.dayOfWeek, 'monday');
 assert.equal(detail?.availability?.daysOff[0]?.offDate, '2026-05-20');
+assert.deepEqual(detail?.loadErrors, {
+  portfolio: null,
+  availability: null,
+  reviews: null,
+});
 assert.ok(
   calls.includes(`http://gateway.test/v1/provider/availability/${providerId}`),
 );
+
+calls.length = 0;
+
+globalThis.fetch = async (input: RequestInfo | URL) => {
+  const url = String(input);
+  calls.push(url);
+
+  if (url === 'http://gateway.test/v1/catalog/services') {
+    return jsonResponse(200, {
+      data: [
+        {
+          id: 'service-1',
+          categoryId: 'category-1',
+          name: 'Home cleaning',
+          description: null,
+          price: 500,
+          pricingMode: 'flat',
+        },
+      ],
+    });
+  }
+
+  if (url === 'http://gateway.test/v1/catalog/providers') {
+    return jsonResponse(200, {
+      data: [
+        {
+          id: 'listing-1',
+          providerId,
+          providerBusinessName: 'Clean Co',
+          serviceId: 'service-1',
+          title: 'Deep cleaning',
+          description: 'Residential deep cleaning',
+          price: 1200,
+          pricingMode: 'flat',
+          averageRating: 4.8,
+          reviewCount: 12,
+          verificationStatus: 'approved',
+        },
+      ],
+    });
+  }
+
+  if (
+    url ===
+    `http://gateway.test/v1/catalog/providers/${providerId}/portfolio`
+  ) {
+    return jsonResponse(503, {
+      error: { code: 'unavailable', message: 'Portfolio unavailable' },
+    });
+  }
+
+  if (url === `http://gateway.test/v1/reviews?providerId=${providerId}`) {
+    return jsonResponse(200, { data: [] });
+  }
+
+  if (
+    url ===
+    `http://gateway.test/v1/provider/availability/${providerId}`
+  ) {
+    return jsonResponse(200, {
+      data: {
+        providerId,
+        windows: [],
+        daysOff: [],
+      },
+    });
+  }
+
+  return jsonResponse(404, {
+    error: { code: 'not_found', message: `Unexpected request ${url}` },
+  });
+};
+
+const partialDetail = await fetchProviderDetail('listing-1');
+
+assert.deepEqual(partialDetail?.portfolio, []);
+assert.match(
+  partialDetail?.loadErrors.portfolio ?? '',
+  /Gateway request failed/,
+);
+assert.equal(partialDetail?.loadErrors.availability, null);
+assert.equal(partialDetail?.loadErrors.reviews, null);
 
 function jsonResponse(status: number, payload: unknown): Response {
   return {

@@ -32,8 +32,6 @@ import {
   Plus,
   Calendar,
   Download,
-  Edit2,
-  Power,
   FileText,
   Clock,
   Mail,
@@ -358,13 +356,12 @@ export function UserReports() {
                   <TableHead>Recipients</TableHead>
                   <TableHead>Next / Last Run</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {scheduledReports.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-8 text-center text-sm text-gray-500">
+                    <TableCell colSpan={5} className="py-8 text-center text-sm text-gray-500">
                       No scheduled user reports found
                     </TableCell>
                   </TableRow>
@@ -399,16 +396,6 @@ export function UserReports() {
                           <CheckCircle className="w-3 h-3 mr-1" />
                           {schedule.status}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="outline">
-                            <Edit2 className="w-3 h-3" />
-                          </Button>
-                          <Button size="sm" variant="outline" className="text-red-600">
-                            <Power className="w-3 h-3" />
-                          </Button>
-                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -534,7 +521,6 @@ export function UserReports() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PDF">PDF</SelectItem>
-                  <SelectItem value="Excel">Excel</SelectItem>
                   <SelectItem value="CSV">CSV</SelectItem>
                 </SelectContent>
               </Select>
@@ -635,9 +621,9 @@ export function UserReports() {
                   <SelectValue placeholder="Select frequency" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Daily">Daily</SelectItem>
-                  <SelectItem value="Weekly">Weekly</SelectItem>
-                  <SelectItem value="Monthly">Monthly</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -669,7 +655,7 @@ export function UserReports() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="PDF">PDF</SelectItem>
-                  <SelectItem value="Excel">Excel</SelectItem>
+                  <SelectItem value="CSV">CSV</SelectItem>
                 </SelectContent>
               </Select>
             </div>

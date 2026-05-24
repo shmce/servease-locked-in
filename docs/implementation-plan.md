@@ -2,19 +2,18 @@
 
 ## Purpose
 
-This plan records the current build state and the next acceptance gates. Older phase language has been collapsed into status because the repository now contains active backend, mobile, admin, provider web, and landing page code.
+This plan records the current build state and the next acceptance gates. Older phase language has been collapsed into status because the repository now contains active backend, mobile, admin, merged web, and SDK code.
 
 ## Current State
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Repository documentation | Active | `AGENTS.md`, `DESIGN.md`, and `docs/` are the canonical baseline. Contract, call-flow, app-surface, and data-ownership docs were refreshed on 2026-05-20. |
+| Repository documentation | Active | `AGENTS.md`, `DESIGN.md`, and `docs/` are the canonical baseline. Contract, call-flow, app-surface, and data-ownership docs are maintained as current source-of-truth documents. |
 | Backend workspace | Active | API Gateway plus services for auth, user, catalog, booking, availability, messaging, payment, review, notification, support, and admin. |
 | Database migrations | Active | Service-owned migrations live in `backend/database`. |
 | Mobile app | Active | Expo app with API/auth clients, push registration, and demo smoke support. |
 | Admin dashboard | Active | Next.js dashboard wired to `/v1/admin/...` gateway routes. |
-| Provider web dashboard | Active | Next.js provider surface with gateway-backed client coverage; richer backend needs are tracked in `FE_Web(Provider)/BACKEND_ADJUSTMENTS.md`. |
-| Landing page | Active | Next.js public/account surface with API proxy routes to the gateway. |
+| ServEase web | Active | Next.js public/account surface with API proxy routes to the gateway and the provider dashboard mounted under `/provider/*`. |
 | GitHub Packages | Active | Backend installs `@implementsprint/sdk` from GitHub Packages; `packages/servease-sdk` contains the typed public ServEase client. |
 
 ## Active Acceptance Gates
@@ -77,28 +76,20 @@ npm run build
 
 Run `npm run smoke:routes` and `npm run smoke:integration` when admin gateway wiring changes.
 
-## Provider Web Gate
+## ServEase Web Gate
 
-Use this gate for provider dashboard changes:
+Use this gate for public site, browser account-flow, proxy route, or provider dashboard changes:
 
 ```sh
-cd 'FE_Web(Provider)'
+cd servease-web
 npm run typecheck
+npm run lint
+npm test
 npm run build
+npm run e2e
 ```
 
-Run `npm run smoke:demo-api` when provider dashboard API wiring changes.
-
-## Landing Page Gate
-
-Use this gate for public site or browser account-flow changes:
-
-```sh
-cd 'Landing Page'
-npm run build
-```
-
-Inspect affected routes locally with `npm run dev` for material UI or form changes.
+Inspect affected routes locally with `npm run dev` for material UI, form, or provider dashboard changes.
 
 ## SDK Gate
 

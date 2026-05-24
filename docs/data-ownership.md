@@ -1,6 +1,6 @@
 # Data Ownership
 
-Last verified from repository migrations: 2026-05-20.
+Last verified from repository migrations: 2026-05-23.
 
 ## Purpose
 
@@ -19,7 +19,9 @@ Each service owns its data. This prevents hidden coupling and keeps service beha
 
 The current Supabase project already has service-oriented schemas. Implementation should prefer these live schema names unless a later migration plan explicitly renames them.
 
-See [Supabase Baseline](supabase-baseline.md) for the latest observed live state.
+See [Supabase Baseline](supabase-baseline.md) for the initial observed live
+state. The checked-in migration set under `backend/database/` is the current
+repository source of truth after that baseline.
 
 ## Service Schemas
 
@@ -32,6 +34,7 @@ See [Supabase Baseline](supabase-baseline.md) for the latest observed live state
 | `messages` | Messaging Service | conversations, messages |
 | `notification_and_support` | Notification Service and Support Service | notifications, support tickets |
 | `trust_and_reputation` | Review Service | reviews, review responses, provider reports |
+| `admin` | Admin Service | audit logs, broadcasts, integrations, admin access, report schedules |
 
 The schema set may be reduced during implementation if early slices do not need every service.
 
@@ -43,7 +46,7 @@ schema names and migration files under `backend/database`.
 | Schema | Owning service | Representative owned data |
 | --- | --- | --- |
 | `identity_and_user` | Auth Service | users, account status, internal user context, sessions, two-factor state |
-| `identity_and_user` | User Service | customer profiles, user addresses, notification preferences, referral summary source data |
+| `identity_and_user` | User Service | customer profiles, saved user addresses, notification preferences, referral summary source data |
 | `provider_catalog` | Catalog Service | service categories, services, provider profiles, provider services, portfolio media, provider applications, provider application documents, review workflow metadata |
 | `booking` | Booking Service | bookings, booking timeline events, cancellations, attachments, disputes, service updates, live locations |
 | `booking` | Availability Service | provider availability windows, provider full-day blocks, provider partial-day time-off windows |
@@ -52,6 +55,7 @@ schema names and migration files under `backend/database`.
 | `trust_and_reputation` | Review Service | reviews, review responses, review flags |
 | `notification_and_support` | Notification Service | notifications, push devices, email/SMS delivery metadata |
 | `notification_and_support` | Support Service | support tickets, support replies, support assignment/status data |
+| `admin` | Admin Service | audit logs, broadcast history, integration credentials/status, report schedules, admin access metadata |
 
 Provider availability is intentionally split at the service layer but remains in
 the `booking` schema because booking creation and availability validation both

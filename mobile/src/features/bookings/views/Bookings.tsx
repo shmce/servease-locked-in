@@ -1,5 +1,5 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { BookingCard } from '../../../components/AppDisplay';
+import { BookingCard, BookingCardSkeleton } from '../../../components/AppDisplay';
 import {
   EmptyState,
   Pill,
@@ -19,6 +19,7 @@ type BookingsScreenProps = {
   bookingFilter: BookingFilter;
   role: AppRole;
   busyAction: string | null;
+  isLoading?: boolean;
   setBookingFilter: (filter: BookingFilter) => void;
   refreshWorkspace: () => Promise<void>;
   openBooking: (booking: BookingSummary) => void;
@@ -29,6 +30,7 @@ export function BookingsScreen({
   bookingFilter,
   role,
   busyAction,
+  isLoading = false,
   setBookingFilter,
   refreshWorkspace,
   openBooking,
@@ -37,6 +39,7 @@ export function BookingsScreen({
     bookings,
     bookingFilter,
   });
+  const showSkeletons = isLoading && bookings.length === 0;
 
   return (
     <>
@@ -66,15 +69,19 @@ export function BookingsScreen({
               onPress={() => setBookingFilter('completed')}
             />
           </View>
-          {bookingsList.data.visibleBookings.map((booking) => (
-            <BookingCard
-              key={booking.id}
-              booking={booking}
-              role={role}
-              onPress={() => openBooking(booking)}
-            />
-          ))}
-          {bookingsList.data.isEmpty ? (
+          {showSkeletons
+            ? Array.from({ length: 3 }).map((_, index) => (
+                <BookingCardSkeleton key={`booking-skeleton-${index}`} />
+              ))
+            : bookingsList.data.visibleBookings.map((booking) => (
+                <BookingCard
+                  key={booking.id}
+                  booking={booking}
+                  role={role}
+                  onPress={() => openBooking(booking)}
+                />
+              ))}
+          {!showSkeletons && bookingsList.data.isEmpty ? (
             <EmptyState
               title="No bookings here"
               body="Browse services and book a service provider to get started."

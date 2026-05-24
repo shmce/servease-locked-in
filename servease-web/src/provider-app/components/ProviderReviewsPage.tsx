@@ -217,13 +217,18 @@ export function ProviderReviewsPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [highlightedReviewId, setHighlightedReviewId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [reviewLoadError, setReviewLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = getStoredProviderAccessToken();
     if (!token) {
+      setReviewLoadError("Sign in to load provider reviews.");
       setLoading(false);
       return;
     }
+    setReviewLoadError(null);
     getProviderProfile(token)
       .then((snapshot) =>
         listProviderReviews(token, snapshot.provider.id)
@@ -244,7 +249,12 @@ export function ProviderReviewsPage() {
           setSortBy("Newest");
         }
       })
-      .catch(() => setReviews([]))
+      .catch((error) => {
+        setReviews([]);
+        setReviewLoadError(
+          error instanceof Error ? error.message : "Unable to load provider reviews.",
+        );
+      })
       .finally(() => setLoading(false));
   }, [location.search]);
 
@@ -319,7 +329,12 @@ export function ProviderReviewsPage() {
   const handleRespondSubmit = () => {
     if (response.trim().length === 0 || !respondModal) return;
     const token = getStoredProviderAccessToken();
-    if (!token) return;
+    if (!token) {
+      setActionError("Sign in again to respond to this review.");
+      return;
+    }
+    setActionError(null);
+    setActionFeedback(null);
     replyToReview(token, respondModal.id, response.trim())
       .then(() => {
         setReviews((prev) =>
@@ -327,25 +342,38 @@ export function ProviderReviewsPage() {
             r.id === respondModal.id ? { ...r, businessResponse: response.trim() } : r
           )
         );
-      })
-      .catch(() => {})
-      .finally(() => {
+        setActionFeedback("Review response saved.");
         setRespondModal(null);
         setResponse("");
+      })
+      .catch((error) => {
+        setActionError(
+          error instanceof Error ? error.message : "Unable to save review response.",
+        );
       });
   };
 
   const handleReportSubmit = () => {
     if (!reportReason || !reportModal) return;
     const token = getStoredProviderAccessToken();
-    if (!token) return;
+    if (!token) {
+      setActionError("Sign in again to report this review.");
+      return;
+    }
     const reason = reportReason === "Other" ? reportDetails.trim() : reportReason;
+    setActionError(null);
+    setActionFeedback(null);
     flagReview(token, reportModal.id, reason)
-      .catch(() => {})
-      .finally(() => {
+      .then(() => {
+        setActionFeedback("Review report submitted.");
         setReportModal(null);
         setReportReason("");
         setReportDetails("");
+      })
+      .catch((error) => {
+        setActionError(
+          error instanceof Error ? error.message : "Unable to report this review.",
+        );
       });
   };
 
@@ -413,6 +441,18 @@ export function ProviderReviewsPage() {
           <p style={styles.pageSubtitle}>
             View and respond to customer feedback
           </p>
+          {(actionError || actionFeedback) && (
+            <p
+              style={{
+                marginTop: "12px",
+                fontSize: "14px",
+                fontWeight: "600",
+                color: actionError ? "#B91C1C" : "#047857",
+              }}
+            >
+              {actionError || actionFeedback}
+            </p>
+          )}
         </div>
 
         {/* Top Section: Overall Rating Summary */}
@@ -717,6 +757,10 @@ export function ProviderReviewsPage() {
         {loading ? (
           <div style={{ textAlign: "center", padding: "48px", color: "#6B7280" }}>
             Loading reviews...
+          </div>
+        ) : reviewLoadError ? (
+          <div style={{ textAlign: "center", padding: "48px", color: "#B91C1C" }}>
+            {reviewLoadError}
           </div>
         ) : displayedReviews.length === 0 ? (
           <div style={{ textAlign: "center", padding: "48px", color: "#6B7280" }}>

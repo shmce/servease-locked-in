@@ -204,10 +204,13 @@ export function AddressVerificationPreview({
 
   return (
     <View style={mapStyles.addressVerificationCard}>
-      <View style={mapStyles.addressMiniMapFrame}>
+      <View style={mapStyles.addressTrackingMapFrame}>
         {Platform.OS === 'web' ? (
           createElement('iframe', {
-            srcDoc: buildTrackingMapHtml(null, destination),
+            srcDoc: buildTrackingMapHtml(null, destination, null, {
+              destinationMarkerLabel: 'Service address',
+              providerMarkerLabel: 'Route preview',
+            }),
             style: trackingMapIframeStyle,
             title: 'Verified service address map',
           })
@@ -223,6 +226,17 @@ export function AddressVerificationPreview({
             routePath={null}
           />
         )}
+        <View pointerEvents="none" style={mapStyles.addressVerificationMapOverlay}>
+          <View style={mapStyles.addressVerificationIcon}>
+            <MapPin color={palette.white} size={17} strokeWidth={2.6} />
+          </View>
+          <View style={mapStyles.flex}>
+            <Text style={mapStyles.addressVerificationTitle}>
+              Service pin verified
+            </Text>
+            <Text style={mapStyles.cardMeta}>Review the pinned location</Text>
+          </View>
+        </View>
       </View>
       <View style={mapStyles.addressVerificationBody}>
         <View style={mapStyles.addressVerificationIcon}>
@@ -230,7 +244,7 @@ export function AddressVerificationPreview({
         </View>
         <View style={mapStyles.flex}>
           <Text style={mapStyles.addressVerificationTitle}>
-            Verified service pin
+            Resolved address
           </Text>
           <Text style={mapStyles.cardBody}>{result.formattedAddress}</Text>
           <Text style={mapStyles.cardMeta}>
@@ -1066,10 +1080,6 @@ function projectTrackingPoints(
 }
 
 const mapStyles = StyleSheet.create({
-  addressMiniMapFrame: {
-    height: 150,
-    overflow: 'hidden',
-  },
   addressVerificationBody: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -1096,6 +1106,27 @@ const mapStyles = StyleSheet.create({
     color: palette.ink,
     fontSize: type.caption.fontSize,
     fontWeight: '700',
+  },
+  addressVerificationMapOverlay: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: radius.lg,
+    boxShadow: '0 8px 18px rgba(17,24,39,0.14)',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    left: spacing.md,
+    maxWidth: '78%',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    position: 'absolute',
+    top: spacing.md,
+    zIndex: 3,
+  },
+  addressTrackingMapFrame: {
+    backgroundColor: '#E5E7EB',
+    height: 220,
+    overflow: 'hidden',
+    position: 'relative',
   },
   cardBody: {
     color: palette.body,

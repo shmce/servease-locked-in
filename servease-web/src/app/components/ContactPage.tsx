@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { Mail, Phone, MapPin, Send } from "lucide-react";
+import { Send } from "lucide-react";
 import { createSupportTicket } from "../lib/support-tickets";
 import { createSupabaseBrowserClient } from "../lib/supabase-browser";
 
@@ -209,36 +209,24 @@ export function ContactPage() {
             </form>
           </div>
 
-          {/* Contact Info & Map */}
           <div>
             <h2 className="font-['Poppins',sans-serif] text-2xl text-gray-900 mb-6">
-              Contact Information
+              Support Requests
             </h2>
-            <div className="space-y-6 mb-8">
-              {[
-                { icon: Mail, label: "Email", value: "support@servease.app" },
-                { icon: Phone, label: "Phone", value: "+1 (800) 555-EASE" },
-                { icon: MapPin, label: "Address", value: "123 Service Lane, Tech City, TC 10001" },
-              ].map((item) => (
-                <div key={item.label} className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-[#00BF63]/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <item.icon size={22} className="text-[#00BF63]" />
-                  </div>
-                  <div>
-                    <p className="font-['Poppins',sans-serif] text-sm text-gray-500">{item.label}</p>
-                    <p className="font-['Poppins',sans-serif] text-base text-gray-900">{item.value}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Placeholder Map */}
-            <div className="bg-[#f1f1f1] rounded-2xl h-64 flex items-center justify-center">
-              <div className="text-center">
-                <MapPin size={40} className="text-[#00BF63] mx-auto mb-2" />
-                <p className="font-['Poppins',sans-serif] text-sm text-gray-500">Map Placeholder</p>
-                <p className="font-['Poppins',sans-serif] text-xs text-gray-400">123 Service Lane, Tech City</p>
-              </div>
+            <div className="rounded-2xl border border-[#00BF63]/20 bg-[#00BF63]/5 p-6">
+              <p className="font-['Poppins',sans-serif] text-base text-gray-900 mb-3">
+                Messages submitted here create support tickets on your ServEase account.
+              </p>
+              <p className="font-['Poppins',sans-serif] text-sm text-gray-600 leading-6">
+                Sign in before sending so the request is routed through the support service
+                and can be tracked from your account or provider help center.
+              </p>
+              <Link
+                href="/login"
+                className="mt-6 inline-flex items-center justify-center rounded-xl bg-white px-5 py-3 font-['Inter',sans-serif] text-sm font-semibold text-[#00BF63] border border-[#00BF63]/30 hover:bg-[#00BF63]/10 transition-colors"
+              >
+                Sign in
+              </Link>
             </div>
           </div>
         </div>

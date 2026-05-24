@@ -3,6 +3,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Post,
   Query,
@@ -29,6 +30,8 @@ const validDisputeStatuses = new Set(['open', 'resolved', 'closed']);
 
 @Controller('v1/admin/disputes')
 export class AdminDisputeController {
+  private readonly logger = new Logger(AdminDisputeController.name);
+
   constructor(
     private readonly adminDisputeGatewayService: AdminDisputeGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -102,7 +105,11 @@ export class AdminDisputeController {
             amount: dispute.amount,
           },
         })
-        .catch(() => undefined);
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Could not create dispute audit log for ${dispute.id}: ${this.errorMessage(error)}`,
+          );
+        });
       return {
         data: dispute,
       };
@@ -138,6 +145,10 @@ export class AdminDisputeController {
       request.socket?.remoteAddress ||
       null
     );
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private toHttpException(error: unknown): HttpException {

@@ -1,6 +1,6 @@
 # Production Release Readiness
 
-Use this runbook when cutting a production release for `backend`, `mobile`, `Landing Page`, and `admin`.
+Use this runbook when cutting a production release for `backend`, `mobile`, `servease-web`, and `admin`.
 
 ## Required GitHub Production Secrets
 
@@ -116,7 +116,7 @@ Copy and fill these templates in the matching deployment environment:
 
 - `backend/.env.production.example`
 - `mobile/.env.production.example`
-- `Landing Page/.env.production.example`
+- `servease-web/.env.production.example`
 - `admin/.env.production.example`
 
 ## Production Verification

@@ -24,7 +24,7 @@ const serviceCategories = [
   },
   {
     icon: GraduationCap,
-    title: "Education & Professional Services",
+    title: "Educational & Professional Services",
     description: "Connect with tutors, trainers, and professionals who help you learn and grow.",
     image: "https://images.unsplash.com/photo-1565688420536-11a4ddfa246f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0dXRvcmluZyUyMGVkdWNhdGlvbiUyMHByb2Zlc3Npb25hbHxlbnwxfHx8fDE3NzI3Mzk4NTJ8MA&ixlib=rb-4.1.0&q=80&w=1080",
   },
@@ -88,7 +88,7 @@ export function HomePage({ catalog }: HomePageProps) {
           serviceCount: catalog.services.filter((service) => service.categoryId === category.id).length,
         };
       })
-    : serviceCategories.map((category) => ({ ...category, serviceCount: 0 }));
+    : [];
 
   const serviceLookup = new Map(
     catalog.services.map((service) => [service.id, service]),
@@ -159,36 +159,44 @@ export function HomePage({ catalog }: HomePageProps) {
           </div>
 
           {/* Service Categories Scrollable */}
-          <div className="flex overflow-x-auto gap-6 pb-4 snap-x snap-mandatory scrollbar-hide">
-            {liveCategoryCards.map((cat) => (
-              <div
-                key={cat.title}
-                className="min-w-[280px] md:min-w-[320px] bg-white rounded-2xl shadow-lg overflow-hidden snap-start flex-shrink-0"
-              >
-                <ImageWithFallback
-                  src={cat.image}
-                  alt={cat.title}
-                  className="w-full h-48 object-cover"
-                />
-                <div className="p-5">
-                  <div className="flex items-center gap-2 mb-2">
-                    <cat.icon size={20} className="text-[#00BF63]" />
-                    <h4 className="font-['Poppins',sans-serif] text-base text-gray-900">
-                      {cat.title}
-                    </h4>
-                  </div>
-                  <p className="font-['Poppins',sans-serif] text-sm text-gray-600 leading-relaxed">
-                    {cat.description}
-                  </p>
-                  {cat.serviceCount > 0 && (
-                    <p className="font-['Poppins',sans-serif] text-xs text-[#00BF63] mt-3">
-                      {cat.serviceCount} live service{cat.serviceCount === 1 ? "" : "s"}
+          {liveCategoryCards.length > 0 ? (
+            <div className="flex overflow-x-auto gap-6 pb-4 snap-x snap-mandatory scrollbar-hide">
+              {liveCategoryCards.map((cat) => (
+                <div
+                  key={cat.title}
+                  className="min-w-[280px] md:min-w-[320px] bg-white rounded-2xl shadow-lg overflow-hidden snap-start flex-shrink-0"
+                >
+                  <ImageWithFallback
+                    src={cat.image}
+                    alt={cat.title}
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <cat.icon size={20} className="text-[#00BF63]" />
+                      <h4 className="font-['Poppins',sans-serif] text-base text-gray-900">
+                        {cat.title}
+                      </h4>
+                    </div>
+                    <p className="font-['Poppins',sans-serif] text-sm text-gray-600 leading-relaxed">
+                      {cat.description}
                     </p>
-                  )}
+                    {cat.serviceCount > 0 && (
+                      <p className="font-['Poppins',sans-serif] text-xs text-[#00BF63] mt-3">
+                        {cat.serviceCount} live service{cat.serviceCount === 1 ? "" : "s"}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center">
+              <p className="font-['Poppins',sans-serif] text-sm text-amber-800">
+                Live service categories are temporarily unavailable.
+              </p>
+            </div>
+          )}
 
           {catalog.services.length > 0 && (
             <div className="mt-12">
@@ -224,7 +232,7 @@ export function HomePage({ catalog }: HomePageProps) {
 
           {catalog.unavailable && (
             <p className="font-['Poppins',sans-serif] text-sm text-gray-500 text-center mt-8">
-              Live catalog is temporarily unavailable, so sample categories are shown.
+              Live catalog data could not be refreshed from the gateway.
             </p>
           )}
         </div>

@@ -1,4 +1,14 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  Animated,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { InfoRow } from '../../../components/AppDisplay';
 import { PrimaryButton } from '../../../components/DesignKit';
 import {
@@ -22,6 +32,13 @@ const navigationSheetLevels: ProviderNavigationSheetLevel[] = [
   'half',
   'expanded',
 ];
+const navigationSheetDragVelocityThreshold = 0.55;
+const navigationSheetSpringConfig = {
+  damping: 24,
+  mass: 0.9,
+  stiffness: 190,
+  useNativeDriver: false,
+};
 
 type ProviderNavigationModeScreenProps = {
   booking: BookingSummary;
@@ -71,6 +88,69 @@ export function ProviderNavigationModeScreen({
     trackingSnapshot,
   });
   const { data } = navigation;
+  const { height: screenHeight } = useWindowDimensions();
+  const navigationSheetHeight = useRef(
+    new Animated.Value(navigationSheetHeightForLevel(sheetLevel, screenHeight)),
+  ).current;
+  const navigationSheetDragStartHeight = useRef(
+    navigationSheetHeightForLevel(sheetLevel, screenHeight),
+  );
+
+  useEffect(() => {
+    Animated.spring(navigationSheetHeight, {
+      ...navigationSheetSpringConfig,
+      toValue: navigationSheetHeightForLevel(sheetLevel, screenHeight),
+    }).start();
+  }, [navigationSheetHeight, screenHeight, sheetLevel]);
+
+  const providerSheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dy) > 8 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+        onPanResponderGrant: () => {
+          navigationSheetHeight.stopAnimation((value) => {
+            navigationSheetDragStartHeight.current = value;
+          });
+        },
+        onPanResponderMove: (_, gestureState) => {
+          navigationSheetHeight.setValue(
+            clampNavigationSheetHeight(
+              navigationSheetDragStartHeight.current - gestureState.dy,
+              screenHeight,
+            ),
+          );
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const releasedHeight = clampNavigationSheetHeight(
+            navigationSheetDragStartHeight.current - gestureState.dy,
+            screenHeight,
+          );
+          const nextLevel = nearestNavigationSheetLevel(
+            sheetLevel,
+            releasedHeight,
+            gestureState.vy,
+            screenHeight,
+          );
+          if (nextLevel !== sheetLevel) {
+            onSheetLevelChange(nextLevel);
+            return;
+          }
+          Animated.spring(navigationSheetHeight, {
+            ...navigationSheetSpringConfig,
+            toValue: navigationSheetHeightForLevel(nextLevel, screenHeight),
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(navigationSheetHeight, {
+            ...navigationSheetSpringConfig,
+            toValue: navigationSheetHeightForLevel(sheetLevel, screenHeight),
+          }).start();
+        },
+      }),
+    [navigationSheetHeight, onSheetLevelChange, screenHeight, sheetLevel],
+  );
 
   return (
     <View style={styles.navigationScreen}>
@@ -97,68 +177,85 @@ export function ProviderNavigationModeScreen({
           navigationOrigin={data.navigationOrigin}
           providerMarkerLabel="You"
         />
-        <ProviderNavigationGuidanceBanner guidance={data.guidance} />
+        <ProviderNavigationGuidanceBanner
+          guidance={data.guidance}
+          onPress={() => onSheetLevelChange('expanded')}
+        />
       </View>
-      <View style={[styles.navBottomSheet, navigationSheetStyle(sheetLevel)]}>
-        <NavigationSheetHeader
-          level={sheetLevel}
-          setLevel={onSheetLevelChange}
-          title="Head to the service location"
-          subtitle={data.routeLabel}
-        />
-        <ProviderNavigationDriveStats
-          distanceLabel={data.distanceLabel}
-          liveLocationLabel={data.liveLocationLabel}
-          routeDurationLabel={data.routeDurationLabel}
-        />
-        {data.isHalfSheet ? (
-          <>
-            <Text style={styles.cardBody} numberOfLines={data.isExpandedSheet ? 4 : 2}>
-              {data.addressLabel}
-            </Text>
-            <InfoRow label="Route" value={data.routeLabel} />
-            <InfoRow label="Live location" value={data.liveLocationLabel} />
-          </>
-        ) : null}
-        {data.routeInstructionRows.length ? (
-          <View style={styles.routeInstructionList}>
-            {data.routeInstructionRows.map((step) => (
-              <View key={step.id} style={styles.routeInstructionRow}>
-                <View style={styles.routeInstructionNumber}>
-                  <Text style={styles.routeInstructionNumberText}>{step.number}</Text>
+      <Animated.View
+        style={[
+          styles.navBottomSheet,
+          navigationSheetStyle(sheetLevel),
+          { height: navigationSheetHeight },
+        ]}
+      >
+        <View {...providerSheetPanResponder.panHandlers}>
+          <NavigationSheetHeader
+            level={sheetLevel}
+            setLevel={onSheetLevelChange}
+            title="Head to the service location"
+            subtitle={data.routeLabel}
+          />
+        </View>
+        <ScrollView
+          style={styles.providerSheetScroll}
+          contentContainerStyle={styles.providerSheetScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <ProviderNavigationDriveStats
+            distanceLabel={data.distanceLabel}
+            liveLocationLabel={data.liveLocationLabel}
+            routeDurationLabel={data.routeDurationLabel}
+          />
+          {data.isHalfSheet ? (
+            <>
+              <Text style={styles.cardBody} numberOfLines={data.isExpandedSheet ? 4 : 2}>
+                {data.addressLabel}
+              </Text>
+              <InfoRow label="Route" value={data.routeLabel} />
+              <InfoRow label="Live location" value={data.liveLocationLabel} />
+            </>
+          ) : null}
+          {data.routeInstructionRows.length ? (
+            <View style={styles.routeInstructionList}>
+              {data.routeInstructionRows.map((step) => (
+                <View key={step.id} style={styles.routeInstructionRow}>
+                  <View style={styles.routeInstructionNumber}>
+                    <Text style={styles.routeInstructionNumberText}>{step.number}</Text>
+                  </View>
+                  <Text style={styles.cardMeta} numberOfLines={2}>
+                    {step.instruction}
+                  </Text>
                 </View>
-                <Text style={styles.cardMeta} numberOfLines={2}>
-                  {step.instruction}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-        <PrimaryButton label="I've Arrived" onPress={onArrived} />
-        <ActionRow>
-          <View style={styles.flex}>
-            <PrimaryButton label="Call" variant="secondary" onPress={onCall} />
-          </View>
-          <View style={styles.flex}>
-            <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
-          </View>
-        </ActionRow>
-        {data.isHalfSheet ? (
+              ))}
+            </View>
+          ) : null}
+          <PrimaryButton label="I've Arrived" onPress={onArrived} />
           <ActionRow>
             <View style={styles.flex}>
-              <PrimaryButton
-                label={data.refreshRouteLabel}
-                variant="secondary"
-                onPress={onRefreshRoute}
-                disabled={data.refreshRouteDisabled}
-              />
+              <PrimaryButton label="Call" variant="secondary" onPress={onCall} />
             </View>
             <View style={styles.flex}>
-              <PrimaryButton label="End" variant="danger" onPress={onClose} />
+              <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
             </View>
           </ActionRow>
-        ) : null}
-      </View>
+          {data.isHalfSheet ? (
+            <ActionRow>
+              <View style={styles.flex}>
+                <PrimaryButton
+                  label={data.refreshRouteLabel}
+                  variant="secondary"
+                  onPress={onRefreshRoute}
+                  disabled={data.refreshRouteDisabled}
+                />
+              </View>
+              <View style={styles.flex}>
+                <PrimaryButton label="End" variant="danger" onPress={onClose} />
+              </View>
+            </ActionRow>
+          ) : null}
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
@@ -184,38 +281,13 @@ function NavigationSheetHeader({
       >
         <View style={styles.dragHandle} />
       </Pressable>
-      <View style={styles.rowBetween}>
-        <View style={styles.flex}>
-          <Text style={styles.cardTitle} numberOfLines={1}>
-            {title}
-          </Text>
-          <Text style={styles.cardMeta} numberOfLines={1}>
-            {subtitle}
-          </Text>
-        </View>
-        <View style={styles.sheetLevelControls}>
-          {navigationSheetLevels.map((item) => (
-            <Pressable
-              key={item}
-              style={[
-                styles.sheetLevelButton,
-                item === level && styles.sheetLevelButtonActive,
-              ]}
-              onPress={() => setLevel(item)}
-              accessibilityRole="button"
-              accessibilityLabel={`Set navigation sheet to ${navigationSheetLabel(item)}`}
-            >
-              <Text
-                style={[
-                  styles.sheetLevelButtonText,
-                  item === level && styles.sheetLevelButtonTextActive,
-                ]}
-              >
-                {navigationSheetShortLabel(item)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+      <View style={styles.flex}>
+        <Text style={styles.cardTitle} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>
+          {subtitle}
+        </Text>
       </View>
     </View>
   );
@@ -223,11 +295,18 @@ function NavigationSheetHeader({
 
 function ProviderNavigationGuidanceBanner({
   guidance,
+  onPress,
 }: {
   guidance: ProviderNavigationGuidance;
+  onPress: () => void;
 }) {
   return (
-    <View style={styles.providerGuidanceBanner}>
+    <Pressable
+      style={styles.providerGuidanceBanner}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Show detailed turn-by-turn directions"
+    >
       <View style={styles.providerGuidanceIcon}>
         <Text style={styles.providerGuidanceIconText}>{guidance.maneuverSymbol}</Text>
       </View>
@@ -242,7 +321,7 @@ function ProviderNavigationGuidanceBanner({
           </Text>
         ) : null}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -297,6 +376,30 @@ function nextNavigationSheetLevel(
   return 'peek';
 }
 
+function nearestNavigationSheetLevel(
+  level: ProviderNavigationSheetLevel,
+  height: number,
+  velocityY: number,
+  screenHeight: number,
+): ProviderNavigationSheetLevel {
+  if (velocityY <= -navigationSheetDragVelocityThreshold) {
+    return adjacentNavigationSheetLevel(level, 1);
+  }
+  if (velocityY >= navigationSheetDragVelocityThreshold) {
+    return adjacentNavigationSheetLevel(level, -1);
+  }
+
+  return navigationSheetLevels.reduce((nearest, item) => {
+    const currentDistance = Math.abs(
+      height - navigationSheetHeightForLevel(item, screenHeight),
+    );
+    const nearestDistance = Math.abs(
+      height - navigationSheetHeightForLevel(nearest, screenHeight),
+    );
+    return currentDistance < nearestDistance ? item : nearest;
+  }, level);
+}
+
 function nextNavigationSheetLabel(level: ProviderNavigationSheetLevel): string {
   return navigationSheetLabel(nextNavigationSheetLevel(level));
 }
@@ -311,14 +414,38 @@ function navigationSheetLabel(level: ProviderNavigationSheetLevel): string {
   return 'compact';
 }
 
-function navigationSheetShortLabel(level: ProviderNavigationSheetLevel): string {
-  if (level === 'expanded') {
-    return 'Full';
+function adjacentNavigationSheetLevel(
+  level: ProviderNavigationSheetLevel,
+  direction: -1 | 1,
+): ProviderNavigationSheetLevel {
+  const nextIndex = Math.max(
+    0,
+    Math.min(
+      navigationSheetLevels.indexOf(level) + direction,
+      navigationSheetLevels.length - 1,
+    ),
+  );
+  return navigationSheetLevels[nextIndex];
+}
+
+function navigationSheetHeightForLevel(
+  level: ProviderNavigationSheetLevel,
+  screenHeight: number,
+): number {
+  if (level === 'peek') {
+    return Math.max(112, Math.min(148, screenHeight * 0.18));
   }
   if (level === 'half') {
-    return 'Half';
+    return screenHeight * 0.42;
   }
-  return 'Peek';
+  return screenHeight * 0.72;
+}
+
+function clampNavigationSheetHeight(height: number, screenHeight: number): number {
+  return Math.max(
+    navigationSheetHeightForLevel('peek', screenHeight),
+    Math.min(height, navigationSheetHeightForLevel('expanded', screenHeight)),
+  );
 }
 
 const styles = StyleSheet.create({
@@ -416,16 +543,23 @@ const styles = StyleSheet.create({
     boxShadow: '0 -12px 28px rgba(17,24,39,0.14)',
   },
   navBottomSheetPeek: {
-    maxHeight: '34%',
+    minHeight: 112,
   },
   navBottomSheetHalf: {
-    maxHeight: '43%',
+    minHeight: 240,
   },
   navBottomSheetExpanded: {
-    maxHeight: '49%',
+    minHeight: 360,
   },
   navigationSheetHeader: {
     gap: spacing.sm,
+  },
+  providerSheetScroll: {
+    flex: 1,
+  },
+  providerSheetScrollContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.sm,
   },
   dragHandleButton: {
     alignItems: 'center',
@@ -438,37 +572,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     height: 5,
     width: 48,
-  },
-  rowBetween: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-  },
-  sheetLevelControls: {
-    alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.pill,
-    flexDirection: 'row',
-    gap: spacing.xxs,
-    padding: 3,
-  },
-  sheetLevelButton: {
-    borderRadius: radius.pill,
-    minHeight: 28,
-    justifyContent: 'center',
-    paddingHorizontal: spacing.sm,
-  },
-  sheetLevelButtonActive: {
-    backgroundColor: palette.mint,
-  },
-  sheetLevelButtonText: {
-    color: palette.mint,
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  sheetLevelButtonTextActive: {
-    color: palette.white,
   },
   routeInstructionList: {
     gap: spacing.sm,

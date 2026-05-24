@@ -119,18 +119,12 @@ export function RequestPayoutPage() {
     void loadPayoutData();
   }, []);
 
-  // Calculate fees and final amount
   const availableBalance = payoutAccount?.availableBalance ?? 0;
   const amount = parseFloat(withdrawAmount) || 0;
-  const withdrawalFee = amount > 0 ? amount * 0.025 : 0; // 2.5% fee
-  const amountToReceive = amount - withdrawalFee;
 
   const isValidAmount = amount > 0 && amount <= availableBalance;
   const canSubmit =
     isValidAmount && termsAccepted && Boolean(selectedMethod) && !isSubmitting;
-
-  const selectedPayoutMethod =
-    payoutMethods.find((method) => method.id === selectedMethod) ?? null;
 
   const handleRequestPayout = async () => {
     if (!canSubmit) return;
@@ -149,21 +143,9 @@ export function RequestPayoutPage() {
         payoutMethodId: selectedMethod,
       });
 
-      sessionStorage.setItem(
-        "servease_payout_confirmation",
-        JSON.stringify({
-          amount: payout.amount,
-          netAmount: payout.netAmount,
-          processingFee: payout.processingFee,
-          method:
-            payout.accountLabel ??
-            selectedPayoutMethod?.accountLabel ??
-            "Selected payout method",
-          referenceNumber: payout.reference ?? payout.id,
-          requestDate: payout.requestedAt ?? payout.createdAt,
-        }),
+      navigate(
+        `/provider/payout-confirmation?payoutId=${encodeURIComponent(payout.id)}`,
       );
-      navigate("/provider/payout-confirmation");
     } catch (error) {
       setSubmitError(
         error instanceof Error ? error.message : "Unable to request payout.",
@@ -312,7 +294,7 @@ export function RequestPayoutPage() {
             )}
           </div>
 
-          {/* Calculation Summary */}
+          {/* Request Summary */}
           {amount > 0 && (
             <div
               style={{
@@ -330,24 +312,10 @@ export function RequestPayoutPage() {
                 }}
               >
                 <span style={{ fontSize: "14px", color: "#6B7280" }}>
-                  Withdrawal Amount
+                  Requested Amount
                 </span>
                 <span style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>
                   ₱{amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "12px",
-                }}
-              >
-                <span style={{ fontSize: "14px", color: "#6B7280" }}>
-                  Withdrawal Fee (2.5%)
-                </span>
-                <span style={{ fontSize: "14px", fontWeight: "600", color: "#DC2626" }}>
-                  -₱{withdrawalFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
               <div
@@ -358,11 +326,9 @@ export function RequestPayoutPage() {
                   justifyContent: "space-between",
                 }}
               >
-                <span style={{ fontSize: "15px", fontWeight: "600", color: "#111827" }}>
-                  Amount You'll Receive
-                </span>
-                <span style={{ fontSize: "18px", fontWeight: "700", color: "#00BF63" }}>
-                  ₱{amountToReceive.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                <span style={{ fontSize: "14px", color: "#6B7280", lineHeight: "1.5" }}>
+                  Any applicable processing fee and net amount will be confirmed by the
+                  payout service after the request is created.
                 </span>
               </div>
             </div>
@@ -431,7 +397,7 @@ export function RequestPayoutPage() {
             </div>
           </div>
 
-          {/* Processing Time Notice */}
+          {/* Processing Notice */}
           <div
             style={{
               backgroundColor: "#EFF6FF",
@@ -455,11 +421,11 @@ export function RequestPayoutPage() {
                   marginBottom: "4px",
                 }}
               >
-                Processing Time
+                Payout Processing
               </p>
               <p style={{ fontSize: "13px", color: "#1E3A8A", lineHeight: "1.6" }}>
-                Your payout will be processed within 1–3 business days. You'll receive a
-                confirmation email once the transfer is complete.
+                After submission, track the request status and confirmed payout amounts in
+                your payout history.
               </p>
             </div>
           </div>
@@ -500,8 +466,8 @@ export function RequestPayoutPage() {
                 <span style={{ color: "#00BF63", fontWeight: "600" }}>
                   terms and conditions
                 </span>{" "}
-                for early payout requests. I understand that a 2.5% processing fee will be
-                deducted from my withdrawal amount.
+                for payout requests. I understand that the payout service will confirm any
+                applicable fee and net amount when the request is created.
               </label>
             </div>
           </div>
@@ -593,9 +559,8 @@ export function RequestPayoutPage() {
               Early Payout Notice
             </p>
             <p style={{ fontSize: "13px", color: "#78350F", lineHeight: "1.6" }}>
-              Regular scheduled payouts are free of charge. Early payout requests incur a
-              2.5% processing fee. Consider waiting for your next scheduled payout to avoid
-              fees.
+              Review the confirmed payout record after submission before relying on the
+              final processing fee, net amount, or payout status.
             </p>
           </div>
         </div>

@@ -1,5 +1,0 @@
-[   13597ms] [WARNING] Failed to execute 'postMessage' on 'DOMWindow': The target origin provided ('https://www.youtube.com') does not match the recipient window's origin ('https://www.google.com'). @ https://www.youtube.com/s/player/55b1ff8b/www-widgetapi.vflset/www-widgetapi.js:209
-[   15626ms] [INFO] Autofocus processing was blocked because a document already has a focused element. @ https://www.google.com/search?q=how+to+install+codex+cli&oq=how+to+install+codex+cli+&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTIHCAEQABiABDIHCAIQABiABDIHCAMQABiABDIHCAQQABiABDIHCAUQABiABDIHCAYQABiABDIHCAcQABiABDIHCAgQABiABDIHCAkQABiABNIBCDg5MDZqMGo3qAIAsAIA&sourceid=chrome&ie=UTF-8&source=chrome.ob&safe=active&ssui=on:0
-[ 4599433ms] [ERROR] Failed to load resource: net::ERR_INTERNET_DISCONNECTED @ https://www.youtube.com/generate_204:0
-[ 9886038ms] [ERROR] Failed to load resource: net::ERR_INTERNET_DISCONNECTED @ https://www.youtube.com/generate_204:0
-[ 9932012ms] [ERROR] Failed to load resource: net::ERR_INTERNET_DISCONNECTED @ https://accounts.google.com/RotateCookies:0

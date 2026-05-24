@@ -10,11 +10,55 @@ import {
   SharedMessageStatus,
   SharedSmsSendRequest,
 } from './shared-messaging.types';
+import { UserPreferenceClient } from '../notifications/user-preference.client';
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_EMAIL_LENGTH = 254;
+const MAX_EMAIL_LOCAL_LENGTH = 64;
+const MAX_EMAIL_DOMAIN_LABEL_LENGTH = 63;
+
+function hasWhitespace(value: string): boolean {
+  for (const character of value) {
+    if (character.trim() === '') {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isValidEmailAddress(value: string | undefined): value is string {
+  if (!value || value.length > MAX_EMAIL_LENGTH || hasWhitespace(value)) {
+    return false;
+  }
+
+  const atIndex = value.indexOf('@');
+  if (atIndex <= 0 || atIndex !== value.lastIndexOf('@')) {
+    return false;
+  }
+
+  const local = value.slice(0, atIndex);
+  const domain = value.slice(atIndex + 1);
+  if (
+    !domain.includes('.') ||
+    local.length > MAX_EMAIL_LOCAL_LENGTH ||
+    domain.startsWith('.') ||
+    domain.endsWith('.') ||
+    domain.includes('..')
+  ) {
+    return false;
+  }
+
+  return domain
+    .split('.')
+    .every(
+      (label) =>
+        label.length > 0 && label.length <= MAX_EMAIL_DOMAIN_LABEL_LENGTH,
+    );
+}
 
 @Injectable()
 export class SharedMessagingService {
+  constructor(private readonly userPreferenceClient?: UserPreferenceClient) {}
+
   async sendEmail(
     input: SharedEmailSendRequest,
   ): Promise<SharedMessageResponse> {
@@ -23,7 +67,7 @@ export class SharedMessagingService {
         email: recipient.email?.trim().toLowerCase(),
         name: recipient.name?.trim() || undefined,
       }))
-      .filter((recipient) => EMAIL_PATTERN.test(recipient.email));
+      .filter((recipient) => isValidEmailAddress(recipient.email));
 
     if (
       !to?.length ||
@@ -31,6 +75,10 @@ export class SharedMessagingService {
       (!input.text?.trim() && !input.html?.trim() && !input.templateId?.trim())
     ) {
       throw new InvalidSharedMessagingRequestError();
+    }
+
+    if (!(await this.canDeliverChannel(input.metadata, 'email'))) {
+      return this.skippedResponse(input.metadata, 'email');
     }
 
     try {
@@ -75,6 +123,10 @@ export class SharedMessagingService {
       throw new InvalidSharedMessagingRequestError();
     }
 
+    if (!(await this.canDeliverChannel(input.metadata, 'sms'))) {
+      return this.skippedResponse(input.metadata, 'sms');
+    }
+
     try {
       return await createApicenterClient().smsSend({
         to,
@@ -104,5 +156,41 @@ export class SharedMessagingService {
       }
       throw new SharedMessagingDependencyUnavailableError();
     }
+  }
+
+  private async canDeliverChannel(
+    metadata: Record<string, string> | undefined,
+    channel: 'email' | 'sms',
+  ): Promise<boolean> {
+    const userId = metadata?.userId?.trim();
+    if (!userId || !this.userPreferenceClient) {
+      return true;
+    }
+
+    try {
+      const preferences = await this.userPreferenceClient.getByUserId(userId);
+      const value =
+        preferences.notificationPreferences?.[
+          channel === 'email'
+            ? 'emailNotificationsEnabled'
+            : 'smsNotificationsEnabled'
+        ];
+
+      return channel === 'email' ? value !== false : value === true;
+    } catch {
+      return true;
+    }
+  }
+
+  private skippedResponse(
+    metadata: Record<string, string> | undefined,
+    channel: 'email' | 'sms',
+  ): SharedMessageResponse {
+    const userId = metadata?.userId?.trim() || 'unknown-user';
+    return {
+      messageId: `preference-skip-${channel}-${userId}`,
+      provider: 'apicenter',
+      status: 'skipped',
+    };
   }
 }

@@ -7,7 +7,7 @@ import {
   PrimaryButton,
   TopBar,
 } from '../../../components/DesignKit';
-import { BookingCard } from '../../../components/AppDisplay';
+import { BookingCard, BookingCardSkeleton } from '../../../components/AppDisplay';
 import { providerBookingTabs, ProviderBookingTab } from '../../../constants/appContent';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import { BookingSummary } from '../../../shared/models/types';
@@ -17,6 +17,7 @@ type ProviderBookingsScreenProps = {
   bookings: BookingSummary[];
   providerBookingTab: ProviderBookingTab;
   providerSearchQuery: string;
+  isLoading?: boolean;
   setProviderBookingTab: Dispatch<SetStateAction<ProviderBookingTab>>;
   setProviderSearchQuery: Dispatch<SetStateAction<string>>;
   refreshWorkspace: () => Promise<void>;
@@ -27,6 +28,7 @@ export function ProviderBookingsScreen({
   bookings,
   providerBookingTab,
   providerSearchQuery,
+  isLoading = false,
   setProviderBookingTab,
   setProviderSearchQuery,
   refreshWorkspace,
@@ -37,6 +39,7 @@ export function ProviderBookingsScreen({
     providerBookingTab,
     providerSearchQuery,
   });
+  const showSkeletons = isLoading && bookings.length === 0;
 
   return (
     <>
@@ -74,15 +77,19 @@ export function ProviderBookingsScreen({
               accessibilityLabel="Search provider bookings"
             />
           </View>
-          {providerBookings.data.map((booking) => (
-            <BookingCard
-              key={booking.id}
-              booking={booking}
-              role="provider"
-              onPress={() => openBooking(booking)}
-            />
-          ))}
-          {!providerBookings.data.length ? (
+          {showSkeletons
+            ? Array.from({ length: 3 }).map((_, index) => (
+                <BookingCardSkeleton key={`provider-booking-skeleton-${index}`} />
+              ))
+            : providerBookings.data.map((booking) => (
+                <BookingCard
+                  key={booking.id}
+                  booking={booking}
+                  role="provider"
+                  onPress={() => openBooking(booking)}
+                />
+              ))}
+          {!showSkeletons && !providerBookings.data.length ? (
             <EmptyState
               title="No bookings found"
               body="Try changing tabs or adjusting your search."

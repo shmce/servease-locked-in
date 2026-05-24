@@ -1485,6 +1485,33 @@ describe("serveaseAdminApi", () => {
     expect(user.role).toBe("admin");
   });
 
+  it("requests password reset through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: { ok: true },
+      }),
+    });
+
+    const { requestPasswordReset } = await import("./serveaseAdminApi");
+    const result = await requestPasswordReset({
+      email: " Admin.Demo@ServEase.Test ",
+      redirectTo: " https://admin.servease.test/login ",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/auth/password-reset",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          email: "admin.demo@servease.test",
+          redirectTo: "https://admin.servease.test/login",
+        }),
+      }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
   it("deletes admin users through the gateway", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -1665,6 +1692,81 @@ describe("serveaseAdminApi", () => {
       }),
     );
     expect(payout.status).toBe("cancelled");
+  });
+
+  it("lists settlement history through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "event-1",
+            payoutId: "payout-1",
+            eventType: "approved",
+            status: "processing",
+            bankReference: null,
+            note: "Approved for payout processing.",
+            adminUserId: "admin-1",
+            createdAt: "2026-05-22T00:00:00.000Z",
+          },
+        ],
+      }),
+    });
+
+    const { listAdminSettlementHistory } = await import("./serveaseAdminApi");
+    const events = await listAdminSettlementHistory("admin-token", "payout-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/settlements/payout-1/history",
+      expect.objectContaining({
+        method: "GET",
+      }),
+    );
+    expect(events[0].eventType).toBe("approved");
+  });
+
+  it("reconciles settlements through the gateway", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "payout-1",
+          paymentId: null,
+          providerId: "provider-1",
+          amount: 1000,
+          processingFee: 20,
+          netAmount: 980,
+          status: "paid",
+          payoutMethodId: null,
+          methodType: null,
+          accountLabel: null,
+          reference: "PAY-001",
+          periodStart: null,
+          periodEnd: null,
+          requestedAt: null,
+          paidAt: "2026-05-22T00:00:00.000Z",
+          createdAt: null,
+        },
+      }),
+    });
+
+    const { reconcileAdminSettlement } = await import("./serveaseAdminApi");
+    const payout = await reconcileAdminSettlement("admin-token", "payout-1", {
+      bankReference: " BDO-20260522-0001 ",
+      note: " Manual transfer completed ",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://gateway.test/v1/admin/settlements/payout-1/reconcile",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          bankReference: " BDO-20260522-0001 ",
+          note: " Manual transfer completed ",
+        }),
+      }),
+    );
+    expect(payout.status).toBe("paid");
   });
 
   it("raises gateway error messages from structured error payloads", async () => {

@@ -11,6 +11,13 @@ type CustomerPaymentAction = {
   busyAction: string;
 };
 
+type CustomerPaymentMethodsViewModelInput = {
+  customerPaymentMethods: CustomerPaymentMethodSummary[];
+  selectedMethodId: string | null;
+  busyAction: string | null;
+  isLoading?: boolean;
+};
+
 const paymentActions: CustomerPaymentAction[] = [
   { methodType: 'gcash', label: 'Use GCash', busyAction: 'customer-payment-gcash' },
   { methodType: 'paymaya', label: 'Use Maya', busyAction: 'customer-payment-paymaya' },
@@ -21,34 +28,47 @@ export function useCustomerPaymentMethodsViewModel({
   customerPaymentMethods,
   selectedMethodId,
   busyAction,
-}: {
-  customerPaymentMethods: CustomerPaymentMethodSummary[];
-  selectedMethodId: string | null;
-  busyAction: string | null;
-}) {
-  const data = useMemo(() => {
-    const methods = customerPaymentMethods.map((method) => ({
-      method,
-      label: paymentMethodLabel(method.methodType),
-      meta: paymentMethodMeta(method),
-      selected: selectedMethodId === method.id,
-      canDelete: method.methodType !== 'cash_on_service',
-      deleting: busyAction === `delete-customer-payment-${method.id}`,
-    }));
+  isLoading = false,
+}: CustomerPaymentMethodsViewModelInput) {
+  const model = useMemo(
+    () =>
+      buildCustomerPaymentMethodsViewModel({
+        customerPaymentMethods,
+        selectedMethodId,
+        busyAction,
+        isLoading,
+      }),
+    [busyAction, customerPaymentMethods, selectedMethodId, isLoading],
+  );
 
-    return {
+  return model;
+}
+
+export function buildCustomerPaymentMethodsViewModel({
+  customerPaymentMethods,
+  selectedMethodId,
+  busyAction,
+  isLoading = false,
+}: CustomerPaymentMethodsViewModelInput) {
+  const methods = customerPaymentMethods.map((method) => ({
+    method,
+    label: paymentMethodLabel(method.methodType),
+    meta: paymentMethodMeta(method),
+    selected: selectedMethodId === method.id,
+    canDelete: method.methodType !== 'cash_on_service',
+    deleting: busyAction === `delete-customer-payment-${method.id}`,
+  }));
+
+  return {
+    data: {
       methods,
       hasMethods: methods.length > 0,
       actions: paymentActions.map((action) => ({
         ...action,
         disabled: busyAction === action.busyAction,
       })),
-    };
-  }, [busyAction, customerPaymentMethods, selectedMethodId]);
-
-  return {
-    data,
-    isLoading: customerPaymentMethods.length === 0,
+    },
+    isLoading,
     error: null,
   };
 }

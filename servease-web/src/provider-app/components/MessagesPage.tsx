@@ -8,6 +8,7 @@ import {
   listProviderConversations,
   sendProviderConversationMessage,
   uploadProviderMessageAttachment,
+  type BookingSummary,
   type ConversationMessage,
   type ConversationSummary,
 } from '../../services/serveaseProviderApi';
@@ -252,6 +253,7 @@ export function MessagesPage() {
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
+  const [bookingContextError, setBookingContextError] = useState<string | null>(null);
   // Dynamically measured available height (viewport minus sticky header)
   const [contentHeight, setContentHeight] = useState<string>('calc(100vh - 65px)');
 
@@ -303,15 +305,28 @@ export function MessagesPage() {
 
       setIsLoadingConversations(true);
       setMessageError(null);
+      setBookingContextError(null);
 
       try {
-        const [gatewayConversations, providerBookings] = await Promise.all([
+        const [gatewayConversations, providerBookingsResult] = await Promise.all([
           listProviderConversations(token),
-          listProviderBookings(token).catch(() => []),
+          listProviderBookings(token)
+            .then((bookings) => ({ bookings, error: null }))
+            .catch((error: unknown) => ({
+              bookings: [] as BookingSummary[],
+              error,
+            })),
         ]);
+        setBookingContextError(
+          providerBookingsResult.error instanceof Error
+            ? providerBookingsResult.error.message
+            : providerBookingsResult.error
+              ? 'Unable to load booking context for conversations.'
+              : null,
+        );
         const mappedConversations = enrichProviderConversationsWithBookings(
           gatewayConversations.map(toUiConversation),
-          providerBookings,
+          providerBookingsResult.bookings,
         );
         setConversations(mappedConversations);
         setSelectedConversation((current) =>
@@ -558,6 +573,21 @@ export function MessagesPage() {
                     }}
                   >
                     {messageError}
+                  </div>
+                )}
+                {bookingContextError && (
+                  <div
+                    style={{
+                      backgroundColor: '#FFFBEB',
+                      border: '1px solid #FDE68A',
+                      borderRadius: '10px',
+                      color: '#92400E',
+                      fontSize: '13px',
+                      marginBottom: '12px',
+                      padding: '10px 12px',
+                    }}
+                  >
+                    {bookingContextError}
                   </div>
                 )}
                 <div style={{ position: 'relative' }}>

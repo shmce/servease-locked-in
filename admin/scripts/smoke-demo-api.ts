@@ -8,7 +8,7 @@ const repoRoot = resolve(appRoot, '..')
 const backendDir = resolve(repoRoot, 'backend')
 const processes: ChildProcess[] = []
 
-loadEnv(resolve(repoRoot, '.env'))
+loadEnv(resolve(backendDir, '.env'))
 loadEnv(resolve(appRoot, '.env'))
 loadEnv(resolve(appRoot, '.env.local'))
 mapSupabaseEnv()

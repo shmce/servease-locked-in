@@ -42,6 +42,7 @@ type CustomerRendererName =
   | 'messages'
   | 'more'
   | 'notifications'
+  | 'addresses'
   | 'paymentMethods'
   | 'profile'
   | 'referral'
@@ -58,6 +59,7 @@ type ProviderRendererName =
   | 'bookings'
   | 'calendar'
   | 'cancelBooking'
+  | 'applicationDocuments'
   | 'completeService'
   | 'editProfile'
   | 'help'
@@ -299,6 +301,8 @@ function renderCustomerRoute(
       return renderers.customer.security();
     case 'customerPaymentMethods':
       return renderers.customer.paymentMethods();
+    case 'customerAddresses':
+      return renderers.customer.addresses();
     case 'customerHelp':
       return renderers.customer.help();
     case 'customerServiceHistory':
@@ -348,6 +352,8 @@ function renderProviderRoute(
       return renderers.provider.reportIssue();
     case 'providerServiceReceipt':
       return renderers.provider.serviceReceipt();
+    case 'providerApplicationDocuments':
+      return renderers.provider.applicationDocuments();
     case 'providerProfileView':
       return renderers.provider.profileView();
     case 'providerEditProfile':

@@ -1,4 +1,13 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  Animated,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { InfoRow } from '../../../components/AppDisplay';
 import { PrimaryButton } from '../../../components/DesignKit';
 import {
@@ -15,6 +24,13 @@ import {
 } from '../viewModels/useCustomerTrackProviderViewModel';
 
 const sheetLevels: CustomerTrackingSheetLevel[] = ['peek', 'half', 'expanded'];
+const sheetDragVelocityThreshold = 0.55;
+const sheetSpringConfig = {
+  damping: 24,
+  mass: 0.9,
+  stiffness: 190,
+  useNativeDriver: false,
+};
 
 type CustomerTrackProviderScreenProps = {
   booking: BookingSummary;
@@ -50,6 +66,67 @@ export function CustomerTrackProviderScreen({
     sheetLevel,
   });
   const { data } = trackingViewModel;
+  const { height: screenHeight } = useWindowDimensions();
+  const sheetHeight = useRef(
+    new Animated.Value(sheetHeightForLevel(sheetLevel, screenHeight)),
+  ).current;
+  const sheetDragStartHeight = useRef(sheetHeightForLevel(sheetLevel, screenHeight));
+
+  useEffect(() => {
+    Animated.spring(sheetHeight, {
+      ...sheetSpringConfig,
+      toValue: sheetHeightForLevel(sheetLevel, screenHeight),
+    }).start();
+  }, [screenHeight, sheetHeight, sheetLevel]);
+
+  const customerSheetPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          Math.abs(gestureState.dy) > 8 &&
+          Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+        onPanResponderGrant: () => {
+          sheetHeight.stopAnimation((value) => {
+            sheetDragStartHeight.current = value;
+          });
+        },
+        onPanResponderMove: (_, gestureState) => {
+          sheetHeight.setValue(
+            clampSheetHeight(
+              sheetDragStartHeight.current - gestureState.dy,
+              screenHeight,
+            ),
+          );
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const releasedHeight = clampSheetHeight(
+            sheetDragStartHeight.current - gestureState.dy,
+            screenHeight,
+          );
+          const nextLevel = nearestSheetLevel(
+            sheetLevel,
+            releasedHeight,
+            gestureState.vy,
+            screenHeight,
+          );
+          if (nextLevel !== sheetLevel) {
+            onSheetLevelChange(nextLevel);
+            return;
+          }
+          Animated.spring(sheetHeight, {
+            ...sheetSpringConfig,
+            toValue: sheetHeightForLevel(nextLevel, screenHeight),
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(sheetHeight, {
+            ...sheetSpringConfig,
+            toValue: sheetHeightForLevel(sheetLevel, screenHeight),
+          }).start();
+        },
+      }),
+    [onSheetLevelChange, screenHeight, sheetHeight, sheetLevel],
+  );
 
   return (
     <View style={styles.navigationScreen}>
@@ -72,7 +149,14 @@ export function CustomerTrackProviderScreen({
           providerMarkerLabel="Provider"
         />
       </View>
-      <View style={[styles.navBottomSheet, sheetStyle(sheetLevel)]}>
+      <Animated.View
+        style={[
+          styles.navBottomSheet,
+          sheetStyle(sheetLevel),
+          { height: sheetHeight },
+        ]}
+        {...customerSheetPanResponder.panHandlers}
+      >
         <NavigationSheetHeader
           level={sheetLevel}
           title={data.phaseTitle}
@@ -102,7 +186,7 @@ export function CustomerTrackProviderScreen({
             <PrimaryButton label="Message" onPress={onMessage} />
           </View>
         </ActionRow>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -153,38 +237,13 @@ function NavigationSheetHeader({
         style={styles.dragHandleButton}
         onPress={() => onChangeLevel(nextSheetLevel(level))}
         accessibilityRole="button"
-        accessibilityLabel={`Show ${sheetLabel(nextSheetLevel(level))} navigation details`}
+        accessibilityLabel="Adjust tracking details"
       >
         <View style={styles.dragHandle} />
       </Pressable>
-      <View style={styles.rowBetween}>
-        <View style={styles.flex}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
-          <Text style={styles.cardMeta} numberOfLines={1}>{subtitle}</Text>
-        </View>
-        <View style={styles.sheetLevelControls}>
-          {sheetLevels.map((item) => (
-            <Pressable
-              key={item}
-              style={[
-                styles.sheetLevelButton,
-                item === level && styles.sheetLevelButtonActive,
-              ]}
-              onPress={() => onChangeLevel(item)}
-              accessibilityRole="button"
-              accessibilityLabel={`Set navigation sheet to ${sheetLabel(item)}`}
-            >
-              <Text
-                style={[
-                  styles.sheetLevelButtonText,
-                  item === level && styles.sheetLevelButtonTextActive,
-                ]}
-              >
-                {sheetShortLabel(item)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+      <View style={styles.flex}>
+        <Text style={styles.cardTitle} numberOfLines={1}>{title}</Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>{subtitle}</Text>
       </View>
     </View>
   );
@@ -210,24 +269,57 @@ function nextSheetLevel(level: CustomerTrackingSheetLevel): CustomerTrackingShee
   return 'peek';
 }
 
-function sheetLabel(level: CustomerTrackingSheetLevel): string {
-  if (level === 'expanded') {
-    return 'expanded';
+function nearestSheetLevel(
+  level: CustomerTrackingSheetLevel,
+  height: number,
+  velocityY: number,
+  screenHeight: number,
+): CustomerTrackingSheetLevel {
+  if (velocityY <= -sheetDragVelocityThreshold) {
+    return adjacentSheetLevel(level, 1);
   }
-  if (level === 'half') {
-    return 'half';
+  if (velocityY >= sheetDragVelocityThreshold) {
+    return adjacentSheetLevel(level, -1);
   }
-  return 'compact';
+
+  return sheetLevels.reduce((nearest, item) => {
+    const currentDistance = Math.abs(height - sheetHeightForLevel(item, screenHeight));
+    const nearestDistance = Math.abs(
+      height - sheetHeightForLevel(nearest, screenHeight),
+    );
+    return currentDistance < nearestDistance ? item : nearest;
+  }, level);
 }
 
-function sheetShortLabel(level: CustomerTrackingSheetLevel): string {
-  if (level === 'expanded') {
-    return 'Full';
+function adjacentSheetLevel(
+  level: CustomerTrackingSheetLevel,
+  direction: -1 | 1,
+): CustomerTrackingSheetLevel {
+  const nextIndex = Math.max(
+    0,
+    Math.min(sheetLevels.indexOf(level) + direction, sheetLevels.length - 1),
+  );
+  return sheetLevels[nextIndex];
+}
+
+function sheetHeightForLevel(
+  level: CustomerTrackingSheetLevel,
+  screenHeight: number,
+): number {
+  if (level === 'peek') {
+    return Math.max(112, Math.min(148, screenHeight * 0.18));
   }
   if (level === 'half') {
-    return 'Half';
+    return screenHeight * 0.42;
   }
-  return 'Peek';
+  return screenHeight * 0.72;
+}
+
+function clampSheetHeight(height: number, screenHeight: number): number {
+  return Math.max(
+    sheetHeightForLevel('peek', screenHeight),
+    Math.min(height, sheetHeightForLevel('expanded', screenHeight)),
+  );
 }
 
 const styles = StyleSheet.create({
@@ -280,13 +372,13 @@ const styles = StyleSheet.create({
     boxShadow: '0 -12px 28px rgba(17,24,39,0.14)',
   },
   navBottomSheetPeek: {
-    maxHeight: '34%',
+    minHeight: 112,
   },
   navBottomSheetHalf: {
-    maxHeight: '43%',
+    minHeight: 240,
   },
   navBottomSheetExpanded: {
-    maxHeight: '49%',
+    minHeight: 360,
   },
   navigationSheetHeader: {
     gap: spacing.sm,
@@ -302,37 +394,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     height: 5,
     width: 48,
-  },
-  rowBetween: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-  },
-  sheetLevelControls: {
-    alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.pill,
-    flexDirection: 'row',
-    gap: spacing.xxs,
-    padding: 3,
-  },
-  sheetLevelButton: {
-    borderRadius: radius.pill,
-    justifyContent: 'center',
-    minHeight: 28,
-    paddingHorizontal: spacing.sm,
-  },
-  sheetLevelButtonActive: {
-    backgroundColor: palette.mint,
-  },
-  sheetLevelButtonText: {
-    color: palette.mint,
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  sheetLevelButtonTextActive: {
-    color: palette.white,
   },
   customerRouteStats: {
     backgroundColor: palette.surface,

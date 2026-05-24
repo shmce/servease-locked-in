@@ -67,4 +67,25 @@ describe('InternalUserService', () => {
       contactNumber: '+639000000001',
     });
   });
+
+  it('returns two-factor status without exposing the secret', async () => {
+    const repository: UserRepository = {
+      findById: jest.fn(),
+      update: jest.fn(),
+      getTwoFactor: jest.fn().mockResolvedValue({
+        userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+        secret: 'secret',
+        enabled: true,
+        verifiedAt: '2026-05-22T10:00:00.000Z',
+      }),
+    };
+    const service = new InternalUserService(repository);
+
+    await expect(
+      service.getTwoFactorStatus('9b6ed52b-8a97-4b89-b6a8-364c65f8736b'),
+    ).resolves.toEqual({
+      enabled: true,
+      verifiedAt: '2026-05-22T10:00:00.000Z',
+    });
+  });
 });

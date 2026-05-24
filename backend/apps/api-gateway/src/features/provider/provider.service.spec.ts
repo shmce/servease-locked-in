@@ -99,6 +99,44 @@ describe('ProviderGatewayService', () => {
   });
 
   it('builds dashboard summaries from provider bookings and payments', async () => {
+    const bookingGatewayService = {
+      listBookings: jest.fn().mockResolvedValue([
+        {
+          id: 'booking-1',
+          customerFullName: 'Customer One',
+          serviceTitle: 'Deep Cleaning',
+          serviceAddress: 'Makati',
+          scheduledAt: new Date().toISOString(),
+          status: 'completed',
+        },
+        {
+          id: 'booking-2',
+          customerFullName: 'Customer Two',
+          serviceTitle: 'Repair',
+          serviceAddress: 'Pasig',
+          scheduledAt: new Date(Date.now() + 86400000).toISOString(),
+          status: 'pending',
+        },
+      ]),
+      listTimelineEvents: jest.fn().mockResolvedValue([
+        {
+          id: 'timeline-1',
+          bookingId: 'booking-1',
+          eventType: 'created',
+          label: 'Booking requested',
+          icon: 'calendar',
+          createdAt: '2026-05-16T00:00:00.000Z',
+        },
+        {
+          id: 'timeline-2',
+          bookingId: 'booking-1',
+          eventType: 'status_changed',
+          label: 'Booking status changed to confirmed',
+          icon: 'activity',
+          createdAt: '2026-05-16T00:15:00.000Z',
+        },
+      ]),
+    } as unknown as BookingGatewayService;
     const service = new ProviderGatewayService(
       {
         getCurrentUser: jest.fn().mockResolvedValue({
@@ -114,26 +152,7 @@ describe('ProviderGatewayService', () => {
         }),
       } as unknown as CurrentUserService,
       {} as CatalogGatewayService,
-      {
-        listBookings: jest.fn().mockResolvedValue([
-          {
-            id: 'booking-1',
-            customerFullName: 'Customer One',
-            serviceTitle: 'Deep Cleaning',
-            serviceAddress: 'Makati',
-            scheduledAt: new Date().toISOString(),
-            status: 'completed',
-          },
-          {
-            id: 'booking-2',
-            customerFullName: 'Customer Two',
-            serviceTitle: 'Repair',
-            serviceAddress: 'Pasig',
-            scheduledAt: new Date(Date.now() + 86400000).toISOString(),
-            status: 'pending',
-          },
-        ]),
-      } as unknown as BookingGatewayService,
+      bookingGatewayService,
       {
         listPayments: jest.fn().mockResolvedValue([
           {
@@ -164,6 +183,115 @@ describe('ProviderGatewayService', () => {
           customerName: 'Customer Two',
         },
       ],
+      performance: {
+        acceptanceRate: 100,
+        completionRate: 100,
+        cancellationRate: 0,
+        responseTimeMinutes: 15,
+      },
     });
+    expect(bookingGatewayService.listTimelineEvents).toHaveBeenCalledWith(
+      'booking-1',
+      null,
+      '9d02cb22-c44a-4634-9fd1-cfa14abc34e5',
+    );
+  });
+
+  it('calculates cancellation rate and ignores missing response timeline data', async () => {
+    const service = new ProviderGatewayService(
+      {
+        getCurrentUser: jest.fn().mockResolvedValue({
+          user: {
+            id: 'c5246383-cdd6-4639-a7ff-bf3e290e9838',
+            role: 'provider',
+          },
+          providerProfile: {
+            id: '9d02cb22-c44a-4634-9fd1-cfa14abc34e5',
+            averageRating: 0,
+            reviewCount: 0,
+          },
+        }),
+      } as unknown as CurrentUserService,
+      {} as CatalogGatewayService,
+      {
+        listBookings: jest.fn().mockResolvedValue([
+          {
+            id: 'booking-1',
+            scheduledAt: new Date().toISOString(),
+            status: 'completed',
+          },
+          {
+            id: 'booking-2',
+            scheduledAt: new Date().toISOString(),
+            status: 'cancelled',
+          },
+          {
+            id: 'booking-3',
+            scheduledAt: new Date().toISOString(),
+            status: 'rejected',
+          },
+        ]),
+        listTimelineEvents: jest.fn().mockResolvedValue([
+          {
+            id: 'timeline-1',
+            bookingId: 'booking-3',
+            eventType: 'created',
+            label: 'Booking requested',
+            icon: 'calendar',
+            createdAt: '2026-05-16T00:00:00.000Z',
+          },
+        ]),
+      } as unknown as BookingGatewayService,
+      {
+        listPayments: jest.fn().mockResolvedValue([]),
+      } as unknown as PaymentGatewayService,
+    );
+
+    await expect(
+      service.getProviderDashboard('c5246383-cdd6-4639-a7ff-bf3e290e9838'),
+    ).resolves.toMatchObject({
+      performance: {
+        acceptanceRate: 50,
+        completionRate: 50,
+        cancellationRate: 50,
+        responseTimeMinutes: null,
+      },
+    });
+  });
+
+  it('blocks pending providers from replacing marketplace services', async () => {
+    const catalogGatewayService = {
+      replaceProviderOwnedServices: jest.fn(),
+    } as unknown as CatalogGatewayService;
+    const service = new ProviderGatewayService(
+      {
+        getCurrentUser: jest.fn().mockResolvedValue({
+          user: {
+            id: 'c5246383-cdd6-4639-a7ff-bf3e290e9838',
+            role: 'provider',
+          },
+          providerProfile: {
+            id: '9d02cb22-c44a-4634-9fd1-cfa14abc34e5',
+            verificationStatus: 'pending',
+          },
+        }),
+      } as unknown as CurrentUserService,
+      catalogGatewayService,
+      {} as BookingGatewayService,
+      {} as PaymentGatewayService,
+    );
+
+    await expect(
+      service.replaceProviderServices('c5246383-cdd6-4639-a7ff-bf3e290e9838', [
+        {
+          title: 'Deep Cleaning',
+          serviceId: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+          price: 1500,
+          pricingMode: 'flat',
+          isActive: true,
+        },
+      ]),
+    ).rejects.toThrow('provider_approval_required');
+    expect(catalogGatewayService.replaceProviderOwnedServices).not.toHaveBeenCalled();
   });
 });

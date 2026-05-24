@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { getBackendEnvFilePaths } from '../../../libs/common/src';
 import { AdminAuditController } from './features/admin/admin-audit.controller';
 import { AdminAuditGatewayService } from './features/admin/admin-audit.service';
 import { AdminBookingController } from './features/admin/admin-booking.controller';
@@ -79,7 +80,12 @@ import { UploadController } from './features/uploads/upload.controller';
 import { UploadGatewayService } from './features/uploads/upload.service';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: getBackendEnvFilePaths(),
+    }),
+  ],
   controllers: [
     HealthController,
     CurrentUserController,

@@ -67,7 +67,10 @@ import {
   RegisterPushDeviceRequest,
 } from './types/notifications.js';
 import {
+  CreateCustomerAddressInput,
   CurrentUserProfile,
+  CustomerAddressSummary,
+  UpdateCustomerAddressInput,
   UpdateCurrentUserProfileInput,
   UpdateUserPreferencesRequest,
   UserPreferenceSummary,
@@ -278,6 +281,24 @@ export interface ServEaseClient {
       input: UpdateCurrentUserProfileInput,
       options?: ServEaseRequestOptions,
     ): Promise<CurrentUserProfile>;
+    listAddresses(options?: ServEaseRequestOptions): Promise<CustomerAddressSummary[]>;
+    createAddress(
+      input: CreateCustomerAddressInput,
+      options?: ServEaseRequestOptions,
+    ): Promise<CustomerAddressSummary>;
+    updateAddress(
+      addressId: string,
+      input: UpdateCustomerAddressInput,
+      options?: ServEaseRequestOptions,
+    ): Promise<CustomerAddressSummary>;
+    setDefaultAddress(
+      addressId: string,
+      options?: ServEaseRequestOptions,
+    ): Promise<CustomerAddressSummary>;
+    deleteAddress(
+      addressId: string,
+      options?: ServEaseRequestOptions,
+    ): Promise<{ ok: true }>;
     getPreferences(options?: ServEaseRequestOptions): Promise<UserPreferenceSummary>;
     updatePreferences(
       input: UpdateUserPreferencesRequest,
@@ -608,6 +629,41 @@ export function createServEaseClient(
           body: input,
           auth: requestOptions,
         }),
+      listAddresses: (requestOptions) =>
+        request<CustomerAddressSummary[]>('/v1/me/addresses', {
+          auth: requestOptions,
+        }),
+      createAddress: (input, requestOptions) =>
+        request<CustomerAddressSummary>('/v1/me/addresses', {
+          method: 'POST',
+          body: input,
+          auth: requestOptions,
+        }),
+      updateAddress: (addressId, input, requestOptions) =>
+        request<CustomerAddressSummary>(
+          `/v1/me/addresses/${encodeURIComponent(addressId)}`,
+          {
+            method: 'PATCH',
+            body: input,
+            auth: requestOptions,
+          },
+        ),
+      setDefaultAddress: (addressId, requestOptions) =>
+        request<CustomerAddressSummary>(
+          `/v1/me/addresses/${encodeURIComponent(addressId)}/default`,
+          {
+            method: 'POST',
+            auth: requestOptions,
+          },
+        ),
+      deleteAddress: (addressId, requestOptions) =>
+        request<{ ok: true }>(
+          `/v1/me/addresses/${encodeURIComponent(addressId)}`,
+          {
+            method: 'DELETE',
+            auth: requestOptions,
+          },
+        ),
       getPreferences: (requestOptions) =>
         request<UserPreferenceSummary>('/v1/me/preferences', {
           auth: requestOptions,

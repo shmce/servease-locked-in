@@ -6,6 +6,7 @@ import {
   Headers,
   HttpCode,
   HttpException,
+  Logger,
   Param,
   Patch,
   Query,
@@ -45,6 +46,8 @@ type AuditRequest = {
 
 @Controller('v1/admin/providers')
 export class AdminProvidersController {
+  private readonly logger = new Logger(AdminProvidersController.name);
+
   constructor(
     private readonly adminCatalogGatewayService: AdminCatalogGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -123,7 +126,12 @@ export class AdminProvidersController {
             reason: body.reason ?? null,
           },
         })
-        .catch(() => undefined);
+        .catch((error: unknown) => {
+          this.logAuditFailure(
+            `provider status update ${provider.id}`,
+            error,
+          );
+        });
       return { data: provider };
     } catch (error) {
       throw this.toHttpException(error);
@@ -176,7 +184,12 @@ export class AdminProvidersController {
           ipAddress: this.getClientIp(request),
           metadata: { providerId, mediaId },
         })
-        .catch(() => undefined);
+        .catch((error: unknown) => {
+          this.logAuditFailure(
+            `provider portfolio media deletion ${mediaId}`,
+            error,
+          );
+        });
     } catch (error) {
       throw this.toHttpException(error);
     }
@@ -199,6 +212,16 @@ export class AdminProvidersController {
       request.socket?.remoteAddress ||
       null
     );
+  }
+
+  private logAuditFailure(context: string, error: unknown): void {
+    this.logger.warn(
+      `Could not create admin provider audit log for ${context}: ${this.errorMessage(error)}`,
+    );
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private toHttpException(error: unknown): HttpException {

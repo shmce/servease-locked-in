@@ -52,6 +52,56 @@ describe('AdminPaymentController', () => {
     expect(response.data.status).toBe('paid');
   });
 
+  it('keeps payment status updates successful when audit logging fails', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('admin-user-1'),
+    } as unknown as AuthTokenService;
+    const currentUserService = {
+      getCurrentUser: jest.fn().mockResolvedValue({
+        user: {
+          id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
+          role: 'admin',
+          status: 'active',
+        },
+      }),
+    } as unknown as CurrentUserService;
+    const adminPaymentGatewayService = {
+      updatePaymentStatus: jest.fn().mockResolvedValue({
+        id: 'payment-1',
+        bookingId: 'booking-1',
+        status: 'paid',
+      }),
+    } as unknown as AdminPaymentGatewayService;
+    const controller = new AdminPaymentController(
+      adminPaymentGatewayService,
+      {
+        createAuditLog: jest
+          .fn()
+          .mockRejectedValue(new Error('audit unavailable')),
+      } as unknown as AdminAuditGatewayService,
+      authTokenService,
+      currentUserService,
+    );
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.updatePaymentStatus(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      'payment-1',
+      { status: 'paid' },
+    );
+
+    expect(response.data.status).toBe('paid');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not create payment audit log'),
+    );
+    warnSpy.mockRestore();
+  });
+
   it('rejects invalid payment status without calling the admin service', async () => {
     const authTokenService = {
       authenticate: jest.fn().mockResolvedValue('admin-user-1'),

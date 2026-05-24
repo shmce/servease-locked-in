@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Badge, Card, PrimaryButton } from '../../../components/DesignKit';
-import {
+import type {
   CurrentUserProfile,
   ProviderApplicationStatus,
 } from '../../../shared/models/types';
@@ -12,7 +12,7 @@ type ProviderApplicationBannerProps = {
   providerApplication: ProviderApplicationStatus | null;
   busyAction: string | null;
   onRefreshStatus: () => void | Promise<void>;
-  onUploadGovernmentId: () => void;
+  onOpenApplicationDocuments: () => void;
 };
 
 export function ProviderApplicationBanner({
@@ -20,7 +20,7 @@ export function ProviderApplicationBanner({
   providerApplication,
   busyAction,
   onRefreshStatus,
-  onUploadGovernmentId,
+  onOpenApplicationDocuments,
 }: ProviderApplicationBannerProps) {
   const banner = useProviderApplicationBannerViewModel({
     profile,
@@ -52,9 +52,9 @@ export function ProviderApplicationBanner({
         disabled={data.refreshDisabled}
       />
       <PrimaryButton
-        label="Upload Government ID"
+        label="Application Documents"
         variant="secondary"
-        onPress={onUploadGovernmentId}
+        onPress={onOpenApplicationDocuments}
         disabled={data.uploadDisabled}
       />
     </Card>

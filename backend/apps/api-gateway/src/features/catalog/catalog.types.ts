@@ -14,6 +14,19 @@ export interface CatalogServiceItem {
   pricingMode: 'flat' | 'hourly';
 }
 
+export type ServiceAreaStatus = 'active' | 'inactive';
+
+export interface ServiceAreaSummary {
+  id: string;
+  name: string;
+  city: string;
+  region: string;
+  status: ServiceAreaStatus;
+  providerCount: number;
+  latitude: number | null;
+  longitude: number | null;
+}
+
 export interface ProviderServiceListing {
   id: string;
   providerId: string;

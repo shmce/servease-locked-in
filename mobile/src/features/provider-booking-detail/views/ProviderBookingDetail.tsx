@@ -23,6 +23,7 @@ type ProviderBookingDetailScreenProps = {
   booking: BookingSummary;
   bookingMedia: ReactNode;
   busyAction: string | null;
+  hasBlockingActiveBooking?: boolean;
   selectedPayment: PaymentSummary | null;
   serviceUpdates: ReactNode;
   timelineEvents: ReactNode;
@@ -36,6 +37,7 @@ export function ProviderBookingDetailScreen({
   booking,
   bookingMedia,
   busyAction,
+  hasBlockingActiveBooking = false,
   selectedPayment,
   serviceUpdates,
   timelineEvents,
@@ -47,6 +49,7 @@ export function ProviderBookingDetailScreen({
   const bookingDetail = useProviderBookingDetailViewModel({
     booking,
     busyAction,
+    hasBlockingActiveBooking,
     selectedPayment,
   });
   const { data } = bookingDetail;

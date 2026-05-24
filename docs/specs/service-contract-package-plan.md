@@ -11,7 +11,10 @@
 
 This document decides the service contracts and packaging path for ServEase so the backend can be shared, deployed, and reasoned about consistently.
 
-The current backend architecture is HTTP-only. Mobile, provider web, admin, and landing page code call the API Gateway. The API Gateway calls internal services over HTTP using environment-defined service URLs. Internal services do not call each other's databases.
+The current backend architecture is HTTP-only. Mobile, admin, `servease-web`,
+and SDK consumers call the API Gateway. The API Gateway calls internal services
+over HTTP using environment-defined service URLs. Internal services do not call
+each other's databases.
 
 ## Decisions
 
@@ -62,11 +65,11 @@ If the platform later requires Kafka or Databricks, create a separate platform i
 | P0 | `POST /v1/auth/register` | auth-service | `POST /internal/auth/registrations` plus profile creation routes | Customer/provider/admin account creation |
 | P0 | `POST /v1/auth/password-reset` | auth-service | `POST /internal/auth/password-reset` | Password recovery |
 | P0 | `POST /v1/auth/otp/generate`, `POST /v1/auth/otp/verify`, `GET /v1/auth/otp/:otpId/status`, `/v1/auth/google/...` | auth-service | `/internal/auth/shared/...` | OTP and Google shared auth flow |
-| P0 | `GET /v1/me`, `PATCH /v1/me`, `PATCH /v1/me/password`, `DELETE /v1/me`, `GET /v1/me/sessions`, `/v1/me/two-factor/...` | auth-service and user-service | `/internal/users/:userId`, `/internal/auth/password-change`, `/internal/users/:userId/two-factor/...` | Current user account/profile/session/security |
+| P0 | `GET /v1/me`, `PATCH /v1/me`, `PATCH /v1/me/password`, `DELETE /v1/me`, `GET /v1/me/sessions`, `/v1/me/addresses`, `/v1/me/two-factor/...` | auth-service and user-service | `/internal/users/:userId`, `/internal/auth/password-change`, `/internal/users/:userId/addresses`, `/internal/users/:userId/two-factor/...` | Current user account/profile/session/security |
 | P0 | `GET /v1/me/preferences`, `PUT /v1/me/preferences`, `GET /v1/referrals`, `/v1/geo/...` | user-service | `/internal/users/:userId/preferences`, `/internal/users/:userId/referral-summary`, `/internal/shared-geo/...` | User preferences, referrals, and shared geo helpers |
 | P0 | `GET /v1/catalog/categories` | catalog-service | `GET /internal/catalog/categories` | Browse categories |
 | P0 | `GET /v1/catalog/services` | catalog-service | `GET /internal/catalog/services` | Browse service types |
-| P0 | `GET /v1/catalog/providers` | catalog-service | `GET /internal/catalog/providers` | Browse providers for booking |
+| P0 | `GET /v1/catalog/service-areas`, `GET /v1/catalog/providers` | catalog-service | `GET /internal/catalog/service-areas`, `GET /internal/catalog/providers` | Browse service areas and providers for booking |
 | P0 | `POST /v1/bookings` | booking-service | `POST /internal/bookings` | Create a booking |
 | P0 | `GET /v1/bookings`, `GET /v1/bookings/:bookingId` | booking-service | `GET /internal/bookings`, `GET /internal/bookings/:bookingId` | List and inspect visible bookings |
 | P0 | `PATCH /v1/bookings/:bookingId/status` | booking-service | `PATCH /internal/bookings/:bookingId/status` | Booking lifecycle transition |

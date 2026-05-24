@@ -90,4 +90,56 @@ describe('AdminPromotionController', () => {
     });
     expect(response.data.id).toBe('promo-1');
   });
+
+  it('keeps promotion creation successful when audit logging fails', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('admin-user-1'),
+    } as unknown as AuthTokenService;
+    const currentUserService = {
+      getCurrentUser: jest.fn().mockResolvedValue({
+        user: {
+          id: 'admin-user-1',
+          email: 'admin@example.com',
+          fullName: 'Admin User',
+          role: 'admin',
+        },
+      }),
+    } as unknown as CurrentUserService;
+    const adminPaymentGatewayService = {
+      createPromotion: jest.fn().mockResolvedValue({
+        id: 'promo-1',
+        code: 'SERVEASE10',
+      }),
+    } as unknown as AdminPaymentGatewayService;
+    const controller = new AdminPromotionController(
+      adminPaymentGatewayService,
+      {
+        createAuditLog: jest
+          .fn()
+          .mockRejectedValue(new Error('audit unavailable')),
+      } as unknown as AdminAuditGatewayService,
+      authTokenService,
+      currentUserService,
+    );
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.create(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      {
+        code: 'SERVEASE10',
+        discountType: 'percent',
+        discountValue: 10,
+        minOrderAmount: 500,
+      },
+    );
+
+    expect(response.data.id).toBe('promo-1');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not create promotion audit log'),
+    );
+    warnSpy.mockRestore();
+  });
 });

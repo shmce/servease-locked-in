@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Post,
   Query,
@@ -40,6 +41,8 @@ const validPayoutStatuses = new Set([
 
 @Controller('v1/admin/settlements')
 export class AdminSettlementController {
+  private readonly logger = new Logger(AdminSettlementController.name);
+
   constructor(
     private readonly adminPaymentGatewayService: AdminPaymentGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -212,7 +215,15 @@ export class AdminSettlementController {
           status: payout.status,
         },
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Could not create settlement audit log for ${payout.id}: ${this.errorMessage(error)}`,
+        );
+      });
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private getClientIp(request: AuditRequest): string | null {

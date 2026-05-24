@@ -84,6 +84,58 @@ describe('AdminUsersController', () => {
     expect(response.data.role).toBe('admin');
   });
 
+  it('keeps admin creation successful when audit logging fails', async () => {
+    const adminUsersGatewayService = {
+      createUser: jest.fn().mockResolvedValue({
+        id: 'new-admin-1',
+        email: 'ops@example.com',
+        fullName: 'Ops Admin',
+        contactNumber: '+639171234567',
+        role: 'admin',
+        status: 'active',
+        createdAt: '2026-05-17T00:00:00.000Z',
+      }),
+    } as unknown as AdminUsersGatewayService;
+    const adminAuditGatewayService = {
+      createAuditLog: jest.fn().mockRejectedValue(new Error('audit unavailable')),
+    } as unknown as AdminAuditGatewayService;
+    const controller = new AdminUsersController(
+      adminUsersGatewayService,
+      adminAuditGatewayService,
+      { authenticate: jest.fn().mockResolvedValue('admin-user-1') } as unknown as AuthTokenService,
+      {
+        getCurrentUser: jest.fn().mockResolvedValue({
+          user: {
+            id: 'admin-user-1',
+            email: 'admin@example.com',
+            fullName: 'Admin User',
+            role: 'admin',
+            status: 'active',
+          },
+        }),
+      } as unknown as CurrentUserService,
+    );
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.create(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      {
+        email: 'ops@example.com',
+        password: 'Password#2026',
+        fullName: 'Ops Admin',
+      },
+    );
+
+    expect(response.data.id).toBe('new-admin-1');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not create audit log for admin user action'),
+    );
+    warnSpy.mockRestore();
+  });
+
   it('rejects unknown admin access roles during admin creation', async () => {
     const adminUsersGatewayService = {
       createUser: jest.fn(),

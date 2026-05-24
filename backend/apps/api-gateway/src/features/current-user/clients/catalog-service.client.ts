@@ -5,7 +5,11 @@ import {
   ProviderOwnerSummary,
   ProviderProfileSummary,
 } from '../current-user.types';
-import { ProviderServiceListing } from '../../catalog/catalog.types';
+import {
+  ProviderOwnedServiceInput,
+  ProviderOwnedServiceSummary,
+  ProviderServiceListing,
+} from '../../catalog/catalog.types';
 import { RegistrationDependencyUnavailableError } from '../../registration/registration.errors';
 import {
   ProviderApplicationStatusResponse,
@@ -24,6 +28,10 @@ interface ProviderApplicationDocumentSummary {
   previewUrl: string | null;
   downloadUrl: string | null;
 }
+
+type ProviderApplicationWithDocuments = ProviderApplicationStatusResponse & {
+  documents?: ProviderApplicationDocumentSummary[];
+};
 
 @Injectable()
 export class CatalogServiceClient {
@@ -77,6 +85,33 @@ export class CatalogServiceClient {
     return payload.data;
   }
 
+  async replaceProviderOwnedServices(
+    userId: string,
+    services: ProviderOwnedServiceInput[],
+  ): Promise<ProviderOwnedServiceSummary[]> {
+    const response = await fetch(
+      `${this.baseUrl()}/internal/providers/by-user/${encodeURIComponent(
+        userId,
+      )}/services`,
+      {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ services }),
+      },
+    );
+
+    if (!response.ok) {
+      throw new RegistrationDependencyUnavailableError();
+    }
+
+    const payload = (await response.json()) as {
+      data: ProviderOwnedServiceSummary[];
+    };
+    return payload.data;
+  }
+
   async findProviderOwnerByProviderId(
     providerId: string,
   ): Promise<ProviderOwnerSummary> {
@@ -121,7 +156,7 @@ export class CatalogServiceClient {
 
   async getProviderApplicationByUserId(
     userId: string,
-  ): Promise<ProviderApplicationStatusResponse | null> {
+  ): Promise<ProviderApplicationWithDocuments | null> {
     const response = await fetch(
       `${this.baseUrl()}/internal/providers/applications/by-user/${userId}`,
     );
@@ -135,7 +170,7 @@ export class CatalogServiceClient {
     }
 
     const payload = (await response.json()) as {
-      data: ProviderApplicationStatusResponse;
+      data: ProviderApplicationWithDocuments;
     };
     return payload.data;
   }

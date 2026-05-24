@@ -1,5 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight, CreditCard, Wallet } from 'lucide-react-native';
 import {
   Card,
   PrimaryButton,
@@ -9,6 +9,8 @@ import {
 import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
 import {
   CatalogServiceItem,
+  CustomerPaymentMethodSummary,
+  CustomerPaymentMethodType,
   PricingQuoteSummary,
   PromotionValidationSummary,
   ProviderListing,
@@ -27,9 +29,13 @@ type CustomerBookingReviewScreenProps = {
   pricingQuote: PricingQuoteSummary | null;
   promotionValidation: PromotionValidationSummary | null;
   promoCode: string;
+  customerPaymentMethods: CustomerPaymentMethodSummary[];
+  selectedPaymentMethodId: string | null;
   busyAction: string | null;
   onBack: () => void;
   onViewProvider: () => void;
+  onSelectPaymentMethod: (methodId: string) => void;
+  onSavePaymentMethod: (methodType: CustomerPaymentMethodType) => Promise<void>;
   onConfirm: () => void;
   onPreviewEstimate: () => void;
   onEditBooking: () => void;
@@ -46,9 +52,13 @@ export function CustomerBookingReviewScreen({
   pricingQuote,
   promotionValidation,
   promoCode,
+  customerPaymentMethods,
+  selectedPaymentMethodId,
   busyAction,
   onBack,
   onViewProvider,
+  onSelectPaymentMethod,
+  onSavePaymentMethod,
   onConfirm,
   onPreviewEstimate,
   onEditBooking,
@@ -64,6 +74,8 @@ export function CustomerBookingReviewScreen({
     pricingQuote,
     promotionValidation,
     promoCode,
+    customerPaymentMethods,
+    selectedPaymentMethodId,
     busyAction,
   });
   const { data } = bookingReview;
@@ -122,6 +134,70 @@ export function CustomerBookingReviewScreen({
             </Card>
           </Section>
 
+          <Section title="Payment method">
+            <Card>
+              {data.paymentMethodRows.map((item, i) => (
+                <Pressable
+                  key={item.method.id}
+                  style={[
+                    styles.paymentMethodRow,
+                    i < data.paymentMethodRows.length - 1 && styles.paymentMethodBorder,
+                    item.selected && styles.paymentMethodSelected,
+                  ]}
+                  onPress={() => onSelectPaymentMethod(item.method.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Use ${item.label}`}
+                  accessibilityState={{ selected: item.selected }}
+                >
+                  <View style={[styles.radio, item.selected && styles.radioSelected]}>
+                    {item.selected ? <View style={styles.radioDot} /> : null}
+                  </View>
+                  {item.method.methodType === 'cash_on_service' ? (
+                    <Wallet
+                      color={item.selected ? palette.mint : palette.muted}
+                      size={20}
+                      strokeWidth={2.2}
+                    />
+                  ) : (
+                    <CreditCard
+                      color={item.selected ? palette.mint : palette.muted}
+                      size={20}
+                      strokeWidth={2.2}
+                    />
+                  )}
+                  <View style={styles.flex}>
+                    <Text style={styles.paymentMethodTitle}>{item.label}</Text>
+                    <Text style={styles.paymentMethodMeta}>{item.meta}</Text>
+                  </View>
+                </Pressable>
+              ))}
+              <View style={styles.quickMethodRow}>
+                <Pressable
+                  style={styles.quickMethodButton}
+                  onPress={() => void onSavePaymentMethod('gcash')}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.quickMethodText}>GCash</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.quickMethodButton}
+                  onPress={() => void onSavePaymentMethod('paymaya')}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.quickMethodText}>Maya</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.quickMethodButton}
+                  onPress={() => void onSavePaymentMethod('card')}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.quickMethodText}>Card</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.paymentNotice}>{data.paymentNotice}</Text>
+            </Card>
+          </Section>
+
           {/* Price breakdown */}
           <Section title="Price breakdown">
             <Card>
@@ -139,7 +215,7 @@ export function CustomerBookingReviewScreen({
                 last={false}
               />
               <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>Booking Cost</Text>
+                <Text style={styles.totalLabel}>{data.totalLabel}</Text>
                 <Text style={styles.totalValue}>{data.displayedTotalLabel}</Text>
               </View>
             </Card>
@@ -240,6 +316,77 @@ const styles = StyleSheet.create({
     color: palette.mint,
     fontSize: 12,
     fontWeight: '700',
+  },
+
+  // Payment methods
+  paymentMethodRow: {
+    alignItems: 'center',
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 54,
+    paddingHorizontal: spacing.xs,
+    paddingVertical: spacing.sm,
+  },
+  paymentMethodBorder: {
+    borderBottomColor: palette.lineSoft,
+    borderBottomWidth: 1,
+  },
+  paymentMethodSelected: {
+    backgroundColor: palette.mintSoft,
+  },
+  radio: {
+    alignItems: 'center',
+    borderColor: palette.line,
+    borderRadius: 9,
+    borderWidth: 2,
+    height: 18,
+    justifyContent: 'center',
+    width: 18,
+  },
+  radioSelected: {
+    borderColor: palette.mint,
+  },
+  radioDot: {
+    backgroundColor: palette.mint,
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  paymentMethodTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  paymentMethodMeta: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  quickMethodRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  quickMethodButton: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    flex: 1,
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  quickMethodText: {
+    color: palette.mint,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  paymentNotice: {
+    ...type.caption,
+    color: palette.muted,
   },
 
   // Review rows

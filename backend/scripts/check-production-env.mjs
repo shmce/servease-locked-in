@@ -69,23 +69,33 @@ if (publicOrigins.length === 0) {
 
 if (env.ADMIN_REPORT_DELIVERY_WORKER_ENABLED === 'true') {
   if (!env.ADMIN_REPORT_DOWNLOAD_BASE_URL?.trim()) {
-    failures.push('ADMIN_REPORT_DOWNLOAD_BASE_URL is required when ADMIN_REPORT_DELIVERY_WORKER_ENABLED=true');
+    failures.push(
+      'ADMIN_REPORT_DOWNLOAD_BASE_URL is required when ADMIN_REPORT_DELIVERY_WORKER_ENABLED=true',
+    );
   } else if (!isHttpUrl(env.ADMIN_REPORT_DOWNLOAD_BASE_URL)) {
     failures.push('ADMIN_REPORT_DOWNLOAD_BASE_URL must be an http(s) URL');
   }
 }
 
 if (env.ALLOW_LOCALHOST_PRODUCTION !== 'true') {
-  for (const key of [...urlKeys, 'API_GATEWAY_CORS_ORIGINS', 'ADMIN_REPORT_DOWNLOAD_BASE_URL']) {
+  for (const key of [
+    ...urlKeys,
+    'API_GATEWAY_CORS_ORIGINS',
+    'ADMIN_REPORT_DOWNLOAD_BASE_URL',
+  ]) {
     const value = env[key];
     if (value?.includes('localhost')) {
-      failures.push(`${key} contains localhost; set ALLOW_LOCALHOST_PRODUCTION=true only for a local dry run`);
+      failures.push(
+        `${key} contains localhost; set ALLOW_LOCALHOST_PRODUCTION=true only for a local dry run`,
+      );
     }
   }
 }
 
 if (failures.length > 0) {
-  console.error(`Production backend env check failed:\n- ${failures.join('\n- ')}`);
+  console.error(
+    `Production backend env check failed:\n- ${failures.join('\n- ')}`,
+  );
   process.exit(1);
 }
 

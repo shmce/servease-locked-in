@@ -12,6 +12,7 @@ const baseMenuItems: Omit<CustomerMoreMenuItem, 'badge'>[] = [
   { label: 'My Profile', screen: 'customerProfile' },
   { label: 'Notifications', screen: 'customerNotifications' },
   { label: 'Refer a Friend', screen: 'customerReferral' },
+  { label: 'Saved Addresses', screen: 'customerAddresses' },
   { label: 'Payment Methods', screen: 'customerPaymentMethods' },
   { label: 'Security', screen: 'customerSecurity' },
   { label: 'Settings', screen: 'customerSettings' },

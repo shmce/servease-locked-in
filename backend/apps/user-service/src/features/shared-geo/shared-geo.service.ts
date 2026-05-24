@@ -16,6 +16,8 @@ import {
 } from './shared-geo.types';
 
 const OPENROUTESERVICE_BASE_URL = 'https://api.openrouteservice.org';
+const MOCK_GEOCODE_PROVIDER = 'mock';
+const PRODUCTION_ENVIRONMENT_NAMES = new Set(['production', 'prod']);
 const OPENROUTESERVICE_PROFILES = new Set<GeoDirectionsProfile>([
   'driving-car',
   'driving-hgv',
@@ -64,11 +66,13 @@ export class SharedGeoService {
     }
 
     try {
-      return await createApicenterClient().geoGeocodeAddress({
-        address,
-        language: input.language?.trim() || undefined,
-        region: input.region?.trim() || undefined,
-      });
+      return this.assertProductionGeocodeProviderAllowed(
+        await createApicenterClient().geoGeocodeAddress({
+          address,
+          language: input.language?.trim() || undefined,
+          region: input.region?.trim() || undefined,
+        }),
+      );
     } catch (error) {
       if (error instanceof InvalidSharedGeoRequestError) {
         throw error;
@@ -85,13 +89,15 @@ export class SharedGeoService {
     }
 
     try {
-      return await createApicenterClient().geoReverseGeocode({
-        latitude: input.latitude,
-        longitude: input.longitude,
-        language: input.language?.trim() || undefined,
-        resultType: input.resultType?.trim() || undefined,
-        locationType: input.locationType?.trim() || undefined,
-      });
+      return this.assertProductionGeocodeProviderAllowed(
+        await createApicenterClient().geoReverseGeocode({
+          latitude: input.latitude,
+          longitude: input.longitude,
+          language: input.language?.trim() || undefined,
+          resultType: input.resultType?.trim() || undefined,
+          locationType: input.locationType?.trim() || undefined,
+        }),
+      );
     } catch (error) {
       if (error instanceof InvalidSharedGeoRequestError) {
         throw error;
@@ -250,5 +256,24 @@ export class SharedGeoService {
       bbox: feature.bbox ?? parsed.bbox,
       raw: payload,
     };
+  }
+
+  private assertProductionGeocodeProviderAllowed(
+    result: GeoAddressResult,
+  ): GeoAddressResult {
+    if (
+      result.provider === MOCK_GEOCODE_PROVIDER &&
+      this.isProductionLikeEnvironment()
+    ) {
+      throw new SharedGeoDependencyUnavailableError();
+    }
+
+    return result;
+  }
+
+  private isProductionLikeEnvironment(): boolean {
+    return [process.env.APP_ENV, process.env.NODE_ENV].some((value) =>
+      PRODUCTION_ENVIRONMENT_NAMES.has(value?.trim().toLowerCase() ?? ''),
+    );
   }
 }

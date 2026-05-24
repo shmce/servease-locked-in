@@ -22,12 +22,27 @@ test('booking form verifies service addresses through the APICenter geo gateway'
     ),
     'utf8',
   );
+  const mapSource = readFileSync(
+    join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
+    'utf8',
+  );
+  const addressPreviewStart = mapSource.indexOf('export function AddressVerificationPreview');
+  const webViewStart = mapSource.indexOf('function TrackingMapWebView');
+  assert.notEqual(addressPreviewStart, -1);
+  assert.notEqual(webViewStart, -1);
+
+  const addressPreviewSource = mapSource.slice(addressPreviewStart, webViewStart);
 
   assert.match(bookingFlowViewModel, /geocodeAddress/);
   assert.match(bookingFlowViewModel, /verifyServiceAddress/);
   assert.match(bookingFormSource, /verifyAddressLabel/);
   assert.match(bookingFormSource, /AddressVerificationPreview/);
   assert.match(bookingFormViewModel, /Verify address/);
+  assert.match(addressPreviewSource, /addressTrackingMapFrame/);
+  assert.match(addressPreviewSource, /addressVerificationMapOverlay/);
+  assert.match(addressPreviewSource, /Service pin verified/);
+  assert.match(addressPreviewSource, /provider=\{null\}/);
+  assert.match(addressPreviewSource, /routeGeometry=\{null\}/);
 });
 
 test('Google auth callback exchanges the APICenter code before returning to password login', () => {
@@ -41,7 +56,7 @@ test('Google auth callback exchanges the APICenter code before returning to pass
 test('Google auth opens APICenter authorization in the system browser, not WebView', () => {
   const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const oauthStart = source.indexOf('async function startGoogleSignIn');
-  const oauthEnd = source.indexOf('async function requestPhoneOtp');
+  const oauthEnd = source.indexOf('function signOut');
   assert.notEqual(oauthStart, -1);
   assert.notEqual(oauthEnd, -1);
 
@@ -52,11 +67,29 @@ test('Google auth opens APICenter authorization in the system browser, not WebVi
   assert.doesNotMatch(oauthSource, /WebView/);
 });
 
+test('Google auth registration returns to the registration form after APICenter verification', () => {
+  const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const authSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/views/AuthScreens.tsx'),
+    'utf8',
+  );
+
+  assert.match(authSource, /startGoogleSignIn\(intendedRole, 'registration'\)/);
+  assert.match(authSource, /Verify with Google/);
+  assert.match(appSource, /type GoogleAuthFlow = 'login' \| 'registration'/);
+  assert.match(appSource, /getGoogleAuthState\(intendedRole, flow\)/);
+  assert.match(appSource, /customerRegistration/);
+  assert.match(appSource, /providerRegistration/);
+  assert.match(appSource, /Finish the registration form to create your ServEase account/);
+});
+
 test('customer payment flow refreshes server payment state after booking and checkout creation', () => {
   const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
-  const bookingCreatedStart = source.indexOf('onBookingCreated: (booking) => {');
+  const bookingCreatedStart = source.indexOf(
+    'function handleBookingCreatedImpl(booking: BookingSummary) {',
+  );
   const bookingCreatedEnd = source.indexOf(
-    'onRefreshProviderAvailability:',
+    'function refreshProviderBookingTimelineEventsImpl',
     bookingCreatedStart,
   );
   const checkoutStart = source.indexOf('const checkout = await createCheckoutSession');
@@ -187,12 +220,36 @@ test('tracking navigation uses compact collapsible sheet states', () => {
   assert.match(customerTrackSource, /navBottomSheetPeek/);
   assert.match(customerTrackSource, /navBottomSheetHalf/);
   assert.match(customerTrackSource, /navBottomSheetExpanded/);
-  assert.match(customerTrackSource, /sheetStyle\(sheetLevel\)/);
+  assert.match(customerTrackSource, /Animated\.View/);
+  assert.match(customerTrackSource, /useWindowDimensions/);
+  assert.match(customerTrackSource, /sheetHeight/);
+  assert.match(customerTrackSource, /nearestSheetLevel/);
+  assert.match(customerTrackSource, /PanResponder/);
+  assert.match(customerTrackSource, /customerSheetPanResponder\.panHandlers/);
+  assert.doesNotMatch(customerTrackSource, /sheetLevelControls/);
+  assert.doesNotMatch(customerTrackSource, /sheetShortLabel/);
   assert.match(providerNavigationSource, /NavigationSheetHeader/);
   assert.match(providerNavigationSource, /navBottomSheetPeek/);
   assert.match(providerNavigationSource, /navBottomSheetHalf/);
   assert.match(providerNavigationSource, /navBottomSheetExpanded/);
-  assert.match(providerNavigationSource, /navigationSheetStyle\(sheetLevel\)/);
+  assert.match(providerNavigationSource, /Animated\.View/);
+  assert.match(providerNavigationSource, /useWindowDimensions/);
+  assert.match(providerNavigationSource, /navigationSheetHeight/);
+  assert.match(providerNavigationSource, /nearestNavigationSheetLevel/);
+  assert.match(providerNavigationSource, /PanResponder/);
+  assert.match(providerNavigationSource, /providerSheetPanResponder\.panHandlers/);
+  assert.match(providerNavigationSource, /ScrollView/);
+  assert.match(providerNavigationSource, /providerSheetScrollContent/);
+  assert.match(
+    providerNavigationSource,
+    /<View \{\.\.\.providerSheetPanResponder\.panHandlers\}>[\s\S]*<NavigationSheetHeader/,
+  );
+  assert.doesNotMatch(
+    providerNavigationSource,
+    /<Animated\.View[^>]*\{\.\.\.providerSheetPanResponder\.panHandlers\}/,
+  );
+  assert.doesNotMatch(providerNavigationSource, /sheetLevelControls/);
+  assert.doesNotMatch(providerNavigationSource, /navigationSheetShortLabel/);
 });
 
 test('tracking map canvas remains absolutely filled behind the sheet', () => {
@@ -282,15 +339,24 @@ test('provider navigation uses first-person WebView drive mode', () => {
   assert.match(providerNavigationSource, /mode="navigation"/);
   assert.match(providerNavigationSource, /navigationOrigin=\{data\.navigationOrigin\}/);
   assert.match(providerNavigationSource, /ProviderNavigationGuidanceBanner/);
+  assert.match(
+    providerNavigationSource,
+    /ProviderNavigationGuidanceBanner[\s\S]*onPress=\{\(\) => onSheetLevelChange\('expanded'\)\}/,
+  );
   assert.match(providerNavigationSource, /ProviderNavigationDriveStats/);
   assert.match(
     providerNavigationViewModelSource,
     /liveLocation\.location\s*\?\?\s*fallbackOrigin\s*\?\?\s*tracking\?\.providerLocation\s*\?\?\s*null/,
   );
   assert.match(providerNavigationViewModelSource, /providerNavigationGuidance/);
+  assert.match(providerNavigationViewModelSource, /directions\?\.steps \?\? \[\]/);
+  assert.doesNotMatch(providerNavigationViewModelSource, /slice\(0, 3\)/);
   assert.match(guidanceSource, /guidance\.maneuverSymbol/);
   assert.match(guidanceSource, /guidance\.distanceLabel/);
   assert.match(guidanceSource, /Then \{guidance\.nextInstruction\}/);
+  assert.match(guidanceSource, /Pressable/);
+  assert.match(guidanceSource, /onPress=\{onPress\}/);
+  assert.match(guidanceSource, /Show detailed turn-by-turn directions/);
   assert.match(htmlSource, /isNavigationMode/);
   assert.match(htmlSource, /cameraBearing/);
   assert.match(htmlSource, /pitch: provider && isNavigationMode \? 62 : 0/);

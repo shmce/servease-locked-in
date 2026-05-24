@@ -10,6 +10,7 @@ export const providerRegistrationStorageKeys = [
 export interface ProviderRegistrationStep1 {
   fullName: string;
   email: string;
+  birthdate: string;
   contactNumber: string;
   password: string;
   confirmPassword?: string;
@@ -18,7 +19,9 @@ export interface ProviderRegistrationStep1 {
 export interface ProviderRegistrationStep2 {
   businessName: string;
   primaryCategory: string;
+  primaryCategoryId?: string;
   subCategory: string;
+  serviceId?: string;
   experienceYears: string;
 }
 
@@ -47,8 +50,10 @@ export interface GatewayProviderRegistrationRequest {
   email: string;
   password: string;
   fullName: string;
+  birthdate: string;
   contactNumber: string | null;
   businessName: string;
+  serviceId: string;
   serviceDescription: string;
   serviceArea: string;
 }
@@ -82,8 +87,10 @@ export function buildGatewayProviderRegistrationPayload(
     email: draft.step1.email.trim(),
     password: draft.step1.password,
     fullName: draft.step1.fullName.trim(),
+    birthdate: draft.step1.birthdate.trim(),
     contactNumber: normalizePhilippineContactNumber(draft.step1.contactNumber),
     businessName: draft.step2.businessName.trim(),
+    serviceId: draft.step2.serviceId?.trim() ?? '',
     serviceDescription: serviceParts.join(' - '),
     serviceArea: areaParts.join(', '),
   };

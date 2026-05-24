@@ -421,7 +421,15 @@ export class SupabaseProviderProfileRepository
       (application) => application.user_id === userId,
     );
 
-    return row ? this.mapProviderApplication(row) : null;
+    if (!row) {
+      return null;
+    }
+
+    const application = this.mapProviderApplication(row);
+    return {
+      ...application,
+      documents: await this.listProviderApplicationDocuments(application),
+    };
   }
 
   private async getProviderApplicationBase(

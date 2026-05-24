@@ -29,6 +29,7 @@ import {
   ProviderPortfolioOrderItem,
   ProviderPortfolioMediaSummary,
   ProviderServiceListing,
+  ServiceAreaSummary,
 } from './catalog.types';
 
 const UUID_PATTERN =
@@ -60,6 +61,17 @@ export class CatalogController {
       this.validateOptionalUuid(categoryId);
       return {
         data: await this.catalogGatewayService.listServices(categoryId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Get('service-areas')
+  async serviceAreas(): Promise<{ data: ServiceAreaSummary[] }> {
+    try {
+      return {
+        data: await this.catalogGatewayService.listServiceAreas(),
       };
     } catch (error) {
       throw this.toHttpException(error);

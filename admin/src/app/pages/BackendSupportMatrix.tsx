@@ -9,13 +9,6 @@ import { Button } from "../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -26,20 +19,10 @@ import {
 
 const statusLabels: Record<BackendSupportStatus, string> = {
   wired: "Wired",
-  partial: "Partial",
-  local: "Local-only",
-  blocked: "Backend needed",
 };
 
 function statusBadge(status: BackendSupportStatus) {
-  const className =
-    status === "wired"
-      ? "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]"
-      : status === "partial"
-        ? "bg-blue-50 text-blue-700 border-blue-200"
-        : status === "local"
-          ? "bg-purple-50 text-purple-700 border-purple-200"
-          : "bg-amber-50 text-amber-700 border-amber-200";
+  const className = "bg-[#DCFCE7] text-[#15803D] border-[#BBF7D0]";
 
   return <Badge className={className}>{statusLabels[status]}</Badge>;
 }
@@ -76,7 +59,6 @@ function exportRows() {
 
 export function BackendSupportMatrix() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
 
   const filteredItems = useMemo(() => {
     const query = searchTerm.toLowerCase();
@@ -94,11 +76,10 @@ export function BackendSupportMatrix() {
         .toLowerCase();
 
       const matchesSearch = !query || searchable.includes(query);
-      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      return matchesSearch;
     });
-  }, [searchTerm, statusFilter]);
+  }, [searchTerm]);
 
   const counts = useMemo(() => {
     return backendSupportMatrix.reduce<Record<BackendSupportStatus, number>>(
@@ -106,7 +87,7 @@ export function BackendSupportMatrix() {
         totals[item.status] += 1;
         return totals;
       },
-      { wired: 0, partial: 0, local: 0, blocked: 0 },
+      { wired: 0 },
     );
   }, []);
 
@@ -116,7 +97,7 @@ export function BackendSupportMatrix() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Backend Support Matrix</h1>
           <p className="text-gray-500 mt-1">
-            Tracks what admin can do today, what is frontend-only, and what needs backend contracts.
+            Tracks the admin capabilities currently wired to backend contracts.
           </p>
         </div>
         <Button onClick={exportRows} className="bg-[#00BF63] hover:bg-[#00A055]">
@@ -148,7 +129,7 @@ export function BackendSupportMatrix() {
           <CardTitle>Admin Backend Coverage</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-4 mb-6">
+          <div className="mb-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
@@ -158,18 +139,6 @@ export function BackendSupportMatrix() {
                 className="pl-9"
               />
             </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="wired">Wired</SelectItem>
-                <SelectItem value="partial">Partial</SelectItem>
-                <SelectItem value="local">Local-only</SelectItem>
-                <SelectItem value="blocked">Backend needed</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="overflow-x-auto border rounded-lg">

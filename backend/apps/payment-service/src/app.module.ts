@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { getBackendEnvFilePaths } from '../../../libs/common/src';
 import { HealthController } from './features/health/health.controller';
 import { PaymentAdminController } from './features/payments/payment-admin.controller';
 import { PaymentAdminService } from './features/payments/payment-admin.service';
@@ -12,7 +13,12 @@ import { SharedPaymentService } from './features/payments/shared-payment.service
 import { SupabasePaymentRepository } from './features/payments/supabase-payment.repository';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: getBackendEnvFilePaths(),
+    }),
+  ],
   controllers: [
     HealthController,
     PaymentController,

@@ -3,6 +3,7 @@ import { formatMoney } from '../../../shared/utils/booking';
 import {
   ProviderAvailabilitySchedule,
   ProviderListing,
+  CustomerAddressSummary,
 } from '../../../shared/models/types';
 import { buildCustomerBookingViewModel } from './useCustomerBookingViewModel';
 
@@ -14,6 +15,8 @@ type CustomerBookingFormViewModelInput = {
   timeSlots: string[];
   bookingSlotError: string;
   address: string;
+  savedAddresses: CustomerAddressSummary[];
+  selectedSavedAddressId: string | null;
   bookingReferencePhotoUrl: string | null;
   busyAction: string | null;
 };
@@ -26,6 +29,8 @@ export function useCustomerBookingFormViewModel({
   timeSlots,
   bookingSlotError,
   address,
+  savedAddresses,
+  selectedSavedAddressId,
   bookingReferencePhotoUrl,
   busyAction,
 }: CustomerBookingFormViewModelInput) {
@@ -39,6 +44,8 @@ export function useCustomerBookingFormViewModel({
         timeSlots,
         bookingSlotError,
         address,
+        savedAddresses,
+        selectedSavedAddressId,
         bookingReferencePhotoUrl,
         busyAction,
       }),
@@ -50,6 +57,8 @@ export function useCustomerBookingFormViewModel({
       hoursRequired,
       provider,
       providerAvailability,
+      savedAddresses,
+      selectedSavedAddressId,
       scheduledAt,
       timeSlots,
     ],
@@ -64,6 +73,8 @@ export function buildCustomerBookingFormViewModel({
   timeSlots,
   bookingSlotError,
   address,
+  savedAddresses,
+  selectedSavedAddressId,
   bookingReferencePhotoUrl,
   busyAction,
 }: CustomerBookingFormViewModelInput) {
@@ -95,7 +106,8 @@ export function buildCustomerBookingFormViewModel({
   const estimatedTotal =
     provider.pricingMode === 'hourly' ? baseRate * duration : baseRate;
   const displayName = provider.providerBusinessName ?? provider.title;
-  const canContinue = missingFields.length === 0;
+  const isPreparingEstimate = busyAction === 'pricing-quote';
+  const canContinue = missingFields.length === 0 && !isPreparingEstimate;
 
   return {
     data: {
@@ -107,17 +119,26 @@ export function buildCustomerBookingFormViewModel({
       providerRatingLabel: `${provider.averageRating.toFixed(1)} star rating`,
       duration,
       canContinue,
+      continueLabel: isPreparingEstimate ? 'Getting estimate...' : 'Continue to Review',
       canVerifyAddress: Boolean(address.trim()) && busyAction !== 'geo-address',
       useCurrentLocationDisabled: busyAction === 'geo-current-location',
       verifyAddressDisabled: !address.trim() || busyAction === 'geo-address',
+      saveAddressDisabled: !address.trim() || busyAction === 'save-address',
       useCurrentLocationLabel:
         busyAction === 'geo-current-location' ? 'Locating...' : 'Use current',
       verifyAddressLabel: busyAction === 'geo-address' ? 'Checking...' : 'Verify address',
+      saveAddressLabel: busyAction === 'save-address' ? 'Saving...' : 'Save as home',
+      savedAddressOptions: savedAddresses.map((item) => ({
+        id: item.id,
+        label: item.isDefault ? `${item.label} (default)` : item.label,
+        address: item.address,
+        isSelected: item.id === selectedSavedAddressId,
+      })),
       footerRateLabel:
         provider.pricingMode === 'hourly'
           ? `${formatMoney(provider.price)} x ${duration}h`
           : 'Service rate',
-      calloutFeeLabel: formatMoney(0),
+      calloutFeeLabel: 'Calculated on review',
       estimatedTotalLabel: formatMoney(estimatedTotal),
       continueNotice: canContinue
         ? null

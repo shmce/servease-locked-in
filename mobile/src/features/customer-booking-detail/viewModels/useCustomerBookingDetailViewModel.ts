@@ -101,8 +101,8 @@ export function buildCustomerBookingDetailViewModel({
             ? 'Payment paid'
             : selectedPayment.paymentMethod === 'cash_on_service'
               ? 'Cash due on service'
-              : 'Payment reserved'
-        : 'Reserve payment',
+              : 'Payment status'
+        : 'Settle payment',
       scheduleLabel: `The service provider will start - ${formatDateTime(
         booking.scheduledAt,
       )}`,

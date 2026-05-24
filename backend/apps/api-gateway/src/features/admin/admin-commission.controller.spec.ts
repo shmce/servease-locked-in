@@ -5,7 +5,9 @@ import { AdminCommissionController } from './admin-commission.controller';
 import { AdminPaymentGatewayService } from './admin-payment.service';
 
 describe('AdminCommissionController', () => {
-  function buildController() {
+  function buildController({
+    auditFailure,
+  }: { auditFailure?: Error } = {}) {
     const authTokenService = {
       authenticate: jest.fn().mockResolvedValue('admin-user-1'),
     } as unknown as AuthTokenService;
@@ -31,11 +33,14 @@ describe('AdminCommissionController', () => {
       }),
     } as unknown as AdminPaymentGatewayService;
     const adminAuditGatewayService = {
-      createAuditLog: jest.fn().mockResolvedValue({ id: 'audit-1' }),
+      createAuditLog: auditFailure
+        ? jest.fn().mockRejectedValue(auditFailure)
+        : jest.fn().mockResolvedValue({ id: 'audit-1' }),
     } as unknown as AdminAuditGatewayService;
 
     return {
       adminPaymentGatewayService,
+      adminAuditGatewayService,
       controller: new AdminCommissionController(
         adminPaymentGatewayService,
         adminAuditGatewayService,
@@ -67,6 +72,29 @@ describe('AdminCommissionController', () => {
       },
     );
     expect(response.data.currentRate).toBe(16);
+  });
+
+  it('keeps commission updates successful when audit logging fails', async () => {
+    const { adminAuditGatewayService, controller } = buildController({
+      auditFailure: new Error('audit unavailable'),
+    });
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.update(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      'platform-default',
+      { currentRate: 16, status: 'active' },
+    );
+
+    expect(adminAuditGatewayService.createAuditLog).toHaveBeenCalled();
+    expect(response.data.currentRate).toBe(16);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not create commission rule audit log'),
+    );
+    warnSpy.mockRestore();
   });
 
   it('rejects invalid commission rates before calling admin service', async () => {

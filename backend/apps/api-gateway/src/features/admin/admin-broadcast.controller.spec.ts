@@ -208,4 +208,64 @@ describe('AdminBroadcastController', () => {
       failedCount: 0,
     });
   });
+
+  it('keeps broadcast creation successful when audit logging fails', async () => {
+    const adminUsersGatewayService = {
+      listUsers: jest.fn().mockResolvedValue([]),
+    } as unknown as AdminUsersGatewayService;
+    const notificationServiceClient = {
+      createNotification: jest.fn(),
+    } as unknown as NotificationServiceClient;
+    const adminAuditGatewayService = {
+      createAuditLog: jest
+        .fn()
+        .mockRejectedValue(new Error('audit unavailable')),
+    } as unknown as AdminAuditGatewayService;
+    const adminServiceClient = {
+      createBroadcast: jest.fn().mockImplementation((input) =>
+        Promise.resolve({
+          id: 'broadcast-1',
+          ...input,
+          sentAt: '2026-05-17T00:00:00.000Z',
+          createdAt: '2026-05-17T00:00:00.000Z',
+        }),
+      ),
+    } as unknown as AdminServiceClient;
+    const controller = new AdminBroadcastController(
+      { authenticate: jest.fn().mockResolvedValue('admin-1') } as unknown as AuthTokenService,
+      {
+        getCurrentUser: jest.fn().mockResolvedValue({
+          user: {
+            id: 'admin-1',
+            email: 'admin@servease.test',
+            fullName: 'Admin User',
+            role: 'admin',
+          },
+        }),
+      } as unknown as CurrentUserService,
+      adminUsersGatewayService,
+      notificationServiceClient,
+      adminAuditGatewayService,
+      adminServiceClient,
+    );
+    const warnSpy = jest
+      .spyOn(controller['logger'], 'warn')
+      .mockImplementation(() => undefined);
+
+    const response = await controller.create(
+      'Bearer token',
+      { headers: {}, socket: {} },
+      {
+        audience: 'customers',
+        title: 'Holiday schedule',
+        message: 'ServEase support hours are updated this week.',
+      },
+    );
+
+    expect(response.data.id).toBe('broadcast-1');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not create broadcast audit log'),
+    );
+    warnSpy.mockRestore();
+  });
 });

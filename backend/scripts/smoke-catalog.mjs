@@ -1,10 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
-import { config } from 'dotenv';
+import { loadBackendEnv } from './load-backend-env.mjs';
 import process from 'node:process';
 
-config({ path: '../.env' });
-config({ path: '.env', override: false });
+loadBackendEnv();
 
 for (const key of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
   if (!process.env[key]) {
@@ -31,10 +30,14 @@ const seeded = {
 };
 
 async function main() {
-  const { data, error } = await serviceClient.rpc('servease_smoke_seed_catalog');
+  const { data, error } = await serviceClient.rpc(
+    'servease_smoke_seed_catalog',
+  );
 
   if (error || !data) {
-    throw new Error(`Failed to seed catalog smoke data: ${error?.message ?? 'missing seed data'}`);
+    throw new Error(
+      `Failed to seed catalog smoke data: ${error?.message ?? 'missing seed data'}`,
+    );
   }
 
   seeded.categoryId = data.categoryId;
@@ -44,7 +47,9 @@ async function main() {
   await startService('catalog-service', 8503);
   await startService('api-gateway', 5001);
 
-  const categories = await getData('http://localhost:5001/v1/catalog/categories');
+  const categories = await getData(
+    'http://localhost:5001/v1/catalog/categories',
+  );
   assertContains(categories, seeded.categoryId, 'category');
 
   const services = await getData(
@@ -77,7 +82,9 @@ async function getData(url) {
   const body = await response.json();
 
   if (!response.ok) {
-    throw new Error(`${url} failed with ${response.status}: ${JSON.stringify(body)}`);
+    throw new Error(
+      `${url} failed with ${response.status}: ${JSON.stringify(body)}`,
+    );
   }
 
   return body.data;

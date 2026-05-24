@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   HttpException,
+  Logger,
   Param,
   Patch,
   Post,
@@ -42,6 +43,8 @@ const validPayoutStatuses = new Set([
 
 @Controller('v1/admin/payments')
 export class AdminPaymentController {
+  private readonly logger = new Logger(AdminPaymentController.name);
+
   constructor(
     private readonly adminPaymentGatewayService: AdminPaymentGatewayService,
     private readonly adminAuditGatewayService: AdminAuditGatewayService,
@@ -433,7 +436,15 @@ export class AdminPaymentController {
         ipAddress: this.getClientIp(request),
         metadata: input.metadata,
       })
-      .catch(() => undefined);
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `Could not create payment audit log for ${input.entityType} ${input.entityId}: ${this.errorMessage(error)}`,
+        );
+      });
+  }
+
+  private errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private getClientIp(request: {
