@@ -1,0 +1,58 @@
+flowchart TD
+  start([Provider wants paid work])
+
+  subgraph setup["Prepare to receive jobs"]
+    signin["Sign in as provider"]
+    profile["Load provider profile and application state"]
+    application{"Application approved?"}
+    documents["Submit required documents"]
+    services["Maintain services, pricing, profile, and portfolio"]
+    availability["Set weekly availability, days off, and time off"]
+  end
+
+  subgraph request["Handle request"]
+    jobs["Open Jobs tab"]
+    pending["Review pending request card"]
+    inspect["Open booking detail"]
+    decide{"Accept job?"}
+    decline["Decline with reason"]
+    accept["Confirm booking"]
+    message["Message customer if details are unclear"]
+  end
+
+  subgraph delivery["Deliver service"]
+    calendar["See confirmed work on calendar"]
+    navigate["Open navigation mode"]
+    startJob["Start service"]
+    progress["Update live progress and tracking"]
+    issue{"Issue during job?"}
+    report["Report issue or contact support"]
+    complete["Mark service complete"]
+  end
+
+  subgraph earnings["Close out payment"]
+    receipt["Review service receipt"]
+    payout["Check payout and fees"]
+    requestPayout{"Payout available?"}
+    paid["Request payout or monitor pending payout"]
+    insights["Review earnings and job insights"]
+  end
+
+  start --> signin --> profile --> application
+  application -->|No| documents --> profile
+  application -->|Yes| services --> availability --> jobs
+  jobs --> pending --> inspect --> decide
+  decide -->|No| decline --> jobs
+  decide -->|Yes| accept --> message --> calendar --> navigate --> startJob --> progress --> issue
+  issue -->|Yes| report --> progress
+  issue -->|No| complete
+  complete --> receipt --> payout --> requestPayout
+  requestPayout -->|Yes| paid --> insights
+  requestPayout -->|No| insights
+
+  classDef action fill:#f8fafc,stroke:#64748b,color:#111827;
+  classDef decision fill:#fefce8,stroke:#ca8a04,color:#111827;
+  classDef endpoint fill:#ecfdf5,stroke:#16a34a,color:#111827;
+  class signin,profile,documents,services,availability,jobs,pending,inspect,decline,accept,message,calendar,navigate,startJob,progress,report,complete,receipt,payout,paid,insights action;
+  class application,decide,issue,requestPayout decision;
+  class start endpoint;

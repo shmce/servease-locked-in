@@ -1,4 +1,4 @@
-const LOCAL_GATEWAY_BASE_URL = 'http://localhost:5001';
+const LOCAL_GATEWAY_BASE_URL = 'http://localhost:5002';
 
 function normalizeGatewayBaseUrl(value: string | undefined): string | null {
   const normalized = value?.trim().replace(/\/$/, '');

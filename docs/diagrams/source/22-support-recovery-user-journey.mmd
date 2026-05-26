@@ -1,0 +1,68 @@
+flowchart TD
+  start([Customer or provider hits a problem])
+
+  subgraph detect["Detect issue"]
+    bookingDetail["Open booking detail"]
+    identify["Identify issue type"]
+    type{"Issue category"}
+    schedule["Schedule or cancellation problem"]
+    payment["Payment, refund, or payout problem"]
+    service["Service quality or safety problem"]
+    technical["App, auth, notification, or upload problem"]
+  end
+
+  subgraph selfserve["Try self-service"]
+    allowed{"Self-service action allowed?"}
+    cancel["Cancel or change booking"]
+    message["Message counterparty"]
+    retry["Retry failed payment or upload"]
+    unresolved{"Resolved?"}
+  end
+
+  subgraph ticket["Create support ticket"]
+    form["Open Help or Report issue"]
+    context["Attach booking context and evidence"]
+    submit["Submit support ticket"]
+    queued["Ticket appears in support queue"]
+  end
+
+  subgraph admin["Support operations"]
+    triage["Admin reviews queue"]
+    assign["Assign owner and status"]
+    investigate["Inspect booking, payment, messages, and evidence"]
+    decision{"Outcome"}
+    update["Reply to user and update status"]
+  end
+
+  subgraph close["Resolution"]
+    notify["User receives notification"]
+    userReply{"User needs follow-up?"}
+    reply["User replies in ticket thread"]
+    closed["Ticket closed or resolved"]
+    audit["Resolution remains in support history"]
+  end
+
+  start --> bookingDetail --> identify --> type
+  type -->|Schedule| schedule --> allowed
+  type -->|Payment| payment --> allowed
+  type -->|Service| service --> allowed
+  type -->|Technical| technical --> allowed
+  allowed -->|Yes| cancel --> unresolved
+  allowed -->|Yes| message --> unresolved
+  allowed -->|Yes| retry --> unresolved
+  allowed -->|No| form
+  unresolved -->|Yes| closed
+  unresolved -->|No| form
+  form --> context --> submit --> queued --> triage --> assign --> investigate --> decision
+  decision -->|Refund, booking change, guidance, or escalation| update --> notify --> userReply
+  userReply -->|Yes| reply --> investigate
+  userReply -->|No| closed --> audit
+
+  classDef action fill:#f8fafc,stroke:#64748b,color:#111827;
+  classDef decision fill:#fff7ed,stroke:#ea580c,color:#111827;
+  classDef support fill:#eff6ff,stroke:#2563eb,color:#111827;
+  classDef endpoint fill:#ecfdf5,stroke:#16a34a,color:#111827;
+  class bookingDetail,identify,schedule,payment,service,technical,cancel,message,retry,form,context,submit,queued,triage,assign,investigate,update,notify,reply,closed,audit action;
+  class type,allowed,unresolved,decision,userReply decision;
+  class form,context,submit,queued,triage,assign,investigate,update support;
+  class start endpoint;
