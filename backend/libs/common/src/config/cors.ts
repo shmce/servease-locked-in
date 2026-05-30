@@ -16,6 +16,7 @@ const LOCAL_DEVELOPMENT_ORIGINS = [
   'http://localhost:8082',
   'http://localhost:8083',
   'http://localhost:8084',
+  'http://localhost:8099',
   'http://localhost:19006',
 ];
 
