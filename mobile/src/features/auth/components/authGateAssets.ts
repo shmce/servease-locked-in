@@ -13,6 +13,24 @@ export const authReferenceDecorativePlate: AuthReferenceDecorativePlate = {
   intrinsicSize: { width: 851, height: 1847 },
 };
 
+export type AuthReferenceBrandAsset = {
+  source: ImageSourcePropType;
+  intrinsicSize: {
+    width: number;
+    height: number;
+  };
+};
+
+export const authReferenceBrandMark: AuthReferenceBrandAsset = {
+  source: require('../../../../assets/auth/auth-brand-mark.png'),
+  intrinsicSize: { width: 185, height: 222 },
+};
+
+export const authReferenceWordmark: AuthReferenceBrandAsset = {
+  source: require('../../../../assets/auth/auth-wordmark.png'),
+  intrinsicSize: { width: 594, height: 91 },
+};
+
 export type AuthDecorativeAssetLayerId =
   | 'pliers'
   | 'brush'

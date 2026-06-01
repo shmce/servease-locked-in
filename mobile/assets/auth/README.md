@@ -1,5 +1,11 @@
 # Auth visual assets
 
+## auth-brand-mark.png and auth-wordmark.png
+
+Reference-derived transparent PNG assets cropped from the provided target auth screen so the entry screen can reproduce the ServEase brand mark and custom wordmark faithfully instead of approximating them with native text or SVG paths.
+
+These assets are brand presentation only. The auth gate keeps the accessible heading label (`ServEase`) in React Native, and the sign-up/login CTAs remain native pressable controls.
+
 ## auth-reference-decorative-plate.png
 
 Generated with the built-in image generation workflow for the reference-composition auth gate pass at the target auth screen ratio (`430:932`). This is the preferred decorative background for the auth gate.

@@ -10,16 +10,25 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { ArrowRight, Cog } from 'lucide-react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { ArrowRight } from 'lucide-react-native';
 import { PhoneFrame } from '../../../components/DesignKit';
 import { AppRole, AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
-import { authReferenceDecorativePlate } from './authGateAssets';
+import {
+  authReferenceBrandMark,
+  authReferenceDecorativePlate,
+  authReferenceWordmark,
+} from './authGateAssets';
 
 const authGatePlateAspectRatio =
   authReferenceDecorativePlate.intrinsicSize.width /
   authReferenceDecorativePlate.intrinsicSize.height;
+const authGateBrandMarkAspectRatio =
+  authReferenceBrandMark.intrinsicSize.width /
+  authReferenceBrandMark.intrinsicSize.height;
+const authGateWordmarkAspectRatio =
+  authReferenceWordmark.intrinsicSize.width /
+  authReferenceWordmark.intrinsicSize.height;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -82,39 +91,34 @@ function AuthGateDecorations({ plateStyle }: { plateStyle: StyleProp<ImageStyle>
   );
 }
 
-function AuthGateBrandMark() {
+function AuthGateBrandMark({ width }: { width: number }) {
+  const height = Math.round(width / authGateBrandMarkAspectRatio);
+
   return (
-    <Svg height={96} width={94} viewBox="0 0 104 106" pointerEvents="none">
-      <Path
-        d="M18 57V43.2c0-5.3 2.4-10.2 6.4-13.4L43.9 14c4.8-3.9 11.6-3.9 16.4 0l19.5 15.8c4 3.2 6.4 8.1 6.4 13.4v31.4c0 6.3-5.1 11.4-11.4 11.4H68"
-        fill="none"
-        stroke={palette.mint}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={12}
-      />
-      <Path
-        d="M52 39.5c-14.6 0-26.5 11.8-26.5 26.3C25.5 86 52 103 52 103s26.5-17 26.5-37.2c0-14.5-11.9-26.3-26.5-26.3Z"
-        fill={palette.mint}
-      />
-      <Circle cx={52} cy={65.6} fill={palette.white} r={9.8} />
-    </Svg>
+    <Image
+      source={authReferenceBrandMark.source}
+      style={[styles.authGateBrandMarkImage, { height, width }]}
+      resizeMode="contain"
+      accessible={false}
+    />
   );
 }
 
-function AuthGateWordmark() {
+function AuthGateWordmark({ width }: { width: number }) {
+  const height = Math.round(width / authGateWordmarkAspectRatio);
+
   return (
     <View
       style={styles.authGateWordmark}
       accessibilityRole="header"
       accessibilityLabel="ServEase"
     >
-      <Text style={[styles.authGateLogoText, styles.authGateLogoServ]}>s</Text>
-      <View style={styles.authGateGearLetter} accessible={false}>
-        <Cog color={palette.mint} size={28} strokeWidth={3.4} />
-      </View>
-      <Text style={[styles.authGateLogoText, styles.authGateLogoServ]}>rv</Text>
-      <Text style={[styles.authGateLogoText, styles.authGateLogoEase]}>ease</Text>
+      <Image
+        source={authReferenceWordmark.source}
+        style={[styles.authGateWordmarkImage, { height, width }]}
+        resizeMode="contain"
+        accessible={false}
+      />
     </View>
   );
 }
@@ -128,6 +132,8 @@ export function AuthGate({
   const plateStyle = buildAuthGatePlateStyle(width, height);
   const contentStyle = buildAuthGateContentStyle(height);
   const actionWidth = clamp(width - 88, 280, 324);
+  const brandMarkWidth = clamp(width * 0.22, 88, 100);
+  const wordmarkWidth = clamp(width * 0.708, 292, 324);
   const copyWidth = clamp(width - 94, 258, 296);
   const footerWidth = clamp(width - 100, 260, 288);
 
@@ -142,9 +148,9 @@ export function AuthGate({
         >
           <View style={styles.authGateBrandBlock}>
             <View style={styles.authGateMark} pointerEvents="none">
-              <AuthGateBrandMark />
+              <AuthGateBrandMark width={brandMarkWidth} />
             </View>
-            <AuthGateWordmark />
+            <AuthGateWordmark width={wordmarkWidth} />
             <Text style={[styles.authGateTagline, { maxWidth: copyWidth }]}>
               Finding and connecting with trusted local professionals around you.
             </Text>
@@ -209,42 +215,23 @@ const styles = StyleSheet.create({
   },
   authGateBrandBlock: {
     alignItems: 'center',
-    gap: 16,
+    gap: 20,
     maxWidth: 340,
     width: '88%',
   },
   authGateMark: {
     alignItems: 'center',
-    height: 98,
     justifyContent: 'center',
-    marginBottom: 6,
-    width: 104,
+  },
+  authGateBrandMarkImage: {
+    alignSelf: 'center',
   },
   authGateWordmark: {
     alignItems: 'center',
-    flexDirection: 'row',
     justifyContent: 'center',
   },
-  authGateLogoText: {
-    fontSize: 48,
-    fontWeight: '900',
-    letterSpacing: 0,
-    lineHeight: 54,
-    textAlign: 'center',
-  },
-  authGateGearLetter: {
-    alignItems: 'center',
-    height: 38,
-    justifyContent: 'center',
-    marginHorizontal: -1,
-    marginTop: 6,
-    width: 31,
-  },
-  authGateLogoServ: {
-    color: palette.mint,
-  },
-  authGateLogoEase: {
-    color: '#103C2C',
+  authGateWordmarkImage: {
+    alignSelf: 'center',
   },
   authGateTagline: {
     color: '#34443E',
