@@ -1,0 +1,912 @@
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Check } from 'lucide-react-native';
+import {
+  Field,
+  PhoneFrame,
+  PrimaryButton,
+  StatusStrip,
+  TopBar,
+} from '../../../components/DesignKit';
+import { MonthCalendar } from '../../../components/MonthCalendar';
+import { providerSignupRequirements } from '../../../domain/providerRegistration';
+import { AppRole, AppScreen } from '../../../navigation/types';
+import { CatalogCategory, CatalogServiceItem } from '../../../shared/models/types';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import {
+  AuthContent,
+  AuthHeader,
+  AuthNotice,
+  AuthPanel,
+  SocialButton,
+} from './AuthShared';
+
+export function AuthRegistrationScreen({
+  screen,
+  signupStep,
+  providerBirthdateMaxDate,
+  email,
+  password,
+  signupFullName,
+  signupContactNumber,
+  signupAddress,
+  signupBusinessName,
+  signupBirthdate,
+  signupServiceArea,
+  signupServiceDescription,
+  signupExperienceYears,
+  signupServiceId,
+  categories,
+  services,
+  notice,
+  busyAction,
+  setSignupStep,
+  setEmail,
+  setPassword,
+  setSignupFullName,
+  setSignupContactNumber,
+  setSignupAddress,
+  setSignupBusinessName,
+  setSignupBirthdate,
+  setSignupServiceArea,
+  setSignupServiceDescription,
+  setSignupExperienceYears,
+  setSignupServiceId,
+  navigate,
+  signUp,
+  startGoogleSignIn,
+}: {
+  screen: 'customerRegistration' | 'providerRegistration';
+  signupStep: number;
+  providerBirthdateMaxDate: string;
+  email: string;
+  password: string;
+  signupFullName: string;
+  signupContactNumber: string;
+  signupAddress: string;
+  signupBusinessName: string;
+  signupBirthdate: string;
+  signupServiceArea: string;
+  signupServiceDescription: string;
+  signupExperienceYears: string;
+  signupServiceId: string;
+  categories: CatalogCategory[];
+  services: CatalogServiceItem[];
+  notice: string;
+  busyAction: string | null;
+  setSignupStep: Dispatch<SetStateAction<number>>;
+  setEmail: Dispatch<SetStateAction<string>>;
+  setPassword: Dispatch<SetStateAction<string>>;
+  setSignupFullName: Dispatch<SetStateAction<string>>;
+  setSignupContactNumber: Dispatch<SetStateAction<string>>;
+  setSignupAddress: Dispatch<SetStateAction<string>>;
+  setSignupBusinessName: Dispatch<SetStateAction<string>>;
+  setSignupBirthdate: Dispatch<SetStateAction<string>>;
+  setSignupServiceArea: Dispatch<SetStateAction<string>>;
+  setSignupServiceDescription: Dispatch<SetStateAction<string>>;
+  setSignupExperienceYears: Dispatch<SetStateAction<string>>;
+  setSignupServiceId: Dispatch<SetStateAction<string>>;
+  navigate: (screen: AppScreen, nextRole?: AppRole | null) => void;
+  signUp: (role: AppRole) => Promise<void>;
+  startGoogleSignIn: (role: AppRole, flow?: 'login' | 'registration') => Promise<void>;
+}) {
+  const intendedRole: AppRole = screen === 'providerRegistration' ? 'provider' : 'customer';
+  const isProvider = intendedRole === 'provider';
+  const signupSteps = isProvider
+    ? ['Account', 'Eligibility', 'Service']
+    : ['Account', 'Address'];
+  const stepCount = signupSteps.length;
+  const clampedStep = Math.min(signupStep, stepCount - 1);
+  const isLastStep = clampedStep === stepCount - 1;
+  const stepTitle = signupSteps[clampedStep];
+  const stepSubtitle = isProvider
+    ? getProviderSignupStepSubtitle(clampedStep)
+    : getCustomerSignupStepSubtitle(clampedStep);
+  const roleLabel = isProvider ? 'Provider account' : 'Customer account';
+  const title = isProvider ? 'Set up provider access' : 'Create customer access';
+  const finalButtonLabel = busyAction === 'sign-up' ? 'Creating account...' : 'Create Account';
+  const goBack = () => {
+    if (clampedStep > 0) {
+      setSignupStep((step) => Math.max(step - 1, 0));
+      return;
+    }
+
+    navigate('signupRole', null);
+  };
+  const goNext = () => setSignupStep((step) => Math.min(step + 1, stepCount - 1));
+
+  return (
+    <PhoneFrame>
+      <StatusStrip />
+      <TopBar title="Create account" subtitle={roleLabel} onBack={goBack} />
+      <AuthContent>
+        <AuthHeader eyebrow={roleLabel} title={title} body={stepSubtitle} />
+        <SignupProgress currentStep={clampedStep} steps={signupSteps} />
+        <AuthPanel>
+          <SignupStepHeader
+            title={stepTitle}
+            countLabel={`Step ${clampedStep + 1} of ${stepCount}`}
+          />
+          {clampedStep === 0 ? (
+            <>
+              <SignupAccountFields
+                email={email}
+                password={password}
+                signupFullName={signupFullName}
+                signupContactNumber={signupContactNumber}
+                setEmail={setEmail}
+                setPassword={setPassword}
+                setSignupFullName={setSignupFullName}
+                setSignupContactNumber={setSignupContactNumber}
+              />
+              <SocialButton
+                label={busyAction === 'google-auth' ? 'Opening Google...' : 'Verify with Google'}
+                onPress={() => void startGoogleSignIn(intendedRole, 'registration')}
+                disabled={busyAction === 'google-auth'}
+              />
+            </>
+          ) : null}
+          {!isProvider && clampedStep === 1 ? (
+            <Field
+              label="Default Address"
+              value={signupAddress}
+              onChangeText={setSignupAddress}
+              placeholder="Unit, street, city"
+              multiline
+            />
+          ) : null}
+          {isProvider && clampedStep === 1 ? (
+            <ProviderEligibilityStep
+              signupBirthdate={signupBirthdate}
+              setSignupBirthdate={setSignupBirthdate}
+              providerBirthdateMaxDate={providerBirthdateMaxDate}
+            />
+          ) : null}
+          {isProvider && clampedStep === 2 ? (
+            <ProviderServiceStep
+              signupBusinessName={signupBusinessName}
+              signupServiceArea={signupServiceArea}
+              signupExperienceYears={signupExperienceYears}
+              signupServiceDescription={signupServiceDescription}
+              signupServiceId={signupServiceId}
+              categories={categories}
+              services={services}
+              setSignupBusinessName={setSignupBusinessName}
+              setSignupServiceArea={setSignupServiceArea}
+              setSignupExperienceYears={setSignupExperienceYears}
+              setSignupServiceDescription={setSignupServiceDescription}
+              setSignupServiceId={setSignupServiceId}
+            />
+          ) : null}
+        </AuthPanel>
+        <SignupStepActions
+          canGoBack={clampedStep > 0}
+          isLastStep={isLastStep}
+          busy={busyAction === 'sign-up'}
+          finalButtonLabel={finalButtonLabel}
+          onBack={goBack}
+          onNext={goNext}
+          onSubmit={() => void signUp(intendedRole)}
+        />
+        <AuthNotice notice={notice} />
+      </AuthContent>
+    </PhoneFrame>
+  );
+}
+
+function getProviderSignupStepSubtitle(step: number): string {
+  if (step === 0) {
+    return 'Start with your login and contact details';
+  }
+
+  if (step === 1) {
+    return 'Confirm your provider eligibility';
+  }
+
+  return 'Describe the service customers will book';
+}
+
+function getCustomerSignupStepSubtitle(step: number): string {
+  if (step === 0) {
+    return 'Start with your login and contact details';
+  }
+
+  return 'Add where providers should serve you';
+}
+
+function SignupProgress({
+  currentStep,
+  steps,
+}: {
+  currentStep: number;
+  steps: string[];
+}) {
+  return (
+    <View
+      style={styles.signupProgress}
+      accessibilityLabel={`Registration progress: step ${currentStep + 1} of ${steps.length}`}
+    >
+      {steps.map((step, index) => {
+        const isActive = index === currentStep;
+        const isComplete = index < currentStep;
+
+        return (
+          <View key={step} style={styles.progressStep}>
+            <View
+              style={[
+                styles.progressDot,
+                (isActive || isComplete) && styles.progressDotActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.progressDotText,
+                  (isActive || isComplete) && styles.progressDotTextActive,
+                ]}
+              >
+                {index + 1}
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.progressLabel,
+                isActive && styles.progressLabelActive,
+              ]}
+              numberOfLines={1}
+            >
+              {step}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function SignupStepHeader({
+  title,
+  countLabel,
+}: {
+  title: string;
+  countLabel: string;
+}) {
+  return (
+    <View style={styles.signupStepHeader}>
+      <Text style={styles.signupStepTitle}>{title}</Text>
+      <Text style={styles.signupStepCount}>{countLabel}</Text>
+    </View>
+  );
+}
+
+function SignupAccountFields({
+  email,
+  password,
+  signupFullName,
+  signupContactNumber,
+  setEmail,
+  setPassword,
+  setSignupFullName,
+  setSignupContactNumber,
+}: {
+  email: string;
+  password: string;
+  signupFullName: string;
+  signupContactNumber: string;
+  setEmail: Dispatch<SetStateAction<string>>;
+  setPassword: Dispatch<SetStateAction<string>>;
+  setSignupFullName: Dispatch<SetStateAction<string>>;
+  setSignupContactNumber: Dispatch<SetStateAction<string>>;
+}) {
+  return (
+    <>
+      <Field
+        label="Full Name"
+        value={signupFullName}
+        onChangeText={setSignupFullName}
+        placeholder="Juan Dela Cruz"
+      />
+      <Field
+        label="Email Address"
+        value={email}
+        onChangeText={setEmail}
+        keyboardType="email-address"
+        placeholder="your.email@example.com"
+      />
+      <Field
+        label="Password"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+        placeholder="At least 8 characters"
+      />
+      <Field
+        label="Contact Number"
+        value={signupContactNumber}
+        onChangeText={setSignupContactNumber}
+        keyboardType="phone-pad"
+        placeholder="+639000000000"
+      />
+    </>
+  );
+}
+
+function ProviderEligibilityStep({
+  signupBirthdate,
+  setSignupBirthdate,
+  providerBirthdateMaxDate,
+}: {
+  signupBirthdate: string;
+  setSignupBirthdate: Dispatch<SetStateAction<string>>;
+  providerBirthdateMaxDate: string;
+}) {
+  return (
+    <>
+      <ProviderRequirementsCard />
+      <View style={styles.birthdatePicker}>
+        <Text style={styles.birthdateLabel}>Birthdate</Text>
+        <Text style={styles.birthdateValue}>
+          {signupBirthdate || 'Select your birthdate'}
+        </Text>
+        <MonthCalendar
+          selectedDate={signupBirthdate || null}
+          onSelectDate={setSignupBirthdate}
+          maxDate={providerBirthdateMaxDate}
+          initialMonth={signupBirthdate || providerBirthdateMaxDate}
+          showMonthYearPicker
+        />
+      </View>
+    </>
+  );
+}
+
+function ProviderServiceStep({
+  signupBusinessName,
+  signupServiceArea,
+  signupExperienceYears,
+  signupServiceDescription,
+  signupServiceId,
+  categories,
+  services,
+  setSignupBusinessName,
+  setSignupServiceArea,
+  setSignupExperienceYears,
+  setSignupServiceDescription,
+  setSignupServiceId,
+}: {
+  signupBusinessName: string;
+  signupServiceArea: string;
+  signupExperienceYears: string;
+  signupServiceDescription: string;
+  signupServiceId: string;
+  categories: CatalogCategory[];
+  services: CatalogServiceItem[];
+  setSignupBusinessName: Dispatch<SetStateAction<string>>;
+  setSignupServiceArea: Dispatch<SetStateAction<string>>;
+  setSignupExperienceYears: Dispatch<SetStateAction<string>>;
+  setSignupServiceDescription: Dispatch<SetStateAction<string>>;
+  setSignupServiceId: Dispatch<SetStateAction<string>>;
+}) {
+  const selectedService = services.find((service) => service.id === signupServiceId);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>(
+    selectedService?.categoryId ?? '',
+  );
+  const categoriesWithServices = useMemo(
+    () =>
+      categories.filter((category) =>
+        services.some((service) => service.categoryId === category.id),
+      ),
+    [categories, services],
+  );
+  const categoryServices = useMemo(
+    () =>
+      services.filter((service) => service.categoryId === selectedCategoryId),
+    [selectedCategoryId, services],
+  );
+  const selectedCategory = categoriesWithServices.find(
+    (category) => category.id === selectedCategoryId,
+  );
+
+  useEffect(() => {
+    if (selectedService?.categoryId && selectedService.categoryId !== selectedCategoryId) {
+      setSelectedCategoryId(selectedService.categoryId);
+    }
+  }, [selectedCategoryId, selectedService?.categoryId]);
+
+  const chooseCategory = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setSignupServiceId('');
+  };
+  const chooseService = (service: CatalogServiceItem) => {
+    setSignupServiceId(service.id);
+    if (!signupServiceDescription.trim()) {
+      setSignupServiceDescription(service.name);
+    }
+  };
+
+  return (
+    <>
+      <Field
+        label="Business Name"
+        value={signupBusinessName}
+        onChangeText={setSignupBusinessName}
+        placeholder="GreenFix Home Services"
+      />
+      <View style={styles.catalogPicker}>
+        <View style={styles.catalogSection}>
+          <View style={styles.catalogHeader}>
+            <View style={styles.catalogHeaderCopy}>
+              <Text style={styles.catalogPickerLabel}>Category</Text>
+              <Text style={styles.catalogPickerHint}>Choose the type of work you offer.</Text>
+            </View>
+            {selectedCategory ? (
+              <Text style={styles.catalogHeaderMeta}>
+                {categoryServices.length} service{categoryServices.length === 1 ? '' : 's'}
+              </Text>
+            ) : null}
+          </View>
+          {categoriesWithServices.length ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryScroller}
+            >
+              {categoriesWithServices.map((category) => (
+                <Pressable
+                  key={category.id}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: selectedCategoryId === category.id }}
+                  style={[
+                    styles.categoryChip,
+                    selectedCategoryId === category.id && styles.categoryChipSelected,
+                  ]}
+                  onPress={() => chooseCategory(category.id)}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.categoryChipText,
+                      selectedCategoryId === category.id && styles.categoryChipTextSelected,
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          ) : (
+            <Text style={styles.catalogEmptyText}>
+              Catalog categories are loading. Try again in a moment.
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.catalogSection}>
+          <View style={styles.catalogHeader}>
+            <View style={styles.catalogHeaderCopy}>
+              <Text style={styles.catalogPickerLabel}>Service</Text>
+              <Text style={styles.catalogPickerHint}>
+                Pick the specific service customers will book, or choose it later.
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: !signupServiceId }}
+            style={[
+              styles.serviceChoice,
+              !signupServiceId && styles.serviceChoiceSelected,
+            ]}
+            onPress={() => {
+              setSelectedCategoryId('');
+              setSignupServiceId('');
+            }}
+          >
+            <View style={styles.serviceChoiceBody}>
+              <Text
+                style={[
+                  styles.serviceChoiceTitle,
+                  !signupServiceId && styles.serviceChoiceTitleSelected,
+                ]}
+              >
+                Decide later
+              </Text>
+              <Text style={styles.serviceChoiceMeta}>
+                Create your account now and complete service details before admin approval.
+              </Text>
+            </View>
+            {!signupServiceId ? (
+              <View style={styles.serviceChoiceCheck}>
+                <Check color={palette.white} size={13} strokeWidth={3} />
+              </View>
+            ) : null}
+          </Pressable>
+          {selectedCategoryId ? (
+            <View style={styles.serviceChoiceList}>
+              {categoryServices.map((service) => {
+                const selected = signupServiceId === service.id;
+
+                return (
+                  <Pressable
+                    key={service.id}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    style={[
+                      styles.serviceChoice,
+                      selected && styles.serviceChoiceSelected,
+                    ]}
+                    onPress={() => chooseService(service)}
+                  >
+                    <View style={styles.serviceChoiceBody}>
+                      <Text
+                        style={[
+                          styles.serviceChoiceTitle,
+                          selected && styles.serviceChoiceTitleSelected,
+                        ]}
+                      >
+                        {service.name}
+                      </Text>
+                      {service.description ? (
+                        <Text style={styles.serviceChoiceMeta}>
+                          {service.description}
+                        </Text>
+                      ) : null}
+                    </View>
+                    {selected ? (
+                      <View style={styles.serviceChoiceCheck}>
+                        <Check color={palette.white} size={13} strokeWidth={3} />
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
+              {!categoryServices.length ? (
+                <Text style={styles.catalogEmptyText}>
+                  No catalog services are available for this category yet.
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <Text style={styles.catalogEmptyText}>
+              Select a category to see available services.
+            </Text>
+          )}
+        </View>
+      </View>
+      <Field
+        label="Service Area"
+        value={signupServiceArea}
+        onChangeText={setSignupServiceArea}
+        placeholder="Metro Manila"
+      />
+      <Field
+        label="Years of Experience"
+        value={signupExperienceYears}
+        onChangeText={setSignupExperienceYears}
+        keyboardType="numeric"
+        placeholder="3"
+      />
+      <Field
+        label="Service Description"
+        value={signupServiceDescription}
+        onChangeText={setSignupServiceDescription}
+        placeholder="Tell customers what you offer"
+        multiline
+      />
+    </>
+  );
+}
+
+function SignupStepActions({
+  canGoBack,
+  isLastStep,
+  busy,
+  finalButtonLabel,
+  onBack,
+  onNext,
+  onSubmit,
+}: {
+  canGoBack: boolean;
+  isLastStep: boolean;
+  busy: boolean;
+  finalButtonLabel: string;
+  onBack: () => void;
+  onNext: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <View style={styles.signupActions}>
+      {canGoBack ? (
+        <View style={styles.signupActionButton}>
+          <PrimaryButton
+            label="Back"
+            onPress={onBack}
+            disabled={busy}
+            variant="secondary"
+          />
+        </View>
+      ) : null}
+      <View style={styles.signupActionButton}>
+        <PrimaryButton
+          label={isLastStep ? finalButtonLabel : 'Next'}
+          onPress={isLastStep ? onSubmit : onNext}
+          disabled={busy}
+        />
+      </View>
+    </View>
+  );
+}
+
+function ProviderRequirementsCard() {
+  return (
+    <View style={styles.requirementsCard}>
+      <Text style={styles.requirementsTitle}>Required for admin approval</Text>
+      {providerSignupRequirements.map((requirement) => (
+        <View key={requirement} style={styles.requirementRow}>
+          <View style={styles.requirementIcon}>
+            <Check color={palette.mint} size={12} strokeWidth={3} />
+          </View>
+          <Text style={styles.requirementText}>{requirement}</Text>
+        </View>
+      ))}
+      <Text style={styles.requirementNote}>
+        You can upload the government ID from the provider home screen after the
+        account is created.
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  signupProgress: {
+    alignItems: 'flex-start',
+    backgroundColor: palette.white,
+    borderColor: 'rgba(86,196,144,0.12)',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  progressStep: {
+    alignItems: 'center',
+    flex: 1,
+    gap: spacing.xs,
+  },
+  progressDot: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  progressDotActive: {
+    backgroundColor: palette.mint,
+    borderColor: palette.mint,
+  },
+  progressDotText: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  progressDotTextActive: {
+    color: palette.white,
+  },
+  progressLabel: {
+    color: palette.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 15,
+    textAlign: 'center',
+  },
+  progressLabelActive: {
+    color: palette.ink,
+  },
+  signupStepHeader: {
+    alignItems: 'flex-start',
+    borderBottomColor: palette.lineSoft,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+    paddingBottom: spacing.sm,
+  },
+  signupStepTitle: {
+    color: palette.ink,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  signupStepCount: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 17,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  signupActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  signupActionButton: {
+    flex: 1,
+  },
+  requirementsCard: {
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  requirementsTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 18,
+  },
+  requirementRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  requirementIcon: {
+    alignItems: 'center',
+    backgroundColor: '#E9F9F0',
+    borderRadius: radius.pill,
+    height: 20,
+    justifyContent: 'center',
+    width: 20,
+  },
+  requirementText: {
+    color: palette.ink,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  requirementNote: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+    marginTop: spacing.xs,
+  },
+  catalogPicker: {
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.md,
+    padding: spacing.md,
+  },
+  catalogSection: {
+    gap: spacing.sm,
+  },
+  catalogHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  catalogHeaderCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  catalogPickerLabel: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  catalogPickerHint: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+  },
+  catalogHeaderMeta: {
+    color: palette.mint,
+    fontSize: 11,
+    fontWeight: '900',
+    lineHeight: 17,
+    paddingTop: 1,
+  },
+  categoryScroller: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    paddingRight: spacing.md,
+  },
+  categoryChip: {
+    alignItems: 'center',
+    borderColor: palette.line,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    justifyContent: 'center',
+    maxWidth: 170,
+    minHeight: 38,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+  },
+  categoryChipSelected: {
+    backgroundColor: palette.mint,
+    borderColor: palette.mint,
+  },
+  categoryChipText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 17,
+  },
+  categoryChipTextSelected: {
+    color: palette.white,
+  },
+  serviceChoiceList: {
+    gap: spacing.xs,
+  },
+  serviceChoice: {
+    alignItems: 'center',
+    backgroundColor: palette.surface,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 54,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  serviceChoiceSelected: {
+    backgroundColor: '#E9F9F0',
+    borderColor: palette.mint,
+  },
+  serviceChoiceBody: {
+    flex: 1,
+    gap: 2,
+  },
+  serviceChoiceTitle: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+  },
+  serviceChoiceTitleSelected: {
+    color: palette.mint,
+  },
+  serviceChoiceMeta: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+  },
+  serviceChoiceCheck: {
+    alignItems: 'center',
+    backgroundColor: palette.mint,
+    borderRadius: radius.pill,
+    height: 22,
+    justifyContent: 'center',
+    width: 22,
+  },
+  catalogEmptyText: {
+    color: palette.muted,
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
+  },
+  birthdatePicker: {
+    gap: spacing.sm,
+  },
+  birthdateLabel: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  birthdateValue: {
+    color: palette.ink,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+});

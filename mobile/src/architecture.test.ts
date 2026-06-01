@@ -342,10 +342,12 @@ test('booking process passes stable flow inputs to avoid render loops', () => {
   const providerFlowStart = appSource.indexOf(
     'const providerServiceFlow = useProviderServiceFlowViewModel({',
   );
-  const providerFlowEnd = appSource.indexOf(
-    'useEffect(() => {\n    void loadCatalog();',
-    providerFlowStart,
+  const providerFlowRemainder = appSource.slice(providerFlowStart);
+  const providerFlowEndOffset = providerFlowRemainder.search(
+    /useEffect\(\(\) => \{\r?\n\s+void loadCatalog\(\);/,
   );
+  const providerFlowEnd =
+    providerFlowEndOffset === -1 ? -1 : providerFlowStart + providerFlowEndOffset;
   assert.notEqual(customerFlowStart, -1);
   assert.notEqual(customerFlowEnd, -1);
   assert.notEqual(providerFlowStart, -1);
@@ -368,7 +370,7 @@ test('booking process passes stable flow inputs to avoid render loops', () => {
   assert.match(appSource, /const handleProviderServiceRoute = useStableCallback/);
   assert.match(appSource, /const uploadProviderJobPhoto = useStableCallback/);
 
-  assert.match(customerFlowSource, /customerAddresses,\n/);
+  assert.match(customerFlowSource, /customerAddresses,\r?\n/);
   assert.match(customerFlowSource, /onCustomerAddressSaved: handleCustomerAddressSaved/);
   assert.match(customerFlowSource, /onBookingCreated: handleBookingCreated/);
   assert.match(customerFlowSource, /onRefreshProviderAvailability: refreshProviderAvailability/);
@@ -383,8 +385,8 @@ test('booking process passes stable flow inputs to avoid render loops', () => {
   assert.match(providerFlowSource, /onServiceUpdateCreated: addProviderServiceUpdate/);
   assert.match(providerFlowSource, /setProviderRoute: handleProviderServiceRoute/);
   assert.match(providerFlowSource, /uploadProviderJobPhoto,/);
-  assert.doesNotMatch(providerFlowSource, /=>\s*\{\n\s*void refreshBookingTimelineEvents/);
-  assert.doesNotMatch(providerFlowSource, /=>\s*\{\n\s*void refreshBookingTracking/);
+  assert.doesNotMatch(providerFlowSource, /=>\s*\{\r?\n\s*void refreshBookingTimelineEvents/);
+  assert.doesNotMatch(providerFlowSource, /=>\s*\{\r?\n\s*void refreshBookingTracking/);
 });
 
 test('tracking map preview keeps webview update callbacks hook-safe', () => {

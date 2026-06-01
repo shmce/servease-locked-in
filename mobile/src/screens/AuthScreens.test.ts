@@ -31,17 +31,22 @@ test('provider signup shows admin approval requirements before account creation'
     join(process.cwd(), 'src/features/auth/views/AuthScreens.tsx'),
     'utf8',
   );
+  const registrationSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/components/AuthRegistrationScreen.tsx'),
+    'utf8',
+  );
   const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const domainSource = readFileSync(
     join(process.cwd(), 'src/domain/providerRegistration.ts'),
     'utf8',
   );
 
-  assert.match(viewSource, /Required for admin approval/);
-  assert.match(viewSource, /Birthdate/);
-  assert.match(viewSource, /MonthCalendar/);
-  assert.match(viewSource, /showMonthYearPicker/);
-  assert.match(viewSource, /Years of Experience/);
+  assert.match(viewSource, /AuthRegistrationScreen/);
+  assert.match(registrationSource, /Required for admin approval/);
+  assert.match(registrationSource, /Birthdate/);
+  assert.match(registrationSource, /MonthCalendar/);
+  assert.match(registrationSource, /showMonthYearPicker/);
+  assert.match(registrationSource, /Years of Experience/);
   assert.match(appSource, /validateProviderSignupRequirements/);
   assert.match(appSource, /signupBirthdate/);
   assert.match(appSource, /buildProviderServiceDescription/);
@@ -55,12 +60,58 @@ test('signup registration is split into focused steps', () => {
     join(process.cwd(), 'src/features/auth/views/AuthScreens.tsx'),
     'utf8',
   );
+  const registrationSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/components/AuthRegistrationScreen.tsx'),
+    'utf8',
+  );
 
-  assert.match(viewSource, /SignupProgress/);
-  assert.match(viewSource, /SignupStepHeader/);
-  assert.match(viewSource, /\['Account', 'Eligibility', 'Service'\]/);
-  assert.match(viewSource, /\['Account', 'Address'\]/);
-  assert.match(viewSource, /ProviderEligibilityStep/);
-  assert.match(viewSource, /ProviderServiceStep/);
-  assert.match(viewSource, /SignupStepActions/);
+  assert.match(viewSource, /AuthRegistrationScreen/);
+  assert.match(registrationSource, /SignupProgress/);
+  assert.match(registrationSource, /SignupStepHeader/);
+  assert.match(registrationSource, /\['Account', 'Eligibility', 'Service'\]/);
+  assert.match(registrationSource, /\['Account', 'Address'\]/);
+  assert.match(registrationSource, /ProviderEligibilityStep/);
+  assert.match(registrationSource, /ProviderServiceStep/);
+  assert.match(registrationSource, /SignupStepActions/);
+});
+
+test('auth surface is split into focused auth components', () => {
+  const viewSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/views/AuthScreens.tsx'),
+    'utf8',
+  );
+  const componentIndexSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/components/index.ts'),
+    'utf8',
+  );
+
+  assert.match(viewSource, /AuthGate/);
+  assert.match(viewSource, /AuthRoleChoiceScreen/);
+  assert.match(viewSource, /AuthLoginScreen/);
+  assert.match(viewSource, /AuthRegistrationScreen/);
+  assert.match(componentIndexSource, /AuthGate/);
+  assert.match(componentIndexSource, /AuthLoginScreen/);
+  assert.match(componentIndexSource, /AuthRegistrationScreen/);
+  assert.match(componentIndexSource, /AuthRoleChoiceScreen/);
+});
+
+test('auth gate matches the ServEase reference entry flow with generated assets', () => {
+  const gateSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/components/AuthGate.tsx'),
+    'utf8',
+  );
+  const assetNotes = readFileSync(
+    join(process.cwd(), 'assets/auth/README.md'),
+    'utf8',
+  );
+
+  assert.match(gateSource, /auth-reference-frame-v2\.png/);
+  assert.match(gateSource, /authGateLogoText/);
+  assert.match(gateSource, /Sign up for ServEase/);
+  assert.match(gateSource, /Finding and connecting with trusted local professionals around you/);
+  assert.match(gateSource, /Quality work\. Trusted professionals/);
+  assert.match(gateSource, /navigate\('signupRole', null\)/);
+  assert.match(gateSource, /navigate\('loginRole', null\)/);
+  assert.match(assetNotes, /Generated with the built-in image generation workflow/);
+  assert.match(assetNotes, /decorative only/);
 });

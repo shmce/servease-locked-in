@@ -70,7 +70,7 @@ test('Google auth opens APICenter authorization in the system browser, not WebVi
 test('Google auth registration returns to the registration form after APICenter verification', () => {
   const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const authSource = readFileSync(
-    join(process.cwd(), 'src/features/auth/views/AuthScreens.tsx'),
+    join(process.cwd(), 'src/features/auth/components/AuthRegistrationScreen.tsx'),
     'utf8',
   );
 
