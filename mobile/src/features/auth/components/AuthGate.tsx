@@ -59,8 +59,8 @@ function buildAuthGateContentStyle(viewportHeight: number): ViewStyle {
 
   return {
     minHeight: height,
-    paddingBottom: clamp(height * 0.095, 78, 102),
-    paddingTop: clamp(height * 0.24, 188, 232),
+    paddingBottom: clamp(height * 0.145, 116, 150),
+    paddingTop: clamp(height * 0.235, 180, 222),
   };
 }
 
@@ -84,7 +84,7 @@ function AuthGateDecorations({ plateStyle }: { plateStyle: StyleProp<ImageStyle>
 
 function AuthGateBrandMark() {
   return (
-    <Svg height={106} width={104} viewBox="0 0 104 106" pointerEvents="none">
+    <Svg height={96} width={94} viewBox="0 0 104 106" pointerEvents="none">
       <Path
         d="M18 57V43.2c0-5.3 2.4-10.2 6.4-13.4L43.9 14c4.8-3.9 11.6-3.9 16.4 0l19.5 15.8c4 3.2 6.4 8.1 6.4 13.4v31.4c0 6.3-5.1 11.4-11.4 11.4H68"
         fill="none"
@@ -111,7 +111,7 @@ function AuthGateWordmark() {
     >
       <Text style={[styles.authGateLogoText, styles.authGateLogoServ]}>s</Text>
       <View style={styles.authGateGearLetter} accessible={false}>
-        <Cog color={palette.mint} size={31} strokeWidth={3.6} />
+        <Cog color={palette.mint} size={28} strokeWidth={3.4} />
       </View>
       <Text style={[styles.authGateLogoText, styles.authGateLogoServ]}>rv</Text>
       <Text style={[styles.authGateLogoText, styles.authGateLogoEase]}>ease</Text>
@@ -127,9 +127,9 @@ export function AuthGate({
   const { height, width } = useWindowDimensions();
   const plateStyle = buildAuthGatePlateStyle(width, height);
   const contentStyle = buildAuthGateContentStyle(height);
-  const actionWidth = clamp(width - 72, 288, 338);
-  const copyWidth = clamp(width - 80, 276, 314);
-  const footerWidth = clamp(width - 80, 280, 310);
+  const actionWidth = clamp(width - 88, 280, 324);
+  const copyWidth = clamp(width - 94, 258, 296);
+  const footerWidth = clamp(width - 100, 260, 288);
 
   return (
     <PhoneFrame>
@@ -206,20 +206,19 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'flex-start',
     paddingHorizontal: spacing.lg,
-    transform: [{ translateX: -27 }],
   },
   authGateBrandBlock: {
     alignItems: 'center',
-    gap: 18,
+    gap: 16,
     maxWidth: 340,
     width: '88%',
   },
   authGateMark: {
     alignItems: 'center',
-    height: 112,
+    height: 98,
     justifyContent: 'center',
-    marginBottom: 8,
-    width: 118,
+    marginBottom: 6,
+    width: 104,
   },
   authGateWordmark: {
     alignItems: 'center',
@@ -227,19 +226,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   authGateLogoText: {
-    fontSize: 54,
+    fontSize: 48,
     fontWeight: '900',
     letterSpacing: 0,
-    lineHeight: 60,
+    lineHeight: 54,
     textAlign: 'center',
   },
   authGateGearLetter: {
     alignItems: 'center',
-    height: 42,
+    height: 38,
     justifyContent: 'center',
     marginHorizontal: -1,
-    marginTop: 7,
-    width: 34,
+    marginTop: 6,
+    width: 31,
   },
   authGateLogoServ: {
     color: palette.mint,
@@ -249,15 +248,15 @@ const styles = StyleSheet.create({
   },
   authGateTagline: {
     color: '#34443E',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '500',
-    lineHeight: 25,
+    lineHeight: 24,
     marginTop: 6,
     textAlign: 'center',
   },
   authGateActions: {
-    gap: spacing.md,
-    marginTop: 54,
+    gap: 11,
+    marginTop: 46,
   },
   authGateSignupButton: {
     alignItems: 'center',
@@ -266,9 +265,9 @@ const styles = StyleSheet.create({
     elevation: 4,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 64,
-    paddingLeft: spacing.xxl,
-    paddingRight: spacing.xl,
+    minHeight: 58,
+    paddingLeft: 30,
+    paddingRight: 22,
     shadowColor: palette.mintDeep,
     shadowOffset: { height: 12, width: 0 },
     shadowOpacity: 0.18,
@@ -277,36 +276,36 @@ const styles = StyleSheet.create({
   authGateSignupText: {
     color: palette.white,
     flex: 1,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
-    lineHeight: 24,
+    lineHeight: 23,
     textAlign: 'center',
   },
   authGateLoginButton: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: palette.white,
     borderColor: palette.mintDeep,
     borderRadius: radius.pill,
     borderWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 64,
-    paddingLeft: spacing.xxl,
-    paddingRight: spacing.xl,
+    minHeight: 58,
+    paddingLeft: 30,
+    paddingRight: 22,
   },
   authGateLoginText: {
     color: palette.mintDeep,
     flex: 1,
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
-    lineHeight: 24,
+    lineHeight: 23,
     textAlign: 'center',
   },
   authGateFooter: {
     color: '#36594B',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
-    lineHeight: 22,
+    lineHeight: 20,
     marginTop: 'auto',
     paddingTop: spacing.xl,
     textAlign: 'center',

@@ -2,7 +2,7 @@
 
 ## auth-reference-decorative-plate.png
 
-Generated with the built-in image generation workflow for the reference-composition auth gate pass, then cropped to the target auth screen ratio (`430:932`). This is the preferred decorative background for the auth gate.
+Generated with the built-in image generation workflow for the reference-composition auth gate pass at the target auth screen ratio (`430:932`). This is the preferred decorative background for the auth gate.
 
 This plate is decorative only. It contains the white canvas, pale mint organic blobs, dotted accent grids, and realistic green-accent service tools around the edge zones. Required auth copy, CTAs, routes, loading states, brand accessibility, and touch targets stay in React Native.
 

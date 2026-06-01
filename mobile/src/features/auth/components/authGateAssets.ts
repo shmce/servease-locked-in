@@ -10,7 +10,7 @@ export type AuthReferenceDecorativePlate = {
 
 export const authReferenceDecorativePlate: AuthReferenceDecorativePlate = {
   source: require('../../../../assets/auth/auth-reference-decorative-plate.png'),
-  intrinsicSize: { width: 771, height: 1672 },
+  intrinsicSize: { width: 851, height: 1847 },
 };
 
 export type AuthDecorativeAssetLayerId =
