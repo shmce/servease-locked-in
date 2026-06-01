@@ -95,6 +95,27 @@ test('auth surface is split into focused auth components', () => {
   assert.match(componentIndexSource, /AuthRoleChoiceScreen/);
 });
 
+test('role choice screen uses the redesigned selectable role flow', () => {
+  const roleChoiceSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/components/AuthRoleChoiceScreen.tsx'),
+    'utf8',
+  );
+
+  assert.match(roleChoiceSource, /Choose your role/);
+  assert.match(roleChoiceSource, /Tell us how you want to use ServEase/);
+  assert.match(roleChoiceSource, /useState<AppRole>\('customer'\)/);
+  assert.match(roleChoiceSource, /accessibilityRole="radiogroup"/);
+  assert.match(roleChoiceSource, /accessibilityRole="radio"/);
+  assert.match(roleChoiceSource, /Continue/);
+  assert.match(roleChoiceSource, /I already have an account/);
+  assert.match(roleChoiceSource, /authReferenceDecorativePlate/);
+  assert.match(roleChoiceSource, /authReferenceBrandMark/);
+  assert.match(roleChoiceSource, /customerRegistration/);
+  assert.match(roleChoiceSource, /providerRegistration/);
+  assert.match(roleChoiceSource, /customerLogin/);
+  assert.match(roleChoiceSource, /providerLogin/);
+});
+
 test('auth gate matches the ServEase reference entry flow with a decorative plate and native UI', () => {
   const gateSource = readFileSync(
     join(process.cwd(), 'src/features/auth/components/AuthGate.tsx'),

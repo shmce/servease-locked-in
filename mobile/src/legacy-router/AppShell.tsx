@@ -1,5 +1,5 @@
 import * as NavigationBar from 'expo-navigation-bar';
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar, type StatusBarStyle } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { ReactNode, Suspense, useEffect } from 'react';
 import {
@@ -16,9 +16,15 @@ type AppShellProps = {
   busyAction: string | null;
   children: ReactNode;
   backgroundColor?: string;
+  statusBarStyle?: StatusBarStyle;
 };
 
-export function AppShell({ busyAction, children, backgroundColor }: AppShellProps) {
+export function AppShell({
+  busyAction,
+  children,
+  backgroundColor,
+  statusBarStyle,
+}: AppShellProps) {
   const shellBackground = backgroundColor ?? palette.white;
 
   useEffect(() => {
@@ -38,7 +44,7 @@ export function AppShell({ busyAction, children, backgroundColor }: AppShellProp
     >
       <StatusBar
         backgroundColor="transparent"
-        style={backgroundColor ? 'light' : 'dark'}
+        style={statusBarStyle ?? (backgroundColor ? 'light' : 'dark')}
         translucent
       />
       {children}

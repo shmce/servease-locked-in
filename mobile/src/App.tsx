@@ -4494,11 +4494,16 @@ export default function App() {
       startService: renderProviderStartService,
     },
   };
+  const isAuthReferenceScreen =
+    route.screen === 'authGate' ||
+    route.screen === 'signupRole' ||
+    route.screen === 'loginRole';
 
   return (
     <AppShell
       busyAction={busyAction}
-      backgroundColor={route.screen === 'authGate' ? palette.mint : undefined}
+      backgroundColor={isAuthReferenceScreen ? '#F2FBF6' : undefined}
+      statusBarStyle={isAuthReferenceScreen ? 'dark' : undefined}
     >
       <AppRouter
         appRole={appRole}
