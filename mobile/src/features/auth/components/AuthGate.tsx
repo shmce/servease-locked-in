@@ -29,6 +29,8 @@ const authGateBrandMarkAspectRatio =
 const authGateWordmarkAspectRatio =
   authReferenceWordmark.intrinsicSize.width /
   authReferenceWordmark.intrinsicSize.height;
+const authGatePlateZoom = 1.02;
+const authGatePlateAnchorYRatio = 0.22;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -45,21 +47,30 @@ function buildAuthGatePlateStyle(
   if (viewportAspectRatio > authGatePlateAspectRatio) {
     const plateHeight = Math.ceil(width / authGatePlateAspectRatio);
 
+    const baseTop = (height - plateHeight) / 2;
+    const zoomedHeight = Math.ceil(plateHeight * authGatePlateZoom);
+    const zoomedWidth = Math.ceil(width * authGatePlateZoom);
+    const anchorY = height * authGatePlateAnchorYRatio;
+
     return {
-      height: plateHeight,
-      left: 0,
-      top: Math.round((height - plateHeight) / 2),
-      width,
+      height: zoomedHeight,
+      left: Math.round((width - zoomedWidth) / 2),
+      top: Math.round(anchorY - (anchorY - baseTop) * authGatePlateZoom),
+      width: zoomedWidth,
     };
   }
 
   const plateWidth = Math.ceil(height * authGatePlateAspectRatio);
+  const zoomedHeight = Math.ceil(height * authGatePlateZoom);
+  const zoomedWidth = Math.ceil(plateWidth * authGatePlateZoom);
+  const baseLeft = (width - plateWidth) / 2;
+  const anchorY = height * authGatePlateAnchorYRatio;
 
   return {
-    height,
-    left: Math.round((width - plateWidth) / 2),
-    top: 0,
-    width: plateWidth,
+    height: zoomedHeight,
+    left: Math.round(baseLeft + (plateWidth - zoomedWidth) / 2),
+    top: Math.round(anchorY - anchorY * authGatePlateZoom),
+    width: zoomedWidth,
   };
 }
 
@@ -68,8 +79,8 @@ function buildAuthGateContentStyle(viewportHeight: number): ViewStyle {
 
   return {
     minHeight: height,
-    paddingBottom: clamp(height * 0.145, 116, 150),
-    paddingTop: clamp(height * 0.235, 180, 222),
+    paddingBottom: clamp(height * 0.095, 78, 108),
+    paddingTop: clamp(height * 0.246, 190, 234),
   };
 }
 
@@ -131,10 +142,10 @@ export function AuthGate({
   const { height, width } = useWindowDimensions();
   const plateStyle = buildAuthGatePlateStyle(width, height);
   const contentStyle = buildAuthGateContentStyle(height);
-  const actionWidth = clamp(width - 88, 280, 324);
-  const brandMarkWidth = clamp(width * 0.22, 88, 100);
-  const wordmarkWidth = clamp(width * 0.708, 292, 324);
-  const copyWidth = clamp(width - 94, 258, 296);
+  const actionWidth = clamp(width - 76, 286, 340);
+  const brandMarkWidth = clamp(width * 0.208, 84, 96);
+  const wordmarkWidth = clamp(width * 0.682, 280, 312);
+  const copyWidth = clamp(width - 116, 244, 282);
   const footerWidth = clamp(width - 100, 260, 288);
 
   return (
@@ -164,7 +175,7 @@ export function AuthGate({
               accessibilityLabel="Sign up for ServEase"
             >
               <Text style={styles.authGateSignupText}>Sign up for ServEase</Text>
-              <ArrowRight color={palette.white} size={27} strokeWidth={2.2} />
+              <ArrowRight color={palette.white} size={24} strokeWidth={2.1} />
             </Pressable>
 
             <Pressable
@@ -174,7 +185,7 @@ export function AuthGate({
               accessibilityLabel="Log in"
             >
               <Text style={styles.authGateLoginText}>Log in</Text>
-              <ArrowRight color={palette.mintDeep} size={27} strokeWidth={2.2} />
+              <ArrowRight color={palette.mintDeep} size={24} strokeWidth={2.1} />
             </Pressable>
           </View>
 
@@ -215,7 +226,7 @@ const styles = StyleSheet.create({
   },
   authGateBrandBlock: {
     alignItems: 'center',
-    gap: 20,
+    gap: 18,
     maxWidth: 340,
     width: '88%',
   },
@@ -235,37 +246,37 @@ const styles = StyleSheet.create({
   },
   authGateTagline: {
     color: '#34443E',
-    fontSize: 16,
-    fontWeight: '500',
-    lineHeight: 24,
-    marginTop: 6,
+    fontSize: 14.5,
+    fontWeight: '400',
+    lineHeight: 22,
+    marginTop: 2,
     textAlign: 'center',
   },
   authGateActions: {
-    gap: 11,
-    marginTop: 46,
+    gap: 12,
+    marginTop: 42,
   },
   authGateSignupButton: {
     alignItems: 'center',
-    backgroundColor: '#2FA967',
+    backgroundColor: '#3D9D62',
     borderRadius: radius.pill,
     elevation: 4,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 58,
-    paddingLeft: 30,
-    paddingRight: 22,
+    minHeight: 52,
+    paddingLeft: 28,
+    paddingRight: 20,
     shadowColor: palette.mintDeep,
-    shadowOffset: { height: 12, width: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 18,
+    shadowOffset: { height: 10, width: 0 },
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
   },
   authGateSignupText: {
     color: palette.white,
     flex: 1,
-    fontSize: 17,
-    fontWeight: '900',
-    lineHeight: 23,
+    fontSize: 14.5,
+    fontWeight: '700',
+    lineHeight: 21,
     textAlign: 'center',
   },
   authGateLoginButton: {
@@ -276,28 +287,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 58,
-    paddingLeft: 30,
-    paddingRight: 22,
+    minHeight: 52,
+    paddingLeft: 28,
+    paddingRight: 20,
   },
   authGateLoginText: {
     color: palette.mintDeep,
     flex: 1,
-    fontSize: 17,
-    fontWeight: '900',
-    lineHeight: 23,
+    fontSize: 14.5,
+    fontWeight: '700',
+    lineHeight: 21,
     textAlign: 'center',
   },
   authGateFooter: {
     color: '#36594B',
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 20,
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 18,
     marginTop: 'auto',
-    paddingTop: spacing.xl,
+    paddingTop: 18,
     textAlign: 'center',
   },
   authGateFooterStrong: {
-    fontWeight: '900',
+    fontWeight: '800',
   },
 });
