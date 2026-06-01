@@ -116,6 +116,28 @@ test('role choice screen uses the redesigned selectable role flow', () => {
   assert.match(roleChoiceSource, /providerLogin/);
 });
 
+test('login screen uses the redesigned full-bleed auth surface', () => {
+  const loginSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/components/AuthLoginScreen.tsx'),
+    'utf8',
+  );
+  const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+
+  assert.match(loginSource, /Welcome back/);
+  assert.match(loginSource, /authReferenceDecorativePlate/);
+  assert.match(loginSource, /authReferenceBrandMark/);
+  assert.match(loginSource, /Customer account/);
+  assert.match(loginSource, /Provider workspace/);
+  assert.match(loginSource, /Email address/);
+  assert.match(loginSource, /Password/);
+  assert.match(loginSource, /Forgot password/);
+  assert.match(loginSource, /Continue with Google/);
+  assert.match(loginSource, /Create an account/);
+  assert.match(appSource, /customerLogin/);
+  assert.match(appSource, /providerLogin/);
+  assert.match(appSource, /statusBarStyle=\{isAuthReferenceScreen \? 'dark' : undefined\}/);
+});
+
 test('auth gate matches the ServEase reference entry flow with a decorative plate and native UI', () => {
   const gateSource = readFileSync(
     join(process.cwd(), 'src/features/auth/components/AuthGate.tsx'),

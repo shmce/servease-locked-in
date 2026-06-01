@@ -4497,7 +4497,9 @@ export default function App() {
   const isAuthReferenceScreen =
     route.screen === 'authGate' ||
     route.screen === 'signupRole' ||
-    route.screen === 'loginRole';
+    route.screen === 'loginRole' ||
+    route.screen === 'customerLogin' ||
+    route.screen === 'providerLogin';
 
   return (
     <AppShell
