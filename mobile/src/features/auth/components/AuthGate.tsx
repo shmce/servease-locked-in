@@ -29,8 +29,8 @@ const authGateBrandMarkAspectRatio =
 const authGateWordmarkAspectRatio =
   authReferenceWordmark.intrinsicSize.width /
   authReferenceWordmark.intrinsicSize.height;
-const authGatePlateZoom = 1.02;
-const authGatePlateAnchorYRatio = 0.22;
+const authGatePlateZoom = 1.025;
+const authGatePlateAnchorYRatio = 0.2;
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -146,7 +146,7 @@ export function AuthGate({
   const brandMarkWidth = clamp(width * 0.208, 84, 96);
   const wordmarkWidth = clamp(width * 0.682, 280, 312);
   const copyWidth = clamp(width - 116, 244, 282);
-  const footerWidth = clamp(width - 100, 260, 288);
+  const footerWidth = clamp(width - 126, 236, 270);
 
   return (
     <PhoneFrame>
@@ -305,10 +305,11 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 18,
     marginTop: 'auto',
-    paddingTop: 18,
+    paddingBottom: 20,
+    paddingTop: 14,
     textAlign: 'center',
   },
   authGateFooterStrong: {
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });
