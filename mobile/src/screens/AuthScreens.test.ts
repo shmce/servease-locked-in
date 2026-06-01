@@ -95,9 +95,13 @@ test('auth surface is split into focused auth components', () => {
   assert.match(componentIndexSource, /AuthRoleChoiceScreen/);
 });
 
-test('auth gate matches the ServEase reference entry flow with generated assets', () => {
+test('auth gate matches the ServEase reference entry flow with a decorative plate and native UI', () => {
   const gateSource = readFileSync(
     join(process.cwd(), 'src/features/auth/components/AuthGate.tsx'),
+    'utf8',
+  );
+  const assetManifestSource = readFileSync(
+    join(process.cwd(), 'src/features/auth/components/authGateAssets.ts'),
     'utf8',
   );
   const assetNotes = readFileSync(
@@ -105,13 +109,29 @@ test('auth gate matches the ServEase reference entry flow with generated assets'
     'utf8',
   );
 
-  assert.match(gateSource, /auth-reference-frame-v2\.png/);
-  assert.match(gateSource, /authGateLogoText/);
+  assert.match(gateSource, /auth-gate-reference-plate/);
+  assert.match(gateSource, /authReferenceDecorativePlate/);
+  assert.match(gateSource, /resizeMode="cover"/);
+  assert.doesNotMatch(gateSource, /resizeMode="stretch"/);
+  assert.doesNotMatch(gateSource, /auth-gate-layered-assets/);
+  assert.match(assetManifestSource, /auth-reference-decorative-plate\.png/);
+  assert.match(assetManifestSource, /auth-tool-pliers\.png/);
+  assert.match(assetManifestSource, /auth-tool-brush\.png/);
+  assert.match(assetManifestSource, /auth-paint-stroke\.png/);
+  assert.doesNotMatch(assetManifestSource, /auth-tool-brush-paint\.png/);
+  assert.match(assetManifestSource, /auth-tool-broom\.png/);
+  assert.match(assetManifestSource, /auth-tool-wrench-faucet\.png/);
+  assert.match(gateSource, /buildAuthGatePlateStyle/);
+  assert.match(gateSource, /AuthGateBrandMark/);
+  assert.match(gateSource, /AuthGateWordmark/);
+  assert.match(gateSource, /accessibilityLabel="ServEase"/);
   assert.match(gateSource, /Sign up for ServEase/);
   assert.match(gateSource, /Finding and connecting with trusted local professionals around you/);
   assert.match(gateSource, /Quality work\. Trusted professionals/);
   assert.match(gateSource, /navigate\('signupRole', null\)/);
   assert.match(gateSource, /navigate\('loginRole', null\)/);
   assert.match(assetNotes, /Generated with the built-in image generation workflow/);
+  assert.match(assetNotes, /auth-reference-decorative-plate\.png/);
+  assert.match(assetNotes, /Center safe area/);
   assert.match(assetNotes, /decorative only/);
 });
