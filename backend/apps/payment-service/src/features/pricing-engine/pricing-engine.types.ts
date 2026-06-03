@@ -43,6 +43,10 @@ export interface PricingQuoteSummary {
   providerId: string;
   serviceId: string;
   categoryId: string | null;
+  serviceAddress: string | null;
+  scheduledAt: string | null;
+  hoursRequired: number | null;
+  pricingMode: PricingMode;
   expiresAt: string;
   currency: 'PHP';
   estimatedTotal: number;
@@ -61,6 +65,9 @@ export interface PricingQuoteValidationResult {
   customerId: string;
   providerId: string;
   serviceId: string;
+  serviceAddress: string | null;
+  scheduledAt: string | null;
+  hoursRequired: number | null;
   amount: number;
   pricingMode: PricingMode;
   fairnessStatus: PricingFairnessStatus;

@@ -67,6 +67,9 @@ interface QuoteRow {
   provider_id: string;
   service_id: string;
   category_id: string | null;
+  service_address?: string | null;
+  scheduled_at?: string | null;
+  hours_required?: string | number | null;
   expires_at: string;
   estimated_total: string | number | null;
   fair_range_min: string | number | null;
@@ -183,6 +186,10 @@ export class PricingEngineRepository {
         p_provider_id: input.providerId,
         p_service_id: input.serviceId,
         p_category_id: input.categoryId,
+        p_service_address: input.serviceAddress,
+        p_scheduled_at: input.scheduledAt,
+        p_hours_required: input.hoursRequired,
+        p_pricing_mode: input.pricingMode,
         p_expires_at: input.expiresAt,
         p_estimated_total: input.estimatedTotal,
         p_fair_range_min: input.fairRangeMin,
@@ -230,6 +237,12 @@ export class PricingEngineRepository {
       customerId: row.customer_id,
       providerId: row.provider_id,
       serviceId: row.service_id,
+      serviceAddress: row.service_address ?? null,
+      scheduledAt: row.scheduled_at ?? null,
+      hoursRequired:
+        row.hours_required === null || row.hours_required === undefined
+          ? null
+          : Number(row.hours_required),
       amount: Number(row.estimated_total ?? 0),
       pricingMode: row.pricing_mode ?? 'flat',
       fairnessStatus: row.fairness_status,
@@ -304,6 +317,13 @@ export class PricingEngineRepository {
       providerId: row.provider_id,
       serviceId: row.service_id,
       categoryId: row.category_id,
+      serviceAddress: row.service_address ?? null,
+      scheduledAt: row.scheduled_at ?? null,
+      hoursRequired:
+        row.hours_required === null || row.hours_required === undefined
+          ? null
+          : Number(row.hours_required),
+      pricingMode: row.pricing_mode ?? 'flat',
       expiresAt: row.expires_at,
       currency: 'PHP',
       estimatedTotal: Number(row.estimated_total ?? 0),

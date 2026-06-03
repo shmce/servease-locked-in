@@ -1,9 +1,9 @@
 import type { AppScreen } from '../../../navigation/types';
 import { formatMoney } from '../../../shared/utils/booking';
 import type { BookingSummary, PaymentSummary } from '../../../shared/models/types';
+import { isProviderServiceStartWindowOpen } from '../../../domain/providerStartWindow';
 
 const MANILA_TIME_ZONE = 'Asia/Manila';
-const START_SERVICE_WINDOW_MS = 30 * 60 * 1000;
 const ACTIVE_BOOKING_STATUSES = new Set(['confirmed', 'in_progress']);
 
 export type ProviderHomeHero =
@@ -86,12 +86,7 @@ export function nextJobAction(booking: BookingSummary, now: Date): {
     return { label: 'Continue', screen: 'providerServiceInProgress' };
   }
 
-  const scheduledAt = new Date(booking.scheduledAt).getTime();
-  const shouldStart = Number.isFinite(scheduledAt)
-    ? now.getTime() >= scheduledAt - START_SERVICE_WINDOW_MS
-    : false;
-
-  if (shouldStart) {
+  if (isProviderServiceStartWindowOpen(booking.scheduledAt, now)) {
     return { label: 'Start Service', screen: 'providerStartService' };
   }
 

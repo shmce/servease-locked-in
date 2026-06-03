@@ -6,6 +6,8 @@ import {
   pricingConfidenceLabel,
   pricingFairnessLabel,
   pricingModeLabel,
+  customerPastSlotPickerCopy,
+  isFutureManilaBookingDateTime,
   toManilaBookingIso,
 } from '../../../shared/utils/booking';
 import {
@@ -31,6 +33,7 @@ type CustomerBookingReviewViewModelInput = {
   customerPaymentMethods: CustomerPaymentMethodSummary[];
   selectedPaymentMethodId: string | null;
   busyAction: string | null;
+  now?: Date;
 };
 
 export function useCustomerBookingReviewViewModel({
@@ -47,6 +50,7 @@ export function useCustomerBookingReviewViewModel({
   customerPaymentMethods,
   selectedPaymentMethodId,
   busyAction,
+  now,
 }: CustomerBookingReviewViewModelInput) {
   return useMemo(
     () =>
@@ -64,6 +68,7 @@ export function useCustomerBookingReviewViewModel({
         customerPaymentMethods,
         selectedPaymentMethodId,
         busyAction,
+        now,
       }),
     [
       address,
@@ -79,6 +84,7 @@ export function useCustomerBookingReviewViewModel({
       selectedService,
       customerPaymentMethods,
       selectedPaymentMethodId,
+      now,
     ],
   );
 }
@@ -97,6 +103,7 @@ export function buildCustomerBookingReviewViewModel({
   customerPaymentMethods,
   selectedPaymentMethodId,
   busyAction,
+  now = new Date(),
 }: CustomerBookingReviewViewModelInput) {
   const baseAmount = provider.price ?? selectedService?.price ?? 0;
   const duration = Number(hoursRequired) || 1;
@@ -104,6 +111,10 @@ export function buildCustomerBookingReviewViewModel({
   const processingFee = Math.max(25, Math.round(subtotal * 0.05));
   const bookingCost = subtotal + processingFee;
   const scheduledAtIso = toManilaBookingIso(scheduledAt);
+  const scheduleMessage =
+    scheduledAtIso && !isFutureManilaBookingDateTime(scheduledAt, now)
+      ? customerPastSlotPickerCopy
+      : null;
   const displayedTotal = pricingQuote?.estimatedTotal ?? bookingCost;
   const totalLabel = pricingQuote ? 'Pricing engine estimate' : 'Provider rate estimate';
   const providerName = provider.providerBusinessName ?? provider.title;
@@ -216,6 +227,7 @@ export function buildCustomerBookingReviewViewModel({
         ? 'Cash is due directly to the provider after the service is completed.'
         : 'APICenter will collect wallet or card details in secure checkout after you confirm.',
       quoteExplanation:
+        scheduleMessage ??
         pricingQuote?.explanation ??
         (isCashPayment
           ? "Pricing estimate is not ready yet. You won't be charged in the app for cash bookings."
@@ -235,7 +247,8 @@ export function buildCustomerBookingReviewViewModel({
         busyAction === 'payment' ||
         busyAction === 'pricing-quote' ||
         !address.trim() ||
-        !scheduledAtIso,
+        !scheduledAtIso ||
+        Boolean(scheduleMessage),
     },
     isLoading: false,
     error: null,

@@ -86,6 +86,14 @@ describe('PricingEngineService', () => {
     });
 
     expect(repository.createQuote).toHaveBeenCalled();
+    expect(repository.createQuote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceAddress: '123 Street',
+        scheduledAt: '2026-06-01T09:00:00.000Z',
+        hoursRequired: 2,
+        pricingMode: 'hourly',
+      }),
+    );
     expect(quote.estimatedTotal).toBeGreaterThan(1200);
     expect(quote.signals.fuelPricePerLiter).toBe(68);
     expect(quote.signals.fallbackUsed).toBe(false);
@@ -148,6 +156,9 @@ describe('PricingEngineService', () => {
         customerId: 'customer-1',
         providerId: 'provider-1',
         serviceId: 'service-1',
+        serviceAddress: '123 Street',
+        scheduledAt: '2026-06-01T09:00:00.000Z',
+        hoursRequired: 1,
         amount: 1000,
         pricingMode: 'flat',
         fairnessStatus: 'within_range',

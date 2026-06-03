@@ -23,13 +23,21 @@ import {
   AttachmentForbiddenError,
   AttachmentNotFoundError,
   BookingNotFoundError,
+  BookingScheduleInPastError,
+  BookingStartWindowNotOpenError,
   BookingDependencyUnavailableError,
   DisputeForbiddenError,
   InvalidBookingRequestError,
+  InvalidBookingScheduleError,
   InvalidBookingTransitionError,
+  PricingQuoteContextMismatchError,
   ProviderProfileRequiredError,
   ProviderUnavailableError,
 } from './booking.errors';
+import {
+  isFutureBookingSchedule,
+  parseBookingScheduleInstant,
+} from '../../../../../libs/common/src';
 import { BookingGatewayService } from './booking.service';
 import {
   AddBookingAttachmentRequest,
@@ -336,6 +344,14 @@ export class BookingController {
       throw new InvalidBookingRequestError();
     }
 
+    if (!parseBookingScheduleInstant(body.scheduledAt)) {
+      throw new InvalidBookingScheduleError();
+    }
+
+    if (!isFutureBookingSchedule(body.scheduledAt)) {
+      throw new BookingScheduleInPastError();
+    }
+
     body.attachments?.forEach((attachment) => {
       if (!attachment.fileUrl?.trim()) {
         throw new InvalidBookingRequestError();
@@ -442,10 +458,42 @@ export class BookingController {
       return this.error('invalid_booking_request', 'Booking request is invalid.', 400);
     }
 
+    if (error instanceof InvalidBookingScheduleError) {
+      return this.error(
+        'invalid_booking_schedule',
+        'Choose a valid date and time for this booking.',
+        400,
+      );
+    }
+
+    if (error instanceof BookingScheduleInPastError) {
+      return this.error(
+        'booking_schedule_in_past',
+        'Choose a future time for this booking.',
+        400,
+      );
+    }
+
+    if (error instanceof PricingQuoteContextMismatchError) {
+      return this.error(
+        'pricing_quote_context_mismatch',
+        'Pricing quote is stale. Refresh the estimate before booking.',
+        409,
+      );
+    }
+
     if (error instanceof InvalidBookingTransitionError) {
       return this.error(
         'invalid_booking_transition',
         'Booking status transition is invalid.',
+        409,
+      );
+    }
+
+    if (error instanceof BookingStartWindowNotOpenError) {
+      return this.error(
+        'booking_start_window_not_open',
+        'This booking can start 30 minutes before the scheduled time.',
         409,
       );
     }

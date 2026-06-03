@@ -1,5 +1,6 @@
 // Theme discipline: only palette.mint*, palette.alert, and palette.{ink,body,muted,faint,line,lineSoft,input,white,surface,cream} are allowed.
 // Spacing/radius/type must use the exported theme tokens.
+import type { ReactNode } from 'react';
 import {
   Bell,
   CalendarDays,
@@ -229,10 +230,12 @@ function DashboardActionCard({
     );
 
     return (
-      <ProviderCard style={styles.dashboardCard}>
+      <DashboardActionFrame>
         <View style={styles.dashboardTopLine}>
           <View style={styles.eyebrowRow}>
-            <Clock3 color={palette.mintDeep} size={16} strokeWidth={2.3} />
+            <View style={styles.eyebrowIcon}>
+              <Clock3 color={palette.mintDeep} size={16} strokeWidth={2.3} />
+            </View>
             <Text style={styles.eyebrowText} numberOfLines={1}>
               {hero.eyebrow}
             </Text>
@@ -243,6 +246,8 @@ function DashboardActionCard({
             </Text>
           </View>
         </View>
+
+        <View style={styles.dashboardDivider} />
 
         <View style={styles.dashboardCopy}>
           <Text style={styles.jobTime} numberOfLines={1}>
@@ -255,18 +260,24 @@ function DashboardActionCard({
 
         <View style={styles.detailStack}>
           <View style={styles.detailRow}>
-            <User color={palette.muted} size={16} strokeWidth={2.2} />
+            <View style={styles.detailIcon}>
+              <User color={palette.muted} size={16} strokeWidth={2.2} />
+            </View>
             <Text style={styles.detailText} numberOfLines={1}>
               {hero.customerLabel}
             </Text>
           </View>
           <View style={styles.detailRow}>
-            <MapPin color={palette.muted} size={16} strokeWidth={2.2} />
+            <View style={styles.detailIcon}>
+              <MapPin color={palette.muted} size={16} strokeWidth={2.2} />
+            </View>
             <Text style={styles.detailText} numberOfLines={1}>
               {hero.meta}
             </Text>
           </View>
         </View>
+
+        <View style={styles.dashboardDivider} />
 
         <Pressable
           style={styles.primaryAction}
@@ -279,16 +290,18 @@ function DashboardActionCard({
             {hero.primaryActionLabel}
           </Text>
         </Pressable>
-      </ProviderCard>
+      </DashboardActionFrame>
     );
   }
 
   if (hero.kind === 'requests') {
     return (
-      <ProviderCard style={styles.dashboardCard}>
+      <DashboardActionFrame>
         <View style={styles.dashboardTopLine}>
           <View style={styles.eyebrowRow}>
-            <User color={palette.mintDeep} size={16} strokeWidth={2.3} />
+            <View style={styles.eyebrowIcon}>
+              <User color={palette.mintDeep} size={16} strokeWidth={2.3} />
+            </View>
             <Text style={styles.eyebrowText} numberOfLines={1}>
               {hero.eyebrow}
             </Text>
@@ -300,12 +313,18 @@ function DashboardActionCard({
           </View>
         </View>
 
-        <Text style={styles.dashboardTitle} numberOfLines={2}>
-          {hero.title}
-        </Text>
-        <Text style={styles.dashboardSubtitle} numberOfLines={2}>
-          {hero.subtitle}
-        </Text>
+        <View style={styles.dashboardDivider} />
+
+        <View style={styles.dashboardCopy}>
+          <Text style={styles.dashboardTitle} numberOfLines={2}>
+            {hero.title}
+          </Text>
+          <Text style={styles.dashboardSubtitle} numberOfLines={2}>
+            {hero.subtitle}
+          </Text>
+        </View>
+
+        <View style={styles.dashboardDivider} />
 
         <Pressable
           style={styles.primaryAction}
@@ -318,27 +337,35 @@ function DashboardActionCard({
             {hero.primaryActionLabel}
           </Text>
         </Pressable>
-      </ProviderCard>
+      </DashboardActionFrame>
     );
   }
 
   return (
-    <ProviderCard style={styles.dashboardCard}>
+    <DashboardActionFrame>
       <View style={styles.dashboardTopLine}>
         <View style={styles.eyebrowRow}>
-          <CalendarDays color={palette.mintDeep} size={16} strokeWidth={2.3} />
+          <View style={styles.eyebrowIcon}>
+            <CalendarDays color={palette.mintDeep} size={16} strokeWidth={2.3} />
+          </View>
           <Text style={styles.eyebrowText} numberOfLines={1}>
             {hero.eyebrow}
           </Text>
         </View>
       </View>
 
-      <Text style={styles.dashboardTitle} numberOfLines={2}>
-        {hero.title}
-      </Text>
-      <Text style={styles.dashboardSubtitle} numberOfLines={2}>
-        {hero.subtitle}
-      </Text>
+      <View style={styles.dashboardDivider} />
+
+      <View style={styles.dashboardCopy}>
+        <Text style={styles.dashboardTitle} numberOfLines={2}>
+          {hero.title}
+        </Text>
+        <Text style={styles.dashboardSubtitle} numberOfLines={2}>
+          {hero.subtitle}
+        </Text>
+      </View>
+
+      <View style={styles.dashboardDivider} />
 
       <View style={styles.actionRow}>
         <Pressable
@@ -363,6 +390,17 @@ function DashboardActionCard({
           </Text>
         </Pressable>
       </View>
+    </DashboardActionFrame>
+  );
+}
+
+function DashboardActionFrame({ children }: { children: ReactNode }) {
+  return (
+    <ProviderCard style={styles.dashboardCard}>
+      <View pointerEvents="none" style={styles.dashboardAccent}>
+        <View style={styles.dashboardAccentEdge} />
+      </View>
+      <View style={styles.dashboardContent}>{children}</View>
     </ProviderCard>
   );
 }
@@ -561,14 +599,51 @@ const styles = StyleSheet.create({
   },
   dashboardCard: {
     borderRadius: radius.md,
+    gap: 0,
+    overflow: 'hidden',
+    padding: 0,
+    position: 'relative',
+  },
+  dashboardContent: {
     gap: spacing.sm,
-    padding: spacing.base,
+    paddingLeft: spacing.xl,
+    paddingRight: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  dashboardAccent: {
+    backgroundColor: palette.mintSoft,
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    top: 0,
+    width: spacing.base,
+  },
+  dashboardAccentEdge: {
+    backgroundColor: palette.mintDeep,
+    bottom: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    width: spacing.xs,
+  },
+  dashboardDivider: {
+    backgroundColor: palette.lineSoft,
+    height: StyleSheet.hairlineWidth,
   },
   dashboardTopLine: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'space-between',
+    minHeight: 28,
+  },
+  eyebrowIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    height: 26,
+    justifyContent: 'center',
+    width: 26,
   },
   eyebrowRow: {
     alignItems: 'center',
@@ -589,8 +664,9 @@ const styles = StyleSheet.create({
     backgroundColor: palette.mintSoft,
     borderRadius: radius.pill,
     flexShrink: 0,
+    minHeight: 28,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: 5,
   },
   statusBadgeText: {
     color: palette.mintDeep,
@@ -600,21 +676,21 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   dashboardCopy: {
-    gap: spacing.xxs,
+    gap: spacing.xs,
   },
   jobTime: {
     color: palette.ink,
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: '800',
     letterSpacing: 0,
     lineHeight: 33,
   },
   dashboardTitle: {
     color: palette.ink,
-    fontSize: 19,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     letterSpacing: 0,
-    lineHeight: 24,
+    lineHeight: 23,
   },
   dashboardSubtitle: {
     ...providerText.body,
@@ -625,8 +701,14 @@ const styles = StyleSheet.create({
   detailRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.xs,
     minWidth: 0,
+  },
+  detailIcon: {
+    alignItems: 'center',
+    height: 22,
+    justifyContent: 'center',
+    width: 22,
   },
   detailText: {
     ...providerText.meta,
@@ -641,7 +723,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
-    minHeight: 46,
+    minHeight: 44,
     minWidth: 0,
     paddingHorizontal: spacing.base,
   },

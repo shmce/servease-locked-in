@@ -824,6 +824,7 @@ export default function App({ initialRoute = null }: AppProps) {
     onCustomerAddressSaved: handleCustomerAddressSaved,
     onBookingCreated: handleBookingCreated,
     onRefreshProviderAvailability: refreshProviderAvailability,
+    providerAvailability: selectedProviderAvailability,
     selectedBooking: selectedBooking ?? null,
     selectedCustomerPaymentMethod,
     selectedProvider: selectedProvider ?? null,
@@ -831,6 +832,7 @@ export default function App({ initialRoute = null }: AppProps) {
     setBusyAction,
     setNotice,
     setRoute: navigateRoute,
+    timeSlots: bookingTimeSlots,
   });
   const messagesFlow = useMessagesFlowViewModel({
     apiOptions,

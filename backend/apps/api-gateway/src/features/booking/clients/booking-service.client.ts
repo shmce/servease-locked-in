@@ -5,8 +5,10 @@ import {
   AttachmentNotFoundError,
   BookingDependencyUnavailableError,
   BookingNotFoundError,
+  BookingScheduleInPastError,
   DisputeForbiddenError,
   InvalidBookingRequestError,
+  InvalidBookingScheduleError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
 } from '../booking.errors';
@@ -241,6 +243,12 @@ export class BookingServiceClient {
       }
       if (code === 'invalid_booking_request') {
         throw new InvalidBookingRequestError();
+      }
+      if (code === 'invalid_booking_schedule') {
+        throw new InvalidBookingScheduleError();
+      }
+      if (code === 'booking_schedule_in_past') {
+        throw new BookingScheduleInPastError();
       }
       if (code === 'booking_not_found') {
         throw new BookingNotFoundError();

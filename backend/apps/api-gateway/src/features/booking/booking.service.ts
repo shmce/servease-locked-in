@@ -11,6 +11,11 @@ import { PaymentGatewayService } from '../payments/payment.service';
 import { PaymentSummary } from '../payments/payment.types';
 import { PricingGatewayService } from '../pricing/pricing.service';
 import {
+  isFutureBookingSchedule,
+  isProviderServiceStartWindowOpen,
+  parseBookingScheduleInstant,
+} from '../../../../../libs/common/src';
+import {
   AddBookingAttachmentRequest,
   BookingAttachmentSummary,
   BookingDisputeSummary,
@@ -26,8 +31,11 @@ import {
   UpdateBookingLiveLocationRequest,
 } from './booking.types';
 import {
-  InvalidBookingRequestError,
+  BookingScheduleInPastError,
+  BookingStartWindowNotOpenError,
+  InvalidBookingScheduleError,
   InvalidBookingTransitionError,
+  PricingQuoteContextMismatchError,
 } from './booking.errors';
 
 const TRACKING_STREAM_INTERVAL_MS = 2000;
@@ -57,6 +65,7 @@ export class BookingGatewayService {
     customerId: string,
     input: CreateBookingRequest,
   ): Promise<BookingSummary> {
+    this.assertBookingScheduleCanBeCreated(input.scheduledAt);
     const bookingInput = await this.applyAcceptedQuote(customerId, input);
     const booking = await this.enrichBooking(
       await this.bookingServiceClient.createBooking(customerId, bookingInput),
@@ -87,10 +96,11 @@ export class BookingGatewayService {
       quote.customerId !== customerId ||
       quote.providerId !== input.providerId ||
       quote.serviceId !== input.serviceId ||
+      !this.quoteMatchesBookingContext(quote, input) ||
       !Number.isFinite(quote.amount) ||
       quote.amount <= 0
     ) {
-      throw new InvalidBookingRequestError();
+      throw new PricingQuoteContextMismatchError();
     }
 
     return {
@@ -191,6 +201,11 @@ export class BookingGatewayService {
       providerId,
     );
     this.assertActorCanTransition(visibleBooking, actorId, providerId, nextStatus);
+    this.assertProviderStartWindowAllowsTransition(
+      visibleBooking,
+      providerId,
+      nextStatus,
+    );
     await this.assertProviderOperationalLockAllowsTransition(
       visibleBooking,
       providerId,
@@ -260,6 +275,49 @@ export class BookingGatewayService {
       reason,
       explanation,
     );
+  }
+
+  private assertBookingScheduleCanBeCreated(scheduledAt: string): void {
+    if (!parseBookingScheduleInstant(scheduledAt)) {
+      throw new InvalidBookingScheduleError();
+    }
+
+    if (!isFutureBookingSchedule(scheduledAt)) {
+      throw new BookingScheduleInPastError();
+    }
+  }
+
+  private quoteMatchesBookingContext(
+    quote: {
+      serviceAddress?: string | null;
+      scheduledAt?: string | null;
+      hoursRequired?: number | null;
+      pricingMode?: string | null;
+    },
+    input: CreateBookingRequest,
+  ): boolean {
+    const quoteScheduledAt = quote.scheduledAt
+      ? new Date(quote.scheduledAt).getTime()
+      : NaN;
+    const inputScheduledAt = new Date(input.scheduledAt).getTime();
+    const quoteHours = Number(quote.hoursRequired);
+    const inputHours = Number(input.hoursRequired ?? 1);
+
+    return (
+      this.normalizeQuoteAddress(quote.serviceAddress) ===
+        this.normalizeQuoteAddress(input.serviceAddress) &&
+      Number.isFinite(quoteScheduledAt) &&
+      Number.isFinite(inputScheduledAt) &&
+      quoteScheduledAt === inputScheduledAt &&
+      Number.isFinite(quoteHours) &&
+      Number.isFinite(inputHours) &&
+      quoteHours === inputHours &&
+      quote.pricingMode === (input.pricingMode ?? 'flat')
+    );
+  }
+
+  private normalizeQuoteAddress(value: string | null | undefined): string {
+    return (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
   }
 
   private async ensureCashPaymentReserved(
@@ -497,6 +555,29 @@ export class BookingGatewayService {
 
     if (activeBooking && activeBooking.id !== booking.id) {
       throw new InvalidBookingTransitionError();
+    }
+  }
+
+  private assertProviderStartWindowAllowsTransition(
+    booking: BookingSummary,
+    providerId: string | null,
+    nextStatus: BookingStatus,
+  ): void {
+    if (
+      providerId === null ||
+      booking.status === nextStatus ||
+      booking.status === 'in_progress' ||
+      !['in_progress', 'completed'].includes(nextStatus)
+    ) {
+      return;
+    }
+
+    if (booking.status !== 'confirmed') {
+      return;
+    }
+
+    if (!isProviderServiceStartWindowOpen(booking.scheduledAt)) {
+      throw new BookingStartWindowNotOpenError();
     }
   }
 

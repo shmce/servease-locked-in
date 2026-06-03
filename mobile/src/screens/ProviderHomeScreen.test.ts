@@ -72,6 +72,13 @@ test('provider home is extracted from App into the action-first screen', () => {
   assert.match(viewSource, /Search bookings/);
   assert.match(viewSource, /Today's Agenda/);
   assert.match(viewSource, /DashboardActionCard/);
+  assert.match(viewSource, /DashboardActionFrame/);
+  assert.match(viewSource, /dashboardAccent/);
+  assert.match(viewSource, /dashboardAccentEdge/);
+  assert.match(viewSource, /dashboardContent/);
+  assert.match(viewSource, /dashboardDivider/);
+  assert.match(viewSource, /eyebrowIcon/);
+  assert.match(viewSource, /detailIcon/);
   assert.match(viewSource, /PerformanceMetricCard/);
   assert.match(viewSource, /ratingMetricCard/);
   assert.match(viewSource, /flexBasis: '47%'/);
@@ -83,6 +90,12 @@ test('provider home is extracted from App into the action-first screen', () => {
   assert.match(viewSource, /minimumFontScale=\{0\.72\}/);
   assert.match(viewSource, /flexWrap: 'wrap'/);
   assert.match(viewSource, /minWidth/);
+  assert.match(viewSource, /overflow: 'hidden'/);
+  assert.match(viewSource, /width: spacing\.base/);
+  assert.match(viewSource, /paddingLeft: spacing\.xl/);
+  assert.match(viewSource, /height: StyleSheet\.hairlineWidth/);
+  assert.match(viewSource, /fontSize: 28/);
+  assert.match(viewSource, /minHeight: 44/);
   assert.match(viewSource, /accessibilityLabel=\{status\.accessibilityLabel\}/);
   assert.match(viewSource, /accessibilityLabel="Search provider bookings and requests"/);
   assert.match(viewSource, /accessibilityLabel="View all provider bookings"/);

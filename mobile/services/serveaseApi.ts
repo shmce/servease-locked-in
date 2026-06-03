@@ -918,6 +918,13 @@ export interface PricingQuoteLineItem {
 
 export interface PricingQuoteSummary {
   quoteId: string;
+  customerId?: string;
+  providerId?: string;
+  serviceId?: string;
+  serviceAddress?: string | null;
+  scheduledAt?: string | null;
+  hoursRequired?: number | null;
+  pricingMode?: 'flat' | 'hourly' | null;
   expiresAt: string;
   currency: 'PHP';
   estimatedTotal: number;

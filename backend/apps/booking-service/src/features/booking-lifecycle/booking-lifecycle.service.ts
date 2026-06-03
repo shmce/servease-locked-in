@@ -1,6 +1,14 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  isFutureBookingSchedule,
+  parseBookingScheduleInstant,
+} from '../../../../../libs/common/src';
 import { BookingAnalyticsPublisher } from './booking-analytics.publisher';
-import { InvalidBookingRequestError } from './booking.errors';
+import {
+  BookingScheduleInPastError,
+  InvalidBookingRequestError,
+  InvalidBookingScheduleError,
+} from './booking.errors';
 import { assertBookingTransition } from './booking-status';
 import { SupabaseBookingRepository } from './supabase-booking.repository';
 import {
@@ -31,7 +39,15 @@ export class BookingLifecycleService {
     private readonly bookingAnalyticsPublisher?: BookingAnalyticsPublisher,
   ) {}
 
-  createBooking(input: CreateBookingInput): Promise<BookingSummary> {
+  async createBooking(input: CreateBookingInput): Promise<BookingSummary> {
+    if (!parseBookingScheduleInstant(input.scheduledAt)) {
+      throw new InvalidBookingScheduleError();
+    }
+
+    if (!isFutureBookingSchedule(input.scheduledAt)) {
+      throw new BookingScheduleInPastError();
+    }
+
     return this.bookingRepository.createBooking(input);
   }
 

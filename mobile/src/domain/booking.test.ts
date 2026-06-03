@@ -8,10 +8,13 @@ import {
   buildCalendarExportUrl,
   buildBookingTransitionRequest,
   buildCustomerBookingCalendarState,
+  customerInvalidSchedulePickerCopy,
+  customerPastSlotPickerCopy,
   buildMapsDirectionsUrl,
   buildProviderBookingSlots,
   completedBookingCount,
   providerUnavailableSlotPickerMessage,
+  validateCustomerBookingScheduleSelection,
   formatBookingDuration,
   formatDateTime,
   formatManilaDateInput,
@@ -29,6 +32,7 @@ import {
   timelineEventLabel,
   toManilaBookingIso,
 } from './booking';
+import type { ProviderAvailabilitySchedule } from '../shared/models/types';
 
 describe('booking domain helpers', () => {
   it('maps booking statuses to readable chip tones', () => {
@@ -168,6 +172,129 @@ describe('booking domain helpers', () => {
       '2026-05-20T02:00:00.000Z',
     );
     assert.equal(toManilaBookingIso('not-a-date'), null);
+  });
+
+  it('filters same-day customer booking slots that have already passed in Manila', () => {
+    const schedule: ProviderAvailabilitySchedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'wednesday',
+          startTime: '08:00',
+          endTime: '18:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+      ],
+      daysOff: [],
+      timeOffWindows: [],
+    };
+    const availability = buildCustomerBookingAvailability(
+      schedule,
+      1,
+      ['08:00', '10:00', '16:00'],
+      new Date('2026-06-03T07:00:00.000Z'),
+      '2026-06-03',
+    );
+
+    assert.deepEqual(
+      availability.timeOptions.map((slot) => ({
+        time: slot.time,
+        available: slot.isAvailable,
+        label: slot.unavailableLabel,
+      })),
+      [
+        { time: '08:00', available: false, label: customerPastSlotPickerCopy },
+        { time: '10:00', available: false, label: customerPastSlotPickerCopy },
+        { time: '16:00', available: true, label: undefined },
+      ],
+    );
+    assert.equal(
+      availability.dateOptions.find((date) => date.value === '2026-06-03')?.isAvailable,
+      true,
+    );
+  });
+
+  it('treats today as unavailable when every provider slot has passed', () => {
+    const schedule: ProviderAvailabilitySchedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'wednesday',
+          startTime: '08:00',
+          endTime: '11:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+      ],
+      daysOff: [],
+      timeOffWindows: [],
+    };
+    const availability = buildCustomerBookingAvailability(
+      schedule,
+      1,
+      ['08:00', '10:00'],
+      new Date('2026-06-03T07:00:00.000Z'),
+      '2026-06-03',
+    );
+    const calendar = buildCustomerBookingCalendarState(
+      schedule,
+      1,
+      ['08:00', '10:00'],
+      '2026-06',
+      new Date('2026-06-03T07:00:00.000Z'),
+    );
+
+    assert.equal(availability.dateOptions[0]?.isAvailable, false);
+    assert.equal(availability.dateOptions[0]?.unavailableLabel, customerPastSlotPickerCopy);
+    assert.equal(calendar.disabledDates.has('2026-06-03'), true);
+  });
+
+  it('revalidates selected customer booking schedules against current time and availability', () => {
+    const schedule: ProviderAvailabilitySchedule = {
+      providerId: 'provider-1',
+      windows: [
+        {
+          id: 'window-1',
+          dayOfWeek: 'wednesday',
+          startTime: '08:00',
+          endTime: '18:00',
+          isActive: true,
+          sortOrder: 1,
+        },
+      ],
+      daysOff: [],
+      timeOffWindows: [],
+    };
+
+    assert.deepEqual(
+      validateCustomerBookingScheduleSelection({
+        providerAvailability: schedule,
+        scheduledAt: '2026-06-03T10:00',
+        durationHours: 1,
+        timeSlots: ['08:00', '10:00', '16:00'],
+        now: new Date('2026-06-03T07:00:00.000Z'),
+      }),
+      {
+        isValid: false,
+        reason: 'past',
+        message: customerPastSlotPickerCopy,
+        scheduledAtIso: '2026-06-03T02:00:00.000Z',
+      },
+    );
+
+    assert.equal(
+      validateCustomerBookingScheduleSelection({
+        providerAvailability: schedule,
+        scheduledAt: '2026-06-03T16:00',
+        durationHours: 1,
+        timeSlots: ['08:00', '10:00', '16:00'],
+        now: new Date('2026-06-03T07:00:00.000Z'),
+      }).isValid,
+      true,
+    );
   });
 
   it('formats app shell notices without shell-side money or coordinate logic', () => {
@@ -494,6 +621,20 @@ describe('booking domain helpers', () => {
     );
     assert.equal(
       providerUnavailableSlotPickerMessage(
+        { code: 'booking_schedule_in_past' },
+        'Choose a future time for this booking.',
+      ),
+      customerPastSlotPickerCopy,
+    );
+    assert.equal(
+      providerUnavailableSlotPickerMessage(
+        { code: 'invalid_booking_schedule' },
+        'Choose a valid date and time for this booking.',
+      ),
+      customerInvalidSchedulePickerCopy,
+    );
+    assert.equal(
+      providerUnavailableSlotPickerMessage(
         new Error('Payment method required.'),
         'Payment method required.',
       ),
@@ -546,6 +687,7 @@ describe('booking domain helpers', () => {
       1,
       ['09:00', '13:00', '14:00', '15:00', '16:00'],
       '2026-05',
+      new Date('2026-05-20T00:00:00.000Z'),
     );
 
     assert.equal(state.disabledDates.has('2026-05-26'), false);

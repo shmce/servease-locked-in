@@ -1,14 +1,25 @@
 import { BookingGatewayService } from './booking.service';
 import { BookingServiceClient } from './clients/booking-service.client';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
-import { InvalidBookingTransitionError } from './booking.errors';
+import {
+  BookingScheduleInPastError,
+  BookingStartWindowNotOpenError,
+  InvalidBookingScheduleError,
+  InvalidBookingTransitionError,
+  PricingQuoteContextMismatchError,
+} from './booking.errors';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import { GeoServiceClient } from '../geo/clients/geo-service.client';
 import { PaymentGatewayService } from '../payments/payment.service';
+import { PricingGatewayService } from '../pricing/pricing.service';
 import { firstValueFrom } from 'rxjs';
 
 describe('BookingGatewayService', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('forwards booking creation with the authenticated user id', async () => {
     const client = {
       createBooking: jest.fn().mockResolvedValue({
@@ -37,7 +48,7 @@ describe('BookingGatewayService', () => {
     const booking = await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
       providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
       serviceAddress: '123 Test St',
-      scheduledAt: '2026-05-20T08:00:00.000Z',
+      scheduledAt: '2026-07-20T08:00:00.000Z',
     });
 
     expect(client.createBooking).toHaveBeenCalledWith(
@@ -45,7 +56,7 @@ describe('BookingGatewayService', () => {
       {
         providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
         serviceAddress: '123 Test St',
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
       },
     );
     expect(booking.customerFullName).toBe('Casey Customer');
@@ -79,7 +90,7 @@ describe('BookingGatewayService', () => {
     await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
       providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
       serviceAddress: '123 Test St',
-      scheduledAt: '2026-05-20T08:00:00.000Z',
+      scheduledAt: '2026-07-20T08:00:00.000Z',
     });
 
     expect(catalogClient.findProviderOwnerByProviderId).toHaveBeenCalledWith(
@@ -125,7 +136,7 @@ describe('BookingGatewayService', () => {
       service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
         providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
         serviceAddress: '123 Test St',
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
       }),
     ).resolves.toMatchObject({
       id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
@@ -155,7 +166,7 @@ describe('BookingGatewayService', () => {
     await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
       providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
       serviceAddress: '123 Test St',
-      scheduledAt: '2026-05-20T08:00:00.000Z',
+      scheduledAt: '2026-07-20T08:00:00.000Z',
       paymentMethod: 'cash_on_service',
     });
 
@@ -166,6 +177,151 @@ describe('BookingGatewayService', () => {
       amount: 1200,
       paymentMethod: 'cash_on_service',
     });
+  });
+
+  it('rejects past schedules before booking creation and payment side effects', async () => {
+    const client = {
+      createBooking: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const paymentGatewayService = {
+      createPayment: jest.fn(),
+    } as unknown as PaymentGatewayService;
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      paymentGatewayService,
+    );
+
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-01-01T00:00:00.000Z',
+        paymentMethod: 'cash_on_service',
+      }),
+    ).rejects.toBeInstanceOf(BookingScheduleInPastError);
+
+    expect(client.createBooking).not.toHaveBeenCalled();
+    expect(paymentGatewayService.createPayment).not.toHaveBeenCalled();
+  });
+
+  it('rejects unparsable booking schedules before booking creation', async () => {
+    const client = {
+      createBooking: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceAddress: '123 Test St',
+        scheduledAt: 'not-a-date',
+      }),
+    ).rejects.toBeInstanceOf(InvalidBookingScheduleError);
+
+    expect(client.createBooking).not.toHaveBeenCalled();
+  });
+
+  it('applies an accepted pricing quote only when booking context matches', async () => {
+    const client = {
+      createBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        totalAmount: 1450,
+      })),
+    } as unknown as BookingServiceClient;
+    const pricingGatewayService = {
+      validateQuote: jest.fn().mockResolvedValue({
+        quoteId: 'quote-1',
+        customerId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        hoursRequired: 2,
+        amount: 1450,
+        pricingMode: 'flat',
+        fairnessStatus: 'within_range',
+        confidence: 'high',
+        expiresAt: '2026-07-20T08:10:00.000Z',
+      }),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      pricingGatewayService as unknown as PricingGatewayService,
+    );
+
+    await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+      providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      serviceId: 'service-1',
+      serviceAddress: ' 123   Test St ',
+      scheduledAt: '2026-07-20T08:00:00.000Z',
+      hoursRequired: 2,
+      serviceAmount: 1200,
+      pricingMode: 'flat',
+      acceptedQuoteId: 'quote-1',
+    });
+
+    expect(client.createBooking).toHaveBeenCalledWith(
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      expect.objectContaining({
+        serviceAmount: 1450,
+        acceptedQuoteId: 'quote-1',
+        quoteFairnessStatus: 'within_range',
+        quoteConfidence: 'high',
+      }),
+    );
+  });
+
+  it('rejects accepted pricing quotes with mismatched booking context', async () => {
+    const client = {
+      createBooking: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const pricingGatewayService = {
+      validateQuote: jest.fn().mockResolvedValue({
+        quoteId: 'quote-1',
+        customerId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        hoursRequired: 2,
+        amount: 1450,
+        pricingMode: 'flat',
+        fairnessStatus: 'within_range',
+        confidence: 'high',
+        expiresAt: '2026-07-20T08:10:00.000Z',
+      }),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      pricingGatewayService as unknown as PricingGatewayService,
+    );
+
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '456 Other St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        hoursRequired: 2,
+        serviceAmount: 1200,
+        pricingMode: 'flat',
+        acceptedQuoteId: 'quote-1',
+      }),
+    ).rejects.toBeInstanceOf(PricingQuoteContextMismatchError);
+
+    expect(client.createBooking).not.toHaveBeenCalled();
   });
 
   it('forwards booking list visibility ids and enriches customer contact once per customer', async () => {
@@ -362,7 +518,7 @@ describe('BookingGatewayService', () => {
         destinationAddress: '123 Test St',
         destinationLocation: null,
         providerLocation: null,
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
         lastUpdatedAt: '2026-05-16T00:00:00.000Z',
       }),
     } as unknown as BookingServiceClient;
@@ -426,7 +582,7 @@ describe('BookingGatewayService', () => {
           longitude: 120.99,
           updatedAt: '2026-05-16T00:00:05.000Z',
         },
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
         lastUpdatedAt: '2026-05-16T00:00:05.000Z',
       }),
     } as unknown as BookingServiceClient;
@@ -688,6 +844,7 @@ describe('BookingGatewayService', () => {
   });
 
   it('starts a confirmed booking before completing it from the provider completion action', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-20T07:31:00.000Z'));
     const client = {
       findBooking: jest.fn().mockResolvedValue(createBookingSummary({
         status: 'confirmed',
@@ -731,6 +888,91 @@ describe('BookingGatewayService', () => {
       undefined,
     );
     expect(booking.status).toBe('completed');
+  });
+
+  it('blocks providers from starting a confirmed booking before the start window', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-20T07:00:00.000Z'));
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'confirmed',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+      })),
+      listBookings: jest.fn(),
+      transitionStatus: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.transitionStatus(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        'provider-user-1',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        'confirmed',
+        'in_progress',
+      ),
+    ).rejects.toBeInstanceOf(BookingStartWindowNotOpenError);
+
+    expect(client.listBookings).not.toHaveBeenCalled();
+    expect(client.transitionStatus).not.toHaveBeenCalled();
+  });
+
+  it('allows providers to start a confirmed booking within the start window', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-20T07:31:00.000Z'));
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'confirmed',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+      })),
+      listBookings: jest.fn().mockResolvedValue([]),
+      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'in_progress',
+      })),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.transitionStatus(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        'provider-user-1',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        'confirmed',
+        'in_progress',
+      ),
+    ).resolves.toMatchObject({ status: 'in_progress' });
+
+    expect(client.transitionStatus).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'confirmed',
+      'in_progress',
+      undefined,
+      undefined,
+    );
+  });
+
+  it('blocks confirmed booking auto-complete before the start window', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-20T07:00:00.000Z'));
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        status: 'confirmed',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+      })),
+      listBookings: jest.fn(),
+      transitionStatus: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.transitionStatus(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        'provider-user-1',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        'confirmed',
+        'completed',
+      ),
+    ).rejects.toBeInstanceOf(BookingStartWindowNotOpenError);
+
+    expect(client.transitionStatus).not.toHaveBeenCalled();
   });
 
   it('returns an already completed booking when completion is retried', async () => {
@@ -891,7 +1133,7 @@ function createBookingSummary(overrides = {}) {
     serviceId: 'service-1',
     serviceTitle: 'Deep Clean',
     serviceAddress: '123 Test St',
-    scheduledAt: '2026-05-20T08:00:00.000Z',
+    scheduledAt: '2026-07-20T08:00:00.000Z',
     status: 'pending',
     totalAmount: 1200,
     attachments: [],

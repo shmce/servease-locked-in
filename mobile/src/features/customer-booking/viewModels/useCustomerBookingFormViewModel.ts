@@ -19,6 +19,7 @@ type CustomerBookingFormViewModelInput = {
   selectedSavedAddressId: string | null;
   bookingReferencePhotoUrl: string | null;
   busyAction: string | null;
+  now?: Date;
 };
 
 export function useCustomerBookingFormViewModel({
@@ -33,6 +34,7 @@ export function useCustomerBookingFormViewModel({
   selectedSavedAddressId,
   bookingReferencePhotoUrl,
   busyAction,
+  now,
 }: CustomerBookingFormViewModelInput) {
   return useMemo(
     () =>
@@ -48,6 +50,7 @@ export function useCustomerBookingFormViewModel({
         selectedSavedAddressId,
         bookingReferencePhotoUrl,
         busyAction,
+        now,
       }),
     [
       address,
@@ -61,6 +64,7 @@ export function useCustomerBookingFormViewModel({
       selectedSavedAddressId,
       scheduledAt,
       timeSlots,
+      now,
     ],
   );
 }
@@ -77,6 +81,7 @@ export function buildCustomerBookingFormViewModel({
   selectedSavedAddressId,
   bookingReferencePhotoUrl,
   busyAction,
+  now,
 }: CustomerBookingFormViewModelInput) {
   const bookingSchedule = buildCustomerBookingViewModel({
     providerAvailability,
@@ -84,6 +89,7 @@ export function buildCustomerBookingFormViewModel({
     hoursRequired,
     timeSlots,
     bookingSlotError,
+    now,
   });
   const { dateOnly, timeOnly, duration, selectedSlotAvailable } =
     bookingSchedule.data;

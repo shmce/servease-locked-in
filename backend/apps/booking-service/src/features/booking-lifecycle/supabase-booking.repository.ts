@@ -3,9 +3,11 @@ import { createSupabaseServiceClient } from '../../../../../libs/common/src';
 import {
   AttachmentForbiddenError,
   AttachmentNotFoundError,
+  BookingScheduleInPastError,
   BookingNotFoundError,
   DisputeForbiddenError,
   InvalidBookingRequestError,
+  InvalidBookingScheduleError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
 } from './booking.errors';
@@ -164,6 +166,12 @@ export class SupabaseBookingRepository {
       .maybeSingle();
 
     if (error) {
+      if (error.message.includes('booking_schedule_in_past')) {
+        throw new BookingScheduleInPastError();
+      }
+      if (error.message.includes('invalid_booking_schedule')) {
+        throw new InvalidBookingScheduleError();
+      }
       if (error.message.includes('provider_unavailable')) {
         throw new ProviderUnavailableError();
       }

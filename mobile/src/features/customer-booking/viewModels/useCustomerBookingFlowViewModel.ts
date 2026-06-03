@@ -2,9 +2,10 @@ import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
   addressVerifiedNotice,
+  isPricingQuoteFresh,
   providerUnavailableSlotPickerMessage,
   promotionNotice,
-  toManilaBookingIso,
+  validateCustomerBookingScheduleSelection,
 } from '../../../domain/booking';
 import { defaultScheduledAt } from '../../../constants/appContent';
 import { readError } from '../../../navigation/routeHelpers';
@@ -19,6 +20,7 @@ import type {
   GeoAddressResult,
   PricingQuoteSummary,
   PromotionValidationSummary,
+  ProviderAvailabilitySchedule,
   ProviderListing,
   UploadSummary,
 } from '../../../shared/models/types';
@@ -38,6 +40,7 @@ type CustomerBookingFlowViewModelInput = {
   onCustomerAddressSaved: (address: CustomerAddressSummary) => void;
   onBookingCreated: (booking: BookingSummary) => void;
   onRefreshProviderAvailability: (providerId: string) => void;
+  providerAvailability: ProviderAvailabilitySchedule | null;
   selectedBooking: BookingSummary | null;
   selectedCustomerPaymentMethod: CustomerPaymentMethodSummary | null;
   selectedProvider: ProviderListing | null;
@@ -45,6 +48,8 @@ type CustomerBookingFlowViewModelInput = {
   setBusyAction: (busyAction: string | null) => void;
   setNotice: (notice: string) => void;
   setRoute: (route: { role: AppRole | null; screen: AppScreen }) => void;
+  timeSlots: string[];
+  now?: () => Date;
 };
 
 export function useCustomerBookingFlowViewModel({
@@ -54,6 +59,7 @@ export function useCustomerBookingFlowViewModel({
   onCustomerAddressSaved,
   onBookingCreated,
   onRefreshProviderAvailability,
+  providerAvailability,
   selectedBooking,
   selectedCustomerPaymentMethod,
   selectedProvider,
@@ -61,6 +67,8 @@ export function useCustomerBookingFlowViewModel({
   setBusyAction,
   setNotice,
   setRoute,
+  timeSlots,
+  now,
 }: CustomerBookingFlowViewModelInput) {
   const [bookingSlotError, setBookingSlotError] = useState('');
   const [address, setAddress] = useState('Unit 12B Greenfield Residences');
@@ -155,10 +163,15 @@ export function useCustomerBookingFlowViewModel({
       return null;
     }
 
-    const scheduledAtIso = toManilaBookingIso(scheduledAt);
+    const scheduleValidation = validateSelectedSchedule();
 
-    if (!selectedProvider || !address.trim() || !scheduledAtIso) {
+    if (!selectedProvider || !address.trim() || !scheduleValidation.scheduledAtIso) {
       setNotice('Choose a service provider, address, and schedule.');
+      return null;
+    }
+
+    if (!scheduleValidation.isValid) {
+      handleScheduleValidationFailure(scheduleValidation.message);
       return null;
     }
 
@@ -168,7 +181,16 @@ export function useCustomerBookingFlowViewModel({
       let quote = pricingQuote;
 
       if (serviceId && selectedProvider.providerId) {
-        if (!isPricingQuoteFresh(quote)) {
+        if (
+          !isPricingQuoteFresh(quote, Date.now(), {
+            providerId: selectedProvider.providerId,
+            serviceId,
+            serviceAddress: address,
+            scheduledAt: scheduleValidation.scheduledAtIso,
+            hoursRequired: Number(hoursRequired) || 1,
+            pricingMode: selectedProvider.pricingMode,
+          })
+        ) {
           quote = await fetchPricingQuote();
           setPricingQuote(quote);
           setNotice('Pricing estimate refreshed. Review the updated total before confirming.');
@@ -185,7 +207,7 @@ export function useCustomerBookingFlowViewModel({
         serviceName: selectedService?.name ?? selectedProvider.title,
         serviceDescription: selectedProvider.description,
         serviceAddress: address.trim(),
-        scheduledAt: scheduledAtIso,
+        scheduledAt: scheduleValidation.scheduledAtIso,
         hoursRequired: Number(hoursRequired) || 1,
         serviceAmount:
           quote?.estimatedTotal ?? selectedProvider.price ?? selectedService?.price ?? 0,
@@ -230,10 +252,18 @@ export function useCustomerBookingFlowViewModel({
   }
 
   async function fetchPricingQuote(): Promise<PricingQuoteSummary> {
-    const scheduledAtIso = toManilaBookingIso(scheduledAt);
+    const scheduleValidation = validateSelectedSchedule();
     const serviceId = selectedService?.id ?? selectedProvider?.serviceId ?? null;
-    if (!selectedProvider || !serviceId || !address.trim() || !scheduledAtIso) {
+    if (
+      !selectedProvider ||
+      !serviceId ||
+      !address.trim() ||
+      !scheduleValidation.scheduledAtIso
+    ) {
       throw new Error('Choose a service provider, address, and schedule first.');
+    }
+    if (!scheduleValidation.isValid) {
+      throw new Error(scheduleValidation.message ?? 'Choose an available future schedule.');
     }
 
     return createPricingQuote(
@@ -241,7 +271,7 @@ export function useCustomerBookingFlowViewModel({
         providerId: selectedProvider.providerId,
         serviceId,
         serviceAddress: address.trim(),
-        scheduledAt: scheduledAtIso,
+        scheduledAt: scheduleValidation.scheduledAtIso,
         hoursRequired: Number(hoursRequired) || 1,
         bookingUrgency: 'standard',
         region: 'default',
@@ -259,6 +289,12 @@ export function useCustomerBookingFlowViewModel({
   async function prepareBookingReview() {
     if (!hasSession) {
       setNotice('Sign in before requesting a fair estimate.');
+      return false;
+    }
+
+    const scheduleValidation = validateSelectedSchedule();
+    if (!scheduleValidation.isValid) {
+      handleScheduleValidationFailure(scheduleValidation.message);
       return false;
     }
 
@@ -281,6 +317,12 @@ export function useCustomerBookingFlowViewModel({
   async function previewPricingQuote() {
     if (!hasSession) {
       setNotice('Sign in before requesting a fair estimate.');
+      return null;
+    }
+
+    const scheduleValidation = validateSelectedSchedule();
+    if (!scheduleValidation.isValid) {
+      handleScheduleValidationFailure(scheduleValidation.message);
       return null;
     }
 
@@ -414,6 +456,26 @@ export function useCustomerBookingFlowViewModel({
     }
   }
 
+  function validateSelectedSchedule() {
+    return validateCustomerBookingScheduleSelection({
+      providerAvailability,
+      scheduledAt,
+      durationHours: Number(hoursRequired) || 1,
+      timeSlots,
+      now: now?.() ?? new Date(),
+    });
+  }
+
+  function handleScheduleValidationFailure(message: string | null) {
+    const scheduleMessage = message ?? 'Choose an available future schedule.';
+    setBookingSlotError(scheduleMessage);
+    setNotice(scheduleMessage);
+    if (selectedProvider) {
+      onRefreshProviderAvailability(selectedProvider.providerId);
+    }
+    setRoute({ role: 'customer', screen: 'customerBookingForm' });
+  }
+
   return {
     data: {
       address,
@@ -463,16 +525,4 @@ function mediaAttachmentFromUpload(upload: UploadSummary) {
     fileSize: upload.size,
     caption: null,
   };
-}
-
-export function isPricingQuoteFresh(
-  quote: PricingQuoteSummary | null,
-  now: number = Date.now(),
-): quote is PricingQuoteSummary {
-  if (!quote) {
-    return false;
-  }
-
-  const expiresAt = new Date(quote.expiresAt).getTime();
-  return Number.isFinite(expiresAt) && expiresAt > now;
 }

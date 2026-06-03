@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildCustomerBookingReviewViewModel } from './useCustomerBookingReviewViewModel';
+import { customerPastSlotPickerCopy } from '../../../shared/utils/booking';
 import type {
   CustomerPaymentMethodSummary,
   PricingQuoteSummary,
@@ -150,4 +151,26 @@ test('customer booking review separates provider rate from pricing engine total'
       value: 'Within fair range',
     },
   ]);
+});
+
+test('customer booking review blocks confirmation when the selected schedule has passed', () => {
+  const model = buildCustomerBookingReviewViewModel({
+    provider,
+    selectedService: null,
+    scheduledAt: '2026-06-03T10:00',
+    hoursRequired: '2',
+    address: '123 Test St',
+    notes: '',
+    bookingReferencePhotoUrl: null,
+    pricingQuote: null,
+    promotionValidation: null,
+    promoCode: '',
+    busyAction: null,
+    customerPaymentMethods: [cashMethod],
+    selectedPaymentMethodId: cashMethod.id,
+    now: new Date('2026-06-03T07:00:00.000Z'),
+  });
+
+  assert.equal(model.data.confirmDisabled, true);
+  assert.equal(model.data.quoteExplanation, customerPastSlotPickerCopy);
 });

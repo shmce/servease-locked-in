@@ -1,8 +1,16 @@
 import { BookingLifecycleService } from './booking-lifecycle.service';
+import {
+  BookingScheduleInPastError,
+  InvalidBookingScheduleError,
+} from './booking.errors';
 import { BookingSummary } from './booking.types';
 import { SupabaseBookingRepository } from './supabase-booking.repository';
 
 describe('BookingLifecycleService', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   const createService = (
     repository: SupabaseBookingRepository,
     analyticsPublisher?: { publishBookingCompleted: jest.Mock },
@@ -36,6 +44,41 @@ describe('BookingLifecycleService', () => {
     totalAmount: 1200,
     attachments: [],
     ...overrides,
+  });
+
+  it('rejects invalid booking schedules before repository creation', async () => {
+    const repository = {
+      createBooking: jest.fn(),
+    } as unknown as SupabaseBookingRepository;
+    const service = new BookingLifecycleService(repository);
+
+    await expect(
+      service.createBooking({
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: 'not-a-date',
+      }),
+    ).rejects.toBeInstanceOf(InvalidBookingScheduleError);
+    expect(repository.createBooking).not.toHaveBeenCalled();
+  });
+
+  it('rejects past booking schedules before repository creation', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-03T08:00:00.000Z'));
+    const repository = {
+      createBooking: jest.fn(),
+    } as unknown as SupabaseBookingRepository;
+    const service = new BookingLifecycleService(repository);
+
+    await expect(
+      service.createBooking({
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-06-03T07:59:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(BookingScheduleInPastError);
+    expect(repository.createBooking).not.toHaveBeenCalled();
   });
 
   it('derives a tracking snapshot for a visible in-progress booking', async () => {

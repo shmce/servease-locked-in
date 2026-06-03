@@ -95,6 +95,10 @@ describe('PricingEngineRepository', () => {
         provider_id: 'provider-1',
         service_id: 'service-1',
         category_id: 'category-1',
+        service_address: '123 Test St',
+        scheduled_at: '2026-06-01T09:00:00.000Z',
+        hours_required: 2,
+        pricing_mode: 'hourly',
         expires_at: '2026-06-01T08:45:00.000Z',
         estimated_total: 1450,
         fair_range_min: 1200,
@@ -123,6 +127,10 @@ describe('PricingEngineRepository', () => {
       providerId: 'provider-1',
       serviceId: 'service-1',
       categoryId: 'category-1',
+      serviceAddress: '123 Test St',
+      scheduledAt: '2026-06-01T09:00:00.000Z',
+      hoursRequired: 2,
+      pricingMode: 'hourly',
       expiresAt: '2026-06-01T08:45:00.000Z',
       currency: 'PHP',
       estimatedTotal: 1450,
@@ -147,6 +155,10 @@ describe('PricingEngineRepository', () => {
       p_provider_id: 'provider-1',
       p_service_id: 'service-1',
       p_category_id: 'category-1',
+      p_service_address: '123 Test St',
+      p_scheduled_at: '2026-06-01T09:00:00.000Z',
+      p_hours_required: 2,
+      p_pricing_mode: 'hourly',
       p_expires_at: '2026-06-01T08:45:00.000Z',
       p_estimated_total: 1450,
       p_fair_range_min: 1200,
@@ -175,6 +187,9 @@ describe('PricingEngineRepository', () => {
         provider_id: 'provider-1',
         service_id: 'service-1',
         category_id: 'category-1',
+        service_address: '123 Test St',
+        scheduled_at: '2026-06-01T09:00:00.000Z',
+        hours_required: 2,
         expires_at: '2026-06-01T08:45:00.000Z',
         estimated_total: 1450,
         fair_range_min: 1200,
@@ -196,5 +211,8 @@ describe('PricingEngineRepository', () => {
     });
     expect(quote.amount).toBe(1450);
     expect(quote.pricingMode).toBe('flat');
+    expect(quote.serviceAddress).toBe('123 Test St');
+    expect(quote.scheduledAt).toBe('2026-06-01T09:00:00.000Z');
+    expect(quote.hoursRequired).toBe(2);
   });
 });
