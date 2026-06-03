@@ -1,14 +1,20 @@
-import { ChevronRight, Search } from 'lucide-react-native';
+import { ChevronRight, Search, X } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
-  EmptyState,
   SkeletonBlock,
   SkeletonLine,
-  TopBar,
 } from '../../../components/DesignKit';
-import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { CatalogServiceItem } from '../../../shared/models/types';
-import { ScreenContent, ScreenScroll } from '../../../shared/components/ScreenLayout';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerAllServicesViewModel } from '../viewModels/useCustomerAllServicesViewModel';
 
 type CustomerAllServicesScreenProps = {
@@ -38,10 +44,15 @@ export function CustomerAllServicesScreen({
   const showSkeletons = isLoading && services.length === 0;
 
   return (
-    <>
-      <TopBar title={title} onBack={onBack} />
-      <ScreenScroll>
-        <ScreenContent>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title={title}
+          subtitle="Find the right service for your home"
+          onBack={onBack}
+        />
+
+        <CustomerSection>
           <View style={styles.searchBar}>
             <Search color={palette.faint} size={16} strokeWidth={2.2} />
             <TextInput
@@ -60,49 +71,56 @@ export function CustomerAllServicesScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
               >
-                <Text style={styles.searchClear}>✕</Text>
+                <X color={palette.faint} size={16} strokeWidth={2.2} />
               </Pressable>
             ) : null}
           </View>
+        </CustomerSection>
 
+        <CustomerSection title="Services">
           <View style={styles.list}>
             {showSkeletons
               ? Array.from({ length: 5 }).map((_, index) => (
                   <ServiceRowSkeleton key={`service-row-skeleton-${index}`} />
                 ))
               : data.visibleServices.map((row) => (
-                  <Pressable
+                  <CustomerCard
                     key={row.service.id}
-                    style={styles.serviceCard}
                     onPress={() => onOpenService(row.service)}
-                    accessibilityRole="button"
                     accessibilityLabel={`View providers for ${row.service.name}`}
                   >
-                    <View style={styles.serviceBody}>
-                      <Text style={styles.serviceName} numberOfLines={1}>
-                        {row.service.name}
-                      </Text>
-                      <Text style={styles.serviceDescription} numberOfLines={2}>
-                        {row.description}
-                      </Text>
+                    <View style={styles.serviceRow}>
+                      <View style={styles.serviceThumb}>
+                        <Text style={styles.serviceThumbText}>
+                          {row.service.name.slice(0, 1)}
+                        </Text>
+                      </View>
+                      <View style={styles.serviceBody}>
+                        <Text style={styles.serviceName} numberOfLines={1}>
+                          {row.service.name}
+                        </Text>
+                        <Text style={styles.serviceDescription} numberOfLines={2}>
+                          {row.description}
+                        </Text>
+                      </View>
+                      <View style={styles.serviceRight}>
+                        <Text style={styles.priceLabel}>{row.priceLabel}</Text>
+                        <ChevronRight color={palette.faint} size={18} />
+                      </View>
                     </View>
-                    <View style={styles.serviceRight}>
-                      <Text style={styles.priceLabel}>{row.priceLabel}</Text>
-                      <ChevronRight color={palette.faint} size={18} />
-                    </View>
-                  </Pressable>
+                  </CustomerCard>
                 ))}
           </View>
 
           {!showSkeletons && !data.hasVisibleServices ? (
-            <EmptyState
+            <CustomerEmptyState
               title="No services found"
               body="Try searching with different keywords."
             />
           ) : null}
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+        </CustomerSection>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
@@ -111,8 +129,9 @@ function ServiceRowSkeleton() {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={styles.serviceCard}
+      style={styles.serviceSkeletonCard}
     >
+      <View style={styles.serviceThumb} />
       <View style={styles.serviceBody}>
         <SkeletonLine width="52%" height={14} />
         <SkeletonLine width="88%" height={10} />
@@ -130,8 +149,8 @@ const styles = StyleSheet.create({
   searchBar: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
@@ -139,47 +158,58 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   searchInput: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '400',
+    letterSpacing: 0,
     minHeight: 48,
   },
-  searchClear: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '700',
-    paddingHorizontal: 4,
-  },
   list: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
-  serviceCard: {
+  serviceSkeletonCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.sm,
+    gap: spacing.md,
     minHeight: 72,
-    padding: spacing.base,
-    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+    padding: 14,
+  },
+  serviceRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  serviceThumb: {
+    alignItems: 'center',
+    backgroundColor: '#F1FAF5',
+    borderRadius: 10,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  serviceThumbText: {
+    color: palette.mintDeep,
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   serviceBody: {
     flex: 1,
     gap: 4,
+    minWidth: 0,
   },
   serviceName: {
-    color: palette.ink,
+    ...customerText.title,
     fontSize: 15,
-    fontWeight: '700',
+    lineHeight: 20,
   },
   serviceDescription: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '400',
-    lineHeight: 18,
+    ...customerText.meta,
   },
   serviceRight: {
     alignItems: 'center',
@@ -187,8 +217,9 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   priceLabel: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 });

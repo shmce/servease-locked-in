@@ -4,24 +4,22 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Trash2, Wallet } from 'lucide-react-native';
+import { CheckCircle, Trash2, Wallet } from 'lucide-react-native';
 import {
-  EmptyState,
-  PrimaryButton,
-  Section,
-  SkeletonBlock,
-  SkeletonLine,
-  TopBar,
-} from '../../../components/DesignKit';
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerIconBlock,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import {
   CustomerPaymentMethodSummary,
   CustomerPaymentMethodType,
 } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
-import {
-  ScreenContent,
-  ScreenScroll,
-} from '../../../shared/components/ScreenLayout';
 import { useCustomerPaymentMethodsViewModel } from '../viewModels/useCustomerPaymentMethodsViewModel';
 
 type CustomerPaymentMethodsScreenProps = {
@@ -60,218 +58,207 @@ export function CustomerPaymentMethodsScreen({
   const showSkeletons = paymentMethods.isLoading && customerPaymentMethods.length === 0;
 
   return (
-    <>
-      <TopBar title="Payment Methods" onBack={onBack} />
-      <ScreenScroll>
-        <ScreenContent>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Payment Methods"
+          subtitle="Choose how you prefer to pay"
+          onBack={onBack}
+        />
 
-          <Section title="Saved methods">
-            {showSkeletons ? (
-              <View style={styles.methodList}>
-                {Array.from({ length: 2 }).map((_, index) => (
-                  <PaymentMethodSkeleton key={`payment-method-skeleton-${index}`} />
-                ))}
-              </View>
-            ) : paymentMethods.data.hasMethods ? (
-              <View style={styles.methodList}>
-                {paymentMethods.data.methods.map((item) => (
-                  <Pressable
-                    key={item.method.id}
-                    style={[
-                      styles.methodCard,
-                      item.selected && styles.methodCardSelected,
-                    ]}
-                    onPress={() => setSelectedCustomerPaymentMethodId(item.method.id)}
-                    accessibilityRole="button"
-                  >
-                    <View
-                      style={[
-                        styles.radioOuter,
-                        item.selected && styles.radioOuterSelected,
-                      ]}
-                    >
-                      {item.selected ? <View style={styles.radioInner} /> : null}
-                    </View>
-                    <View style={[
-                      styles.methodIcon,
-                      item.selected && styles.methodIconSelected,
-                    ]}>
-                      <Wallet
-                        color={item.selected ? palette.mint : palette.muted}
-                        size={18}
-                        strokeWidth={2.2}
-                      />
-                    </View>
-                    <View style={styles.flex}>
-                      <Text style={styles.methodName}>{item.label}</Text>
-                      <Text style={styles.methodMeta}>{item.meta}</Text>
-                    </View>
-                    {item.canDelete ? (
-                      <Pressable
-                        style={styles.deleteButton}
-                        onPress={() => void removeCustomerPaymentMethod(item.method.id)}
-                        disabled={item.deleting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Remove ${item.label}`}
-                      >
-                        <Trash2 color={palette.red} size={16} strokeWidth={2.2} />
-                      </Pressable>
-                    ) : null}
-                  </Pressable>
-                ))}
-              </View>
-            ) : (
-              <EmptyState
-                title="No payment methods"
-                body="Add a wallet or card below to get started."
-              />
-            )}
-          </Section>
-
-          <Text style={styles.disclaimer}>
-            ServEase stores only your preferred checkout choice. Wallet and card
-            details are entered in secure checkout when you pay.
-          </Text>
-
-          <Section title="Add a method">
-            <View style={styles.addMethodRow}>
-              {walletActions.map((action) => (
-                <Pressable
-                  key={action.methodType}
-                  style={[styles.addMethodCard, action.disabled && styles.addMethodCardDisabled]}
-                  onPress={() => void saveCustomerPaymentMethod(action.methodType)}
-                  disabled={action.disabled}
-                  accessibilityRole="button"
-                >
-                  <Wallet color={action.disabled ? palette.faint : palette.mint} size={20} />
-                  <Text style={[
-                    styles.addMethodLabel,
-                    action.disabled && styles.addMethodLabelDisabled,
-                  ]}>
-                    {action.label}
-                  </Text>
-                </Pressable>
+        <CustomerSection title="Saved methods">
+          {showSkeletons ? (
+            <View style={styles.methodList}>
+              {Array.from({ length: 2 }).map((_, index) => (
+                <PaymentMethodSkeleton key={`payment-method-skeleton-${index}`} />
               ))}
             </View>
-            {cardAction ? (
-              <PrimaryButton
-                label={cardAction.label}
-                onPress={() => void saveCustomerPaymentMethod(cardAction.methodType)}
-                disabled={cardAction.disabled}
-              />
-            ) : null}
-          </Section>
+          ) : paymentMethods.data.hasMethods ? (
+            <View style={styles.methodList}>
+              {paymentMethods.data.methods.map((item) => (
+                <View
+                  key={item.method.id}
+                  style={[
+                    styles.methodCard,
+                    item.selected && styles.methodCardSelected,
+                  ]}
+                >
+                  <Pressable
+                    style={styles.methodSelectArea}
+                    onPress={() => setSelectedCustomerPaymentMethodId(item.method.id)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: item.selected }}
+                  >
+                    <CustomerIconBlock compact>
+                      <Wallet color={palette.mintDeep} size={18} strokeWidth={2.1} />
+                    </CustomerIconBlock>
+                    <View style={styles.flex}>
+                      <Text style={styles.methodName} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                      <Text style={styles.methodMeta} numberOfLines={1}>
+                        {item.meta}
+                      </Text>
+                    </View>
+                    {item.selected ? (
+                      <CheckCircle color={palette.mintDeep} size={20} strokeWidth={2.2} />
+                    ) : (
+                      <View style={styles.radioEmpty} />
+                    )}
+                  </Pressable>
+                  {item.canDelete ? (
+                    <Pressable
+                      style={[
+                        styles.deleteButton,
+                        item.deleting && styles.actionDisabled,
+                      ]}
+                      onPress={() => void removeCustomerPaymentMethod(item.method.id)}
+                      disabled={item.deleting}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${item.label}`}
+                    >
+                      <Trash2 color={palette.red} size={16} strokeWidth={2.2} />
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <CustomerEmptyState
+              title="No payment methods"
+              body="Add a wallet or card below to get started."
+            />
+          )}
+        </CustomerSection>
 
-          {paymentMethods.error ? (
-            <Text style={styles.errorText}>{paymentMethods.error}</Text>
+        <Text style={styles.disclaimer}>
+          ServEase stores only your preferred checkout choice. Wallet and card
+          details are entered in secure checkout when you pay.
+        </Text>
+
+        <CustomerSection title="Add a method">
+          <View style={styles.addMethodRow}>
+            {walletActions.map((action) => (
+              <Pressable
+                key={action.methodType}
+                style={[styles.addMethodCard, action.disabled && styles.actionDisabled]}
+                onPress={() => void saveCustomerPaymentMethod(action.methodType)}
+                disabled={action.disabled}
+                accessibilityRole="button"
+              >
+                <Wallet
+                  color={action.disabled ? '#A7AFB8' : palette.mintDeep}
+                  size={19}
+                  strokeWidth={2.1}
+                />
+                <Text
+                  style={[
+                    styles.addMethodLabel,
+                    action.disabled && styles.addMethodLabelDisabled,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {action.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          {cardAction ? (
+            <Pressable
+              style={[
+                styles.cardButton,
+                cardAction.disabled && styles.actionDisabled,
+              ]}
+              onPress={() => void saveCustomerPaymentMethod(cardAction.methodType)}
+              disabled={cardAction.disabled}
+              accessibilityRole="button"
+            >
+              <Text style={styles.cardButtonText}>{cardAction.label}</Text>
+            </Pressable>
           ) : null}
+        </CustomerSection>
 
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+        {paymentMethods.error ? (
+          <Text style={styles.errorText}>{paymentMethods.error}</Text>
+        ) : null}
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
 function PaymentMethodSkeleton() {
   return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={styles.methodCard}
-    >
-      <SkeletonBlock width={20} height={20} radius={radius.pill} />
-      <SkeletonBlock width={36} height={36} radius={radius.sm} />
+    <CustomerCard style={styles.skeletonCard}>
+      <View style={styles.skeletonIcon} />
       <View style={styles.flex}>
-        <SkeletonLine width="48%" height={13} />
-        <SkeletonLine width="68%" height={10} style={styles.methodSkeletonMeta} />
+        <View style={styles.skeletonLineShort} />
+        <View style={styles.skeletonLine} />
       </View>
-      <SkeletonBlock width={32} height={32} radius={radius.sm} />
-    </View>
+      <View style={styles.skeletonAction} />
+    </CustomerCard>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-
+  flex: {
+    flex: 1,
+    minWidth: 0,
+  },
   methodList: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   methodCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
+    borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 68,
-    padding: spacing.base,
+    gap: spacing.sm,
+    padding: spacing.sm,
   },
   methodCardSelected: {
-    backgroundColor: palette.mintSoft,
-    borderColor: palette.mint,
+    backgroundColor: '#F1FAF5',
+    borderColor: 'rgba(0,160,85,0.28)',
   },
-  radioOuter: {
+  methodSelectArea: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    height: 20,
-    justifyContent: 'center',
-    width: 20,
-  },
-  radioOuterSelected: {
-    borderColor: palette.mint,
-  },
-  radioInner: {
-    backgroundColor: palette.mint,
-    borderRadius: radius.pill,
-    height: 10,
-    width: 10,
-  },
-  methodIcon: {
-    alignItems: 'center',
-    backgroundColor: palette.lineSoft,
-    borderRadius: radius.sm,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  methodIconSelected: {
-    backgroundColor: palette.white,
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 58,
   },
   methodName: {
-    color: palette.ink,
-    fontSize: 14,
-    fontWeight: '700',
+    ...customerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   methodMeta: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
+    ...customerText.meta,
     marginTop: 2,
   },
-  methodSkeletonMeta: {
-    marginTop: 6,
+  radioEmpty: {
+    borderColor: '#CBD2D9',
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    height: 18,
+    width: 18,
   },
   deleteButton: {
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#FEECEC',
     borderRadius: radius.sm,
-    height: 32,
+    height: 34,
     justifyContent: 'center',
-    width: 32,
+    width: 34,
   },
-
+  actionDisabled: {
+    opacity: 0.45,
+  },
   disclaimer: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '400',
-    lineHeight: 19,
+    ...customerText.meta,
     textAlign: 'center',
   },
-
   addMethodRow: {
     flexDirection: 'row',
     gap: spacing.sm,
@@ -279,33 +266,76 @@ const styles = StyleSheet.create({
   addMethodCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
     borderWidth: 1,
     flex: 1,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
-    minHeight: 52,
-    paddingHorizontal: spacing.base,
-  },
-  addMethodCardDisabled: {
-    opacity: 0.5,
+    minHeight: 50,
+    paddingHorizontal: spacing.md,
   },
   addMethodLabel: {
-    color: palette.ink,
-    fontSize: 14,
+    color: '#202733',
+    fontSize: 13,
     fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
   },
   addMethodLabelDisabled: {
-    color: palette.faint,
+    color: '#A7AFB8',
   },
-
+  cardButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 50,
+    paddingHorizontal: spacing.lg,
+  },
+  cardButtonText: {
+    color: palette.white,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
   errorText: {
     color: palette.red,
     fontSize: 13,
     fontWeight: '500',
     lineHeight: 19,
     textAlign: 'center',
+  },
+  skeletonCard: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  skeletonIcon: {
+    backgroundColor: '#EEF2F6',
+    borderRadius: radius.pill,
+    height: 36,
+    width: 36,
+  },
+  skeletonLineShort: {
+    backgroundColor: '#EEF2F6',
+    borderRadius: radius.pill,
+    height: 12,
+    width: '48%',
+  },
+  skeletonLine: {
+    backgroundColor: '#F4F6F8',
+    borderRadius: radius.pill,
+    height: 10,
+    marginTop: spacing.sm,
+    width: '68%',
+  },
+  skeletonAction: {
+    backgroundColor: '#EEF2F6',
+    borderRadius: radius.pill,
+    height: 20,
+    width: 20,
   },
 });

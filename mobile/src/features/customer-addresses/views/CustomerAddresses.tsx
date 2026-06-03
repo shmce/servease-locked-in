@@ -1,13 +1,15 @@
 import { Home, MapPin, Trash2 } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
-  EmptyState,
-  Field,
-  PrimaryButton,
-  Section,
-  TopBar,
-} from '../../../components/DesignKit';
-import { ScreenContent, ScreenScroll } from '../../../shared/components/ScreenLayout';
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerIconBlock,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { CustomerAddressSummary } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerAddressesViewModel } from '../viewModels/useCustomerAddressesViewModel';
@@ -25,6 +27,35 @@ type CustomerAddressesScreenProps = {
   onDeleteAddress: (addressId: string) => void;
 };
 
+function AddressField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  multiline,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder: string;
+  multiline?: boolean;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        style={[styles.input, multiline && styles.textarea]}
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor="#A7AFB8"
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : undefined}
+      />
+    </View>
+  );
+}
+
 export function CustomerAddressesScreen({
   addresses,
   draftLabel,
@@ -40,140 +71,238 @@ export function CustomerAddressesScreen({
   const addressBook = useCustomerAddressesViewModel({ addresses, busyAction });
 
   return (
-    <>
-      <TopBar title="Saved Addresses" onBack={onBack} />
-      <ScreenScroll>
-        <ScreenContent>
-          <Section title="Your locations">
-            {addressBook.data.hasAddresses ? (
-              <View style={styles.addressList}>
-                {addressBook.data.addresses.map((address) => (
-                  <View key={address.id} style={styles.addressCard}>
-                    <View style={styles.addressIcon}>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Saved Addresses"
+          subtitle="Choose where your providers should go"
+          onBack={onBack}
+        />
+
+        <CustomerSection title="Your locations">
+          {addressBook.data.hasAddresses ? (
+            <View style={styles.addressList}>
+              {addressBook.data.addresses.map((address) => (
+                <CustomerCard
+                  key={address.id}
+                  selected={address.isDefault}
+                  style={styles.addressCard}
+                >
+                  <View style={styles.addressRow}>
+                    <CustomerIconBlock compact>
                       {address.isDefault ? (
-                        <Home color={palette.mint} size={18} strokeWidth={2.4} />
+                        <Home color={palette.mintDeep} size={18} strokeWidth={2.2} />
                       ) : (
-                        <MapPin color={palette.muted} size={18} strokeWidth={2.4} />
+                        <MapPin color={palette.mintDeep} size={18} strokeWidth={2.2} />
                       )}
-                    </View>
+                    </CustomerIconBlock>
                     <View style={styles.flex}>
-                      <Text style={styles.addressLabel}>{address.label}</Text>
+                      <Text style={styles.addressLabel} numberOfLines={1}>
+                        {address.label}
+                      </Text>
                       <Text style={styles.addressMeta}>{address.defaultLabel}</Text>
-                      <Text style={styles.addressText}>{address.address}</Text>
+                      <Text style={styles.addressText} numberOfLines={2}>
+                        {address.address}
+                      </Text>
                     </View>
+                  </View>
+                  <View style={styles.addressActions}>
                     {!address.isDefault ? (
                       <Pressable
-                        style={styles.linkButton}
+                        style={[
+                          styles.homeButton,
+                          address.settingDefault && styles.actionDisabled,
+                        ]}
                         onPress={() => onSetDefault(address.id)}
                         disabled={address.settingDefault}
                         accessibilityRole="button"
                         accessibilityLabel={`Set ${address.label} as home`}
                       >
-                        <Text style={styles.linkButtonText}>Home</Text>
+                        <Text style={styles.homeButtonText}>Set home</Text>
                       </Pressable>
-                    ) : null}
+                    ) : (
+                      <View style={styles.defaultBadge}>
+                        <Text style={styles.defaultBadgeText}>Default</Text>
+                      </View>
+                    )}
                     <Pressable
-                      style={styles.deleteButton}
+                      style={[
+                        styles.deleteButton,
+                        address.deleting && styles.actionDisabled,
+                      ]}
                       onPress={() => onDeleteAddress(address.id)}
                       disabled={address.deleting}
                       accessibilityRole="button"
                       accessibilityLabel={`Delete ${address.label}`}
                     >
-                      <Trash2 color={palette.red} size={16} strokeWidth={2.3} />
+                      <Trash2 color={palette.red} size={16} strokeWidth={2.2} />
                     </Pressable>
                   </View>
-                ))}
-              </View>
-            ) : (
-              <EmptyState
-                title="No saved addresses"
-                body="Add your home or another service location below."
-              />
-            )}
-          </Section>
+                </CustomerCard>
+              ))}
+            </View>
+          ) : (
+            <CustomerEmptyState
+              title="No saved addresses"
+              body="Add your home or another service location below."
+            />
+          )}
+        </CustomerSection>
 
-          <Section title="Add address">
-            <Field
+        <CustomerSection title="Add address">
+          <CustomerCard style={styles.formCard}>
+            <AddressField
               label="Label"
               value={draftLabel}
               onChangeText={onDraftLabelChange}
               placeholder="Home, Work, Condo"
             />
-            <Field
+            <AddressField
               label="Address"
               value={draftAddress}
               onChangeText={onDraftAddressChange}
               placeholder="House, street, barangay, city"
               multiline
             />
-            <PrimaryButton
-              label={addressBook.data.saveLabel}
+            <Pressable
+              style={[
+                styles.saveButton,
+                (!draftAddress.trim() || busyAction === 'save-customer-address') &&
+                  styles.saveButtonDisabled,
+              ]}
               onPress={onSaveAddress}
               disabled={!draftAddress.trim() || busyAction === 'save-customer-address'}
-            />
-          </Section>
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+              accessibilityRole="button"
+            >
+              <Text style={styles.saveButtonText}>{addressBook.data.saveLabel}</Text>
+            </Pressable>
+          </CustomerCard>
+        </CustomerSection>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
+  flex: {
+    flex: 1,
+    minWidth: 0,
+  },
   addressList: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
   addressCard: {
-    alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: 76,
-    padding: spacing.base,
+    gap: spacing.md,
   },
-  addressIcon: {
-    alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.pill,
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
+  addressRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
   },
   addressLabel: {
-    color: palette.ink,
-    fontSize: 14,
-    fontWeight: '800',
+    ...customerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   addressMeta: {
-    color: palette.mint,
-    fontSize: 11,
-    fontWeight: '800',
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 16,
     marginTop: 2,
   },
   addressText: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '600',
+    ...customerText.body,
     marginTop: 4,
   },
-  linkButton: {
-    backgroundColor: palette.mintSoft,
+  addressActions: {
+    alignItems: 'center',
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+    paddingTop: spacing.md,
+  },
+  homeButton: {
+    backgroundColor: '#F1FAF5',
+    borderColor: 'rgba(0,160,85,0.22)',
     borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  homeButtonText: {
+    color: palette.mintDeep,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
+  },
+  defaultBadge: {
+    backgroundColor: '#F1FAF5',
+    borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  linkButtonText: {
-    color: palette.mint,
+  defaultBadgeText: {
+    color: palette.mintDeep,
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 16,
   },
   deleteButton: {
     alignItems: 'center',
+    backgroundColor: '#FEECEC',
+    borderRadius: radius.sm,
     height: 34,
     justifyContent: 'center',
     width: 34,
+  },
+  actionDisabled: {
+    opacity: 0.45,
+  },
+  formCard: {
+    gap: spacing.md,
+  },
+  field: {
+    gap: spacing.xs,
+  },
+  fieldLabel: {
+    ...customerText.meta,
+    color: '#7A828D',
+  },
+  input: {
+    ...customerText.body,
+    backgroundColor: '#FBFCFD',
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
+    borderWidth: 1,
+    minHeight: 46,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  textarea: {
+    minHeight: 94,
+  },
+  saveButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 50,
+    paddingHorizontal: spacing.lg,
+  },
+  saveButtonDisabled: {
+    opacity: 0.45,
+  },
+  saveButtonText: {
+    color: palette.white,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 19,
   },
 });

@@ -6,18 +6,19 @@ import {
 } from 'react-native';
 import { Copy, Gift, Users } from 'lucide-react-native';
 import {
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerIconBlock,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import {
   ApiOptions,
   ReferralSummary,
 } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
-import {
-  ScreenContent,
-  ScreenScroll,
-} from '../../../shared/components/ScreenLayout';
 import { useCustomerReferralViewModel } from '../viewModels/useCustomerReferralViewModel';
 
 type CustomerReferralScreenProps = {
@@ -46,27 +47,35 @@ export function CustomerReferralScreen({
   });
 
   return (
-    <>
-      <TopBar title="Refer a Friend" onBack={onBack} />
-      <ScreenScroll>
-        <ScreenContent>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Refer a Friend"
+          subtitle="Share ServEase and track your credits"
+          onBack={onBack}
+        />
 
-          {/* Hero banner */}
-          <View style={styles.heroBanner}>
-            <View style={styles.heroIcon}>
-              <Gift color={palette.white} size={28} strokeWidth={2.2} />
-            </View>
-            <Text style={styles.heroTitle}>Share & Earn</Text>
-            <Text style={styles.heroBody}>
+        <CustomerCard style={styles.introCard}>
+          <CustomerIconBlock>
+            <Gift color={palette.mintDeep} size={22} strokeWidth={2.1} />
+          </CustomerIconBlock>
+          <View style={styles.flex}>
+            <Text style={styles.introTitle}>Share & Earn</Text>
+            <Text style={styles.introBody}>
               Invite friends to ServEase and earn credits when they complete their first booking.
             </Text>
           </View>
+        </CustomerCard>
 
-          {/* Referral code card */}
-          <View style={styles.codeBlock}>
-            <Text style={styles.codeLabel}>Your Referral Code</Text>
+        <CustomerSection title="Referral code">
+          <CustomerCard>
             <View style={styles.codeRow}>
-              <Text style={styles.codeText}>{referral.data.referralCode}</Text>
+              <View style={styles.flex}>
+                <Text style={styles.codeLabel}>Your code</Text>
+                <Text style={styles.codeText} numberOfLines={1}>
+                  {referral.data.referralCode}
+                </Text>
+              </View>
               <Pressable
                 style={styles.copyButton}
                 onPress={() =>
@@ -75,147 +84,156 @@ export function CustomerReferralScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Copy referral code manually"
               >
-                <Copy color={palette.mint} size={16} strokeWidth={2.2} />
+                <Copy color={palette.mintDeep} size={17} strokeWidth={2.2} />
               </Pressable>
             </View>
             <Text style={styles.codeHint}>
               Share this code manually when friends create a ServEase account.
             </Text>
-          </View>
+          </CustomerCard>
+        </CustomerSection>
 
-          {/* Stats */}
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Users color={palette.mint} size={20} strokeWidth={2.2} />
+        <CustomerSection title="Referral activity">
+          <CustomerCard style={styles.statsCard}>
+            <View style={styles.statItem}>
+              <Users color={palette.mintDeep} size={19} strokeWidth={2.1} />
               <Text style={styles.statValue}>{referral.data.completedReferrals}</Text>
               <Text style={styles.statLabel}>Completed</Text>
             </View>
             <View style={styles.statDivider} />
-            <View style={styles.statCard}>
-              <Users color={palette.mint} size={20} strokeWidth={2.2} />
+            <View style={styles.statItem}>
+              <Users color={palette.mintDeep} size={19} strokeWidth={2.1} />
               <Text style={styles.statValue}>{referral.data.pendingReferrals}</Text>
               <Text style={styles.statLabel}>Pending</Text>
             </View>
             <View style={styles.statDivider} />
-            <View style={styles.statCard}>
-              <Gift color={palette.mint} size={20} strokeWidth={2.2} />
+            <View style={styles.statItem}>
+              <Gift color={palette.mintDeep} size={19} strokeWidth={2.1} />
               <Text style={styles.statValue}>{referral.data.totalRewards}</Text>
               <Text style={styles.statLabel}>Credits</Text>
             </View>
-          </View>
+          </CustomerCard>
+        </CustomerSection>
 
-          <PrimaryButton
-            label={referral.isLoading ? 'Refreshing...' : 'Refresh'}
-            variant="secondary"
-            onPress={() => void referral.refreshReferralSummary()}
-            disabled={referral.isLoading}
-          />
-          {referral.error ? (
-            <Text style={styles.errorText}>{referral.error}</Text>
-          ) : null}
+        <Pressable
+          style={[styles.refreshButton, referral.isLoading && styles.refreshButtonDisabled]}
+          onPress={() => void referral.refreshReferralSummary()}
+          disabled={referral.isLoading}
+          accessibilityRole="button"
+        >
+          <Text style={styles.refreshButtonText}>
+            {referral.isLoading ? 'Refreshing...' : 'Refresh'}
+          </Text>
+        </Pressable>
 
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+        {referral.error ? (
+          <Text style={styles.errorText}>{referral.error}</Text>
+        ) : null}
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  heroBanner: {
+  flex: {
+    flex: 1,
+    minWidth: 0,
+  },
+  introCard: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
-    borderRadius: radius.lg,
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.lg,
+    flexDirection: 'row',
+    gap: spacing.md,
   },
-  heroIcon: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: radius.pill,
-    height: 56,
-    justifyContent: 'center',
-    width: 56,
+  introTitle: {
+    ...customerText.title,
+    fontSize: 17,
+    lineHeight: 23,
   },
-  heroTitle: {
-    color: palette.white,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  heroBody: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-
-  codeBlock: {
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  codeLabel: {
-    color: palette.faint,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
+  introBody: {
+    ...customerText.body,
+    marginTop: 2,
   },
   codeRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginVertical: spacing.sm,
+    gap: spacing.md,
+  },
+  codeLabel: {
+    ...customerText.meta,
   },
   codeText: {
-    color: palette.ink,
-    flex: 1,
+    color: '#202733',
     fontFamily: 'monospace',
     fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: 2,
+    fontWeight: '600',
+    letterSpacing: 1.5,
+    lineHeight: 30,
+    marginTop: 2,
   },
   copyButton: {
     alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.sm,
-    height: 36,
+    backgroundColor: '#F1FAF5',
+    borderColor: 'rgba(0,160,85,0.22)',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    height: 42,
     justifyContent: 'center',
-    width: 36,
+    width: 42,
   },
   codeHint: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '400',
-    lineHeight: 18,
+    ...customerText.body,
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    marginTop: spacing.sm,
+    paddingTop: spacing.md,
   },
-
-  statsRow: {
+  statsCard: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: 0,
   },
-  statCard: {
+  statItem: {
     alignItems: 'center',
     flex: 1,
     gap: spacing.xs,
-    paddingVertical: spacing.md,
+    minWidth: 0,
   },
   statDivider: {
-    backgroundColor: palette.lineSoft,
-    height: 48,
+    backgroundColor: '#EEF0F2',
+    height: 52,
     width: 1,
   },
   statValue: {
-    color: palette.ink,
-    fontSize: 20,
-    fontWeight: '700',
+    color: '#202733',
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 24,
   },
   statLabel: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
+    ...customerText.meta,
+    textAlign: 'center',
   },
-
+  refreshButton: {
+    alignItems: 'center',
+    backgroundColor: '#F1FAF5',
+    borderColor: 'rgba(0,160,85,0.22)',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 50,
+    paddingHorizontal: spacing.lg,
+  },
+  refreshButtonDisabled: {
+    opacity: 0.45,
+  },
+  refreshButtonText: {
+    color: palette.mintDeep,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
   errorText: {
     color: palette.red,
     fontSize: 13,

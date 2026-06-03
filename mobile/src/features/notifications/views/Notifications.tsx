@@ -11,6 +11,18 @@ import {
   EmptyState,
   TopBar,
 } from '../../../components/DesignKit';
+import { AppRole } from '../../../navigation/types';
+import {
+  CustomerBadge,
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerIconBlock,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { NotificationSummary } from '../../../shared/models/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useNotificationsViewModel } from '../viewModels/useNotificationsViewModel';
@@ -19,30 +31,101 @@ type NotificationsScreenProps = {
   notifications: NotificationSummary[];
   onBack: () => void;
   openNotification: (notification: NotificationSummary) => Promise<void>;
+  role: AppRole;
 };
 
-function NotificationIcon({ kind }: { kind: string }) {
+function NotificationIcon({
+  color = palette.white,
+  kind,
+}: {
+  color?: string;
+  kind: string;
+}) {
   if (kind === 'payment') {
-    return <CreditCard color={palette.white} size={20} />;
+    return <CreditCard color={color} size={20} />;
   }
   if (kind === 'booking') {
-    return <Calendar color={palette.white} size={20} />;
+    return <Calendar color={color} size={20} />;
   }
   if (kind === 'promo') {
-    return <Gift color={palette.white} size={20} />;
+    return <Gift color={color} size={20} />;
   }
   if (kind === 'support') {
-    return <MessageCircle color={palette.white} size={20} />;
+    return <MessageCircle color={color} size={20} />;
   }
-  return <Bell color={palette.white} size={20} />;
+  return <Bell color={color} size={20} />;
 }
 
 export function NotificationsScreen({
   notifications,
   onBack,
   openNotification,
+  role,
 }: NotificationsScreenProps) {
   const notificationsView = useNotificationsViewModel({ notifications });
+
+  if (role === 'customer') {
+    return (
+      <CustomerScreen>
+        <CustomerContent>
+          <CustomerHeader
+            title="Notifications"
+            subtitle="Updates about your services and account"
+            onBack={onBack}
+            right={
+              notificationsView.data.unreadCount > 0 ? (
+                <CustomerBadge
+                  label={`${notificationsView.data.unreadCount} new`}
+                  tone="success"
+                />
+              ) : null
+            }
+          />
+
+          <CustomerSection>
+            {notificationsView.data.visibleNotifications.length ? (
+              <View style={styles.customerNotificationList}>
+                {notificationsView.data.visibleNotifications.map((item) => (
+                  <CustomerCard
+                    key={item.notification.id}
+                    onPress={() => void openNotification(item.notification)}
+                    selected={item.isUnread}
+                    accessibilityLabel={`Open notification: ${item.title}`}
+                  >
+                    <View style={styles.customerNotificationRow}>
+                      <CustomerIconBlock compact>
+                        <NotificationIcon
+                          color={palette.mintDeep}
+                          kind={item.iconKind}
+                        />
+                      </CustomerIconBlock>
+                      <View style={styles.flex}>
+                        <Text style={styles.customerCardTitle} numberOfLines={2}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.customerCardBody} numberOfLines={2}>
+                          {item.body}
+                        </Text>
+                        <Text style={styles.customerCardMeta}>
+                          {item.createdAtLabel}
+                        </Text>
+                      </View>
+                      {item.isUnread ? <View style={styles.notificationUnreadDot} /> : null}
+                    </View>
+                  </CustomerCard>
+                ))}
+              </View>
+            ) : (
+              <CustomerEmptyState
+                title="No notifications yet"
+                body="We'll notify you when something arrives."
+              />
+            )}
+          </CustomerSection>
+        </CustomerContent>
+      </CustomerScreen>
+    );
+  }
 
   return (
     <>
@@ -87,6 +170,27 @@ export function NotificationsScreen({
 }
 
 const styles = StyleSheet.create({
+  customerNotificationList: {
+    gap: spacing.md,
+  },
+  customerNotificationRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  customerCardTitle: {
+    ...customerText.title,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  customerCardBody: {
+    ...customerText.body,
+    marginTop: 2,
+  },
+  customerCardMeta: {
+    ...customerText.meta,
+    marginTop: spacing.xs,
+  },
   withBottomNav: {
     backgroundColor: palette.cream,
     flexGrow: 1,

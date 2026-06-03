@@ -15,7 +15,6 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { TopBar } from './components/DesignKit';
 import { AppRouter, type AppRouterRenderers } from './legacy-router/AppRouter';
 import { AppShell } from './legacy-router/AppShell';
 import {
@@ -3721,15 +3720,12 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderMore() {
     return (
-      <>
-        <TopBar title="More" />
-        <CustomerMoreScreen
-          profile={profile}
-          navigate={navigate}
-          signOut={signOut}
-          unreadNotificationCount={notificationsFlow.data.unreadCount}
-        />
-      </>
+      <CustomerMoreScreen
+        profile={profile}
+        navigate={navigate}
+        signOut={signOut}
+        unreadNotificationCount={notificationsFlow.data.unreadCount}
+      />
     );
   }
 
@@ -3829,7 +3825,7 @@ export default function App({ initialRoute = null }: AppProps) {
       <HelpCenterScreen
         role="customer"
         onBack={() => goBack({ role: 'customer', screen: 'more' })}
-        supportPanel={supportPanel}
+        supportPanel={customerSupportPanel}
       />
     );
   }
@@ -3877,6 +3873,7 @@ export default function App({ initialRoute = null }: AppProps) {
     return (
       <NotificationsScreen
         notifications={notificationsFlow.data.notifications}
+        role={role}
         onBack={() =>
           goBack({ role, screen: role === 'provider' ? 'home' : 'more' })
         }
@@ -4453,24 +4450,28 @@ export default function App({ initialRoute = null }: AppProps) {
     );
   }
 
-  const supportPanel = (
-    <SupportPanel
-      busyAction={busyAction}
-      currentUserId={profile?.user.id ?? null}
-      expandedTicketId={supportFlow.data.expandedSupportTicketId}
-      isSignedIn={Boolean(session)}
-      supportMessage={supportFlow.data.supportMessage}
-      supportReplies={supportFlow.data.supportReplies}
-      supportReplyDraft={supportFlow.data.supportReplyDraft}
-      supportSubject={supportFlow.data.supportSubject}
-      supportTickets={supportFlow.data.supportTickets}
-      onMessageChange={supportFlow.actions.setSupportMessage}
-      onOpenTicket={() => void supportFlow.actions.submitSupportTicket()}
-      onReplyDraftChange={supportFlow.actions.setSupportReplyDraft}
-      onSubmitReply={(ticketId) => void supportFlow.actions.submitSupportReply(ticketId)}
-      onSubjectChange={supportFlow.actions.setSupportSubject}
-      onToggleTicket={supportFlow.actions.toggleSupportTicket}
-    />
+  const supportPanelProps = {
+    busyAction,
+    currentUserId: profile?.user.id ?? null,
+    expandedTicketId: supportFlow.data.expandedSupportTicketId,
+    isSignedIn: Boolean(session),
+    supportMessage: supportFlow.data.supportMessage,
+    supportReplies: supportFlow.data.supportReplies,
+    supportReplyDraft: supportFlow.data.supportReplyDraft,
+    supportSubject: supportFlow.data.supportSubject,
+    supportTickets: supportFlow.data.supportTickets,
+    onMessageChange: supportFlow.actions.setSupportMessage,
+    onOpenTicket: () => void supportFlow.actions.submitSupportTicket(),
+    onReplyDraftChange: supportFlow.actions.setSupportReplyDraft,
+    onSubmitReply: (ticketId: string) =>
+      void supportFlow.actions.submitSupportReply(ticketId),
+    onSubjectChange: supportFlow.actions.setSupportSubject,
+    onToggleTicket: supportFlow.actions.toggleSupportTicket,
+  };
+
+  const supportPanel = <SupportPanel {...supportPanelProps} />;
+  const customerSupportPanel = (
+    <SupportPanel {...supportPanelProps} variant="customer" />
   );
 
   const routeRenderers: AppRouterRenderers = {

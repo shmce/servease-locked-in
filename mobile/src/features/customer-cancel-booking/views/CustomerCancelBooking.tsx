@@ -1,8 +1,15 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { PrimaryButton, TopBar } from '../../../components/DesignKit';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { AppRole } from '../../../navigation/types';
 import { BookingStatus } from '../../../shared/models/types';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerCancelBookingViewModel } from '../viewModels/useCustomerCancelBookingViewModel';
 
 type CustomerCancelBookingScreenProps = {
@@ -32,19 +39,27 @@ export function CustomerCancelBookingScreen({
   const { data } = cancelBooking;
 
   return (
-    <>
-      <TopBar title="Cancel Booking" onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Cancel Booking"
+          subtitle="Tell us why you need to cancel"
+          onBack={onBack}
+        />
+
+        <CustomerCard>
           <Text style={styles.sorryTitle}>Cancel this booking?</Text>
           <Text style={styles.pageCopy}>
-            Please let us know why you&apos;re canceling your booking. We would really appreciate your feedback.
+            Please let us know why you are canceling your booking.
           </Text>
+        </CustomerCard>
+
+        <CustomerSection title="Reason">
           <View style={styles.radioGroup}>
             {data.reasonRows.map((row) => (
               <Pressable
                 key={row.reason}
-                style={styles.radioRow}
+                style={[styles.radioRow, row.selected && styles.radioRowSelected]}
                 onPress={() => onReasonChange(row.reason)}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: row.selected }}
@@ -61,51 +76,46 @@ export function CustomerCancelBookingScreen({
               </Pressable>
             ))}
           </View>
-          <View style={styles.policyCard}>
-            <Text style={styles.cardTitle}>Cancellation policy</Text>
-            <Text style={styles.cardMeta}>
-              Pending and confirmed bookings can be cancelled before the provider starts the service.
-            </Text>
-          </View>
-          {data.helperText ? (
-            <Text style={styles.helperText}>{data.helperText}</Text>
-          ) : null}
-          <PrimaryButton
-            label="Cancel Booking"
-            variant="danger"
-            onPress={() => void onCancelBooking()}
-            disabled={!data.canSubmit}
-          />
-          <Text style={styles.footerLink} onPress={onKeepBooking}>
-            Don&apos;t Cancel
+        </CustomerSection>
+
+        <CustomerCard>
+          <Text style={styles.cardTitle}>Cancellation policy</Text>
+          <Text style={styles.cardMeta}>
+            Pending and confirmed bookings can be cancelled before the provider starts
+            the service.
           </Text>
-        </View>
-      </ScrollView>
-    </>
+        </CustomerCard>
+
+        {data.helperText ? (
+          <Text style={styles.helperText}>{data.helperText}</Text>
+        ) : null}
+
+        <Pressable
+          style={[styles.cancelButton, !data.canSubmit && styles.cancelButtonDisabled]}
+          onPress={() => void onCancelBooking()}
+          disabled={!data.canSubmit}
+          accessibilityRole="button"
+        >
+          <Text style={styles.cancelButtonText}>Cancel Booking</Text>
+        </Pressable>
+        <Text style={styles.footerLink} onPress={onKeepBooking}>
+          Keep Booking
+        </Text>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   sorryTitle: {
-    color: palette.ink,
-    fontSize: 26,
-    fontWeight: '900',
+    color: '#202733',
+    fontSize: 22,
+    fontWeight: '600',
     letterSpacing: 0,
+    lineHeight: 28,
   },
   pageCopy: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    ...customerText.body,
   },
   radioGroup: {
     gap: spacing.sm,
@@ -113,17 +123,21 @@ const styles = StyleSheet.create({
   radioRow: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.md,
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
     padding: spacing.md,
   },
+  radioRowSelected: {
+    backgroundColor: '#F1FAF5',
+    borderColor: '#BDE8D0',
+  },
   radioOuter: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.mint,
+    borderColor: '#D8DEE5',
     borderRadius: radius.pill,
     borderWidth: 2,
     height: 20,
@@ -131,44 +145,55 @@ const styles = StyleSheet.create({
     width: 20,
   },
   radioOuterSelected: {
-    borderColor: palette.mint,
+    borderColor: palette.mintDeep,
   },
   radioInner: {
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintDeep,
     borderRadius: radius.pill,
     height: 10,
     width: 10,
   },
   radioLabel: {
-    color: palette.ink,
+    ...customerText.title,
+    flex: 1,
     fontSize: 13,
-    fontWeight: '700',
-  },
-  policyCard: {
-    backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    padding: spacing.lg,
+    lineHeight: 18,
   },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
+    ...customerText.title,
+    fontSize: 14,
+    lineHeight: 19,
   },
   cardMeta: {
-    ...type.caption,
-    color: palette.muted,
+    ...customerText.body,
   },
   helperText: {
     color: palette.red,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+  cancelButton: {
+    alignItems: 'center',
+    backgroundColor: palette.red,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  cancelButtonDisabled: {
+    opacity: 0.5,
+  },
+  cancelButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   footerLink: {
-    ...type.caption,
-    color: palette.mint,
-    fontWeight: '900',
+    color: palette.mintDeep,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
     textAlign: 'center',
   },
 });

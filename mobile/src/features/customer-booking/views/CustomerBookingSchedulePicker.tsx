@@ -2,9 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, Clock } from 'lucide-react-native';
 import { MonthCalendar } from '../../../components/MonthCalendar';
-import { Card, PrimaryButton, Section } from '../../../components/DesignKit';
+import {
+  CustomerCard,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { ProviderAvailabilitySchedule } from '../../../shared/models/types';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerBookingViewModel } from '../viewModels/useCustomerBookingViewModel';
 
 // Constants
@@ -191,29 +195,33 @@ export function CustomerBookingSchedulePicker({
 
   return (
     <>
-      <Section title="Pick a date">
-        <MonthCalendar
-          selectedDate={data.dateOnly}
-          onSelectDate={(date) => {
-            onBookingSlotErrorChange('');
-            onScheduledAtChange(`${date}T${startTime}`);
-          }}
-          minDate={data.customerCalendarMinDate}
-          disabledDates={data.calendarDisabledDates}
-          markers={data.calendarMarkers}
-          initialMonth={data.dateOnly}
-        />
-        <View style={styles.legendRow}>
-          <View style={styles.legendItem}>
-            <View style={styles.legendDot} />
-            <Text style={styles.legendLabel}>Partial availability</Text>
+      <CustomerSection title="Pick a date">
+        <CustomerCard style={styles.calendarCard}>
+          <MonthCalendar
+            selectedDate={data.dateOnly}
+            onSelectDate={(date) => {
+              onBookingSlotErrorChange('');
+              onScheduledAtChange(`${date}T${startTime}`);
+            }}
+            minDate={data.customerCalendarMinDate}
+            disabledDates={data.calendarDisabledDates}
+            markers={data.calendarMarkers}
+            initialMonth={data.dateOnly}
+          />
+          <View style={styles.legendRow}>
+            <View style={styles.legendItem}>
+              <View style={styles.legendDot} />
+              <Text style={styles.legendLabel}>Partial availability</Text>
+            </View>
+            <Text style={styles.cardMeta}>
+              Grey dates are unavailable for this provider.
+            </Text>
           </View>
-          <Text style={styles.cardMeta}>Grey dates are unavailable for this provider.</Text>
-        </View>
-      </Section>
+        </CustomerCard>
+      </CustomerSection>
 
-      <Section title="Pick a time">
-        <Card>
+      <CustomerSection title="Pick a time">
+        <CustomerCard>
           <TimeRow
             label="Arrives at"
             time={startTime}
@@ -225,11 +233,11 @@ export function CustomerBookingSchedulePicker({
             time={endTime}
             onPress={() => setActivePicker('end')}
           />
-        </Card>
+        </CustomerCard>
         {data.slotPickerMessage ? (
           <Text style={styles.noticeText}>{data.slotPickerMessage}</Text>
         ) : null}
-      </Section>
+      </CustomerSection>
 
       <TimePickerModal
         visible={activePicker !== null}
@@ -354,7 +362,14 @@ function TimePickerModal({
           {!isAvailable ? (
             <Text style={styles.noticeText}>Provider unavailable</Text>
           ) : null}
-          <PrimaryButton label="Set time" onPress={handleConfirm} disabled={!isAvailable} />
+          <Pressable
+            style={[styles.modalButton, !isAvailable && styles.modalButtonDisabled]}
+            onPress={handleConfirm}
+            disabled={!isAvailable}
+            accessibilityRole="button"
+          >
+            <Text style={styles.modalButtonText}>Set time</Text>
+          </Pressable>
         </Pressable>
       </Pressable>
     </Modal>
@@ -423,6 +438,9 @@ function WheelPicker({
 
 // Styles
 const styles = StyleSheet.create({
+  calendarCard: {
+    padding: spacing.base,
+  },
   legendRow: {
     gap: spacing.xs,
     marginTop: spacing.md,
@@ -441,21 +459,19 @@ const styles = StyleSheet.create({
   legendLabel: {
     color: palette.muted,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
   },
   cardMeta: {
-    ...type.caption,
-    color: palette.muted,
+    ...customerText.meta,
   },
   noticeText: {
-    ...type.caption,
-    color: palette.muted,
+    ...customerText.meta,
     textAlign: 'center',
   },
 
   // Time row
   rowDivider: {
-    backgroundColor: palette.line,
+    backgroundColor: '#EEF0F2',
     height: 1,
     marginVertical: spacing.xs,
   },
@@ -466,15 +482,17 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   timeRowLabel: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1,
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '500',
+    letterSpacing: 0,
   },
   timeRowValue: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 
   // Modal
@@ -499,9 +517,10 @@ const styles = StyleSheet.create({
     width: 40,
   },
   modalTitle: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 17,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
     textAlign: 'center',
   },
   wheelsRow: {
@@ -520,7 +539,7 @@ const styles = StyleSheet.create({
   wheelLabel: {
     color: palette.muted,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
@@ -563,15 +582,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   wheelItemTextSelected: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '600',
     lineHeight: WHEEL_ITEM_H,
   },
   wheelRail: {
-    borderBottomColor: palette.mint,
+    borderBottomColor: palette.mintDeep,
     borderBottomWidth: 1.5,
-    borderTopColor: palette.mint,
+    borderTopColor: palette.mintDeep,
     borderTopWidth: 1.5,
     bottom: WHEEL_ITEM_H * WHEEL_SIDE,
     left: spacing.base,
@@ -594,5 +613,21 @@ const styles = StyleSheet.create({
     left: 0,
     position: 'absolute',
     right: 0,
+  },
+  modalButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  modalButtonDisabled: {
+    backgroundColor: palette.line,
+  },
+  modalButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 });

@@ -1,10 +1,17 @@
-import { BookingCard } from '../../../components/AppDisplay';
-import { EmptyState, TopBar } from '../../../components/DesignKit';
-import { BookingSummary } from '../../../shared/models/types';
+import { CalendarCheck, UserRound } from 'lucide-react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import {
-  ScreenContent,
-  ScreenScroll,
-} from '../../../shared/components/ScreenLayout';
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerIconBlock,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
+import { BookingSummary } from '../../../shared/models/types';
+import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerServiceHistoryViewModel } from '../viewModels/useCustomerServiceHistoryViewModel';
 
 type CustomerServiceHistoryScreenProps = {
@@ -21,29 +28,117 @@ export function CustomerServiceHistoryScreen({
   const history = useCustomerServiceHistoryViewModel({ bookings });
 
   return (
-    <>
-      <TopBar
-        title="Completed Bookings"
-        onBack={onBack}
-      />
-      <ScreenScroll>
-        <ScreenContent>
-          {history.data.completedBookings.map((booking) => (
-            <BookingCard
-              key={booking.id}
-              booking={booking}
-              role="customer"
-              onPress={() => openBooking(booking)}
-            />
-          ))}
-          {!history.data.completedBookings.length ? (
-            <EmptyState
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Service History"
+          subtitle="Completed services you've booked"
+          onBack={onBack}
+        />
+
+        <CustomerSection title="Completed">
+          {history.data.completedRows.length ? (
+            <View style={styles.historyList}>
+              {history.data.completedRows.map((row) => (
+                <CustomerCard
+                  key={row.booking.id}
+                  onPress={() => openBooking(row.booking)}
+                  accessibilityLabel={`Open ${row.title} booking`}
+                >
+                  <View style={styles.historyTopRow}>
+                    <CustomerIconBlock compact>
+                      <CalendarCheck
+                        color={palette.mintDeep}
+                        size={18}
+                        strokeWidth={2.2}
+                      />
+                    </CustomerIconBlock>
+                    <View style={styles.flex}>
+                      <Text style={styles.historyTitle} numberOfLines={1}>
+                        {row.title}
+                      </Text>
+                      <Text style={styles.historyMeta} numberOfLines={1}>
+                        {row.scheduledAtLabel}
+                      </Text>
+                    </View>
+                    <Text style={styles.amountLabel}>{row.amountLabel}</Text>
+                  </View>
+
+                  <View style={styles.providerRow}>
+                    <UserRound
+                      color={palette.mintDark}
+                      size={15}
+                      strokeWidth={2.1}
+                    />
+                    <Text style={styles.providerLabel} numberOfLines={1}>
+                      {row.providerLabel}
+                    </Text>
+                    <Text style={styles.referenceLabel} numberOfLines={1}>
+                      {row.referenceLabel}
+                    </Text>
+                  </View>
+                </CustomerCard>
+              ))}
+            </View>
+          ) : (
+            <CustomerEmptyState
               title="No completed services"
               body="Completed services will appear in your history."
             />
-          ) : null}
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+          )}
+        </CustomerSection>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  historyList: {
+    gap: spacing.md,
+  },
+  historyTopRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  flex: {
+    flex: 1,
+    minWidth: 0,
+  },
+  historyTitle: {
+    ...customerText.title,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  historyMeta: {
+    ...customerText.meta,
+    marginTop: 2,
+  },
+  amountLabel: {
+    color: palette.mintDeep,
+    flexShrink: 0,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
+  providerRow: {
+    alignItems: 'center',
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+    paddingTop: spacing.sm,
+  },
+  providerLabel: {
+    ...customerText.body,
+    flex: 1,
+    minWidth: 0,
+  },
+  referenceLabel: {
+    ...customerText.meta,
+    flexShrink: 0,
+    maxWidth: 108,
+  },
+});

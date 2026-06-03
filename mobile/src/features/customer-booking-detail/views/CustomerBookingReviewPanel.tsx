@@ -1,13 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Star } from 'lucide-react-native';
+import { Field } from '../../../components/DesignKit';
 import {
-  Card,
-  Field,
-  PrimaryButton,
-  Section,
-} from '../../../components/DesignKit';
+  CustomerCard,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { ReviewSummary } from '../../../shared/models/types';
-import { palette, type } from '../../../theme/serveaseDesign';
+import { palette, radius } from '../../../theme/serveaseDesign';
 import { useCustomerBookingReviewPanelViewModel } from '../viewModels/useCustomerBookingReviewPanelViewModel';
 
 type CustomerBookingReviewPanelProps = {
@@ -38,17 +38,17 @@ export function CustomerBookingReviewPanel({
 
   if (data.hasExistingReview) {
     return (
-      <Section title="Your review">
-        <Card>
+      <CustomerSection title="Your review">
+        <CustomerCard>
           <Text style={styles.cardTitle}>{data.ratingLabel}</Text>
           <Text style={styles.cardMeta}>{data.reviewTextLabel}</Text>
-        </Card>
-      </Section>
+        </CustomerCard>
+      </CustomerSection>
     );
   }
 
   return (
-    <Section title="Review provider">
+    <CustomerSection title="Review provider">
       <View style={styles.ratingField}>
         <Text style={styles.ratingLabel}>Rating</Text>
         <View style={styles.ratingScale}>
@@ -86,13 +86,15 @@ export function CustomerBookingReviewPanel({
         onChangeText={onReviewTextChange}
         multiline
       />
-      <PrimaryButton
-        label="Submit review"
-        variant="secondary"
+      <Pressable
+        style={[styles.submitButton, data.isSubmitDisabled && styles.submitButtonDisabled]}
         onPress={onSubmitReview}
         disabled={data.isSubmitDisabled}
-      />
-    </Section>
+        accessibilityRole="button"
+      >
+        <Text style={styles.submitButtonText}>Submit review</Text>
+      </Pressable>
+    </CustomerSection>
   );
 }
 
@@ -101,9 +103,10 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   ratingLabel: {
-    color: palette.body,
+    color: '#202733',
     fontSize: 13,
     fontWeight: '500',
+    letterSpacing: 0,
   },
   ratingScale: {
     flexDirection: 'row',
@@ -111,10 +114,10 @@ const styles = StyleSheet.create({
   },
   ratingStep: {
     alignItems: 'center',
-    backgroundColor: palette.input,
+    backgroundColor: '#F8FAFB',
     borderColor: 'transparent',
-    borderRadius: 12,
-    borderWidth: 2,
+    borderRadius: 10,
+    borderWidth: 1,
     flex: 1,
     gap: 4,
     minHeight: 58,
@@ -122,28 +125,44 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   ratingStepSelected: {
-    backgroundColor: palette.mintSoft,
-    borderColor: palette.mint,
+    backgroundColor: '#F1FAF5',
+    borderColor: '#BDE8D0',
   },
   ratingStepText: {
     color: palette.muted,
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   ratingStepTextSelected: {
     color: palette.mintDeep,
   },
   ratingHint: {
-    ...type.caption,
-    color: palette.muted,
+    ...customerText.meta,
   },
   cardTitle: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   cardMeta: {
-    ...type.caption,
-    color: palette.muted,
+    ...customerText.meta,
+  },
+  submitButton: {
+    alignItems: 'center',
+    backgroundColor: '#F1FAF5',
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 46,
+  },
+  submitButtonDisabled: {
+    opacity: 0.55,
+  },
+  submitButtonText: {
+    color: palette.mintDeep,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 });

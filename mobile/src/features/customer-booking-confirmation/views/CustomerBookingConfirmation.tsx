@@ -1,24 +1,21 @@
 import { ReactNode } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckCircle, ChevronRight } from 'lucide-react-native';
-import {
-  Card,
-  PrimaryButton,
-  StatusTimeline,
-} from '../../../components/DesignKit';
+import { StatusTimeline } from '../../../components/DesignKit';
 import { MissingSelection } from '../../../components/AppDisplay';
 import {
   BookingSummary,
   PaymentSummary,
   ProviderListing,
 } from '../../../shared/models/types';
-import { ActionRow } from '../../../shared/components/ScreenLayout';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerBookingConfirmationViewModel } from '../viewModels/useCustomerBookingConfirmationViewModel';
@@ -57,20 +54,23 @@ export function CustomerBookingConfirmationScreen({
   const { data } = confirmation;
 
   return (
-    <ScrollView contentContainerStyle={styles.withBottomNav}>
-      <View style={styles.content}>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Booking confirmed"
+          subtitle={data.bookingReference}
+          onBack={onBack}
+        />
 
-        {/* Success hero */}
         <View style={styles.hero}>
           <View style={styles.successCircle}>
-            <CheckCircle color={palette.white} size={44} strokeWidth={2.4} />
+            <CheckCircle color={palette.white} size={38} strokeWidth={2.4} />
           </View>
-          <Text style={styles.confirmationTitle}>Your booking is confirmed!</Text>
-          <Text style={styles.bookingReference}>{data.bookingReference}</Text>
+          <Text style={styles.confirmationTitle}>Your booking is confirmed</Text>
+          <Text style={styles.noticeText}>{data.bookedForLabel}</Text>
         </View>
 
-        {/* Provider */}
-        <Card>
+        <CustomerCard>
           <View style={styles.providerRow}>
             <View style={styles.providerAvatar}>
               <Text style={styles.providerInitial}>{data.providerInitial}</Text>
@@ -91,50 +91,53 @@ export function CustomerBookingConfirmationScreen({
                 accessibilityLabel="View provider profile"
               >
                 <Text style={styles.linkText}>View Profile</Text>
-                <ChevronRight color={palette.mint} size={14} strokeWidth={2.2} />
+                <ChevronRight color={palette.mintDeep} size={14} strokeWidth={2.2} />
               </Pressable>
             </View>
           </View>
-        </Card>
+        </CustomerCard>
 
-        {/* Service summary */}
-        <Card>
-          <Text style={styles.sectionLabel}>Service summary</Text>
-          <DetailRow label="Date" value={data.scheduledAtLabel} />
-          <DetailRow label="Location" value={data.locationLabel} />
-          <DetailRow label="Cost" value={data.costLabel} last />
-        </Card>
+        <CustomerSection title="Service summary">
+          <CustomerCard>
+            <DetailRow label="Date" value={data.scheduledAtLabel} />
+            <DetailRow label="Location" value={data.locationLabel} />
+            <DetailRow label="Cost" value={data.costLabel} last />
+          </CustomerCard>
+        </CustomerSection>
 
-        {/* Booking status */}
-        <Card>
-          <Text style={styles.sectionLabel}>Booking status</Text>
-          <StatusTimeline steps={data.statusSteps} />
-        </Card>
+        <CustomerSection title="Booking status">
+          <CustomerCard>
+            <StatusTimeline steps={data.statusSteps} />
+          </CustomerCard>
+        </CustomerSection>
 
         {timelineEvents}
 
-        <Text style={styles.noticeText}>{data.bookedForLabel}</Text>
-
-        <ActionRow>
-          <PrimaryButton
-            label="Manage booking"
+        <View style={styles.actionStack}>
+          <Pressable
+            style={styles.primaryAction}
             onPress={() => navigate('customerBookingManage', 'customer')}
-          />
-          <PrimaryButton
-            label="Add to Google Calendar"
-            variant="secondary"
+            accessibilityRole="button"
+          >
+            <Text style={styles.primaryActionText}>Manage booking</Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryAction}
             onPress={() => void addSelectedBookingToCalendar()}
-          />
-        </ActionRow>
-
-        <PrimaryButton
-          label="View payment"
-          variant="secondary"
-          onPress={() => navigate('customerReservePayment', 'customer')}
-        />
-
-      </View>
-    </ScrollView>
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryActionText}>Add to Google Calendar</Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryAction}
+            onPress={() => navigate('customerReservePayment', 'customer')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryActionText}>View payment</Text>
+          </Pressable>
+        </View>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
@@ -150,84 +153,65 @@ function DetailRow({
   return (
     <View style={[styles.detailRow, !last && styles.detailRowBorder]}>
       <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue} numberOfLines={3}>{value}</Text>
+      <Text style={styles.detailValue} numberOfLines={3}>
+        {value}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-    paddingTop: spacing.lg,
-  },
   flex: {
     flex: 1,
+    minWidth: 0,
   },
-
-  // Hero
   hero: {
     alignItems: 'center',
     gap: spacing.sm,
-    paddingBottom: spacing.xs,
+    paddingVertical: spacing.sm,
   },
   successCircle: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintDeep,
     borderRadius: radius.pill,
-    height: 88,
+    height: 76,
     justifyContent: 'center',
-    width: 88,
+    width: 76,
   },
   confirmationTitle: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 22,
-    fontWeight: '700',
-    lineHeight: 30,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 28,
     textAlign: 'center',
   },
-  bookingReference: {
-    color: palette.mint,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.4,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-  },
-
-  // Provider card
   providerRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.base,
+    gap: spacing.md,
   },
   providerAvatar: {
     alignItems: 'center',
-    backgroundColor: palette.mintSoft,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
     height: 48,
     justifyContent: 'center',
     width: 48,
   },
   providerInitial: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   providerName: {
-    color: palette.ink,
+    ...customerText.title,
     fontSize: 15,
-    fontWeight: '700',
+    lineHeight: 20,
   },
   providerRating: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
+    ...customerText.meta,
     marginTop: 2,
   },
   profileLinkRow: {
@@ -237,20 +221,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   linkText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
-
-  // Section label
-  sectionLabel: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
-  },
-
-  // Detail rows
   detailRow: {
     alignItems: 'flex-start',
     flexDirection: 'row',
@@ -258,30 +233,54 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   detailRowBorder: {
-    borderBottomColor: palette.line,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
   },
   detailLabel: {
-    color: palette.muted,
+    ...customerText.meta,
     flex: 1,
-    fontSize: 12,
-    fontWeight: '500',
     paddingTop: 1,
   },
   detailValue: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1.6,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
     textAlign: 'right',
   },
-
-  // Notice + footer
   noticeText: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 18,
+    ...customerText.meta,
     textAlign: 'center',
+  },
+  actionStack: {
+    gap: spacing.sm,
+  },
+  primaryAction: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  primaryActionText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+  secondaryAction: {
+    alignItems: 'center',
+    backgroundColor: '#F1FAF5',
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 46,
+  },
+  secondaryActionText: {
+    color: palette.mintDeep,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 });

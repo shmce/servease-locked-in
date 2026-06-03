@@ -1,24 +1,23 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Home, MapPin, Navigation, Upload } from 'lucide-react-native';
-import {
-  Card,
-  Field,
-  PrimaryButton,
-  Section,
-  TopBar,
-} from '../../../components/DesignKit';
+import { Field } from '../../../components/DesignKit';
 import { CustomerBookingSchedulePicker } from './CustomerBookingSchedulePicker';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
   GeoAddressResult,
   CustomerAddressSummary,
   ProviderAvailabilitySchedule,
   ProviderListing,
 } from '../../../shared/models/types';
-import {
-  MediaUploadBox,
-  StickyFooter,
-} from '../../../shared/components/ScreenLayout';
+import { MediaUploadBox } from '../../../shared/components/ScreenLayout';
 import { AddressVerificationPreview } from '../../../tracking/TrackingMapPreview';
 import { useCustomerBookingFormViewModel } from '../viewModels/useCustomerBookingFormViewModel';
 
@@ -102,14 +101,15 @@ export function CustomerBookingFormScreen({
 
   return (
     <>
-      <TopBar
-        title="Book Service"
-        subtitle="Step 1 of 2 - Choose details"
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withStickyFooter}>
-        <View style={styles.content}>
-          <Card>
+      <CustomerScreen bottomInset={230}>
+        <CustomerContent>
+          <CustomerHeader
+            title="Book Service"
+            subtitle="Step 1 of 2 - choose details"
+            onBack={onBack}
+          />
+
+          <CustomerCard>
             <View style={styles.providerSummaryRow}>
               <View style={styles.providerPhoto}>
                 <Text style={styles.providerPhotoText}>{data.providerInitial}</Text>
@@ -120,7 +120,7 @@ export function CustomerBookingFormScreen({
                 <Text style={styles.cardMeta}>{data.providerRatingLabel}</Text>
               </View>
             </View>
-          </Card>
+          </CustomerCard>
 
           <CustomerBookingSchedulePicker
             providerAvailability={providerAvailability}
@@ -135,7 +135,7 @@ export function CustomerBookingFormScreen({
             onHoursRequiredChange={onHoursRequiredChange}
           />
 
-          <Section
+          <CustomerSection
             title="Where do you need it?"
             action={
               <View style={styles.inlineActions}>
@@ -149,8 +149,10 @@ export function CustomerBookingFormScreen({
                   accessibilityRole="button"
                   accessibilityLabel="Use current location as service address"
                 >
-                  <Navigation color={palette.mint} size={14} strokeWidth={2.5} />
-                  <Text style={styles.smallActionText}>{data.useCurrentLocationLabel}</Text>
+                  <Navigation color={palette.mintDeep} size={14} strokeWidth={2.5} />
+                  <Text style={styles.smallActionText}>
+                    {data.useCurrentLocationLabel}
+                  </Text>
                 </Pressable>
                 <Pressable
                   style={[styles.smallAction, data.verifyAddressDisabled && styles.faded]}
@@ -186,9 +188,9 @@ export function CustomerBookingFormScreen({
                       accessibilityLabel={`Use ${savedAddress.label} address`}
                     >
                       {savedAddress.isSelected ? (
-                        <Home color={palette.white} size={14} strokeWidth={2.4} />
+                        <Home color={palette.mintDeep} size={14} strokeWidth={2.4} />
                       ) : (
-                        <MapPin color={palette.mint} size={14} strokeWidth={2.4} />
+                        <MapPin color={palette.mintDeep} size={14} strokeWidth={2.4} />
                       )}
                       <View style={styles.savedAddressTextColumn}>
                         <Text
@@ -201,10 +203,7 @@ export function CustomerBookingFormScreen({
                           {savedAddress.label}
                         </Text>
                         <Text
-                          style={[
-                            styles.savedAddressText,
-                            savedAddress.isSelected && styles.savedAddressTextSelected,
-                          ]}
+                          style={styles.savedAddressText}
                           numberOfLines={1}
                         >
                           {savedAddress.address}
@@ -215,6 +214,7 @@ export function CustomerBookingFormScreen({
                 })}
               </View>
             ) : null}
+
             <Field
               label="Service Address"
               value={address}
@@ -232,12 +232,12 @@ export function CustomerBookingFormScreen({
               accessibilityRole="button"
               accessibilityLabel="Save service address as home"
             >
-              <Home color={palette.mint} size={15} strokeWidth={2.4} />
+              <Home color={palette.mintDeep} size={15} strokeWidth={2.4} />
               <Text style={styles.smallActionText}>{data.saveAddressLabel}</Text>
             </Pressable>
-          </Section>
+          </CustomerSection>
 
-          <Section title="Add details (optional)">
+          <CustomerSection title="Add details (optional)">
             <Field
               label="Tell the provider what you need"
               value={notes}
@@ -247,17 +247,18 @@ export function CustomerBookingFormScreen({
             />
             <MediaUploadBox
               imageUri={bookingReferencePhotoUri}
-              icon={<Upload color={palette.mint} size={28} />}
+              icon={<Upload color={palette.mintDeep} size={28} />}
               helper="Reference photo (optional)"
               label={data.referencePhotoLabel}
               onPress={onUploadReferencePhoto}
               minHeight={132}
               previewHeight={120}
             />
-          </Section>
-        </View>
-      </ScrollView>
-      <StickyFooter>
+          </CustomerSection>
+        </CustomerContent>
+      </CustomerScreen>
+
+      <View style={styles.stickyFooter}>
         <View style={styles.footerTotalRow}>
           <View style={styles.footerTotalCopy}>
             <Text style={styles.footerTotalLabel}>Provider rate estimate</Text>
@@ -277,29 +278,23 @@ export function CustomerBookingFormScreen({
         {data.continueNotice ? (
           <Text style={styles.noticeText}>{data.continueNotice}</Text>
         ) : null}
-        <PrimaryButton
-          label={data.continueLabel}
+        <Pressable
+          style={[styles.footerButton, !data.canContinue && styles.footerButtonDisabled]}
           onPress={onContinue}
           disabled={!data.canContinue}
-        />
+          accessibilityRole="button"
+        >
+          <Text style={styles.footerButtonText}>{data.continueLabel}</Text>
+        </Pressable>
         <Text style={styles.footerLink} onPress={onBackToProvider}>
           Back to provider
         </Text>
-      </StickyFooter>
+      </View>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withStickyFooter: {
-    backgroundColor: palette.white,
-    flexGrow: 1,
-    paddingBottom: 132,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   providerSummaryRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -307,16 +302,17 @@ const styles = StyleSheet.create({
   },
   providerPhoto: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
     height: 56,
     justifyContent: 'center',
     width: 56,
   },
   providerPhotoText: {
-    color: palette.white,
+    color: palette.mintDeep,
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   flex: {
     flex: 1,
@@ -329,31 +325,32 @@ const styles = StyleSheet.create({
   },
   smallAction: {
     alignItems: 'center',
-    backgroundColor: palette.mintSoft,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
     flexDirection: 'row',
     gap: spacing.xxs,
     justifyContent: 'center',
-    minHeight: 36,
+    minHeight: 34,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
   smallActionText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   faded: {
     opacity: 0.5,
   },
   savedAddressRail: {
-    gap: spacing.xs,
+    gap: spacing.sm,
   },
   savedAddressChip: {
     alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.md,
+    backgroundColor: palette.white,
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
@@ -362,33 +359,33 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   savedAddressChipSelected: {
-    backgroundColor: palette.mint,
-    borderColor: palette.mint,
+    backgroundColor: '#F1FAF5',
+    borderColor: '#BDE8D0',
   },
   savedAddressTextColumn: {
     flex: 1,
     gap: 2,
+    minWidth: 0,
   },
   savedAddressLabel: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   savedAddressLabelSelected: {
-    color: palette.white,
+    color: palette.mintDeep,
   },
   savedAddressText: {
     color: palette.muted,
     fontSize: 12,
-    fontWeight: '600',
-  },
-  savedAddressTextSelected: {
-    color: 'rgba(255,255,255,0.82)',
+    fontWeight: '400',
+    letterSpacing: 0,
   },
   saveHomeButton: {
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: palette.mintSoft,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
     flexDirection: 'row',
     gap: spacing.xs,
@@ -398,7 +395,7 @@ const styles = StyleSheet.create({
   },
   footerTotalRow: {
     alignItems: 'center',
-    borderBottomColor: palette.lineSoft,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
@@ -410,42 +407,66 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   footerTotalLabel: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   footerTotalValue: {
-    color: palette.ink,
+    color: '#202733',
     flexShrink: 0,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
     maxWidth: '48%',
     textAlign: 'right',
   },
   footerLink: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
     textAlign: 'center',
   },
   cardTitle: {
-    ...type.section,
-    color: palette.ink,
+    ...customerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   cardMeta: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
-  },
-  linkText: {
-    color: palette.mint,
-    fontSize: 13,
-    fontWeight: '700',
+    ...customerText.meta,
   },
   noticeText: {
-    ...type.caption,
-    color: palette.muted,
+    ...customerText.meta,
     textAlign: 'center',
+  },
+  stickyFooter: {
+    backgroundColor: palette.white,
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    bottom: 0,
+    gap: spacing.sm,
+    left: 0,
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    position: 'absolute',
+    right: 0,
+  },
+  footerButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  footerButtonDisabled: {
+    backgroundColor: palette.line,
+  },
+  footerButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 });

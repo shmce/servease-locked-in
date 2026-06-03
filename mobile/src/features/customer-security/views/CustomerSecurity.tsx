@@ -1,7 +1,10 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { Section, TopBar } from '../../../components/DesignKit';
+import {
+  CustomerContent,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+} from '../../../shared/components/CustomerUI';
 import { TwoFactorSettingsCard } from '../../../shared/components/TwoFactorSettingsCard';
-import { palette, spacing } from '../../../theme/serveaseDesign';
 
 type CustomerSecurityScreenProps = {
   busyAction: string | null;
@@ -27,40 +30,28 @@ export function CustomerSecurityScreen({
   disableTwoFactorSetup,
 }: CustomerSecurityScreenProps) {
   return (
-    <>
-      <TopBar
-        title="Security"
-        subtitle="Protect your account"
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <View style={styles.content}>
-          <Section title="Account protection">
-            <TwoFactorSettingsCard
-              busyAction={busyAction}
-              twoFactorCode={twoFactorCode}
-              twoFactorEnabled={twoFactorEnabled}
-              twoFactorSecret={twoFactorSecret}
-              onCodeChange={setTwoFactorCode}
-              startTwoFactorSetup={startTwoFactorSetup}
-              verifyTwoFactorSetup={verifyTwoFactorSetup}
-              disableTwoFactorSetup={disableTwoFactorSetup}
-            />
-          </Section>
-        </View>
-      </ScrollView>
-    </>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Security"
+          subtitle="Protect your account"
+          onBack={onBack}
+        />
+
+        <CustomerSection title="Account protection">
+          <TwoFactorSettingsCard
+            busyAction={busyAction}
+            twoFactorCode={twoFactorCode}
+            twoFactorEnabled={twoFactorEnabled}
+            twoFactorSecret={twoFactorSecret}
+            variant="customer"
+            onCodeChange={setTwoFactorCode}
+            startTwoFactorSetup={startTwoFactorSetup}
+            verifyTwoFactorSetup={verifyTwoFactorSetup}
+            disableTwoFactorSetup={disableTwoFactorSetup}
+          />
+        </CustomerSection>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  scroll: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
-});

@@ -1,14 +1,25 @@
+import { ReactNode } from 'react';
 import { CheckCircle, MessageCircle, Star } from 'lucide-react-native';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
-  Card,
-  EmptyState,
-  Pill,
-  PrimaryButton,
-  Section,
-  TopBar,
-} from '../../../components/DesignKit';
-import { InfoRow, ServiceListItem } from '../../../components/AppDisplay';
+  Image,
+  Pressable,
+  ScrollView,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextStyle,
+  View,
+} from 'react-native';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerIconBlock,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
   ProviderAvailabilitySchedule,
@@ -16,7 +27,6 @@ import {
   ProviderPortfolioMediaSummary,
   ReviewSummary,
 } from '../../../shared/models/types';
-import { ActionRow, StickyFooter } from '../../../shared/components/ScreenLayout';
 import {
   CustomerProviderProfileTab,
   useCustomerProviderProfileViewModel,
@@ -64,59 +74,74 @@ export function CustomerProviderProfileScreen({
 
   return (
     <>
-      <TopBar title="Provider Profile" onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.hero}>
-          <View style={styles.heroInner}>
+      <CustomerScreen bottomInset={164}>
+        <CustomerContent>
+          <CustomerHeader
+            title={data.displayName}
+            subtitle={provider.title}
+            onBack={onBack}
+            right={
+              data.verificationTone === 'success' ? (
+                <CustomerIconBlock compact>
+                  <CheckCircle
+                    color={palette.mintDeep}
+                    size={18}
+                    strokeWidth={2.2}
+                  />
+                </CustomerIconBlock>
+              ) : null
+            }
+          />
+
+          <CustomerCard style={styles.summaryCard}>
             <View style={styles.avatar}>
               <Text style={styles.avatarInitial}>{data.avatarInitial}</Text>
             </View>
-          </View>
-        </View>
-
-        <View style={styles.body}>
-          <View style={styles.nameBlock}>
-            <View style={styles.nameRow}>
-              <Text style={styles.providerName}>{data.displayName}</Text>
-              {data.verificationTone === 'success' ? (
-                <CheckCircle color={palette.mint} size={18} strokeWidth={2.2} />
-              ) : null}
+            <View style={styles.summaryBody}>
+              <Text style={styles.summaryTitle} numberOfLines={1}>
+                {data.displayName}
+              </Text>
+              <Text style={styles.summaryText} numberOfLines={2}>
+                {data.description}
+              </Text>
             </View>
-            <Text style={styles.serviceLabel}>{provider.title}</Text>
-          </View>
+          </CustomerCard>
 
-          <View style={styles.statsCard}>
-            <View style={styles.statCell}>
-              <View style={styles.statValueRow}>
-                <Star color="#FFC107" fill="#FFC107" size={14} />
-                <Text style={styles.statValue}>{data.ratingLabel}</Text>
-              </View>
-              <Text style={styles.statLabel}>Rating</Text>
-            </View>
+          <CustomerCard style={styles.statsCard}>
+            <StatCell
+              icon={<Star color="#FFB020" fill="#FFB020" size={14} />}
+              label="Rating"
+              value={data.ratingLabel}
+            />
             <View style={styles.statDivider} />
-            <View style={styles.statCell}>
-              <Text style={styles.statValue}>{data.reviewCountLabel}</Text>
-              <Text style={styles.statLabel}>Reviews</Text>
-            </View>
+            <StatCell label="Reviews" value={String(data.reviewCountLabel)} />
             <View style={styles.statDivider} />
-            <View style={styles.statCell}>
-              <Text style={[styles.statValue, styles.statValueMint]}>{data.servicePriceLabel}</Text>
-              <Text style={styles.statLabel}>Starting price</Text>
-            </View>
-          </View>
+            <StatCell
+              label="Starts at"
+              value={data.servicePriceLabel}
+              valueStyle={styles.statValueMint}
+            />
+          </CustomerCard>
 
-          <ActionRow>
-            <PrimaryButton label="Book Now" onPress={onBook} />
+          <View style={styles.actionRow}>
+            <Pressable
+              style={styles.bookButton}
+              onPress={onBook}
+              accessibilityRole="button"
+              accessibilityLabel="Book provider"
+            >
+              <Text style={styles.bookButtonText}>Book Now</Text>
+            </Pressable>
             <Pressable
               style={styles.messageButton}
               onPress={onMessage}
               accessibilityRole="button"
               accessibilityLabel="Message provider"
             >
-              <MessageCircle color={palette.mint} size={18} strokeWidth={2.2} />
+              <MessageCircle color={palette.mintDeep} size={18} strokeWidth={2.2} />
               <Text style={styles.messageButtonText}>Message</Text>
             </Pressable>
-          </ActionRow>
+          </View>
 
           <ScrollView
             horizontal
@@ -124,215 +149,251 @@ export function CustomerProviderProfileScreen({
             contentContainerStyle={styles.tabRail}
           >
             {data.tabs.map((tab) => (
-              <Pill
+              <Pressable
                 key={tab}
-                label={tab}
-                selected={data.activeTab === tab}
+                style={[
+                  styles.tabPill,
+                  data.activeTab === tab && styles.tabPillSelected,
+                ]}
                 onPress={() => onTabChange(tab)}
-              />
+                accessibilityRole="button"
+                accessibilityState={{ selected: data.activeTab === tab }}
+              >
+                <Text
+                  style={[
+                    styles.tabText,
+                    data.activeTab === tab && styles.tabTextSelected,
+                  ]}
+                >
+                  {tab}
+                </Text>
+              </Pressable>
             ))}
           </ScrollView>
 
           <ProviderProfileTabContent
             data={data}
-            provider={provider}
             onBook={onBook}
             onFlagReview={onFlagReview}
           />
-        </View>
-      </ScrollView>
-      <StickyFooter>
-        <PrimaryButton label="Book Service" onPress={onBook} />
-      </StickyFooter>
+        </CustomerContent>
+      </CustomerScreen>
+
+      <View style={styles.stickyFooter}>
+        <Pressable
+          style={styles.footerButton}
+          onPress={onBook}
+          accessibilityRole="button"
+          accessibilityLabel="Book service"
+        >
+          <Text style={styles.footerButtonText}>Book Service</Text>
+        </Pressable>
+      </View>
     </>
+  );
+}
+
+function StatCell({
+  icon,
+  label,
+  value,
+  valueStyle,
+}: {
+  icon?: ReactNode;
+  label: string;
+  value: string;
+  valueStyle?: StyleProp<TextStyle>;
+}) {
+  return (
+    <View style={styles.statCell}>
+      <View style={styles.statValueRow}>
+        {icon}
+        <Text style={[styles.statValue, valueStyle]}>{value}</Text>
+      </View>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
   );
 }
 
 function ProviderProfileTabContent({
   data,
-  provider,
   onBook,
   onFlagReview,
 }: {
   data: ReturnType<typeof useCustomerProviderProfileViewModel>['data'];
-  provider: ProviderListing;
   onBook: () => void;
   onFlagReview: (reviewId: string) => void;
 }) {
   if (data.activeTab === 'Services') {
     return (
-      <Section title="Services">
-        <ServiceListItem service={data.serviceItem} onPress={onBook} />
-      </Section>
+      <CustomerSection title="Services">
+        <CustomerCard onPress={onBook} accessibilityLabel="Book this service">
+          <Text style={styles.cardSectionTitle}>{data.serviceItem.name}</Text>
+          {data.serviceItem.description ? (
+            <Text style={styles.aboutBody}>{data.serviceItem.description}</Text>
+          ) : null}
+          <Text style={styles.servicePrice}>{data.servicePriceLabel}</Text>
+        </CustomerCard>
+      </CustomerSection>
     );
   }
 
   if (data.activeTab === 'Portfolio') {
     return (
-      <Section title="Portfolio">
-        <View style={styles.portfolioGrid}>
-          {data.portfolioItems.map((item) => (
-            <View key={item.id} style={styles.portfolioTile}>
-              <Image source={{ uri: item.fileUrl }} style={styles.portfolioImage} />
-              {item.caption ? (
-                <Text style={styles.portfolioCaption} numberOfLines={1}>
-                  {item.caption}
-                </Text>
-              ) : null}
-            </View>
-          ))}
-        </View>
-        {!data.hasPortfolioItems ? (
-          <EmptyState title="No portfolio yet" body="Provider work samples will appear here." />
-        ) : null}
-      </Section>
+      <CustomerSection title="Portfolio">
+        {data.hasPortfolioItems ? (
+          <View style={styles.portfolioGrid}>
+            {data.portfolioItems.map((item) => (
+              <View key={item.id} style={styles.portfolioTile}>
+                <Image source={{ uri: item.fileUrl }} style={styles.portfolioImage} />
+                {item.caption ? (
+                  <Text style={styles.portfolioCaption} numberOfLines={1}>
+                    {item.caption}
+                  </Text>
+                ) : null}
+              </View>
+            ))}
+          </View>
+        ) : (
+          <CustomerEmptyState
+            title="No portfolio yet"
+            body="Provider work samples will appear here."
+          />
+        )}
+      </CustomerSection>
     );
   }
 
   if (data.activeTab === 'Reviews') {
     return (
-      <Section title="Reviews">
-        {data.reviewCards.map((review) => (
-          <Card key={review.id}>
-            <View style={styles.reviewHeader}>
-              <View style={styles.reviewRatingRow}>
-                <Star color="#FFC107" fill="#FFC107" size={13} />
-                <Text style={styles.reviewRating}>{review.ratingLabel}</Text>
-              </View>
-              {review.canFlag ? (
-                <Text style={styles.flagLabel} onPress={() => onFlagReview(review.id)}>
-                  {review.flagLabel}
-                </Text>
-              ) : null}
-            </View>
-            <Text style={styles.reviewText}>{review.reviewText}</Text>
-          </Card>
-        ))}
-        {!data.hasReviews ? (
-          <EmptyState title="No reviews yet" body="Reviews for this provider appear here." />
-        ) : null}
-      </Section>
+      <CustomerSection title="Reviews">
+        {data.hasReviews ? (
+          <View style={styles.reviewList}>
+            {data.reviewCards.map((review) => (
+              <CustomerCard key={review.id}>
+                <View style={styles.reviewHeader}>
+                  <View style={styles.reviewRatingRow}>
+                    <Star color="#FFB020" fill="#FFB020" size={13} />
+                    <Text style={styles.reviewRating}>{review.ratingLabel}</Text>
+                  </View>
+                  {review.canFlag ? (
+                    <Text style={styles.flagLabel} onPress={() => onFlagReview(review.id)}>
+                      {review.flagLabel}
+                    </Text>
+                  ) : null}
+                </View>
+                <Text style={styles.reviewText}>{review.reviewText}</Text>
+              </CustomerCard>
+            ))}
+          </View>
+        ) : (
+          <CustomerEmptyState
+            title="No reviews yet"
+            body="Reviews for this provider appear here."
+          />
+        )}
+      </CustomerSection>
     );
   }
 
   if (data.activeTab === 'Availability') {
     return (
-      <Section title="Availability">
-        <Card>
+      <CustomerSection title="Availability">
+        <CustomerCard>
           <Text style={styles.cardSectionTitle}>Available booking windows</Text>
           {data.activeAvailabilityWindows.map((window) => (
-            <InfoRow key={window.id} label={window.label} value={window.value} />
+            <DetailRow key={window.id} label={window.label} value={window.value} />
           ))}
           {!data.hasActiveAvailabilityWindows ? (
-            <Text style={styles.emptyNote}>No public availability windows are active yet.</Text>
+            <Text style={styles.emptyNote}>
+              No public availability windows are active yet.
+            </Text>
           ) : null}
-        </Card>
+        </CustomerCard>
         {data.hasDaysOff ? (
-          <Card>
+          <CustomerCard>
             <Text style={styles.cardSectionTitle}>Unavailable dates</Text>
             {data.daysOff.map((dayOff) => (
-              <InfoRow key={dayOff.id} label={dayOff.label} value={dayOff.value} />
+              <DetailRow key={dayOff.id} label={dayOff.label} value={dayOff.value} />
             ))}
-          </Card>
+          </CustomerCard>
         ) : null}
-      </Section>
+      </CustomerSection>
     );
   }
 
   return (
-    <Section title="About">
-      <Card>
+    <CustomerSection title="About">
+      <CustomerCard>
         <Text style={styles.aboutBody}>{data.description}</Text>
-      </Card>
-      <Card>
+      </CustomerCard>
+      <CustomerCard>
         {data.aboutRows.map((row, index) => (
-          <View
+          <DetailRow
             key={row.key}
-            style={[styles.detailRow, index < data.aboutRows.length - 1 && styles.detailRowBorder]}
-          >
-            <Text style={styles.detailLabel}>{row.label}</Text>
-            <Text style={styles.detailValue}>{row.value}</Text>
-          </View>
+            label={row.label}
+            value={row.value}
+            showBorder={index < data.aboutRows.length - 1}
+          />
         ))}
-      </Card>
-    </Section>
+      </CustomerCard>
+    </CustomerSection>
+  );
+}
+
+function DetailRow({
+  label,
+  showBorder,
+  value,
+}: {
+  label: string;
+  showBorder?: boolean;
+  value: string;
+}) {
+  return (
+    <View style={[styles.detailRow, showBorder && styles.detailRowBorder]}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 132,
-  },
-
-  // Hero
-  hero: {
+  summaryCard: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    height: 148,
-    justifyContent: 'flex-end',
-    paddingBottom: 0,
-  },
-  heroInner: {
-    marginBottom: -48,
+    flexDirection: 'row',
+    gap: spacing.md,
+    padding: spacing.base,
   },
   avatar: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.white,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
-    borderWidth: 4,
-    boxShadow: '0 6px 16px rgba(44,90,60,0.18)',
-    height: 96,
+    height: 58,
     justifyContent: 'center',
-    width: 96,
+    width: 58,
   },
   avatarInitial: {
-    color: palette.mint,
-    fontSize: 38,
-    fontWeight: '700',
+    color: palette.mintDeep,
+    fontSize: 24,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
-
-  // Body
-  body: {
-    gap: spacing.md,
-    marginTop: spacing.xl,
-    padding: spacing.base,
-    paddingTop: spacing.lg,
+  summaryBody: {
+    flex: 1,
+    minWidth: 0,
   },
-  nameBlock: {
-    alignItems: 'center',
-    gap: spacing.xs,
+  summaryTitle: {
+    ...customerText.title,
+    fontSize: 16,
+    lineHeight: 21,
   },
-  nameRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.xs,
+  summaryText: {
+    ...customerText.body,
+    marginTop: 2,
   },
-  providerName: {
-    color: palette.ink,
-    fontSize: 22,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  serviceLabel: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-
-  // Stats card
   statsCard: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
     flexDirection: 'row',
     paddingVertical: spacing.base,
   },
@@ -347,31 +408,49 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statValue: {
-    color: palette.ink,
-    fontSize: 18,
-    fontWeight: '700',
+    color: '#202733',
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   statValueMint: {
-    color: palette.mint,
+    color: palette.mintDeep,
   },
   statLabel: {
-    color: palette.muted,
+    ...customerText.meta,
     fontSize: 11,
-    fontWeight: '500',
+    lineHeight: 15,
   },
   statDivider: {
-    backgroundColor: palette.line,
+    backgroundColor: '#EEF0F2',
     height: 32,
     width: 1,
   },
-
-  // Message button (secondary action)
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  bookButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+    paddingHorizontal: spacing.base,
+  },
+  bookButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
   messageButton: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.mint,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
+    borderColor: '#BDE8D0',
+    borderRadius: radius.pill,
+    borderWidth: 1,
     flex: 1,
     flexDirection: 'row',
     gap: spacing.xs,
@@ -380,26 +459,57 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   messageButtonText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
-
-  // Tabs
   tabRail: {
     gap: spacing.sm,
     paddingRight: spacing.sm,
   },
-
-  // Portfolio
+  tabPill: {
+    backgroundColor: palette.white,
+    borderColor: '#EEF0F2',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+  },
+  tabPillSelected: {
+    backgroundColor: '#F1FAF5',
+    borderColor: '#BDE8D0',
+  },
+  tabText: {
+    color: '#69717D',
+    fontSize: 13,
+    fontWeight: '500',
+    letterSpacing: 0,
+  },
+  tabTextSelected: {
+    color: palette.mintDeep,
+    fontWeight: '600',
+  },
+  cardSectionTitle: {
+    ...customerText.title,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  servicePrice: {
+    color: palette.mintDeep,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 20,
+  },
   portfolioGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
   portfolioTile: {
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.md,
+    backgroundColor: '#F1FAF5',
+    borderRadius: 10,
     height: 128,
     overflow: 'hidden',
     width: '48%',
@@ -413,14 +523,16 @@ const styles = StyleSheet.create({
     bottom: 0,
     color: palette.white,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     left: 0,
+    letterSpacing: 0,
     padding: spacing.xs,
     position: 'absolute',
     right: 0,
   },
-
-  // Reviews
+  reviewList: {
+    gap: spacing.md,
+  },
   reviewHeader: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -433,39 +545,23 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   reviewRating: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   flagLabel: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
+    ...customerText.meta,
+    color: palette.mintDeep,
   },
   reviewText: {
-    color: palette.body,
-    fontSize: 13,
-    fontWeight: '400',
-    lineHeight: 19,
-  },
-
-  // Availability / About
-  cardSectionTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
+    ...customerText.body,
   },
   emptyNote: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
+    ...customerText.meta,
   },
   aboutBody: {
-    color: palette.body,
-    fontSize: 13,
-    fontWeight: '400',
-    lineHeight: 19,
+    ...customerText.body,
   },
   detailRow: {
     alignItems: 'center',
@@ -474,18 +570,44 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   detailRowBorder: {
-    borderBottomColor: palette.line,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
   },
   detailLabel: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
+    ...customerText.meta,
   },
   detailValue: {
-    color: palette.ink,
+    color: '#202733',
+    flexShrink: 1,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
     textAlign: 'right',
+  },
+  stickyFooter: {
+    backgroundColor: palette.white,
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    bottom: 0,
+    left: 0,
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    position: 'absolute',
+    right: 0,
+  },
+  footerButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 50,
+  },
+  footerButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 });

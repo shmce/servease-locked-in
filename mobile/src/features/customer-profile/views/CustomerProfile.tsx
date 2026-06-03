@@ -1,22 +1,25 @@
+import { ReactNode } from 'react';
 import {
   Image,
+  KeyboardTypeOptions,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
-import { Camera, Mail } from 'lucide-react-native';
+import { Camera, Mail, MapPin, Phone, User } from 'lucide-react-native';
 import {
-  Field,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerIconBlock,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { CurrentUserProfile } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
-import {
-  ScreenContent,
-  ScreenScroll,
-} from '../../../shared/components/ScreenLayout';
 import { useCustomerProfileViewModel } from '../viewModels/useCustomerProfileViewModel';
 
 type CustomerProfileScreenProps = {
@@ -33,6 +36,43 @@ type CustomerProfileScreenProps = {
   pickCustomerAvatar: () => Promise<void>;
   saveProfile: () => Promise<void>;
 };
+
+function ProfileField({
+  icon,
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+  multiline,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  placeholder?: string;
+  keyboardType?: KeyboardTypeOptions;
+  multiline?: boolean;
+}) {
+  return (
+    <View style={styles.fieldRow}>
+      <CustomerIconBlock compact>{icon}</CustomerIconBlock>
+      <View style={styles.flex}>
+        <Text style={styles.fieldLabel}>{label}</Text>
+        <TextInput
+          style={[styles.input, multiline && styles.multilineInput]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#A7AFB8"
+          keyboardType={keyboardType}
+          multiline={multiline}
+          textAlignVertical={multiline ? 'top' : undefined}
+        />
+      </View>
+    </View>
+  );
+}
 
 export function CustomerProfileScreen({
   profile,
@@ -55,13 +95,16 @@ export function CustomerProfileScreen({
   });
 
   return (
-    <>
-      <TopBar title="My Profile" onBack={onBack} />
-      <ScreenScroll>
-        <ScreenContent>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="My Profile"
+          subtitle="Keep your customer details up to date"
+          onBack={onBack}
+        />
 
-          {/* Avatar */}
-          <View style={styles.avatarSection}>
+        <CustomerCard>
+          <View style={styles.avatarRow}>
             <Pressable
               style={styles.avatarCircle}
               onPress={() => void pickCustomerAvatar()}
@@ -80,165 +123,206 @@ export function CustomerProfileScreen({
                 </Text>
               )}
               <View style={styles.cameraBadge}>
-                <Camera color={palette.white} size={14} />
+                <Camera color={palette.white} size={14} strokeWidth={2.2} />
               </View>
             </Pressable>
-            <Text style={styles.avatarHint}>Stored on this device only</Text>
+            <View style={styles.flex}>
+              <Text style={styles.avatarTitle} numberOfLines={1}>
+                {profileFullName || 'Customer profile'}
+              </Text>
+              <Text style={styles.avatarHint}>Stored on this device only</Text>
+            </View>
           </View>
+        </CustomerCard>
 
-          {/* Personal info section */}
-          <View style={styles.formSection}>
-            <Text style={styles.sectionLabel}>Personal Information</Text>
-            <View style={styles.formCard}>
-              <Field
-                label="Full Name"
-                value={profileFullName}
-                onChangeText={setProfileFullName}
-                placeholder="Your full name"
-              />
-              <View style={styles.emailRow}>
-                <Mail color={palette.faint} size={18} strokeWidth={2} />
-                <View style={styles.flex}>
-                  <Text style={styles.fieldLabel}>Email Address</Text>
-                  <Text style={styles.fieldValue}>{profileView.data.emailLabel}</Text>
-                </View>
-                <View style={styles.lockedBadge}>
-                  <Text style={styles.lockedText}>Locked</Text>
-                </View>
+        <CustomerSection title="Personal information">
+          <CustomerCard style={styles.formCard}>
+            <ProfileField
+              icon={<User color={palette.mintDeep} size={18} strokeWidth={2.1} />}
+              label="Full name"
+              value={profileFullName}
+              onChangeText={setProfileFullName}
+              placeholder="Your full name"
+            />
+            <View style={styles.lockedEmailRow}>
+              <CustomerIconBlock compact>
+                <Mail color={palette.mintDeep} size={18} strokeWidth={2.1} />
+              </CustomerIconBlock>
+              <View style={styles.flex}>
+                <Text style={styles.fieldLabel}>Email address</Text>
+                <Text style={styles.lockedValue} numberOfLines={1}>
+                  {profileView.data.emailLabel}
+                </Text>
+              </View>
+              <View style={styles.lockedBadge}>
+                <Text style={styles.lockedText}>Locked</Text>
               </View>
             </View>
-          </View>
+          </CustomerCard>
+        </CustomerSection>
 
-          {/* Contact section */}
-          <View style={styles.formSection}>
-            <Text style={styles.sectionLabel}>Contact Details</Text>
-            <View style={styles.formCard}>
-              <Field
-                label="Phone Number"
-                value={profileContactNumber}
-                onChangeText={setProfileContactNumber}
-                keyboardType="phone-pad"
-                placeholder="+639000000000"
-              />
-              <Field
-                label="Address"
-                value={profileAddress}
-                onChangeText={setProfileAddress}
-                placeholder="Unit, street, city"
-                multiline
-              />
-            </View>
-          </View>
+        <CustomerSection title="Contact details">
+          <CustomerCard style={styles.formCard}>
+            <ProfileField
+              icon={<Phone color={palette.mintDeep} size={18} strokeWidth={2.1} />}
+              label="Phone number"
+              value={profileContactNumber}
+              onChangeText={setProfileContactNumber}
+              keyboardType="phone-pad"
+              placeholder="+639000000000"
+            />
+            <ProfileField
+              icon={<MapPin color={palette.mintDeep} size={18} strokeWidth={2.1} />}
+              label="Address"
+              value={profileAddress}
+              onChangeText={setProfileAddress}
+              placeholder="Unit, street, city"
+              multiline
+            />
+          </CustomerCard>
+        </CustomerSection>
 
-          <PrimaryButton
-            label={profileView.data.saveLabel}
-            onPress={() => void saveProfile()}
-            disabled={profileView.isSaving}
-          />
-          {profileView.error ? (
-            <Text style={styles.errorText}>{profileView.error}</Text>
-          ) : null}
+        <Pressable
+          style={[styles.saveButton, profileView.isSaving && styles.saveButtonDisabled]}
+          onPress={() => void saveProfile()}
+          disabled={profileView.isSaving}
+          accessibilityRole="button"
+        >
+          <Text style={styles.saveButtonText}>{profileView.data.saveLabel}</Text>
+        </Pressable>
 
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+        {profileView.error ? (
+          <Text style={styles.errorText}>{profileView.error}</Text>
+        ) : null}
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  avatarSection: {
+  avatarRow: {
     alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: spacing.sm,
+    flexDirection: 'row',
+    gap: spacing.md,
   },
   avatarCircle: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: '#F1FAF5',
+    borderColor: 'rgba(0,160,85,0.22)',
     borderRadius: radius.pill,
-    height: 96,
+    borderWidth: 1,
+    height: 82,
     justifyContent: 'center',
     position: 'relative',
-    width: 96,
+    width: 82,
   },
   avatarImage: {
     borderRadius: radius.pill,
-    height: 96,
-    width: 96,
+    height: 82,
+    width: 82,
   },
   avatarInitial: {
-    color: palette.white,
-    fontSize: 40,
-    fontWeight: '900',
+    color: palette.mintDeep,
+    fontSize: 30,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   cameraBadge: {
     alignItems: 'center',
-    backgroundColor: palette.mintDark,
+    backgroundColor: palette.mintDeep,
     borderColor: palette.white,
     borderRadius: radius.pill,
     borderWidth: 3,
-    bottom: 0,
-    height: 32,
+    bottom: -1,
+    height: 30,
     justifyContent: 'center',
     position: 'absolute',
-    right: 0,
-    width: 32,
+    right: -1,
+    width: 30,
+  },
+  avatarTitle: {
+    ...customerText.title,
+    fontSize: 17,
+    lineHeight: 23,
   },
   avatarHint: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '500',
-  },
-
-  formSection: {
-    gap: spacing.sm,
-  },
-  sectionLabel: {
-    color: palette.faint,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    paddingHorizontal: spacing.xs,
-    textTransform: 'uppercase',
+    ...customerText.meta,
+    marginTop: 2,
   },
   formCard: {
-    gap: spacing.md,
-    overflow: 'hidden',
+    gap: 0,
+    paddingVertical: 0,
   },
-  flex: { flex: 1 },
-
-  emailRow: {
+  fieldRow: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 68,
+    paddingVertical: spacing.md,
+  },
+  lockedEmailRow: {
     alignItems: 'center',
-    borderTopColor: palette.lineSoft,
+    borderTopColor: '#EEF0F2',
     borderTopWidth: 1,
     flexDirection: 'row',
-    gap: spacing.base,
-    minHeight: 64,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
+    gap: spacing.md,
+    minHeight: 68,
+    paddingVertical: spacing.md,
+  },
+  flex: {
+    flex: 1,
+    minWidth: 0,
   },
   fieldLabel: {
-    color: palette.faint,
-    fontSize: 12,
-    fontWeight: '500',
+    ...customerText.meta,
+    color: '#7A828D',
   },
-  fieldValue: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '500',
+  input: {
+    ...customerText.body,
+    color: '#202733',
+    minHeight: 28,
+    padding: 0,
+  },
+  multilineInput: {
+    minHeight: 74,
+    paddingTop: spacing.xs,
+  },
+  lockedValue: {
+    ...customerText.body,
+    color: '#202733',
     marginTop: 2,
   },
   lockedBadge: {
-    backgroundColor: palette.lineSoft,
-    borderRadius: radius.pill,
+    backgroundColor: '#EEF2F6',
+    borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xxs,
+    paddingVertical: spacing.xs,
   },
   lockedText: {
-    color: palette.faint,
-    fontSize: 11,
-    fontWeight: '700',
+    color: '#68717E',
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 16,
   },
-
+  saveButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 52,
+    paddingHorizontal: spacing.lg,
+  },
+  saveButtonDisabled: {
+    opacity: 0.45,
+  },
+  saveButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 20,
+  },
   errorText: {
     color: palette.red,
     fontSize: 13,

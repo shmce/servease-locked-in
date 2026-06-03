@@ -1,14 +1,21 @@
 import { useState } from 'react';
-import { ChevronRight, Search, Star } from 'lucide-react-native';
+import { ChevronRight, Search, Star, X } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { EmptyState, TopBar } from '../../../components/DesignKit';
-import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import {
   CatalogCategory,
   CatalogServiceItem,
   ProviderListing,
 } from '../../../shared/models/types';
-import { ScreenContent, ScreenScroll } from '../../../shared/components/ScreenLayout';
+import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerCategoryViewModel } from '../viewModels/useCustomerCategoryViewModel';
 
 type CustomerCategoryScreenProps = {
@@ -40,14 +47,15 @@ export function CustomerCategoryScreen({
   const { data } = category;
 
   return (
-    <>
-      <TopBar
-        title={data.categoryName}
-        subtitle={data.serviceCountLabel}
-        onBack={onBack}
-      />
-      <ScreenScroll>
-        <ScreenContent>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title={data.categoryName}
+          subtitle={data.serviceCountLabel}
+          onBack={onBack}
+        />
+
+        <CustomerSection>
           <View style={styles.searchBar}>
             <Search color={palette.faint} size={16} strokeWidth={2.2} />
             <TextInput
@@ -66,30 +74,39 @@ export function CustomerCategoryScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
               >
-                <Text style={styles.searchClear}>✕</Text>
+                <X color={palette.faint} size={16} strokeWidth={2.2} />
               </Pressable>
             ) : null}
           </View>
+        </CustomerSection>
 
+        <CustomerSection title="Services">
           <View style={styles.serviceList}>
             {data.serviceRows.map((row) => (
-              <Pressable
+              <CustomerCard
                 key={row.id}
-                style={styles.serviceCard}
                 onPress={() => onOpenService(row.service)}
-                accessibilityRole="button"
                 accessibilityLabel={`Open ${row.name}`}
               >
-                <View style={styles.serviceThumb}>
-                  <Text style={styles.serviceThumbText}>{row.name.slice(0, 1)}</Text>
-                </View>
-                <View style={styles.serviceBody}>
-                  <Text style={styles.serviceName} numberOfLines={1}>{row.name}</Text>
-                  <Text style={styles.serviceDesc} numberOfLines={2}>{row.description}</Text>
-                  <View style={styles.serviceFooter}>
+                <View style={styles.serviceRow}>
+                  <View style={styles.serviceThumb}>
+                    <Text style={styles.serviceThumbText}>
+                      {row.name.slice(0, 1)}
+                    </Text>
+                  </View>
+                  <View style={styles.serviceBody}>
+                    <View style={styles.serviceTitleRow}>
+                      <Text style={styles.serviceName} numberOfLines={1}>
+                        {row.name}
+                      </Text>
+                      <Text style={styles.priceText}>{row.priceLabel}</Text>
+                    </View>
+                    <Text style={styles.serviceDesc} numberOfLines={2}>
+                      {row.description}
+                    </Text>
                     {row.hasRating ? (
                       <View style={styles.ratingRow}>
-                        <Star color="#FFC107" fill="#FFC107" size={13} />
+                        <Star color="#FFB020" fill="#FFB020" size={13} />
                         <Text style={styles.ratingText}>{row.ratingLabel}</Text>
                         <Text style={styles.reviewText}>({row.reviewCount})</Text>
                       </View>
@@ -97,18 +114,21 @@ export function CustomerCategoryScreen({
                       <Text style={styles.noRatingText}>No reviews yet</Text>
                     )}
                   </View>
+                  <ChevronRight color={palette.faint} size={18} />
                 </View>
-                <ChevronRight color={palette.faint} size={18} />
-              </Pressable>
+              </CustomerCard>
             ))}
           </View>
 
           {!data.hasServices ? (
-            <EmptyState title="No services found" body="Try a different search term." />
+            <CustomerEmptyState
+              title="No services found"
+              body="Try a different search term."
+            />
           ) : null}
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+        </CustomerSection>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
@@ -116,97 +136,92 @@ const styles = StyleSheet.create({
   searchBar: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-    minHeight: 46,
+    minHeight: 48,
     paddingHorizontal: spacing.base,
   },
   searchInput: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1,
     fontSize: 14,
-    fontWeight: '500',
-    minHeight: 46,
-  },
-  searchClear: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
+    letterSpacing: 0,
+    minHeight: 48,
   },
   serviceList: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
-  serviceCard: {
+  serviceRow: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.sm,
-    padding: spacing.sm,
-    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+    gap: spacing.md,
   },
   serviceThumb: {
     alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.md,
-    height: 52,
+    backgroundColor: '#F1FAF5',
+    borderRadius: 10,
+    height: 48,
     justifyContent: 'center',
-    width: 52,
+    width: 48,
   },
   serviceThumbText: {
-    color: palette.mint,
-    fontSize: 22,
-    fontWeight: '900',
+    color: palette.mintDeep,
+    fontSize: 19,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   serviceBody: {
     flex: 1,
-    gap: spacing.xs,
+    gap: 4,
+    minWidth: 0,
   },
-  serviceName: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  serviceDesc: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '400',
-    lineHeight: 17,
-  },
-  serviceFooter: {
+  serviceTitleRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: spacing.xs,
+    gap: spacing.sm,
+  },
+  serviceName: {
+    ...customerText.title,
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    minWidth: 0,
+  },
+  serviceDesc: {
+    ...customerText.meta,
   },
   ratingRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: 3,
+    marginTop: 2,
   },
   ratingText: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   reviewText: {
-    color: palette.muted,
+    ...customerText.meta,
     fontSize: 11,
-    fontWeight: '500',
+    lineHeight: 15,
   },
   noRatingText: {
-    color: palette.faint,
+    ...customerText.meta,
     fontSize: 11,
-    fontWeight: '500',
+    lineHeight: 15,
+    marginTop: 2,
   },
   priceText: {
-    color: palette.mint,
+    color: palette.mintDeep,
+    flexShrink: 0,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 });

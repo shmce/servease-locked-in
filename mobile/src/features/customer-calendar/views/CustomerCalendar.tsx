@@ -1,13 +1,17 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import {
-  Badge,
-  Card,
-  EmptyState,
-  PrimaryButton,
-  Section,
-  TopBar,
-} from '../../../components/DesignKit';
+import { CalendarCheck, RefreshCw } from 'lucide-react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { MonthCalendar } from '../../../components/MonthCalendar';
+import {
+  CustomerBadge,
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerIconBlock,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { BookingSummary } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerCalendarViewModel } from '../viewModels/useCustomerCalendarViewModel';
@@ -31,72 +35,95 @@ export function CustomerCalendarScreen({
   };
 
   return (
-    <>
-      <TopBar
-        title="Calendar"
-        subtitle="Your upcoming service schedule"
-        right={
-          <PrimaryButton
-            label={calendar.isLoading ? 'Loading' : 'Refresh'}
-            variant="secondary"
-            onPress={() => void calendar.refreshBookings()}
-            disabled={calendar.isLoading}
-          />
-        }
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <Section>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Calendar"
+          subtitle="Your upcoming service schedule"
+          right={
+            <Pressable
+              style={[
+                styles.refreshButton,
+                calendar.isLoading && styles.refreshButtonDisabled,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel={
+                calendar.isLoading ? 'Refreshing bookings' : 'Refresh bookings'
+              }
+              accessibilityState={{ disabled: calendar.isLoading }}
+              onPress={() => void calendar.refreshBookings()}
+              disabled={calendar.isLoading}
+            >
+              <RefreshCw color={palette.mintDeep} size={20} strokeWidth={2.2} />
+            </Pressable>
+          }
+        />
+
+        <CustomerSection>
+          <CustomerCard style={styles.calendarCard}>
             <MonthCalendar
               selectedDate={calendar.data.selectedDate}
               onSelectDate={calendar.selectDate}
               markers={calendar.data.calendarMarkers}
             />
             <View style={styles.legendRow}>
-              <LegendDot color={palette.blue} label="Booked service" />
+              <LegendDot color={palette.mintDeep} label="Booked service" />
             </View>
-          </Section>
+          </CustomerCard>
+        </CustomerSection>
 
-          <Section
-            title={calendar.data.agendaTitle}
-            action={
-              calendar.data.isShowingUpcomingPreview ? (
-                <Pressable
-                  onPress={onViewAllBookings}
-                  accessibilityRole="button"
-                  accessibilityLabel="View all bookings"
-                >
-                  <Text style={styles.sectionAction}>View all</Text>
-                </Pressable>
-              ) : null
-            }
-          >
-            {calendar.data.selectedDateBookings.length ? (
-              calendar.data.selectedDateBookings.map((item) => {
+        <CustomerSection
+          title={calendar.data.agendaTitle}
+          action={
+            calendar.data.isShowingUpcomingPreview ? (
+              <Pressable
+                onPress={onViewAllBookings}
+                accessibilityRole="button"
+                accessibilityLabel="View all bookings"
+              >
+                <Text style={styles.sectionAction}>View all</Text>
+              </Pressable>
+            ) : null
+          }
+        >
+          {calendar.data.selectedDateBookings.length ? (
+            <View style={styles.agendaList}>
+              {calendar.data.selectedDateBookings.map((item) => {
                 const { booking } = item;
 
                 return (
-                  <Card key={booking.id} onPress={() => openCalendarBooking(booking)}>
-                    <View style={styles.rowBetween}>
-                      <View style={styles.flex}>
+                  <CustomerCard
+                    key={booking.id}
+                    onPress={() => openCalendarBooking(booking)}
+                    accessibilityLabel={`Open ${item.title} booking`}
+                  >
+                    <View style={styles.agendaRow}>
+                      <CustomerIconBlock compact>
+                        <CalendarCheck
+                          color={palette.mintDark}
+                          size={18}
+                          strokeWidth={2.2}
+                        />
+                      </CustomerIconBlock>
+                      <View style={styles.agendaCopy}>
                         <Text style={styles.cardTitle}>{item.title}</Text>
                         <Text style={styles.cardMeta}>{item.scheduledAtLabel}</Text>
                       </View>
-                      <Badge label={item.statusLabel} tone="warning" />
+                      <CustomerBadge label={item.statusLabel} tone="warning" />
                     </View>
-                  </Card>
+                  </CustomerCard>
                 );
-              })
-            ) : (
-              <EmptyState
-                title={calendar.data.emptyTitle}
-                body={calendar.data.emptyBody}
-              />
-            )}
-          </Section>
-        </View>
-      </ScrollView>
-    </>
+              })}
+            </View>
+          ) : (
+            <CustomerEmptyState
+              title={calendar.data.emptyTitle}
+              body={calendar.data.emptyBody}
+            />
+          )}
+        </CustomerSection>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
@@ -110,14 +137,25 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
+  refreshButton: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: '#ECEFF1',
+    borderRadius: 20,
+    borderWidth: 1,
+    height: 44,
+    justifyContent: 'center',
+    shadowColor: '#101820',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 14,
+    width: 44,
   },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
+  refreshButtonDisabled: {
+    opacity: 0.55,
+  },
+  calendarCard: {
+    padding: spacing.base,
   },
   legendRow: {
     flexDirection: 'row',
@@ -138,31 +176,32 @@ const styles = StyleSheet.create({
   legendLabel: {
     color: palette.muted,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
   },
-  rowBetween: {
+  agendaList: {
+    gap: spacing.md,
+  },
+  agendaRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
-    justifyContent: 'space-between',
   },
-  flex: {
+  agendaCopy: {
     flex: 1,
+    minWidth: 0,
   },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '700',
+    ...customerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   cardMeta: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '500',
-    marginTop: spacing.xs,
+    ...customerText.body,
+    marginTop: 2,
   },
   sectionAction: {
     color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

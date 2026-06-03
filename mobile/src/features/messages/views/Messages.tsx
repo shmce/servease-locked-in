@@ -10,9 +10,18 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Paperclip, Send } from 'lucide-react-native';
+import { ChevronRight, Paperclip, Send } from 'lucide-react-native';
 import { EmptyState, TopBar } from '../../../components/DesignKit';
 import { AppRole } from '../../../navigation/types';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import {
   ApiOptions,
   BookingSummary,
@@ -73,11 +82,13 @@ export function MessagesScreen({
     onSelectConversation,
   });
   const { data } = messagesViewModel;
+  const isCustomer = appRole === 'customer';
 
   if (selectedConversationId) {
     return (
       <ChatDetailScreen
         data={data}
+        isCustomer={isCustomer}
         messageDraft={messageDraft}
         onAttachImage={onAttachImage}
         onBack={onDeselectConversation}
@@ -90,6 +101,7 @@ export function MessagesScreen({
   return (
     <ConversationListScreen
       data={data}
+      isCustomer={isCustomer}
       onSelectConversation={(id) => void messagesViewModel.selectConversation(id)}
     />
   );
@@ -99,11 +111,71 @@ export function MessagesScreen({
 
 function ConversationListScreen({
   data,
+  isCustomer,
   onSelectConversation,
 }: {
   data: ReturnType<typeof useMessagesViewModel>['data'];
+  isCustomer: boolean;
   onSelectConversation: (id: string) => void;
 }) {
+  if (isCustomer) {
+    return (
+      <CustomerScreen>
+        <CustomerContent>
+          <CustomerHeader
+            title="Messages"
+            subtitle="Conversations about your booked services"
+          />
+
+          <CustomerSection>
+            {data.hasConversations ? (
+              <View style={styles.customerConvoList}>
+                {data.conversationRows.map((row) => (
+                  <CustomerCard
+                    key={row.conversation.id}
+                    onPress={() => onSelectConversation(row.conversation.id)}
+                    accessibilityLabel={`Open conversation with ${row.counterparty}`}
+                  >
+                    <View style={styles.customerConvoRow}>
+                      <View style={styles.customerConvoAvatar}>
+                        <Text style={styles.customerConvoInitial}>{row.initial}</Text>
+                      </View>
+                      <View style={styles.customerConvoBody}>
+                        <View style={styles.customerConvoTitleRow}>
+                          <Text style={styles.customerConvoName} numberOfLines={1}>
+                            {row.counterparty}
+                          </Text>
+                          {row.timeLabel ? (
+                            <Text style={styles.customerConvoTime} numberOfLines={1}>
+                              {row.timeLabel}
+                            </Text>
+                          ) : null}
+                        </View>
+                        <Text style={styles.customerConvoService} numberOfLines={1}>
+                          {row.serviceName}
+                        </Text>
+                      </View>
+                      <ChevronRight
+                        color="#B0A89E"
+                        size={18}
+                        strokeWidth={2.1}
+                      />
+                    </View>
+                  </CustomerCard>
+                ))}
+              </View>
+            ) : (
+              <CustomerEmptyState
+                title="No conversations yet"
+                body="Start chatting from a booking detail."
+              />
+            )}
+          </CustomerSection>
+        </CustomerContent>
+      </CustomerScreen>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <TopBar title="Messages" />
@@ -156,6 +228,7 @@ function ConversationListScreen({
 
 function ChatDetailScreen({
   data,
+  isCustomer,
   messageDraft,
   onAttachImage,
   onBack,
@@ -163,6 +236,7 @@ function ChatDetailScreen({
   onSendMessage,
 }: {
   data: ReturnType<typeof useMessagesViewModel>['data'];
+  isCustomer: boolean;
   messageDraft: string;
   onAttachImage: () => Promise<void>;
   onBack: () => void;
@@ -177,25 +251,45 @@ function ChatDetailScreen({
 
   return (
     <KeyboardAvoidingView
-      style={styles.screen}
+      style={isCustomer ? styles.customerChatScreen : styles.screen}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <TopBar
-        title={data.threadTitle}
-        subtitle={data.threadSubtitle}
-        onBack={onBack}
-      />
+      {isCustomer ? (
+        <View style={styles.customerChatHeader}>
+          <CustomerHeader
+            title={data.threadTitle}
+            subtitle={data.threadSubtitle}
+            onBack={onBack}
+          />
+        </View>
+      ) : (
+        <TopBar
+          title={data.threadTitle}
+          subtitle={data.threadSubtitle}
+          onBack={onBack}
+        />
+      )}
 
       <ScrollView
         ref={scrollRef}
         style={styles.chatScroll}
-        contentContainerStyle={styles.chatContent}
+        contentContainerStyle={[
+          styles.chatContent,
+          isCustomer && styles.customerChatContent,
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {data.messageRows.length === 0 ? (
-          <View style={styles.chatEmpty}>
-            <Text style={styles.chatEmptyText}>{data.threadEmptyLabel}</Text>
-          </View>
+          isCustomer ? (
+            <CustomerEmptyState
+              title="No messages yet"
+              body={data.threadEmptyLabel}
+            />
+          ) : (
+            <View style={styles.chatEmpty}>
+              <Text style={styles.chatEmptyText}>{data.threadEmptyLabel}</Text>
+            </View>
+          )
         ) : null}
 
         {data.messageRows.map((row) => (
@@ -218,8 +312,22 @@ function ChatDetailScreen({
             ) : null}
 
             {row.message.content ? (
-              <View style={[styles.bubble, row.isMine ? styles.bubbleMine : styles.bubbleTheirs]}>
-                <Text style={row.isMine ? styles.bubbleTextMine : styles.bubbleTextTheirs}>
+              <View
+                style={[
+                  styles.bubble,
+                  row.isMine ? styles.bubbleMine : styles.bubbleTheirs,
+                  isCustomer && styles.customerBubble,
+                  isCustomer && row.isMine && styles.customerBubbleMine,
+                  isCustomer && !row.isMine && styles.customerBubbleTheirs,
+                ]}
+              >
+                <Text
+                  style={[
+                    row.isMine ? styles.bubbleTextMine : styles.bubbleTextTheirs,
+                    isCustomer && styles.customerBubbleText,
+                    isCustomer && row.isMine && styles.customerBubbleTextMine,
+                  ]}
+                >
                   {row.message.content}
                 </Text>
               </View>
@@ -234,19 +342,26 @@ function ChatDetailScreen({
         ))}
       </ScrollView>
 
-      <View style={styles.inputBar}>
+      <View style={isCustomer ? styles.customerInputBar : styles.inputBar}>
         <Pressable
           onPress={() => void onAttachImage()}
           disabled={data.attachDisabled}
-          style={[styles.inputAction, data.attachDisabled && styles.inputActionDisabled]}
+          style={[
+            isCustomer ? styles.customerInputAction : styles.inputAction,
+            data.attachDisabled && styles.inputActionDisabled,
+          ]}
           accessibilityRole="button"
           accessibilityLabel="Attach image"
         >
-          <Paperclip color={palette.mint} size={20} strokeWidth={2.2} />
+          <Paperclip
+            color={isCustomer ? palette.mintDeep : palette.mint}
+            size={20}
+            strokeWidth={2.2}
+          />
         </Pressable>
 
         <TextInput
-          style={styles.inputField}
+          style={isCustomer ? styles.customerInputField : styles.inputField}
           value={messageDraft}
           onChangeText={onMessageDraftChange}
           placeholder="Type a message..."
@@ -258,7 +373,10 @@ function ChatDetailScreen({
         <Pressable
           onPress={() => void onSendMessage()}
           disabled={data.sendDisabled}
-          style={[styles.sendButton, data.sendDisabled && styles.sendButtonDisabled]}
+          style={[
+            isCustomer ? styles.customerSendButton : styles.sendButton,
+            data.sendDisabled && styles.sendButtonDisabled,
+          ]}
           accessibilityRole="button"
           accessibilityLabel="Send message"
         >
@@ -280,8 +398,69 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     flex: 1,
   },
+  customerChatScreen: {
+    backgroundColor: palette.white,
+    flex: 1,
+  },
+  customerChatHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+  },
 
   // Conversation list
+  customerConvoList: {
+    gap: spacing.md,
+  },
+  customerConvoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 58,
+  },
+  customerConvoAvatar: {
+    alignItems: 'center',
+    backgroundColor: '#F1FAF5',
+    borderRadius: radius.pill,
+    height: 44,
+    justifyContent: 'center',
+    width: 44,
+  },
+  customerConvoInitial: {
+    color: palette.mintDeep,
+    fontSize: 17,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+  customerConvoBody: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+  },
+  customerConvoTitleRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  customerConvoName: {
+    ...customerText.title,
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 20,
+    minWidth: 0,
+  },
+  customerConvoService: {
+    ...customerText.meta,
+  },
+  customerConvoTime: {
+    color: '#8D949E',
+    flexShrink: 0,
+    fontSize: 11,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 15,
+    maxWidth: 92,
+    textAlign: 'right',
+  },
   listScroll: {
     flex: 1,
   },
@@ -347,6 +526,11 @@ const styles = StyleSheet.create({
     padding: spacing.base,
     paddingBottom: spacing.lg,
   },
+  customerChatContent: {
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+  },
   chatEmpty: {
     alignItems: 'center',
     flex: 1,
@@ -383,13 +567,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
   },
+  customerBubble: {
+    borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
+  },
   bubbleMine: {
     backgroundColor: palette.mint,
     borderBottomRightRadius: 4,
   },
+  customerBubbleMine: {
+    backgroundColor: palette.mintDeep,
+    borderBottomRightRadius: 5,
+  },
   bubbleTheirs: {
     backgroundColor: palette.lineSoft,
     borderBottomLeftRadius: 4,
+  },
+  customerBubbleTheirs: {
+    backgroundColor: '#F5F7FA',
+    borderBottomLeftRadius: 5,
   },
   bubbleTextMine: {
     color: palette.white,
@@ -402,6 +599,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     lineHeight: 20,
+  },
+  customerBubbleText: {
+    color: '#202733',
+    fontWeight: '400',
+    letterSpacing: 0,
+  },
+  customerBubbleTextMine: {
+    color: palette.white,
   },
   bubbleImage: {
     borderRadius: radius.md,
@@ -437,8 +642,27 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     paddingBottom: spacing.base,
   },
+  customerInputBar: {
+    alignItems: 'flex-end',
+    backgroundColor: palette.white,
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.base,
+  },
   inputAction: {
     alignItems: 'center',
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  customerInputAction: {
+    alignItems: 'center',
+    backgroundColor: '#F1FAF5',
+    borderRadius: radius.pill,
     height: 40,
     justifyContent: 'center',
     width: 40,
@@ -457,9 +681,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
     paddingVertical: 10,
   },
+  customerInputField: {
+    backgroundColor: '#F8FAFB',
+    borderColor: '#EEF0F2',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    color: '#202733',
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 20,
+    maxHeight: 100,
+    paddingHorizontal: spacing.base,
+    paddingVertical: 10,
+  },
   sendButton: {
     alignItems: 'center',
     backgroundColor: palette.mint,
+    borderRadius: radius.pill,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  customerSendButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
     borderRadius: radius.pill,
     height: 40,
     justifyContent: 'center',

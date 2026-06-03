@@ -265,6 +265,33 @@ test('legacy route frame fills the native device viewport', () => {
   assert.match(appShellSource, /expo-system-ui/);
 });
 
+test('customer UI language primitives remain opt-in and outside provider tracking screens', () => {
+  const customerUiSource = readProjectFile('src/shared/components/CustomerUI.tsx');
+  const trackingSource = readProjectFile(
+    'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+  );
+  const providerViewPaths = featureViewFiles().filter((viewPath) =>
+    viewPath.includes('/provider-'),
+  );
+
+  assert.match(customerUiSource, /export function CustomerScreen/);
+  assert.match(customerUiSource, /export function CustomerHeader/);
+  assert.match(customerUiSource, /export function CustomerCard/);
+  assert.doesNotMatch(customerUiSource, /services\/serveaseApi|src\/features\/provider-/);
+  assert.doesNotMatch(
+    trackingSource,
+    /CustomerUI|CustomerScreen|CustomerHeader|CustomerCard/,
+  );
+
+  for (const viewPath of providerViewPaths) {
+    assert.doesNotMatch(
+      readProjectFile(viewPath),
+      /CustomerUI|CustomerScreen|CustomerHeader|CustomerCard/,
+      `${viewPath} should not use customer-only UI language primitives`,
+    );
+  }
+});
+
 test('app shell delegates display notice formatting to domain helpers', () => {
   const appSource = readProjectFile('src/App.tsx');
   const bookingFlowSource = readProjectFile(
@@ -598,7 +625,8 @@ test('customer calendar follows feature-level MVVM boundaries', () => {
   assert.match(routeSource, /CustomerTab = 'explore' \| 'bookings' \| 'calendar'/);
   assert.match(routeHelpersSource, /screen === 'calendar'/);
   assert.match(viewSource, /useCustomerCalendarViewModel/);
-  assert.match(viewSource, /PrimaryButton/);
+  assert.match(viewSource, /CustomerHeader/);
+  assert.match(viewSource, /CustomerScreen/);
   assert.match(viewSource, /MonthCalendar/);
   assert.match(viewSource, /markers=\{calendar\.data\.calendarMarkers\}/);
   assert.match(viewSource, /calendar\.refreshBookings/);
@@ -780,9 +808,12 @@ test('customer service history follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /CustomerServiceHistoryScreen/);
   assert.match(viewSource, /useCustomerServiceHistoryViewModel/);
+  assert.match(viewSource, /CustomerHeader/);
+  assert.doesNotMatch(viewSource, /BookingCard/);
   assert.doesNotMatch(viewSource, /booking\.status === 'completed'/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /completedBookings/);
+  assert.match(viewModelSource, /completedRows/);
   assert.match(viewModelSource, /booking\.status === 'completed'/);
 });
 
@@ -831,6 +862,8 @@ test('notifications follow feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /NotificationsScreen/);
   assert.match(viewSource, /useNotificationsViewModel/);
+  assert.match(viewSource, /role === 'customer'/);
+  assert.match(viewSource, /CustomerHeader/);
   assert.doesNotMatch(viewSource, /isInternalTestNotification/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /isInternalTestNotification/);
