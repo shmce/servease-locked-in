@@ -7,10 +7,7 @@ import {
   formatMoney,
   pricingModeLabel,
 } from '../../../shared/utils/booking';
-import {
-  BookingSummary,
-  PaymentSummary,
-} from '../../../shared/models/types';
+import { BookingSummary, PaymentSummary } from '../../../shared/models/types';
 
 export type ProviderBookingDetailAction =
   | 'confirm'
@@ -115,14 +112,37 @@ export function buildProviderBookingDetailViewModel({
   const estimatedEarningsLabel = formatMoney(
     selectedPayment?.providerPayout ?? booking.totalAmount,
   );
+  const storedPriceBreakdown = booking.priceBreakdown;
+  const priceBreakdownRows = storedPriceBreakdown?.lineItems.length
+    ? [
+        ...storedPriceBreakdown.lineItems.map((item) => ({
+          key: item.code,
+          label: item.label,
+          value: formatMoney(item.amount),
+        })),
+        {
+          key: 'total',
+          label: 'Total',
+          value: formatMoney(storedPriceBreakdown.total),
+        },
+      ]
+    : [
+        {
+          key: 'stored-total',
+          label: 'Stored total',
+          value: formatMoney(booking.totalAmount),
+        },
+      ];
 
   return {
     data: {
       addressLabel: booking.serviceAddress ?? 'Address unavailable',
       bookingReference: booking.bookingReference,
       customerName:
-        booking.customerFullName ?? booking.customerId.slice(0, 8).toUpperCase(),
+        booking.customerFullName ??
+        booking.customerId.slice(0, 8).toUpperCase(),
       estimatedEarningsLabel,
+      priceBreakdownRows,
       serviceDetailRows,
       serviceTitle: booking.serviceTitle ?? 'Service booking',
       statusActions: buildStatusActions(
@@ -202,7 +222,8 @@ function buildStatusActions(
         {
           action: 'completeService',
           disabled:
-            busyAction === 'service-complete' || Boolean(completionBlockedByPayment),
+            busyAction === 'service-complete' ||
+            Boolean(completionBlockedByPayment),
           key: 'complete-service',
           label: completionBlockedByPayment
             ? 'Awaiting Payment'

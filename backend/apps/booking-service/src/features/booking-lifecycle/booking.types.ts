@@ -8,6 +8,38 @@ export type BookingStatus =
 
 export type PricingMode = 'flat' | 'hourly';
 
+export type BookingPriceBreakdownLineItemCode =
+  | 'service_subtotal'
+  | 'travel_fuel'
+  | 'service_fee';
+
+export interface BookingPriceBreakdownLineItem {
+  code: BookingPriceBreakdownLineItemCode;
+  label: string;
+  amount: number;
+  source: 'provider_rate' | 'route' | 'fallback' | 'platform_fee';
+}
+
+export interface BookingPriceBreakdown {
+  currency: 'PHP';
+  lineItems: BookingPriceBreakdownLineItem[];
+  serviceSubtotal: number;
+  travelFee: number;
+  serviceFee: number;
+  total: number;
+  fallbackUsed: boolean;
+  calculationSource: 'route' | 'fallback';
+  generatedAt: string;
+  metadata: {
+    pricingMode: PricingMode;
+    hoursRequired: number;
+    serviceRate: number;
+    distanceKm: number | null;
+    durationMinutes: number | null;
+    fallbackReason: string | null;
+  };
+}
+
 export interface CreateBookingInput {
   customerId: string;
   providerId: string;
@@ -21,10 +53,12 @@ export interface CreateBookingInput {
   scheduledAt: string;
   hoursRequired?: number | null;
   serviceAmount?: number | null;
+  totalAmount?: number | null;
   pricingMode?: PricingMode | null;
   acceptedQuoteId?: string | null;
   quoteFairnessStatus?: string | null;
   quoteConfidence?: string | null;
+  priceBreakdown?: BookingPriceBreakdown | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
   attachments?: BookingAttachmentInput[];
@@ -190,5 +224,6 @@ export interface BookingSummary {
   customerNotes: string | null;
   status: BookingStatus;
   totalAmount: number;
+  priceBreakdown?: BookingPriceBreakdown | null;
   attachments: BookingAttachmentSummary[];
 }

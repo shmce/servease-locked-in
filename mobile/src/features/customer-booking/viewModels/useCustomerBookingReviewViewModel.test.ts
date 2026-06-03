@@ -111,7 +111,7 @@ test('customer booking review shows secure checkout copy for online methods', ()
   assert.match(model.data.paymentNotice, /secure checkout/i);
 });
 
-test('customer booking review separates provider rate from pricing engine total', () => {
+test('customer booking review shows booking-facing price breakdown rows', () => {
   const quote: PricingQuoteSummary = {
     quoteId: 'quote-1',
     expiresAt: '2026-06-01T08:45:00.000Z',
@@ -153,25 +153,66 @@ test('customer booking review separates provider rate from pricing engine total'
     busyAction: null,
     customerPaymentMethods: [cashMethod],
     selectedPaymentMethodId: cashMethod.id,
+    now: new Date('2026-05-31T00:00:00.000Z'),
   });
 
-  assert.equal(model.data.totalLabel, 'Pricing engine estimate');
-  assert.equal(model.data.displayedTotalLabel, 'PHP 2,144');
+  assert.equal(model.data.totalLabel, 'Booking total estimate');
+  assert.equal(model.data.displayedTotalLabel, 'PHP 2,251');
   assert.deepEqual(model.data.priceBreakdownRows.slice(0, 3), [
     {
-      key: 'provider-rate',
-      label: 'Provider rate',
-      value: 'PHP 1,575',
+      key: 'service-subtotal',
+      label: 'Service subtotal',
+      value: 'PHP 2,000',
     },
     {
-      key: 'fair-range',
-      label: 'Fair range',
-      value: 'PHP 1,822 - PHP 2,466',
+      key: 'travel-fuel',
+      label: 'Travel and fuel estimate',
+      value: 'PHP 144',
     },
     {
-      key: 'fairness',
-      label: 'Fairness',
-      value: 'Within fair range',
+      key: 'service-fee',
+      label: 'Service fee',
+      value: 'PHP 107',
+    },
+  ]);
+});
+
+test('customer booking review shows fallback breakdown and allows cash confirmation without a quote', () => {
+  const model = buildCustomerBookingReviewViewModel({
+    provider,
+    selectedService: null,
+    scheduledAt: '2026-06-01T09:00',
+    hoursRequired: '1',
+    address: '123 Test St',
+    serviceLocation: confirmedServiceLocation,
+    notes: '',
+    bookingReferencePhotoUrl: null,
+    pricingQuote: null,
+    promotionValidation: null,
+    promoCode: '',
+    busyAction: null,
+    customerPaymentMethods: [cashMethod],
+    selectedPaymentMethodId: cashMethod.id,
+    now: new Date('2026-05-31T00:00:00.000Z'),
+  });
+
+  assert.equal(model.data.confirmDisabled, false);
+  assert.equal(model.data.displayedTotalLabel, 'PHP 651');
+  assert.deepEqual(model.data.priceBreakdownRows, [
+    {
+      key: 'service-subtotal',
+      label: 'Service subtotal',
+      value: 'PHP 500',
+    },
+    {
+      key: 'travel-fuel',
+      label: 'Travel and fuel estimate',
+      value: 'PHP 120',
+    },
+    {
+      key: 'service-fee',
+      label: 'Service fee',
+      value: 'PHP 31',
     },
   ]);
 });
@@ -217,7 +258,9 @@ test('customer booking review shows the confirmed service pin', () => {
     selectedPaymentMethodId: cashMethod.id,
   });
 
-  const pinRow = model.data.serviceRows.find((row) => row.key === 'service-pin');
+  const pinRow = model.data.serviceRows.find(
+    (row) => row.key === 'service-pin',
+  );
   assert.match(pinRow?.value ?? '', /14.55473, 121.02445/);
 });
 
@@ -244,7 +287,9 @@ test('customer booking review blocks confirmation when the service pin regresses
     now: new Date('2026-05-31T00:00:00.000Z'),
   });
 
-  const pinRow = model.data.serviceRows.find((row) => row.key === 'service-pin');
+  const pinRow = model.data.serviceRows.find(
+    (row) => row.key === 'service-pin',
+  );
   assert.equal(model.data.confirmDisabled, true);
   assert.equal(model.data.quoteExplanation, customerMapPinRequiredCopy);
   assert.equal(pinRow?.value, 'Pin not confirmed');

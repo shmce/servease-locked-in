@@ -102,6 +102,38 @@ export interface ProviderProfileSnapshot {
 
 export type BookingPricingMode = 'flat' | 'hourly';
 
+export type BookingPriceBreakdownLineItemCode =
+  | 'service_subtotal'
+  | 'travel_fuel'
+  | 'service_fee';
+
+export interface BookingPriceBreakdownLineItem {
+  code: BookingPriceBreakdownLineItemCode;
+  label: string;
+  amount: number;
+  source: 'provider_rate' | 'route' | 'fallback' | 'platform_fee';
+}
+
+export interface BookingPriceBreakdown {
+  currency: 'PHP';
+  lineItems: BookingPriceBreakdownLineItem[];
+  serviceSubtotal: number;
+  travelFee: number;
+  serviceFee: number;
+  total: number;
+  fallbackUsed: boolean;
+  calculationSource: 'route' | 'fallback';
+  generatedAt: string;
+  metadata: {
+    pricingMode: BookingPricingMode;
+    hoursRequired: number;
+    serviceRate: number;
+    distanceKm: number | null;
+    durationMinutes: number | null;
+    fallbackReason: string | null;
+  };
+}
+
 export interface BookingSummary {
   id: string;
   bookingReference: string;
@@ -123,6 +155,7 @@ export interface BookingSummary {
   customerNotes?: string | null;
   status: BookingStatus;
   totalAmount: number;
+  priceBreakdown?: BookingPriceBreakdown | null;
   attachments?: BookingAttachmentSummary[];
 }
 
@@ -387,7 +420,11 @@ export interface CreateReviewRequest {
   reviewText?: string | null;
 }
 
-export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+export type SupportTicketStatus =
+  | 'open'
+  | 'in_progress'
+  | 'resolved'
+  | 'closed';
 
 export interface SupportTicketSummary {
   id: string;
@@ -569,7 +606,8 @@ export interface CreateCustomerAddressRequest {
   isDefault?: boolean | null;
 }
 
-export type UpdateCustomerAddressRequest = Partial<CreateCustomerAddressRequest>;
+export type UpdateCustomerAddressRequest =
+  Partial<CreateCustomerAddressRequest>;
 
 export interface RegisterAccountRequest {
   role: 'customer' | 'provider';
@@ -886,15 +924,20 @@ export interface CreateBookingRequest {
   scheduledAt: string;
   hoursRequired?: number | null;
   serviceAmount?: number | null;
+  totalAmount?: number | null;
   pricingMode?: 'flat' | 'hourly' | null;
   acceptedQuoteId?: string | null;
+  priceBreakdown?: BookingPriceBreakdown | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
   attachments?: BookingAttachmentInput[];
 }
 
 export type PricingUrgency = 'standard' | 'priority' | 'emergency';
-export type PricingFairnessStatus = 'below_range' | 'within_range' | 'above_range';
+export type PricingFairnessStatus =
+  | 'below_range'
+  | 'within_range'
+  | 'above_range';
 export type PricingConfidence = 'high' | 'medium' | 'low';
 
 export interface PricingRouteLocation {
@@ -1032,12 +1075,15 @@ export function addProviderPortfolioMedia(
   body: MediaAttachmentInput,
   options: ApiOptions = {},
 ): Promise<ProviderPortfolioMediaSummary> {
-  return request<ProviderPortfolioMediaSummary>('/v1/catalog/provider/portfolio', {
-    ...options,
-    method: 'POST',
-    body,
-    requiresAuth: true,
-  });
+  return request<ProviderPortfolioMediaSummary>(
+    '/v1/catalog/provider/portfolio',
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
 }
 
 export function deleteProviderPortfolioMedia(
@@ -1074,12 +1120,15 @@ export function reorderProviderPortfolio(
   items: ProviderPortfolioOrderItem[],
   options: ApiOptions = {},
 ): Promise<ProviderPortfolioMediaSummary[]> {
-  return request<ProviderPortfolioMediaSummary[]>('/v1/catalog/provider/portfolio/order', {
-    ...options,
-    method: 'PUT',
-    body: { items },
-    requiresAuth: true,
-  });
+  return request<ProviderPortfolioMediaSummary[]>(
+    '/v1/catalog/provider/portfolio/order',
+    {
+      ...options,
+      method: 'PUT',
+      body: { items },
+      requiresAuth: true,
+    },
+  );
 }
 
 export function getCurrentUser(
@@ -1264,11 +1313,14 @@ export interface ProviderApplicationDocumentsResponse {
 export function getMyProviderApplication(
   options: ApiOptions = {},
 ): Promise<ProviderApplicationStatus> {
-  return request<ProviderApplicationStatus>('/v1/auth/provider-application/me', {
-    ...options,
-    method: 'GET',
-    requiresAuth: true,
-  });
+  return request<ProviderApplicationStatus>(
+    '/v1/auth/provider-application/me',
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
 }
 
 export function getMyProviderApplicationDocuments(
@@ -1528,7 +1580,10 @@ export function subscribeBookingTrackingSnapshots(
     xhr = request;
     request.open('GET', streamUrl, true);
     request.setRequestHeader('accept', 'text/event-stream');
-    request.setRequestHeader('authorization', `Bearer ${options.token!.trim()}`);
+    request.setRequestHeader(
+      'authorization',
+      `Bearer ${options.token!.trim()}`,
+    );
 
     const drainEvents = () => {
       const nextChunk = request.responseText.slice(readOffset);
@@ -1628,11 +1683,14 @@ export function getBooking(
   bookingId: string,
   options: ApiOptions = {},
 ): Promise<BookingSummary> {
-  return request<BookingSummary>(`/v1/bookings/${encodeURIComponent(bookingId)}`, {
-    ...options,
-    method: 'GET',
-    requiresAuth: true,
-  });
+  return request<BookingSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
 }
 
 export function transitionBookingStatus(
@@ -1720,7 +1778,9 @@ export function createConversationMessage(
   );
 }
 
-export function listPayments(options: ApiOptions = {}): Promise<PaymentSummary[]> {
+export function listPayments(
+  options: ApiOptions = {},
+): Promise<PaymentSummary[]> {
   return request<PaymentSummary[]>('/v1/payments', {
     ...options,
     method: 'GET',
@@ -1744,12 +1804,15 @@ export function createCheckoutSession(
   body: CreateCheckoutSessionRequest,
   options: ApiOptions = {},
 ): Promise<PaymentCheckoutSessionSummary> {
-  return request<PaymentCheckoutSessionSummary>('/v1/payments/checkout-sessions', {
-    ...options,
-    method: 'POST',
-    body,
-    requiresAuth: true,
-  });
+  return request<PaymentCheckoutSessionSummary>(
+    '/v1/payments/checkout-sessions',
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
 }
 
 export function getCheckoutStatus(
@@ -1813,7 +1876,11 @@ export function getDirections(
   body: {
     origin: GeoRouteLocation;
     destination: GeoRouteLocation;
-    profile?: 'driving-car' | 'driving-hgv' | 'cycling-regular' | 'foot-walking';
+    profile?:
+      | 'driving-car'
+      | 'driving-hgv'
+      | 'cycling-regular'
+      | 'foot-walking';
     language?: string;
   },
   options: ApiOptions = {},
@@ -1831,15 +1898,18 @@ export function validatePromotion(
   code: string,
   options: ApiOptions = {},
 ): Promise<PromotionValidationSummary> {
-  return request<PromotionValidationSummary>('/v1/payments/promotions/validate', {
-    ...options,
-    method: 'POST',
-    body: {
-      bookingId,
-      code,
+  return request<PromotionValidationSummary>(
+    '/v1/payments/promotions/validate',
+    {
+      ...options,
+      method: 'POST',
+      body: {
+        bookingId,
+        code,
+      },
+      requiresAuth: true,
     },
-    requiresAuth: true,
-  });
+  );
 }
 
 export function listCustomerPaymentMethods(
@@ -1964,12 +2034,15 @@ export function replyToReview(
   responseText: string,
   options: ApiOptions = {},
 ): Promise<ReviewResponseSummary> {
-  return request<ReviewResponseSummary>(`/v1/reviews/${encodeURIComponent(reviewId)}/reply`, {
-    ...options,
-    method: 'POST',
-    body: { responseText },
-    requiresAuth: true,
-  });
+  return request<ReviewResponseSummary>(
+    `/v1/reviews/${encodeURIComponent(reviewId)}/reply`,
+    {
+      ...options,
+      method: 'POST',
+      body: { responseText },
+      requiresAuth: true,
+    },
+  );
 }
 
 export function flagReview(
@@ -1977,12 +2050,15 @@ export function flagReview(
   reason: string,
   options: ApiOptions = {},
 ): Promise<ReviewSummary> {
-  return request<ReviewSummary>(`/v1/reviews/${encodeURIComponent(reviewId)}/flag`, {
-    ...options,
-    method: 'POST',
-    body: { reason },
-    requiresAuth: true,
-  });
+  return request<ReviewSummary>(
+    `/v1/reviews/${encodeURIComponent(reviewId)}/flag`,
+    {
+      ...options,
+      method: 'POST',
+      body: { reason },
+      requiresAuth: true,
+    },
+  );
 }
 
 export function listSupportTickets(
@@ -2011,11 +2087,14 @@ export function getSupportTicket(
   ticketId: string,
   options: ApiOptions = {},
 ): Promise<SupportTicketSummary> {
-  return request<SupportTicketSummary>(`/v1/support/tickets/${encodeURIComponent(ticketId)}`, {
-    ...options,
-    method: 'GET',
-    requiresAuth: true,
-  });
+  return request<SupportTicketSummary>(
+    `/v1/support/tickets/${encodeURIComponent(ticketId)}`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
 }
 
 export function listSupportTicketReplies(
@@ -2199,24 +2278,30 @@ export function replaceProviderAvailabilityWindows(
   windows: AvailabilityWindowInput[],
   options: ApiOptions = {},
 ): Promise<ProviderAvailabilitySchedule> {
-  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/windows', {
-    ...options,
-    method: 'PUT',
-    body: { windows },
-    requiresAuth: true,
-  });
+  return request<ProviderAvailabilitySchedule>(
+    '/v1/provider/availability/windows',
+    {
+      ...options,
+      method: 'PUT',
+      body: { windows },
+      requiresAuth: true,
+    },
+  );
 }
 
 export function addProviderDayOff(
   body: { offDate: string; reason?: string | null },
   options: ApiOptions = {},
 ): Promise<ProviderAvailabilitySchedule> {
-  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/days-off', {
-    ...options,
-    method: 'POST',
-    body,
-    requiresAuth: true,
-  });
+  return request<ProviderAvailabilitySchedule>(
+    '/v1/provider/availability/days-off',
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
 }
 
 export function removeProviderDayOff(
@@ -2242,12 +2327,15 @@ export function addProviderTimeOffWindow(
   },
   options: ApiOptions = {},
 ): Promise<ProviderAvailabilitySchedule> {
-  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/time-off', {
-    ...options,
-    method: 'POST',
-    body,
-    requiresAuth: true,
-  });
+  return request<ProviderAvailabilitySchedule>(
+    '/v1/provider/availability/time-off',
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
 }
 
 export function removeProviderTimeOffWindow(
@@ -2266,11 +2354,7 @@ export function removeProviderTimeOffWindow(
 
 export async function uploadMedia(
   body: UploadMediaRequest,
-  {
-    baseUrl,
-    token,
-    fetcher = fetch,
-  }: ApiOptions = {},
+  { baseUrl, token, fetcher = fetch }: ApiOptions = {},
 ): Promise<UploadSummary> {
   if (!token?.trim()) {
     throw new Error('Paste an access token before uploading files.');
@@ -2281,16 +2365,14 @@ export async function uploadMedia(
   if (body.documentType?.trim()) {
     formData.append('documentType', body.documentType.trim());
   }
-  formData.append(
-    'file',
-    {
-      uri: body.uri,
-      name: body.name?.trim() || `servease-${body.kind}.jpg`,
-      type: body.contentType?.trim() || 'image/jpeg',
-    } as unknown as Blob,
-  );
+  formData.append('file', {
+    uri: body.uri,
+    name: body.name?.trim() || `servease-${body.kind}.jpg`,
+    type: body.contentType?.trim() || 'image/jpeg',
+  } as unknown as Blob);
 
-  const resolvedBaseUrl = baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
+  const resolvedBaseUrl =
+    baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
   const response = await fetcher(`${resolvedBaseUrl}/v1/uploads`, {
     method: 'POST',
     headers: {
@@ -2326,7 +2408,8 @@ async function request<T>(
     throw new Error('Paste an access token before using booking routes.');
   }
 
-  const resolvedBaseUrl = baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
+  const resolvedBaseUrl =
+    baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
   const response = await fetcher(`${resolvedBaseUrl}${path}`, {
     method,
     headers: {
@@ -2380,7 +2463,9 @@ function readTrackingStreamEvent(
   }
 
   try {
-    handlers.onSnapshot(JSON.parse(dataLines.join('\n')) as BookingTrackingSnapshot);
+    handlers.onSnapshot(
+      JSON.parse(dataLines.join('\n')) as BookingTrackingSnapshot,
+    );
   } catch {
     handlers.onError?.(new Error('Tracking stream sent invalid data.'));
   }

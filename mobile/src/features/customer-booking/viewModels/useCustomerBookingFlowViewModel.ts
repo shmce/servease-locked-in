@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addressVerifiedNotice,
   canSubmitBookingAfterPricingRefresh,
+  canSubmitBookingWithServerScheduleValidation,
   isPricingQuoteFresh,
   providerUnavailableSlotPickerMessage,
   promotionNotice,
@@ -100,10 +101,12 @@ export function useCustomerBookingFlowViewModel({
   const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt);
   const [hoursRequired, setHoursRequired] = useState('2');
   const [notes, setNotes] = useState('');
-  const [bookingReferencePhotoUri, setBookingReferencePhotoUri] =
-    useState<string | null>(null);
-  const [bookingReferencePhotoUrl, setBookingReferencePhotoUrl] =
-    useState<string | null>(null);
+  const [bookingReferencePhotoUri, setBookingReferencePhotoUri] = useState<
+    string | null
+  >(null);
+  const [bookingReferencePhotoUrl, setBookingReferencePhotoUrl] = useState<
+    string | null
+  >(null);
   const [bookingReferenceUpload, setBookingReferenceUpload] =
     useState<UploadSummary | null>(null);
   const [addressGeoResult, setAddressGeoResult] =
@@ -111,13 +114,18 @@ export function useCustomerBookingFlowViewModel({
   const [promoCode, setPromoCode] = useState('');
   const [promotionValidation, setPromotionValidation] =
     useState<PromotionValidationSummary | null>(null);
-  const [pricingQuote, setPricingQuote] = useState<PricingQuoteSummary | null>(null);
-  const [selectedSavedAddressId, setSelectedSavedAddressId] =
-    useState<string | null>(null);
+  const [pricingQuote, setPricingQuote] = useState<PricingQuoteSummary | null>(
+    null,
+  );
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<
+    string | null
+  >(null);
   const [pinAddressStatus, setPinAddressStatus] =
     useState<PinAddressStatus>('idle');
-  const [lastResolvedPin, setLastResolvedPin] =
-    useState<Pick<CustomerBookingMapPin, 'latitude' | 'longitude'> | null>(null);
+  const [lastResolvedPin, setLastResolvedPin] = useState<Pick<
+    CustomerBookingMapPin,
+    'latitude' | 'longitude'
+  > | null>(null);
   const reverseGeocodeRequestRef = useRef(0);
   const latestServiceLocationRef = useRef(serviceLocation);
 
@@ -316,12 +324,16 @@ export function useCustomerBookingFlowViewModel({
 
     const scheduleValidation = validateSelectedSchedule();
 
-    if (!selectedProvider || !address.trim() || !scheduleValidation.scheduledAtIso) {
+    if (
+      !selectedProvider ||
+      !address.trim() ||
+      !scheduleValidation.scheduledAtIso
+    ) {
       setNotice('Choose a service provider, address, and schedule.');
       return null;
     }
 
-    if (!scheduleValidation.isValid) {
+    if (!canSubmitBookingWithServerScheduleValidation(scheduleValidation)) {
       handleScheduleValidationFailure(scheduleValidation.message);
       return null;
     }
@@ -359,7 +371,9 @@ export function useCustomerBookingFlowViewModel({
             setPricingQuote(null);
           }
           if (!canSubmitBookingAfterPricingRefresh(paymentMethod)) {
-            setNotice('Pricing estimate refreshed. Review the updated total before confirming.');
+            setNotice(
+              'Pricing estimate refreshed. Review the updated breakdown before confirming.',
+            );
             return null;
           }
         }
@@ -379,11 +393,12 @@ export function useCustomerBookingFlowViewModel({
         scheduledAt: scheduleValidation.scheduledAtIso,
         hoursRequired: Number(hoursRequired) || 1,
         serviceAmount:
-          quote?.estimatedTotal ?? selectedProvider.price ?? selectedService?.price ?? 0,
+          selectedProvider.price ??
+          selectedService?.price ??
+          quote?.estimatedTotal ??
+          0,
         pricingMode: selectedProvider.pricingMode,
-        acceptedQuoteId: canSubmitBookingAfterPricingRefresh(paymentMethod)
-          ? null
-          : quote?.quoteId ?? null,
+        acceptedQuoteId: null,
         paymentMethod,
         customerNotes: notes.trim() || null,
         attachments: bookingReferenceUpload
@@ -424,17 +439,22 @@ export function useCustomerBookingFlowViewModel({
 
   async function fetchPricingQuote(): Promise<PricingQuoteSummary> {
     const scheduleValidation = validateSelectedSchedule();
-    const serviceId = selectedService?.id ?? selectedProvider?.serviceId ?? null;
+    const serviceId =
+      selectedService?.id ?? selectedProvider?.serviceId ?? null;
     if (
       !selectedProvider ||
       !serviceId ||
       !address.trim() ||
       !scheduleValidation.scheduledAtIso
     ) {
-      throw new Error('Choose a service provider, address, and schedule first.');
+      throw new Error(
+        'Choose a service provider, address, and schedule first.',
+      );
     }
     if (!scheduleValidation.isValid) {
-      throw new Error(scheduleValidation.message ?? 'Choose an available future schedule.');
+      throw new Error(
+        scheduleValidation.message ?? 'Choose an available future schedule.',
+      );
     }
 
     return createPricingQuote(
@@ -452,11 +472,11 @@ export function useCustomerBookingFlowViewModel({
               longitude: serviceLocation.confirmedPin.longitude,
             }
           : addressGeoResult
-          ? {
-              latitude: addressGeoResult.latitude,
-              longitude: addressGeoResult.longitude,
-            }
-          : null,
+            ? {
+                latitude: addressGeoResult.latitude,
+                longitude: addressGeoResult.longitude,
+              }
+            : null,
       },
       apiOptions,
     );
@@ -464,7 +484,7 @@ export function useCustomerBookingFlowViewModel({
 
   async function prepareBookingReview() {
     if (!hasSession) {
-      setNotice('Sign in before requesting a fair estimate.');
+      setNotice('Sign in before reviewing the price estimate.');
       return false;
     }
 
@@ -486,7 +506,7 @@ export function useCustomerBookingFlowViewModel({
     } catch (error) {
       setPricingQuote(null);
       setNotice(
-        `${readError(error)} Review the provider rate now; confirmation will need a fresh pricing estimate.`,
+        `${readError(error)} Review the fallback breakdown now; final pricing refreshes on confirmation.`,
       );
       return true;
     } finally {
@@ -496,7 +516,7 @@ export function useCustomerBookingFlowViewModel({
 
   async function previewPricingQuote() {
     if (!hasSession) {
-      setNotice('Sign in before requesting a fair estimate.');
+      setNotice('Sign in before requesting a price estimate.');
       return null;
     }
 
@@ -534,7 +554,11 @@ export function useCustomerBookingFlowViewModel({
 
     setBusyAction('promo');
     try {
-      const promotion = await validatePromotion(selectedBooking.id, code, apiOptions);
+      const promotion = await validatePromotion(
+        selectedBooking.id,
+        code,
+        apiOptions,
+      );
       setPromotionValidation(promotion);
       setNotice(promotionNotice(promotion));
       return promotion.valid;
@@ -591,7 +615,9 @@ export function useCustomerBookingFlowViewModel({
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== Location.PermissionStatus.GRANTED) {
-        setNotice('Location permission is required to use your current address.');
+        setNotice(
+          'Location permission is required to use your current address.',
+        );
         return;
       }
 
@@ -621,7 +647,9 @@ export function useCustomerBookingFlowViewModel({
       });
       setPinAddressStatus('idle');
       setMapPickerVisible(true);
-      setNotice('Current location found. Confirm the service pin before review.');
+      setNotice(
+        'Current location found. Confirm the service pin before review.',
+      );
     } catch (error) {
       setAddressGeoResult(null);
       setServiceLocation((current) =>
@@ -651,7 +679,9 @@ export function useCustomerBookingFlowViewModel({
           label: 'Home',
           address: trimmed,
           latitude:
-            serviceLocation.confirmedPin?.latitude ?? addressGeoResult?.latitude ?? null,
+            serviceLocation.confirmedPin?.latitude ??
+            addressGeoResult?.latitude ??
+            null,
           longitude:
             serviceLocation.confirmedPin?.longitude ??
             addressGeoResult?.longitude ??
@@ -783,13 +813,15 @@ export function useCustomerBookingFlowViewModel({
 
     if (serviceLocation.status === 'error') {
       setNotice(
-        customerBookingLocationNotice(serviceLocation) ?? customerMapPinFallbackCopy,
+        customerBookingLocationNotice(serviceLocation) ??
+          customerMapPinFallbackCopy,
       );
       return true;
     }
 
     setNotice(
-      customerBookingLocationNotice(serviceLocation) ?? customerMapPinRequiredCopy,
+      customerBookingLocationNotice(serviceLocation) ??
+        customerMapPinRequiredCopy,
     );
     return false;
   }

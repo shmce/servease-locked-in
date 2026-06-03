@@ -75,13 +75,34 @@ export function buildCustomerBookingDetailViewModel({
             ? 'Paid'
             : selectedPayment.paymentMethod === 'cash_on_service'
               ? 'Cash due on service'
-            : `Payment ${selectedPayment.status}`,
+              : `Payment ${selectedPayment.status}`,
         value: formatMoney(selectedPayment.amount),
       }
     : null;
   const isOnlinePaymentPending =
     selectedPayment?.status === 'pending' &&
     selectedPayment.paymentMethod !== 'cash_on_service';
+  const storedPriceBreakdown = booking.priceBreakdown;
+  const priceBreakdownRows = storedPriceBreakdown?.lineItems.length
+    ? [
+        ...storedPriceBreakdown.lineItems.map((item) => ({
+          key: item.code,
+          label: item.label,
+          value: formatMoney(item.amount),
+        })),
+        {
+          key: 'total',
+          label: 'Total',
+          value: formatMoney(storedPriceBreakdown.total),
+        },
+      ]
+    : [
+        {
+          key: 'stored-total',
+          label: 'Stored total',
+          value: formatMoney(booking.totalAmount),
+        },
+      ];
 
   return {
     data: {
@@ -93,7 +114,9 @@ export function buildCustomerBookingDetailViewModel({
         booking.providerBusinessName ??
         selectedProvider?.providerBusinessName ??
         'Provider details unavailable',
-      reservePaymentDisabled: Boolean(selectedPayment) && !isOnlinePaymentPending,
+      priceBreakdownRows,
+      reservePaymentDisabled:
+        Boolean(selectedPayment) && !isOnlinePaymentPending,
       reservePaymentLabel: selectedPayment
         ? isOnlinePaymentPending
           ? 'Check payment status'
@@ -108,7 +131,8 @@ export function buildCustomerBookingDetailViewModel({
       )}`,
       serviceDetailRows,
       serviceTitle: booking.serviceTitle ?? 'Service booking',
-      showPaymentSummary: booking.status === 'completed' && Boolean(paymentSummary),
+      showPaymentSummary:
+        booking.status === 'completed' && Boolean(paymentSummary),
       showReservePayment:
         showReservePaymentAction && booking.status !== 'completed',
       showReviewPanel: booking.status === 'completed',

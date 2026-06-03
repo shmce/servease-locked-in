@@ -158,7 +158,9 @@ export function CustomerBookingFormScreen({
           <CustomerCard>
             <View style={styles.providerSummaryRow}>
               <View style={styles.providerPhoto}>
-                <Text style={styles.providerPhotoText}>{data.providerInitial}</Text>
+                <Text style={styles.providerPhotoText}>
+                  {data.providerInitial}
+                </Text>
               </View>
               <View style={styles.flex}>
                 <Text style={styles.cardTitle}>{data.providerName}</Text>
@@ -194,7 +196,11 @@ export function CustomerBookingFormScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Use current location as service address"
               >
-                <Navigation color={palette.mintDeep} size={15} strokeWidth={2.5} />
+                <Navigation
+                  color={palette.mintDeep}
+                  size={15}
+                  strokeWidth={2.5}
+                />
                 <Text style={styles.addressActionText} numberOfLines={1}>
                   {data.useCurrentLocationLabel}
                 </Text>
@@ -227,7 +233,8 @@ export function CustomerBookingFormScreen({
                       key={savedAddress.id}
                       style={[
                         styles.savedAddressChip,
-                        savedAddress.isSelected && styles.savedAddressChipSelected,
+                        savedAddress.isSelected &&
+                          styles.savedAddressChipSelected,
                       ]}
                       onPress={() => {
                         if (fullAddress) {
@@ -238,9 +245,17 @@ export function CustomerBookingFormScreen({
                       accessibilityLabel={`Use ${savedAddress.label} address`}
                     >
                       {savedAddress.isSelected ? (
-                        <Home color={palette.mintDeep} size={14} strokeWidth={2.4} />
+                        <Home
+                          color={palette.mintDeep}
+                          size={14}
+                          strokeWidth={2.4}
+                        />
                       ) : (
-                        <MapPin color={palette.mintDeep} size={14} strokeWidth={2.4} />
+                        <MapPin
+                          color={palette.mintDeep}
+                          size={14}
+                          strokeWidth={2.4}
+                        />
                       )}
                       <View style={styles.savedAddressTextColumn}>
                         <Text
@@ -252,10 +267,7 @@ export function CustomerBookingFormScreen({
                         >
                           {savedAddress.label}
                         </Text>
-                        <Text
-                          style={styles.savedAddressText}
-                          numberOfLines={1}
-                        >
+                        <Text style={styles.savedAddressText} numberOfLines={1}>
                           {savedAddress.address}
                         </Text>
                       </View>
@@ -282,14 +294,19 @@ export function CustomerBookingFormScreen({
               <AddressVerificationPreview result={addressGeoResult} />
             ) : null}
             <Pressable
-              style={[styles.saveHomeButton, data.saveAddressDisabled && styles.faded]}
+              style={[
+                styles.saveHomeButton,
+                data.saveAddressDisabled && styles.faded,
+              ]}
               onPress={onSaveAddressAsHome}
               disabled={data.saveAddressDisabled}
               accessibilityRole="button"
               accessibilityLabel="Save service address as home"
             >
               <Home color={palette.mintDeep} size={15} strokeWidth={2.4} />
-              <Text style={styles.smallActionText}>{data.saveAddressLabel}</Text>
+              <Text style={styles.smallActionText}>
+                {data.saveAddressLabel}
+              </Text>
             </Pressable>
           </CustomerSection>
 
@@ -317,7 +334,7 @@ export function CustomerBookingFormScreen({
       <View style={styles.stickyFooter}>
         <View style={styles.footerTotalRow}>
           <View style={styles.footerTotalCopy}>
-            <Text style={styles.footerTotalLabel}>Provider rate estimate</Text>
+            <Text style={styles.footerTotalLabel}>Service rate estimate</Text>
             <Text style={styles.cardMeta} numberOfLines={2}>
               {data.footerRateLabel} - travel and fuel {data.calloutFeeLabel}
             </Text>
@@ -335,7 +352,10 @@ export function CustomerBookingFormScreen({
           <Text style={styles.noticeText}>{data.continueNotice}</Text>
         ) : null}
         <Pressable
-          style={[styles.footerButton, !data.canContinue && styles.footerButtonDisabled]}
+          style={[
+            styles.footerButton,
+            !data.canContinue && styles.footerButtonDisabled,
+          ]}
           onPress={onContinue}
           disabled={!data.canContinue}
           accessibilityRole="button"
@@ -441,7 +461,9 @@ function CustomerMapPinPickerModal({
     isRefreshing ||
     pinAddressStatus === 'scheduled' ||
     pinAddressStatus === 'resolving';
-  const displayedAddressLabel = isFindingAddress ? 'Finding address...' : addressLabel;
+  const displayedAddressLabel = isFindingAddress
+    ? 'Finding address...'
+    : addressLabel;
   const refreshLabel =
     pinAddressStatus === 'failed'
       ? 'Retry'
@@ -500,7 +522,9 @@ function CustomerMapPinPickerModal({
             disabled={isFindingAddress}
             accessibilityRole="button"
             accessibilityLabel={
-              pinAddressStatus === 'failed' ? 'Retry pin address' : 'Refresh pin address'
+              pinAddressStatus === 'failed'
+                ? 'Retry pin address'
+                : 'Refresh pin address'
             }
           >
             <RefreshCw color={palette.mintDeep} size={16} strokeWidth={2.4} />
@@ -528,7 +552,10 @@ function CustomerMapPinPickerModal({
           />
 
           <Pressable
-            style={[styles.confirmPinButton, !pin && styles.footerButtonDisabled]}
+            style={[
+              styles.confirmPinButton,
+              !pin && styles.footerButtonDisabled,
+            ]}
             onPress={onConfirm}
             disabled={!pin}
             accessibilityRole="button"

@@ -17,6 +17,9 @@ import {
   BookingAttachmentSummary,
   BookingDisputeStatus,
   BookingDisputeSummary,
+  BookingPriceBreakdown,
+  BookingPriceBreakdownLineItem,
+  BookingPriceBreakdownLineItemCode,
   BookingServiceChecklist,
   BookingServiceUpdateSummary,
   BookingServiceUpdateType,
@@ -66,6 +69,7 @@ interface BookingRow {
   customer_notes?: string | null;
   status: BookingStatus;
   total_amount: string | number | null;
+  price_breakdown?: unknown;
   attachments?: unknown;
 }
 
@@ -160,10 +164,16 @@ export class SupabaseBookingRepository {
         p_scheduled_at: input.scheduledAt,
         p_hours_required: input.hoursRequired ?? 1,
         p_service_amount: input.serviceAmount ?? 0,
+        p_total_amount:
+          input.totalAmount ??
+          input.priceBreakdown?.total ??
+          input.serviceAmount ??
+          0,
         p_pricing_mode: input.pricingMode ?? 'flat',
         p_accepted_quote_id: input.acceptedQuoteId ?? null,
         p_quote_fairness_status: input.quoteFairnessStatus ?? null,
         p_quote_confidence: input.quoteConfidence ?? null,
+        p_price_breakdown: this.serializePriceBreakdown(input.priceBreakdown),
         p_payment_method: input.paymentMethod ?? 'cash_on_service',
         p_customer_notes: input.customerNotes ?? null,
       })
@@ -238,7 +248,9 @@ export class SupabaseBookingRepository {
     }
 
     if (!data) {
-      throw new Error('Failed to add booking attachment: missing attachment row');
+      throw new Error(
+        'Failed to add booking attachment: missing attachment row',
+      );
     }
 
     return this.mapAttachment(data as unknown as BookingAttachmentRow);
@@ -311,9 +323,12 @@ export class SupabaseBookingRepository {
   }
 
   async listMyDisputes(actorId: string): Promise<BookingDisputeSummary[]> {
-    const { data, error } = await this.client.rpc('servease_list_user_disputes', {
-      p_actor_id: actorId,
-    });
+    const { data, error } = await this.client.rpc(
+      'servease_list_user_disputes',
+      {
+        p_actor_id: actorId,
+      },
+    );
 
     if (error) {
       throw new Error(`Failed to list user disputes: ${error.message}`);
@@ -361,11 +376,15 @@ export class SupabaseBookingRepository {
       if (error.message.includes('invalid_booking_service_update_request')) {
         throw new InvalidBookingRequestError();
       }
-      throw new Error(`Failed to create booking service update: ${error.message}`);
+      throw new Error(
+        `Failed to create booking service update: ${error.message}`,
+      );
     }
 
     if (!data) {
-      throw new Error('Failed to create booking service update: missing update row');
+      throw new Error(
+        'Failed to create booking service update: missing update row',
+      );
     }
 
     return this.mapServiceUpdate(data as unknown as BookingServiceUpdateRow);
@@ -386,7 +405,9 @@ export class SupabaseBookingRepository {
     );
 
     if (error) {
-      throw new Error(`Failed to list booking service updates: ${error.message}`);
+      throw new Error(
+        `Failed to list booking service updates: ${error.message}`,
+      );
     }
 
     return (data ?? []).map((row) =>
@@ -409,7 +430,9 @@ export class SupabaseBookingRepository {
     );
 
     if (error) {
-      throw new Error(`Failed to list booking timeline events: ${error.message}`);
+      throw new Error(
+        `Failed to list booking timeline events: ${error.message}`,
+      );
     }
 
     return (data ?? []).map((row) =>
@@ -421,10 +444,13 @@ export class SupabaseBookingRepository {
     customerId: string | null,
     providerId: string | null,
   ): Promise<BookingSummary[]> {
-    const { data, error } = await this.client.rpc('servease_list_visible_bookings', {
-      p_customer_id: customerId,
-      p_provider_id: providerId,
-    });
+    const { data, error } = await this.client.rpc(
+      'servease_list_visible_bookings',
+      {
+        p_customer_id: customerId,
+        p_provider_id: providerId,
+      },
+    );
 
     if (error) {
       throw new Error(`Failed to list bookings: ${error.message}`);
@@ -505,7 +531,9 @@ export class SupabaseBookingRepository {
       if (error.message.includes('invalid_booking_live_location_request')) {
         throw new InvalidBookingRequestError();
       }
-      throw new Error(`Failed to update booking live location: ${error.message}`);
+      throw new Error(
+        `Failed to update booking live location: ${error.message}`,
+      );
     }
 
     if (!data) {
@@ -554,6 +582,7 @@ export class SupabaseBookingRepository {
       row.pricing_mode === 'flat' || row.pricing_mode === 'hourly'
         ? row.pricing_mode
         : null;
+    const priceBreakdown = this.mapPriceBreakdown(row.price_breakdown);
     return {
       id: row.id,
       bookingReference: row.booking_reference,
@@ -586,9 +615,137 @@ export class SupabaseBookingRepository {
       quoteConfidence: row.quote_confidence ?? null,
       customerNotes: row.customer_notes ?? null,
       status: row.status,
-      totalAmount: Number(row.total_amount ?? 0),
+      totalAmount: Number(row.total_amount ?? priceBreakdown?.total ?? 0),
+      priceBreakdown,
       attachments: this.mapAttachments(row.attachments),
     };
+  }
+
+  private serializePriceBreakdown(
+    value: BookingPriceBreakdown | null | undefined,
+  ): Record<string, unknown> | null {
+    if (!value) {
+      return null;
+    }
+
+    return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+  }
+
+  private mapPriceBreakdown(value: unknown): BookingPriceBreakdown | null {
+    if (!this.isRecord(value)) {
+      return null;
+    }
+
+    const lineItems = Array.isArray(value.lineItems)
+      ? value.lineItems
+          .map((item) => this.mapPriceBreakdownLineItem(item))
+          .filter(
+            (item): item is BookingPriceBreakdownLineItem => item !== null,
+          )
+      : [];
+    const serviceSubtotal = this.numericField(value.serviceSubtotal);
+    const travelFee = this.numericField(value.travelFee);
+    const serviceFee = this.numericField(value.serviceFee);
+    const total = this.numericField(value.total);
+    const metadata = this.isRecord(value.metadata) ? value.metadata : {};
+    const pricingMode =
+      metadata.pricingMode === 'hourly' || metadata.pricingMode === 'flat'
+        ? metadata.pricingMode
+        : 'flat';
+
+    if (
+      serviceSubtotal === null ||
+      travelFee === null ||
+      serviceFee === null ||
+      total === null
+    ) {
+      return null;
+    }
+
+    return {
+      currency: 'PHP',
+      lineItems,
+      serviceSubtotal,
+      travelFee,
+      serviceFee,
+      total,
+      fallbackUsed: value.fallbackUsed === true,
+      calculationSource:
+        value.calculationSource === 'route' ? 'route' : 'fallback',
+      generatedAt:
+        typeof value.generatedAt === 'string'
+          ? value.generatedAt
+          : new Date(0).toISOString(),
+      metadata: {
+        pricingMode,
+        hoursRequired: this.numericField(metadata.hoursRequired) ?? 1,
+        serviceRate: this.numericField(metadata.serviceRate) ?? serviceSubtotal,
+        distanceKm: this.numericField(metadata.distanceKm),
+        durationMinutes: this.numericField(metadata.durationMinutes),
+        fallbackReason:
+          typeof metadata.fallbackReason === 'string'
+            ? metadata.fallbackReason
+            : null,
+      },
+    };
+  }
+
+  private mapPriceBreakdownLineItem(
+    value: unknown,
+  ): BookingPriceBreakdownLineItem | null {
+    if (!this.isRecord(value)) {
+      return null;
+    }
+
+    const amount = this.numericField(value.amount);
+    if (
+      amount === null ||
+      !this.isPriceBreakdownLineItemCode(value.code) ||
+      typeof value.label !== 'string' ||
+      !this.isPriceBreakdownLineItemSource(value.source)
+    ) {
+      return null;
+    }
+
+    return {
+      code: value.code,
+      label: value.label,
+      amount,
+      source: value.source,
+    };
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  private numericField(value: unknown): number | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  }
+
+  private isPriceBreakdownLineItemCode(
+    value: unknown,
+  ): value is BookingPriceBreakdownLineItemCode {
+    return (
+      value === 'service_subtotal' ||
+      value === 'travel_fuel' ||
+      value === 'service_fee'
+    );
+  }
+
+  private isPriceBreakdownLineItemSource(
+    value: unknown,
+  ): value is BookingPriceBreakdownLineItem['source'] {
+    return (
+      value === 'provider_rate' ||
+      value === 'route' ||
+      value === 'fallback' ||
+      value === 'platform_fee'
+    );
   }
 
   private mapAttachments(value: unknown): BookingAttachmentSummary[] {
@@ -596,7 +753,9 @@ export class SupabaseBookingRepository {
       return [];
     }
 
-    return value.map((item) => this.mapAttachment(item as BookingAttachmentRow));
+    return value.map((item) =>
+      this.mapAttachment(item as BookingAttachmentRow),
+    );
   }
 
   private mapAttachment(row: BookingAttachmentRow): BookingAttachmentSummary {
@@ -643,7 +802,9 @@ export class SupabaseBookingRepository {
     };
   }
 
-  private mapLiveLocation(row: BookingLiveLocationRow): BookingTrackingLocation {
+  private mapLiveLocation(
+    row: BookingLiveLocationRow,
+  ): BookingTrackingLocation {
     return {
       latitude: Number(row.latitude),
       longitude: Number(row.longitude),

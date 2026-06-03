@@ -12,7 +12,10 @@ test('customer booking flow renders blocked slots as unavailable and refreshes a
     'utf8',
   );
   const bookingFormView = readFileSync(
-    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    join(
+      process.cwd(),
+      'src/features/customer-booking/views/CustomerBookingForm.tsx',
+    ),
     'utf8',
   );
   const scheduleView = readFileSync(
@@ -52,18 +55,30 @@ test('customer booking flow renders blocked slots as unavailable and refreshes a
     /This slot was just taken or blocked\. Please pick another\./,
   );
   assert.match(bookingDomain, /provider_unavailable/);
-  assert.match(bookingFlowViewModel, /onRefreshProviderAvailability\(selectedProvider\.providerId\)/);
+  assert.match(
+    bookingFlowViewModel,
+    /onRefreshProviderAvailability\(selectedProvider\.providerId\)/,
+  );
   const backstopBranchStart = bookingFlowViewModel.indexOf(
     'providerUnavailableSlotPickerMessage(error, message)',
   );
-  const backstopBranchEnd = bookingFlowViewModel.indexOf('} else {', backstopBranchStart);
-  const backstopBranch = bookingFlowViewModel.slice(backstopBranchStart, backstopBranchEnd);
+  const backstopBranchEnd = bookingFlowViewModel.indexOf(
+    '} else {',
+    backstopBranchStart,
+  );
+  const backstopBranch = bookingFlowViewModel.slice(
+    backstopBranchStart,
+    backstopBranchEnd,
+  );
   assert.match(backstopBranch, /screen: 'customerBookingForm'/);
 });
 
 test('customer booking form constrains the sticky footer estimate row', () => {
   const bookingFormView = readFileSync(
-    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    join(
+      process.cwd(),
+      'src/features/customer-booking/views/CustomerBookingForm.tsx',
+    ),
     'utf8',
   );
 
@@ -76,7 +91,10 @@ test('customer booking form constrains the sticky footer estimate row', () => {
 
 test('customer booking address section keeps map, saved, current, and manual paths', () => {
   const bookingFormView = readFileSync(
-    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    join(
+      process.cwd(),
+      'src/features/customer-booking/views/CustomerBookingForm.tsx',
+    ),
     'utf8',
   );
   const bookingFlowViewModel = readFileSync(
@@ -100,8 +118,14 @@ test('customer booking address section keeps map, saved, current, and manual pat
   assert.match(bookingFormView, /Use current/);
   assert.match(bookingFormView, /Service Address/);
   assert.match(bookingFormView, /CustomerMapPinPickerModal/);
-  assert.match(bookingFlowViewModel, /serviceLatitude: serviceLocation\.confirmedPin/);
-  assert.match(bookingFlowViewModel, /serviceLongitude: serviceLocation\.confirmedPin/);
+  assert.match(
+    bookingFlowViewModel,
+    /serviceLatitude: serviceLocation\.confirmedPin/,
+  );
+  assert.match(
+    bookingFlowViewModel,
+    /serviceLongitude: serviceLocation\.confirmedPin/,
+  );
 });
 
 test('customer booking map picker flow supports search current manual reverse and confirm', () => {
@@ -113,7 +137,10 @@ test('customer booking map picker flow supports search current manual reverse an
     'utf8',
   );
   const bookingFormView = readFileSync(
-    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    join(
+      process.cwd(),
+      'src/features/customer-booking/views/CustomerBookingForm.tsx',
+    ),
     'utf8',
   );
   const mapSource = readFileSync(
@@ -121,8 +148,14 @@ test('customer booking map picker flow supports search current manual reverse an
     'utf8',
   );
 
-  assert.match(bookingFlowViewModel, /startCustomerBookingPendingPin[\s\S]*'search'/);
-  assert.match(bookingFlowViewModel, /startCustomerBookingPendingPin[\s\S]*'current'/);
+  assert.match(
+    bookingFlowViewModel,
+    /startCustomerBookingPendingPin[\s\S]*'search'/,
+  );
+  assert.match(
+    bookingFlowViewModel,
+    /startCustomerBookingPendingPin[\s\S]*'current'/,
+  );
   assert.match(bookingFlowViewModel, /moveCustomerBookingPendingPin/);
   assert.match(bookingFlowViewModel, /reverseGeocodeServiceLocationPin/);
   assert.match(bookingFlowViewModel, /confirmCustomerBookingPin/);
@@ -134,7 +167,10 @@ test('customer booking map picker flow supports search current manual reverse an
 
 test('customer booking map picker uses a full-screen map-first layout', () => {
   const bookingFormView = readFileSync(
-    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    join(
+      process.cwd(),
+      'src/features/customer-booking/views/CustomerBookingForm.tsx',
+    ),
     'utf8',
   );
   const mapSource = readFileSync(
@@ -158,7 +194,10 @@ test('customer booking map picker uses a full-screen map-first layout', () => {
 
 test('customer booking address actions wrap inside the booking form body', () => {
   const bookingFormView = readFileSync(
-    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    join(
+      process.cwd(),
+      'src/features/customer-booking/views/CustomerBookingForm.tsx',
+    ),
     'utf8',
   );
 
@@ -195,12 +234,18 @@ test('customer booking map picker auto-refreshes the pin address without stale u
     'utf8',
   );
   const bookingFormView = readFileSync(
-    join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
+    join(
+      process.cwd(),
+      'src/features/customer-booking/views/CustomerBookingForm.tsx',
+    ),
     'utf8',
   );
 
   assert.match(bookingFlowViewModel, /type PinAddressStatus =/);
-  assert.match(bookingFlowViewModel, /const autoReverseGeocodeDebounceMs = 750/);
+  assert.match(
+    bookingFlowViewModel,
+    /const autoReverseGeocodeDebounceMs = 750/,
+  );
   assert.match(
     bookingFlowViewModel,
     /const autoReverseGeocodeDistanceThresholdMeters = 20/,
@@ -259,13 +304,17 @@ test('cash booking confirmation continues after refreshing a stale quote', () =>
     ),
     'utf8',
   );
-  const submitStart = bookingFlowViewModel.indexOf('async function submitBooking');
+  const submitStart = bookingFlowViewModel.indexOf(
+    'async function submitBooking',
+  );
   const submitEnd = bookingFlowViewModel.indexOf(
     'async function fetchPricingQuote',
     submitStart,
   );
   const submitSource = bookingFlowViewModel.slice(submitStart, submitEnd);
-  const refreshIndex = submitSource.indexOf('quote = await fetchPricingQuote();');
+  const refreshIndex = submitSource.indexOf(
+    'quote = await fetchPricingQuote();',
+  );
   const cashGateIndex = submitSource.indexOf(
     'canSubmitBookingAfterPricingRefresh(paymentMethod)',
   );
@@ -273,10 +322,7 @@ test('cash booking confirmation continues after refreshing a stale quote', () =>
 
   assert.ok(submitStart > -1);
   assert.ok(submitEnd > submitStart);
-  assert.match(
-    bookingFlowViewModel,
-    /canSubmitBookingAfterPricingRefresh,/,
-  );
+  assert.match(bookingFlowViewModel, /canSubmitBookingAfterPricingRefresh,/);
   assert.match(
     submitSource,
     /const paymentMethod =\s*selectedCustomerPaymentMethod\?\.methodType \?\? 'cash_on_service';/,
@@ -295,7 +341,9 @@ test('cash booking confirmation does not block on pricing quote failures', () =>
     ),
     'utf8',
   );
-  const submitStart = bookingFlowViewModel.indexOf('async function submitBooking');
+  const submitStart = bookingFlowViewModel.indexOf(
+    'async function submitBooking',
+  );
   const submitEnd = bookingFlowViewModel.indexOf(
     'async function fetchPricingQuote',
     submitStart,
@@ -308,10 +356,7 @@ test('cash booking confirmation does not block on pricing quote failures', () =>
     submitSource,
     /catch \(error\) \{\s*if \(!canSubmitBookingAfterPricingRefresh\(paymentMethod\)\) \{\s*throw error;\s*\}\s*quote = null;\s*setPricingQuote\(null\);/s,
   );
-  assert.match(
-    submitSource,
-    /acceptedQuoteId:\s*canSubmitBookingAfterPricingRefresh\(paymentMethod\)\s*\?\s*null\s*:\s*quote\?\.quoteId \?\? null/,
-  );
+  assert.match(submitSource, /acceptedQuoteId:\s*null/);
 });
 
 test('customer booking map picker keeps map tiles stable while recentering by bridge', () => {
@@ -320,10 +365,7 @@ test('customer booking map picker keeps map tiles stable while recentering by br
     'utf8',
   );
 
-  assert.match(
-    mapSource,
-    /const initialMapCenterRef = useRef\(mapCenter\)/,
-  );
+  assert.match(mapSource, /const initialMapCenterRef = useRef\(mapCenter\)/);
   assert.match(
     mapSource,
     /const mapHtml = useMemo\(\(\) => buildServiceLocationPickerHtml\(initialMapCenterRef\.current\), \[\]\)/,
@@ -333,6 +375,9 @@ test('customer booking map picker keeps map tiles stable while recentering by br
   assert.match(mapSource, /type: 'recenter'/);
   assert.match(mapSource, /window\.parent\?\.postMessage/);
   assert.match(mapSource, /iframeRef/);
-  assert.doesNotMatch(mapSource, /buildServiceLocationPickerHtml\(mapCenter, address\)/);
+  assert.doesNotMatch(
+    mapSource,
+    /buildServiceLocationPickerHtml\(mapCenter, address\)/,
+  );
   assert.doesNotMatch(mapSource, /\[address, mapCenter\]/);
 });

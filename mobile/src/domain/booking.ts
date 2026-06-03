@@ -500,6 +500,15 @@ export function validateCustomerBookingScheduleSelection({
   };
 }
 
+export function canSubmitBookingWithServerScheduleValidation(
+  validation: CustomerBookingScheduleValidity,
+): boolean {
+  return (
+    validation.isValid ||
+    (validation.reason === 'loading' && Boolean(validation.scheduledAtIso))
+  );
+}
+
 export function formatManilaDateInput(date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-PH', {
     timeZone: MANILA_TIME_ZONE,

@@ -12,10 +12,7 @@ import {
   ProviderScreen,
   providerText,
 } from '../../../shared/components/ProviderUI';
-import {
-  BookingSummary,
-  PaymentSummary,
-} from '../../../shared/models/types';
+import { BookingSummary, PaymentSummary } from '../../../shared/models/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import {
   ProviderBookingDetailAction,
@@ -68,7 +65,9 @@ export function ProviderBookingDetailScreen({
         <ProviderCard>
           <View style={styles.bookingCardHeader}>
             <View style={styles.flex}>
-              <Text style={styles.bookingReference}>{data.bookingReference}</Text>
+              <Text style={styles.bookingReference}>
+                {data.bookingReference}
+              </Text>
               <Text style={styles.detailTitle}>{data.serviceTitle}</Text>
             </View>
             <ProviderBadge {...data.statusChip} />
@@ -100,7 +99,11 @@ export function ProviderBookingDetailScreen({
               accessibilityRole="button"
               accessibilityLabel="Message customer"
             >
-              <MessageCircle color={palette.mintDeep} size={18} strokeWidth={2.5} />
+              <MessageCircle
+                color={palette.mintDeep}
+                size={18}
+                strokeWidth={2.5}
+              />
             </Pressable>
           </View>
         </ProviderCard>
@@ -110,6 +113,12 @@ export function ProviderBookingDetailScreen({
           {data.serviceDetailRows.map((row) => (
             <InfoRow key={row.key} label={row.label} value={row.value} />
           ))}
+          <View style={styles.breakdownBlock}>
+            <Text style={styles.cardTitle}>Price breakdown</Text>
+            {data.priceBreakdownRows.map((row) => (
+              <InfoRow key={row.key} label={row.label} value={row.value} />
+            ))}
+          </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Estimated earnings</Text>
             <Text style={styles.totalValue}>{data.estimatedEarningsLabel}</Text>
@@ -200,6 +209,13 @@ const styles = StyleSheet.create({
   },
   cardMeta: {
     ...providerText.meta,
+  },
+  breakdownBlock: {
+    borderTopColor: palette.lineSoft,
+    borderTopWidth: 1,
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
   },
   totalRow: {
     alignItems: 'center',

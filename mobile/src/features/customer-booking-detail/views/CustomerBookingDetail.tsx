@@ -114,6 +114,19 @@ export function CustomerBookingDetailScreen({
           </CustomerCard>
         </CustomerSection>
 
+        <CustomerSection title="Price breakdown">
+          <CustomerCard>
+            {data.priceBreakdownRows.map((row, index) => (
+              <DetailRow
+                key={row.key}
+                label={row.label}
+                value={row.value}
+                last={index === data.priceBreakdownRows.length - 1}
+              />
+            ))}
+          </CustomerCard>
+        </CustomerSection>
+
         <CustomerSection title="Service provider">
           <CustomerCard>
             <View style={styles.providerRow}>
@@ -135,7 +148,11 @@ export function CustomerBookingDetailScreen({
                   accessibilityLabel="View provider profile"
                 >
                   <Text style={styles.linkText}>View Profile</Text>
-                  <ChevronRight color={palette.mintDeep} size={14} strokeWidth={2.2} />
+                  <ChevronRight
+                    color={palette.mintDeep}
+                    size={14}
+                    strokeWidth={2.2}
+                  />
                 </Pressable>
               </View>
             </View>
@@ -182,7 +199,9 @@ export function CustomerBookingDetailScreen({
             disabled={data.reservePaymentDisabled}
             accessibilityRole="button"
           >
-            <Text style={styles.secondaryActionText}>{data.reservePaymentLabel}</Text>
+            <Text style={styles.secondaryActionText}>
+              {data.reservePaymentLabel}
+            </Text>
           </Pressable>
         ) : null}
 

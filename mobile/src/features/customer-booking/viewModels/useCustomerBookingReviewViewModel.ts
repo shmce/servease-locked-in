@@ -3,8 +3,6 @@ import {
   formatBookingDuration,
   formatDateTime,
   formatMoney,
-  pricingConfidenceLabel,
-  pricingFairnessLabel,
   pricingModeLabel,
   customerPastSlotPickerCopy,
   isFutureManilaBookingDateTime,
@@ -118,78 +116,50 @@ export function buildCustomerBookingReviewViewModel({
 }: CustomerBookingReviewViewModelInput) {
   const baseAmount = provider.price ?? selectedService?.price ?? 0;
   const duration = Number(hoursRequired) || 1;
-  const subtotal = provider.pricingMode === 'hourly' ? baseAmount * duration : baseAmount;
-  const processingFee = Math.max(25, Math.round(subtotal * 0.05));
-  const bookingCost = subtotal + processingFee;
+  const subtotal =
+    provider.pricingMode === 'hourly' ? baseAmount * duration : baseAmount;
   const scheduledAtIso = toManilaBookingIso(scheduledAt);
   const scheduleMessage =
     scheduledAtIso && !isFutureManilaBookingDateTime(scheduledAt, now)
       ? customerPastSlotPickerCopy
       : null;
-  const displayedTotal = pricingQuote?.estimatedTotal ?? bookingCost;
-  const totalLabel = pricingQuote ? 'Pricing engine estimate' : 'Provider rate estimate';
+  const pricingPreview = buildBookingPriceBreakdownPreview({
+    subtotal,
+    pricingQuote,
+  });
+  const displayedTotal = pricingPreview.total;
+  const totalLabel = 'Booking total estimate';
   const providerName = provider.providerBusinessName ?? provider.title;
   const selectedPaymentMethod =
-    customerPaymentMethods.find((method) => method.id === selectedPaymentMethodId) ??
+    customerPaymentMethods.find(
+      (method) => method.id === selectedPaymentMethodId,
+    ) ??
     customerPaymentMethods.find((method) => method.isDefault) ??
     customerPaymentMethods[0] ??
     null;
   const isCashPayment =
-    !selectedPaymentMethod || selectedPaymentMethod.methodType === 'cash_on_service';
+    !selectedPaymentMethod ||
+    selectedPaymentMethod.methodType === 'cash_on_service';
   const locationCanConfirm =
     customerBookingLocationCanContinue(serviceLocation) ||
     serviceLocation.status === 'error';
   const locationBlockingMessage = locationCanConfirm
     ? null
-    : customerBookingLocationNotice(serviceLocation) ?? customerMapPinRequiredCopy;
+    : (customerBookingLocationNotice(serviceLocation) ??
+      customerMapPinRequiredCopy);
   const paymentMethodRows = customerPaymentMethods.map((method) => ({
     method,
     label: paymentMethodLabel(method.methodType),
     meta: paymentMethodMeta(method),
     selected: method.id === selectedPaymentMethod?.id,
   }));
-  const priceBreakdownRows = pricingQuote
-    ? [
-        {
-          key: 'provider-rate',
-          label: 'Provider rate',
-          value: formatMoney(subtotal),
-        },
-        {
-          key: 'fair-range',
-          label: 'Fair range',
-          value: `${formatMoney(pricingQuote.fairRangeMin)} - ${formatMoney(
-            pricingQuote.fairRangeMax,
-          )}`,
-        },
-        {
-          key: 'fairness',
-          label: 'Fairness',
-          value: pricingFairnessLabel(pricingQuote.fairnessStatus),
-        },
-        {
-          key: 'confidence',
-          label: 'Confidence',
-          value: pricingConfidenceLabel(pricingQuote.confidence),
-        },
-        ...pricingQuote.lineItems.map((item) => ({
-          key: item.code,
-          label: item.label,
-          value: formatMoney(item.amount),
-        })),
-      ]
-    : [
-        {
-          key: 'subtotal',
-          label: 'Sub-total',
-          value: formatMoney(subtotal),
-        },
-        {
-          key: 'processing-fee',
-          label: 'Processing fee',
-          value: formatMoney(processingFee),
-        },
-      ];
+  const priceBreakdownRows = pricingPreview.rows.map(
+    ({ key, label, amount }) => ({
+      key,
+      label,
+      value: formatMoney(amount),
+    }),
+  );
 
   return {
     data: {
@@ -207,7 +177,9 @@ export function buildCustomerBookingReviewViewModel({
         {
           key: 'date-time',
           label: 'Date and time',
-          value: scheduledAtIso ? formatDateTime(scheduledAtIso) : 'Schedule required',
+          value: scheduledAtIso
+            ? formatDateTime(scheduledAtIso)
+            : 'Schedule required',
         },
         {
           key: 'duration',
@@ -230,10 +202,10 @@ export function buildCustomerBookingReviewViewModel({
           value:
             customerBookingLocationCanContinue(serviceLocation) &&
             serviceLocation.confirmedPin
-            ? `Confirmed - ${serviceLocation.confirmedPin.latitude.toFixed(5)}, ${serviceLocation.confirmedPin.longitude.toFixed(5)}`
-            : serviceLocation.status === 'error'
-              ? 'Manual address fallback'
-              : 'Pin not confirmed',
+              ? `Confirmed - ${serviceLocation.confirmedPin.latitude.toFixed(5)}, ${serviceLocation.confirmedPin.longitude.toFixed(5)}`
+              : serviceLocation.status === 'error'
+                ? 'Manual address fallback'
+                : 'Pin not confirmed',
         },
         {
           key: 'reference-photo',
@@ -259,8 +231,8 @@ export function buildCustomerBookingReviewViewModel({
         scheduleMessage ??
         pricingQuote?.explanation ??
         (isCashPayment
-          ? "Pricing estimate is not ready yet. You won't be charged in the app for cash bookings."
-          : 'Pricing estimate is not ready yet. Secure checkout opens after the booking is created.'),
+          ? 'Travel and fuel is estimated for now. Final pricing is stored when the booking is created.'
+          : 'Review this breakdown first. Secure checkout opens after the booking is created.'),
       confirmLabel:
         busyAction === 'create-booking' || busyAction === 'payment'
           ? isCashPayment
@@ -270,7 +242,9 @@ export function buildCustomerBookingReviewViewModel({
             ? 'Confirm cash booking'
             : 'Pay and confirm booking',
       estimateLabel:
-        busyAction === 'pricing-quote' ? 'Getting fair estimate...' : 'Get fair estimate',
+        busyAction === 'pricing-quote'
+          ? 'Getting price estimate...'
+          : 'Get price estimate',
       confirmDisabled:
         busyAction === 'create-booking' ||
         busyAction === 'payment' ||
@@ -285,7 +259,9 @@ export function buildCustomerBookingReviewViewModel({
   };
 }
 
-function paymentMethodLabel(methodType: CustomerPaymentMethodSummary['methodType']): string {
+function paymentMethodLabel(
+  methodType: CustomerPaymentMethodSummary['methodType'],
+): string {
   switch (methodType) {
     case 'cash_on_service':
       return 'Cash on service';
@@ -296,4 +272,49 @@ function paymentMethodLabel(methodType: CustomerPaymentMethodSummary['methodType
     case 'card':
       return 'Card checkout';
   }
+}
+
+function buildBookingPriceBreakdownPreview({
+  subtotal,
+  pricingQuote,
+}: {
+  subtotal: number;
+  pricingQuote: PricingQuoteSummary | null;
+}) {
+  const serviceSubtotal =
+    pricingQuote?.lineItems.find((item) => item.code === 'labor')?.amount ??
+    subtotal;
+  const travelFee =
+    pricingQuote?.lineItems.find((item) => item.code === 'travel_fuel')
+      ?.amount ?? 120;
+  const serviceFee = Math.max(
+    25,
+    Math.round((serviceSubtotal + travelFee) * 0.05),
+  );
+  const total = serviceSubtotal + travelFee + serviceFee;
+  const travelLabel =
+    pricingQuote?.signals.fallbackUsed === false
+      ? 'Travel and fuel'
+      : 'Travel and fuel estimate';
+
+  return {
+    total,
+    rows: [
+      {
+        key: 'service-subtotal',
+        label: 'Service subtotal',
+        amount: serviceSubtotal,
+      },
+      {
+        key: 'travel-fuel',
+        label: travelLabel,
+        amount: travelFee,
+      },
+      {
+        key: 'service-fee',
+        label: 'Service fee',
+        amount: serviceFee,
+      },
+    ],
+  };
 }

@@ -5,6 +5,7 @@ import {
   addressVerifiedNotice,
   bookingStatusChip,
   canSubmitBookingAfterPricingRefresh,
+  canSubmitBookingWithServerScheduleValidation,
   buildCustomerBookingAvailability,
   buildCalendarExportUrl,
   buildBookingTransitionRequest,
@@ -304,6 +305,36 @@ describe('booking domain helpers', () => {
         now: new Date('2026-06-03T07:00:00.000Z'),
       }).isValid,
       true,
+    );
+  });
+
+  it('allows final booking submit to rely on server validation while availability refreshes', () => {
+    const loadingValidation = validateCustomerBookingScheduleSelection({
+      providerAvailability: null,
+      scheduledAt: '2026-06-03T16:00',
+      durationHours: 1,
+      timeSlots: ['08:00', '10:00', '16:00'],
+      now: new Date('2026-06-03T07:00:00.000Z'),
+    });
+
+    assert.equal(loadingValidation.reason, 'loading');
+    assert.equal(
+      canSubmitBookingWithServerScheduleValidation(loadingValidation),
+      true,
+    );
+
+    const pastValidation = validateCustomerBookingScheduleSelection({
+      providerAvailability: null,
+      scheduledAt: '2026-06-03T10:00',
+      durationHours: 1,
+      timeSlots: ['08:00', '10:00', '16:00'],
+      now: new Date('2026-06-03T07:00:00.000Z'),
+    });
+
+    assert.equal(pastValidation.reason, 'past');
+    assert.equal(
+      canSubmitBookingWithServerScheduleValidation(pastValidation),
+      false,
     );
   });
 

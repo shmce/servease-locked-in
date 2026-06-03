@@ -151,7 +151,8 @@ export function buildCustomerBookingFormViewModel({
     ? null
     : isResolvingPin
       ? 'Resolving service location...'
-      : locationNotice ?? `Add ${formatMissingFields(missingFields)} to continue.`;
+      : (locationNotice ??
+        `Add ${formatMissingFields(missingFields)} to continue.`);
 
   return {
     data: {
@@ -163,8 +164,11 @@ export function buildCustomerBookingFormViewModel({
       providerRatingLabel: `${provider.averageRating.toFixed(1)} star rating`,
       duration,
       canContinue,
-      continueLabel: isPreparingEstimate ? 'Getting estimate...' : 'Continue to Review',
-      canVerifyAddress: Boolean(address.trim()) && busyAction !== 'geo-map-search',
+      continueLabel: isPreparingEstimate
+        ? 'Getting estimate...'
+        : 'Continue to Review',
+      canVerifyAddress:
+        Boolean(address.trim()) && busyAction !== 'geo-map-search',
       useCurrentLocationDisabled: busyAction === 'geo-current-location',
       verifyAddressDisabled: !address.trim() || busyAction === 'geo-map-search',
       saveAddressDisabled: !address.trim() || busyAction === 'save-address',
@@ -172,7 +176,8 @@ export function buildCustomerBookingFormViewModel({
         busyAction === 'geo-current-location' ? 'Locating...' : 'Use current',
       verifyAddressLabel:
         busyAction === 'geo-map-search' ? 'Searching...' : 'Choose on map',
-      saveAddressLabel: busyAction === 'save-address' ? 'Saving...' : 'Save as home',
+      saveAddressLabel:
+        busyAction === 'save-address' ? 'Saving...' : 'Save as home',
       locationNotice,
       locationStatusLabel,
       locationCoordinateLabel: serviceLocation.confirmedPin
@@ -190,7 +195,7 @@ export function buildCustomerBookingFormViewModel({
         provider.pricingMode === 'hourly'
           ? `${formatMoney(provider.price)} x ${duration}h`
           : 'Service rate',
-      calloutFeeLabel: 'Calculated on review',
+      calloutFeeLabel: 'Travel and service fees on review',
       estimatedTotalLabel: formatMoney(estimatedTotal),
       continueNotice,
       referencePhotoLabel: bookingReferencePhotoUrl
