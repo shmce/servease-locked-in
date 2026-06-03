@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { ChevronRight, Paperclip, Send } from 'lucide-react-native';
-import { EmptyState, TopBar } from '../../../components/DesignKit';
 import { AppRole } from '../../../navigation/types';
 import {
   CustomerCard,
@@ -22,6 +21,15 @@ import {
   CustomerSection,
   customerText,
 } from '../../../shared/components/CustomerUI';
+import {
+  ProviderCard,
+  ProviderContent,
+  ProviderEmptyState,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderSection,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import {
   ApiOptions,
   BookingSummary,
@@ -177,50 +185,47 @@ function ConversationListScreen({
   }
 
   return (
-    <View style={styles.screen}>
-      <TopBar title="Messages" />
-      <ScrollView
-        style={styles.listScroll}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {data.conversationRows.map((row, index) => (
-          <Pressable
-            key={row.conversation.id}
-            style={[
-              styles.convoRow,
-              index < data.conversationRows.length - 1 && styles.convoRowBorder,
-            ]}
-            onPress={() => onSelectConversation(row.conversation.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`Open conversation with ${row.counterparty}`}
-          >
-            <View style={styles.convoAvatar}>
-              <Text style={styles.convoInitial}>{row.initial}</Text>
-            </View>
-            <View style={styles.convoBody}>
-              <Text style={styles.convoName} numberOfLines={1}>
-                {row.counterparty}
-              </Text>
-              <Text style={styles.convoService} numberOfLines={1}>
-                {row.serviceName}
-              </Text>
-            </View>
-            <Text style={styles.convoTime} numberOfLines={1}>
-              {row.timeLabel}
-            </Text>
-          </Pressable>
-        ))}
-        {!data.hasConversations ? (
-          <View style={styles.emptyWrap}>
-            <EmptyState
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Messages"
+          subtitle="Conversations about provider jobs"
+        />
+        <ProviderSection>
+          {data.conversationRows.map((row) => (
+            <ProviderCard
+              key={row.conversation.id}
+              onPress={() => onSelectConversation(row.conversation.id)}
+              accessibilityLabel={`Open conversation with ${row.counterparty}`}
+            >
+              <View style={styles.convoRow}>
+                <View style={styles.convoAvatar}>
+                  <Text style={styles.convoInitial}>{row.initial}</Text>
+                </View>
+                <View style={styles.convoBody}>
+                  <Text style={styles.convoName} numberOfLines={1}>
+                    {row.counterparty}
+                  </Text>
+                  <Text style={styles.convoService} numberOfLines={1}>
+                    {row.serviceName}
+                  </Text>
+                </View>
+                <Text style={styles.convoTime} numberOfLines={1}>
+                  {row.timeLabel}
+                </Text>
+                <ChevronRight color={palette.mintDeep} size={18} strokeWidth={2.1} />
+              </View>
+            </ProviderCard>
+          ))}
+          {!data.hasConversations ? (
+            <ProviderEmptyState
               title="No conversations yet"
               body="Start chatting from a booking detail."
             />
-          </View>
-        ) : null}
-      </ScrollView>
-    </View>
+          ) : null}
+        </ProviderSection>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
@@ -263,11 +268,13 @@ function ChatDetailScreen({
           />
         </View>
       ) : (
-        <TopBar
-          title={data.threadTitle}
-          subtitle={data.threadSubtitle}
-          onBack={onBack}
-        />
+        <View style={styles.providerChatHeader}>
+          <ProviderHeader
+            title={data.threadTitle}
+            subtitle={data.threadSubtitle}
+            onBack={onBack}
+          />
+        </View>
       )}
 
       <ScrollView
@@ -406,6 +413,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
   },
+  providerChatHeader: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+  },
 
   // Conversation list
   customerConvoList: {
@@ -461,59 +472,48 @@ const styles = StyleSheet.create({
     maxWidth: 92,
     textAlign: 'right',
   },
-  listScroll: {
-    flex: 1,
-  },
-  listContent: {
-    paddingBottom: 108,
-  },
   convoRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-  },
-  convoRowBorder: {
-    borderBottomColor: palette.line,
-    borderBottomWidth: 1,
+    minHeight: 58,
   },
   convoAvatar: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintSoft,
+    borderColor: '#A7E5C2',
+    borderWidth: 1,
     borderRadius: radius.pill,
     height: 48,
     justifyContent: 'center',
     width: 48,
   },
   convoInitial: {
-    color: palette.white,
+    color: palette.mintDeep,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   convoBody: {
     flex: 1,
     gap: 2,
+    minWidth: 0,
   },
   convoName: {
-    color: palette.ink,
+    ...providerText.title,
     fontSize: 15,
-    fontWeight: '700',
+    lineHeight: 20,
   },
   convoService: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
+    ...providerText.meta,
   },
   convoTime: {
-    color: palette.faint,
+    color: '#8D949E',
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 15,
     maxWidth: 80,
     textAlign: 'right',
-  },
-  emptyWrap: {
-    padding: spacing.lg,
   },
 
   // Chat
@@ -533,14 +533,19 @@ const styles = StyleSheet.create({
   },
   chatEmpty: {
     alignItems: 'center',
+    backgroundColor: '#F8FAF9',
+    borderColor: '#EEF0F2',
+    borderRadius: radius.lg,
+    borderWidth: 1,
     flex: 1,
     justifyContent: 'center',
+    margin: spacing.lg,
+    minHeight: 180,
     paddingVertical: spacing.xl,
   },
   chatEmptyText: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
+    ...providerText.body,
+    textAlign: 'center',
   },
 
   // Bubbles
@@ -556,9 +561,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   bubbleSender: {
-    color: palette.faint,
+    color: '#8D949E',
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '400',
     marginBottom: 1,
     paddingLeft: 4,
   },
@@ -573,16 +578,16 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   bubbleMine: {
-    backgroundColor: palette.mint,
-    borderBottomRightRadius: 4,
+    backgroundColor: palette.mintDeep,
+    borderBottomRightRadius: 5,
   },
   customerBubbleMine: {
     backgroundColor: palette.mintDeep,
     borderBottomRightRadius: 5,
   },
   bubbleTheirs: {
-    backgroundColor: palette.lineSoft,
-    borderBottomLeftRadius: 4,
+    backgroundColor: '#F5F7FA',
+    borderBottomLeftRadius: 5,
   },
   customerBubbleTheirs: {
     backgroundColor: '#F5F7FA',
@@ -591,13 +596,15 @@ const styles = StyleSheet.create({
   bubbleTextMine: {
     color: palette.white,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '400',
+    letterSpacing: 0,
     lineHeight: 20,
   },
   bubbleTextTheirs: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '400',
+    letterSpacing: 0,
     lineHeight: 20,
   },
   customerBubbleText: {
@@ -620,9 +627,9 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   bubbleTime: {
-    color: palette.faint,
+    color: '#8D949E',
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '400',
     paddingLeft: 4,
   },
   bubbleTimeRight: {
@@ -635,11 +642,12 @@ const styles = StyleSheet.create({
   inputBar: {
     alignItems: 'flex-end',
     backgroundColor: palette.white,
-    borderTopColor: palette.line,
+    borderTopColor: '#EEF0F2',
     borderTopWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-    padding: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.base,
   },
   customerInputBar: {
@@ -655,6 +663,8 @@ const styles = StyleSheet.create({
   },
   inputAction: {
     alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
     height: 40,
     justifyContent: 'center',
     width: 40,
@@ -671,12 +681,16 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   inputField: {
-    backgroundColor: palette.cream,
+    backgroundColor: '#F8FAFB',
+    borderColor: '#EEF0F2',
     borderRadius: radius.pill,
+    borderWidth: 1,
     color: palette.ink,
     flex: 1,
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 20,
     maxHeight: 100,
     paddingHorizontal: spacing.base,
     paddingVertical: 10,
@@ -698,7 +712,7 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintDeep,
     borderRadius: radius.pill,
     height: 40,
     justifyContent: 'center',

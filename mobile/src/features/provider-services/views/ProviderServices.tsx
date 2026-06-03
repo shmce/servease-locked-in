@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { LockKeyhole, Wrench } from 'lucide-react-native';
 import {
-  Badge,
-  Card,
-  EmptyState,
-  Field,
-  Pill,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
+  ProviderActionRow,
+  ProviderBadge,
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderEmptyState,
+  ProviderHeader,
+  ProviderIconBlock,
+  ProviderPill,
+  ProviderScreen,
+  ProviderSection,
+  ProviderTextField,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import type {
   BookingPricingMode,
@@ -17,10 +24,6 @@ import type {
   ProviderApplicationStatus,
   ProviderOwnedServiceSummary,
 } from '../../../shared/models/types';
-import {
-  ScreenContent,
-  ScreenScroll,
-} from '../../../shared/components/ScreenLayout';
 import { useProviderServicesViewModel } from '../viewModels/useProviderServicesViewModel';
 
 type ProviderServicesScreenProps = {
@@ -100,183 +103,182 @@ export function ProviderServicesScreen({
   const { data } = providerServices;
 
   return (
-    <>
-      <TopBar
-        title="Services"
-        subtitle="Manage your marketplace listings"
-        onBack={onBack}
-      />
-      <ScreenScroll>
-        <ScreenContent>
-          {data.isServiceManagementLocked ? (
-            <Card>
-              <View style={styles.lockedHeader}>
-                <View style={styles.flex}>
-                  <Text style={styles.lockedTitle}>{data.lockedTitle}</Text>
-                  <Text style={styles.lockedBody}>{data.lockedBody}</Text>
-                </View>
-                <Badge label="Locked" tone="warning" />
-              </View>
-            </Card>
-          ) : null}
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Services"
+          subtitle="Manage your marketplace listings"
+          onBack={onBack}
+        />
 
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>My Services</Text>
-            {data.hasServices ? (
-              data.serviceRows.map((row) => (
-                <Card key={row.id}>
-                  {row.isEditing ? (
-                    <>
-                      <Field
-                        label="Title"
-                        value={editServiceTitle}
-                        onChangeText={onEditServiceTitleChange}
+        {data.isServiceManagementLocked ? (
+          <ProviderCard>
+            <View style={styles.lockedHeader}>
+              <ProviderIconBlock>
+                <LockKeyhole color={palette.mintDeep} size={24} strokeWidth={2.3} />
+              </ProviderIconBlock>
+              <View style={styles.flex}>
+                <Text style={styles.lockedTitle}>{data.lockedTitle}</Text>
+                <Text style={styles.lockedBody}>{data.lockedBody}</Text>
+              </View>
+              <ProviderBadge label="Locked" tone="warning" />
+            </View>
+          </ProviderCard>
+        ) : null}
+
+        <ProviderSection title="My Services">
+          {data.hasServices ? (
+            data.serviceRows.map((row) => (
+              <ProviderCard key={row.id}>
+                {row.isEditing ? (
+                  <>
+                    <ProviderTextField
+                      label="Title"
+                      value={editServiceTitle}
+                      onChangeText={onEditServiceTitleChange}
+                    />
+                    <CatalogServicePicker
+                      categories={categories}
+                      services={services}
+                      selectedServiceId={editServiceServiceId}
+                      onSelectService={onEditServiceServiceIdChange}
+                    />
+                    <ProviderTextField
+                      label="Price"
+                      value={editServicePrice}
+                      onChangeText={onEditServicePriceChange}
+                      keyboardType="decimal-pad"
+                    />
+                    <ProviderActionRow>
+                      <ProviderButton
+                        label={data.saveEditButtonLabel}
+                        onPress={onSaveOwnedServiceEdit}
+                        disabled={data.isSaveEditDisabled}
                       />
-                      <CatalogServicePicker
-                        categories={categories}
-                        services={services}
-                        selectedServiceId={editServiceServiceId}
-                        onSelectService={onEditServiceServiceIdChange}
+                      <ProviderButton
+                        label="Cancel"
+                        variant="secondary"
+                        onPress={onCancelEditService}
                       />
-                      <Field
-                        label="Price"
-                        value={editServicePrice}
-                        onChangeText={onEditServicePriceChange}
-                        keyboardType="decimal-pad"
-                      />
-                      <View style={styles.actionRow}>
-                        <PrimaryButton
-                          label={data.saveEditButtonLabel}
-                          onPress={onSaveOwnedServiceEdit}
-                          disabled={data.isSaveEditDisabled}
-                        />
-                        <PrimaryButton
-                          label="Cancel"
-                          variant="secondary"
-                          onPress={onCancelEditService}
-                        />
+                    </ProviderActionRow>
+                  </>
+                ) : (
+                  <>
+                    <View style={styles.serviceHeader}>
+                      <ProviderIconBlock>
+                        <Wrench color={palette.mintDeep} size={25} strokeWidth={2.3} />
+                      </ProviderIconBlock>
+                      <View style={styles.flex}>
+                        <Text style={styles.serviceTitle} numberOfLines={2}>
+                          {row.title}
+                        </Text>
+                        <Text style={styles.serviceMeta}>{row.metaLabel}</Text>
                       </View>
-                    </>
-                  ) : (
-                    <>
-                      <View style={styles.serviceHeader}>
-                        <View style={styles.flex}>
-                          <Text style={styles.serviceTitle}>{row.title}</Text>
-                          <Text style={styles.serviceMeta}>{row.metaLabel}</Text>
-                        </View>
-                        <Badge label={row.statusLabel} tone={row.statusTone} />
-                      </View>
-                      {data.canManageServices ? (
-                        <View style={styles.actionRow}>
-                          {row.canEdit ? (
-                            <PrimaryButton
-                              label="Edit"
-                              variant="secondary"
-                              onPress={() => onStartEditService(row.service)}
-                            />
-                          ) : null}
-                          <PrimaryButton
-                            label={row.toggleButtonLabel}
+                      <ProviderBadge label={row.statusLabel} tone={row.statusTone} />
+                    </View>
+                    {data.canManageServices ? (
+                      <View style={styles.serviceActions}>
+                        {row.canEdit ? (
+                          <ProviderButton
+                            label="Edit"
                             variant="secondary"
-                            onPress={() => onToggleOwnedServiceActive(row.id)}
-                            disabled={row.isToggleDisabled}
+                            onPress={() => onStartEditService(row.service)}
                           />
-                        </View>
-                      ) : null}
-                      {data.canManageServices ? (
-                        <PrimaryButton
+                        ) : null}
+                        <ProviderButton
+                          label={row.toggleButtonLabel}
+                          variant="secondary"
+                          onPress={() => onToggleOwnedServiceActive(row.id)}
+                          disabled={row.isToggleDisabled}
+                        />
+                        <ProviderButton
                           label={row.removeButtonLabel}
                           variant="danger"
                           onPress={() => onRemoveOwnedService(row.id)}
                           disabled={row.isRemoveDisabled}
                         />
-                      ) : null}
-                    </>
-                  )}
-                </Card>
-              ))
-            ) : (
-              <EmptyState
-                title="No services yet"
-                body={
-                  data.isServiceManagementLocked
-                    ? 'Services will appear here after your application is approved.'
-                    : 'Add a service below to start appearing in marketplace listings.'
-                }
-              />
-            )}
-          </View>
+                      </View>
+                    ) : null}
+                  </>
+                )}
+              </ProviderCard>
+            ))
+          ) : (
+            <ProviderEmptyState
+              title="No services yet"
+              body={
+                data.isServiceManagementLocked
+                  ? 'Services will appear here after your application is approved.'
+                  : 'Add a service below to start appearing in marketplace listings.'
+              }
+            />
+          )}
+        </ProviderSection>
 
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>Add a Service</Text>
-            {data.isServiceManagementLocked ? (
-              <Card>
-                <Text style={styles.lockedTitle}>Services locked</Text>
-                <Text style={styles.lockedBody}>
-                  Your listings open after the admin team approves your provider
-                  application.
-                </Text>
-                <PrimaryButton
-                  label="Upload documents"
+        <ProviderSection title="Add a Service">
+          {data.isServiceManagementLocked ? (
+            <ProviderCard>
+              <Text style={styles.lockedTitle}>Services locked</Text>
+              <Text style={styles.lockedBody}>
+                Your listings open after the admin team approves your provider
+                application.
+              </Text>
+              <ProviderButton
+                label="Upload documents"
+                variant="secondary"
+                onPress={onOpenApplicationDocuments}
+              />
+            </ProviderCard>
+          ) : showAddServiceForm ? (
+            <ProviderCard>
+              <CatalogServicePicker
+                categories={categories}
+                services={services}
+                selectedServiceId={newServiceServiceId}
+                onSelectService={onNewServiceServiceIdChange}
+              />
+              <ProviderTextField
+                label="Service title"
+                value={newServiceTitle}
+                onChangeText={onNewServiceTitleChange}
+                placeholder="e.g. Deep house cleaning"
+              />
+              <ProviderTextField
+                label="Price (PHP)"
+                value={newServicePrice}
+                onChangeText={onNewServicePriceChange}
+                keyboardType="decimal-pad"
+                placeholder="1500"
+              />
+              <View style={styles.pillRow}>
+                {data.pricingModeOptions.map((option) => (
+                  <ProviderPill
+                    key={option.value}
+                    label={option.label}
+                    selected={option.selected}
+                    onPress={() => onNewServicePricingModeChange(option.value)}
+                  />
+                ))}
+              </View>
+              <ProviderActionRow>
+                <ProviderButton
+                  label={data.saveNewServiceButtonLabel}
+                  onPress={onSaveNewService}
+                  disabled={data.isSaveNewServiceDisabled}
+                />
+                <ProviderButton
+                  label="Cancel"
                   variant="secondary"
-                  onPress={onOpenApplicationDocuments}
+                  onPress={onCancelAddService}
                 />
-              </Card>
-            ) : showAddServiceForm ? (
-              <Card>
-                <CatalogServicePicker
-                  categories={categories}
-                  services={services}
-                  selectedServiceId={newServiceServiceId}
-                  onSelectService={onNewServiceServiceIdChange}
-                />
-                <Field
-                  label="Service title"
-                  value={newServiceTitle}
-                  onChangeText={onNewServiceTitleChange}
-                  placeholder="e.g. Deep house cleaning"
-                />
-                <Field
-                  label="Price (PHP)"
-                  value={newServicePrice}
-                  onChangeText={onNewServicePriceChange}
-                  keyboardType="decimal-pad"
-                  placeholder="1500"
-                />
-                <View style={styles.pillRow}>
-                  {data.pricingModeOptions.map((option) => (
-                    <Pill
-                      key={option.value}
-                      label={option.label}
-                      selected={option.selected}
-                      onPress={() => onNewServicePricingModeChange(option.value)}
-                    />
-                  ))}
-                </View>
-                <View style={styles.actionRow}>
-                  <PrimaryButton
-                    label={data.saveNewServiceButtonLabel}
-                    onPress={onSaveNewService}
-                    disabled={data.isSaveNewServiceDisabled}
-                  />
-                  <PrimaryButton
-                    label="Cancel"
-                    variant="secondary"
-                    onPress={onCancelAddService}
-                  />
-                </View>
-              </Card>
-            ) : (
-              <PrimaryButton
-                label="Add new service"
-                onPress={onShowAddServiceForm}
-              />
-            )}
-          </View>
-
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+              </ProviderActionRow>
+            </ProviderCard>
+          ) : (
+            <ProviderButton label="Add new service" onPress={onShowAddServiceForm} />
+          )}
+        </ProviderSection>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
@@ -329,6 +331,7 @@ function CatalogServicePicker({
                 styles.catalogChoiceText,
                 selectedCategoryId === category.id && styles.catalogChoiceTextSelected,
               ]}
+              numberOfLines={1}
             >
               {category.name}
             </Text>
@@ -351,6 +354,7 @@ function CatalogServicePicker({
                 styles.catalogChoiceText,
                 selectedServiceId === service.id && styles.catalogChoiceTextSelected,
               ]}
+              numberOfLines={1}
             >
               {service.name}
             </Text>
@@ -364,65 +368,55 @@ function CatalogServicePicker({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
 
-  sectionBlock: {
-    gap: spacing.sm,
+  lockedHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.base,
   },
-  sectionLabel: {
-    color: palette.faint,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    paddingHorizontal: spacing.xs,
-    textTransform: 'uppercase',
+  lockedTitle: {
+    ...providerText.title,
+    fontSize: 16,
+    lineHeight: 21,
+  },
+  lockedBody: {
+    ...providerText.body,
+    marginTop: spacing.xs,
   },
 
   serviceHeader: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.base,
-    justifyContent: 'space-between',
   },
   serviceTitle: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '700',
+    color: '#202733',
+    fontSize: 16,
+    fontWeight: '600',
+    lineHeight: 21,
   },
   serviceMeta: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 2,
+    ...providerText.meta,
+    marginTop: 3,
   },
-  lockedHeader: {
-    alignItems: 'flex-start',
+  serviceActions: {
     flexDirection: 'row',
-    gap: spacing.base,
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
-  lockedTitle: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  lockedBody: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 19,
-    marginTop: spacing.xs,
-  },
+
   catalogPicker: {
-    backgroundColor: palette.surface,
-    borderColor: palette.lineSoft,
+    backgroundColor: '#F8FAF9',
+    borderColor: '#EEF0F2',
     borderRadius: radius.md,
     borderWidth: 1,
     gap: spacing.sm,
     padding: spacing.md,
   },
   catalogPickerLabel: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
+    lineHeight: 18,
   },
   catalogChoiceGrid: {
     flexDirection: 'row',
@@ -431,30 +425,26 @@ const styles = StyleSheet.create({
   },
   catalogChoice: {
     backgroundColor: palette.white,
-    borderColor: palette.line,
+    borderColor: '#E7EBEF',
     borderRadius: radius.pill,
     borderWidth: 1,
     maxWidth: '100%',
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 7,
   },
   catalogChoiceSelected: {
-    backgroundColor: palette.mint,
-    borderColor: palette.mint,
+    backgroundColor: palette.mintSoft,
+    borderColor: '#A7E5C2',
   },
   catalogChoiceText: {
-    color: palette.ink,
+    color: '#5F6671',
     fontSize: 12,
-    fontWeight: '800',
-    lineHeight: 17,
+    fontWeight: '500',
+    lineHeight: 16,
   },
   catalogChoiceTextSelected: {
-    color: palette.white,
-  },
-
-  actionRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+    color: palette.mintDeep,
+    fontWeight: '600',
   },
   pillRow: {
     flexDirection: 'row',

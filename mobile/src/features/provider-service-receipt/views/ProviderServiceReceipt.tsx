@@ -1,10 +1,13 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { InfoRow } from '../../../components/AppDisplay';
 import {
-  Card,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderHeader,
+  ProviderScreen,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import {
   BookingSummary,
   PaymentSummary,
@@ -32,41 +35,30 @@ export function ProviderServiceReceiptScreen({
   const { data } = receipt;
 
   return (
-    <>
-      <TopBar
-        title="Service Receipt"
-        subtitle={data.bookingReference}
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <Card>
-            <Text style={styles.cardTitle}>{data.serviceTitle}</Text>
-            {data.receiptRows.map((row) => (
-              <InfoRow key={row.key} label={row.label} value={row.value} />
-            ))}
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Provider payout</Text>
-              <Text style={styles.totalValue}>{data.providerPayoutLabel}</Text>
-            </View>
-          </Card>
-          <PrimaryButton label="Back to Bookings" onPress={onBackToBookings} />
-        </View>
-      </ScrollView>
-    </>
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Service Receipt"
+          subtitle={data.bookingReference}
+          onBack={onBack}
+        />
+        <ProviderCard>
+          <Text style={styles.cardTitle}>{data.serviceTitle}</Text>
+          {data.receiptRows.map((row) => (
+            <InfoRow key={row.key} label={row.label} value={row.value} />
+          ))}
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Provider payout</Text>
+            <Text style={styles.totalValue}>{data.providerPayoutLabel}</Text>
+          </View>
+        </ProviderCard>
+        <ProviderButton label="Back to Bookings" onPress={onBackToBookings} />
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   totalRow: {
     alignItems: 'center',
     borderTopColor: palette.line,
@@ -77,18 +69,18 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   totalLabel: {
-    color: palette.muted,
+    color: '#6D7480',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '500',
   },
   totalValue: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 18,
-    fontWeight: '900',
+    fontWeight: '600',
   },
 });

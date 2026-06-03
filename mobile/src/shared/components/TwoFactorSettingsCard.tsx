@@ -1,12 +1,15 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
-  Field,
-  PrimaryButton,
-} from '../../components/DesignKit';
-import {
   CustomerCard,
   customerText,
 } from './CustomerUI';
+import {
+  ProviderActionRow,
+  ProviderButton,
+  ProviderCard,
+  ProviderTextField,
+  providerText,
+} from './ProviderUI';
 import { palette, radius, spacing } from '../../theme/serveaseDesign';
 
 type TwoFactorSettingsCardProps = {
@@ -109,27 +112,27 @@ export function TwoFactorSettingsCard({
   }
 
   return (
-    <View style={styles.securityPanel}>
-      <Text style={styles.cardTitle}>Two-Factor Authentication</Text>
-      <Text style={styles.cardMeta}>
+    <ProviderCard style={styles.securityPanel}>
+      <Text style={styles.providerTitle}>Two-Factor Authentication</Text>
+      <Text style={styles.providerMeta}>
         {twoFactorEnabled
           ? '2FA is enabled. Enter a current code to disable it.'
           : 'Protect your account with a code from an authenticator app.'}
       </Text>
       {twoFactorSecret ? (
-        <Text style={[styles.cardMeta, styles.monoText]}>
+        <Text style={[styles.providerMeta, styles.monoText]}>
           Secret: {twoFactorSecret}
         </Text>
       ) : null}
-      <Field
+      <ProviderTextField
         label="Authenticator Code"
         value={twoFactorCode}
         onChangeText={onCodeChange}
         placeholder="6-digit code"
         keyboardType="number-pad"
       />
-      <View style={styles.twoButtons}>
-        <PrimaryButton
+      <ProviderActionRow>
+        <ProviderButton
           label={
             busyAction === 'two-factor-enable'
               ? 'Starting...'
@@ -141,7 +144,7 @@ export function TwoFactorSettingsCard({
           onPress={() => void startTwoFactorSetup()}
           disabled={twoFactorEnabled || busyAction === 'two-factor-enable'}
         />
-        <PrimaryButton
+        <ProviderButton
           label={primaryLabel}
           onPress={() =>
             twoFactorEnabled
@@ -153,8 +156,8 @@ export function TwoFactorSettingsCard({
             busyAction === 'two-factor-disable'
           }
         />
-      </View>
-    </View>
+      </ProviderActionRow>
+    </ProviderCard>
   );
 }
 
@@ -231,20 +234,13 @@ const styles = StyleSheet.create({
   securityPanel: {
     gap: spacing.md,
   },
-  twoButtons: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+  providerTitle: {
+    ...providerText.title,
+    fontSize: 16,
+    lineHeight: 21,
   },
-  cardTitle: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  cardMeta: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+  providerMeta: {
+    ...providerText.body,
   },
   monoText: {
     fontFamily: 'SpaceMono',

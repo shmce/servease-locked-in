@@ -1,17 +1,17 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Image as ImageIcon, Trash2 } from 'lucide-react-native';
 import {
-  EmptyState,
-  Field,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
+  ProviderActionRow,
+  ProviderButton,
+  ProviderContent,
+  ProviderEmptyState,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderTextField,
+} from '../../../shared/components/ProviderUI';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { ProviderPortfolioMediaSummary } from '../../../shared/models/types';
-import {
-  ActionRow,
-  MediaUploadBox,
-} from '../../../shared/components/ScreenLayout';
+import { MediaUploadBox } from '../../../shared/components/ScreenLayout';
 import { useProviderPortfolioViewModel } from '../viewModels/useProviderPortfolioViewModel';
 
 type ProviderPortfolioScreenProps = {
@@ -58,118 +58,107 @@ export function ProviderPortfolioScreen({
   const { data } = providerPortfolio;
 
   return (
-    <>
-      <TopBar
-        title="Portfolio"
-        subtitle="Work samples shown to customers"
-        onBack={onBack}
-        right={
-          <PrimaryButton
-            label="Refresh"
-            variant="secondary"
-            onPress={onRefresh}
-          />
-        }
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <MediaUploadBox
-            imageUri={providerPortfolioPhotoUri}
-            icon={<ImageIcon color={palette.mint} size={28} strokeWidth={2.5} />}
-            label={data.uploadLabel}
-            onPress={onUploadPortfolioMedia}
-            minHeight={132}
-            previewHeight={132}
-            surface="mint"
-          />
-
-          <View style={styles.portfolioGrid}>
-            {data.portfolioItems.map((portfolioItem) => (
-              <View key={portfolioItem.id} style={styles.portfolioTile}>
-                <Image
-                  source={{ uri: portfolioItem.fileUrl }}
-                  style={styles.portfolioImage}
-                />
-                {portfolioItem.isEditingCaption ? (
-                  <View style={styles.portfolioEditor}>
-                    <Field
-                      label="Caption"
-                      value={portfolioCaptionDraft}
-                      onChangeText={onPortfolioCaptionDraftChange}
-                      placeholder="Portfolio caption"
-                    />
-                    <ActionRow>
-                      <PrimaryButton
-                        label="Save"
-                        onPress={() => onSavePortfolioCaption(portfolioItem.item)}
-                        disabled={portfolioItem.captionSaveDisabled}
-                      />
-                      <PrimaryButton
-                        label="Cancel"
-                        variant="secondary"
-                        onPress={onCancelPortfolioCaption}
-                      />
-                    </ActionRow>
-                  </View>
-                ) : (
-                  <>
-                    <Text style={styles.portfolioText} numberOfLines={1}>
-                      {portfolioItem.captionLabel}
-                    </Text>
-                    <View style={styles.portfolioActions}>
-                      <Text
-                        style={styles.linkText}
-                        onPress={() => onMovePortfolioMedia(portfolioItem.id, -1)}
-                      >
-                        Up
-                      </Text>
-                      <Text
-                        style={styles.linkText}
-                        onPress={() => onMovePortfolioMedia(portfolioItem.id, 1)}
-                      >
-                        Down
-                      </Text>
-                      <Text
-                        style={styles.linkText}
-                        onPress={() => onStartPortfolioCaptionEdit(portfolioItem.item)}
-                      >
-                        Edit
-                      </Text>
-                    </View>
-                  </>
-                )}
-                <Pressable
-                  style={styles.deleteOverlay}
-                  onPress={() => onRemovePortfolioMedia(portfolioItem.id)}
-                  accessibilityRole="button"
-                >
-                  <Trash2 color={palette.white} size={16} strokeWidth={2.6} />
-                </Pressable>
-              </View>
-            ))}
-          </View>
-          {!data.hasPortfolioMedia ? (
-            <EmptyState
-              title="No portfolio yet"
-              body="Upload photos of completed services."
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Portfolio"
+          subtitle="Work samples shown to customers"
+          onBack={onBack}
+          right={
+            <ProviderButton
+              label="Refresh"
+              variant="secondary"
+              onPress={onRefresh}
             />
-          ) : null}
+          }
+        />
+        <MediaUploadBox
+          imageUri={providerPortfolioPhotoUri}
+          icon={<ImageIcon color={palette.mintDeep} size={28} strokeWidth={2.5} />}
+          label={data.uploadLabel}
+          onPress={onUploadPortfolioMedia}
+          minHeight={132}
+          previewHeight={132}
+          surface="mint"
+        />
+
+        <View style={styles.portfolioGrid}>
+          {data.portfolioItems.map((portfolioItem) => (
+            <View key={portfolioItem.id} style={styles.portfolioTile}>
+              <Image
+                source={{ uri: portfolioItem.fileUrl }}
+                style={styles.portfolioImage}
+              />
+              {portfolioItem.isEditingCaption ? (
+                <View style={styles.portfolioEditor}>
+                  <ProviderTextField
+                    label="Caption"
+                    value={portfolioCaptionDraft}
+                    onChangeText={onPortfolioCaptionDraftChange}
+                    placeholder="Portfolio caption"
+                  />
+                  <ProviderActionRow>
+                    <ProviderButton
+                      label="Save"
+                      onPress={() => onSavePortfolioCaption(portfolioItem.item)}
+                      disabled={portfolioItem.captionSaveDisabled}
+                    />
+                    <ProviderButton
+                      label="Cancel"
+                      variant="secondary"
+                      onPress={onCancelPortfolioCaption}
+                    />
+                  </ProviderActionRow>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.portfolioText} numberOfLines={1}>
+                    {portfolioItem.captionLabel}
+                  </Text>
+                  <View style={styles.portfolioActions}>
+                    <Text
+                      style={styles.linkText}
+                      onPress={() => onMovePortfolioMedia(portfolioItem.id, -1)}
+                    >
+                      Up
+                    </Text>
+                    <Text
+                      style={styles.linkText}
+                      onPress={() => onMovePortfolioMedia(portfolioItem.id, 1)}
+                    >
+                      Down
+                    </Text>
+                    <Text
+                      style={styles.linkText}
+                      onPress={() => onStartPortfolioCaptionEdit(portfolioItem.item)}
+                    >
+                      Edit
+                    </Text>
+                  </View>
+                </>
+              )}
+              <Pressable
+                style={styles.deleteOverlay}
+                onPress={() => onRemovePortfolioMedia(portfolioItem.id)}
+                accessibilityRole="button"
+              >
+                <Trash2 color={palette.white} size={16} strokeWidth={2.6} />
+              </Pressable>
+            </View>
+          ))}
         </View>
-      </ScrollView>
-    </>
+        {!data.hasPortfolioMedia ? (
+          <ProviderEmptyState
+            title="No portfolio yet"
+            body="Upload photos of completed services."
+          />
+        ) : null}
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   portfolioGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -193,9 +182,9 @@ const styles = StyleSheet.create({
   portfolioText: {
     backgroundColor: 'rgba(255,255,255,0.88)',
     bottom: spacing.xs,
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
     left: spacing.xs,
     paddingHorizontal: spacing.xs,
     position: 'absolute',
@@ -235,8 +224,8 @@ const styles = StyleSheet.create({
     width: 32,
   },
   linkText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
   },
 });

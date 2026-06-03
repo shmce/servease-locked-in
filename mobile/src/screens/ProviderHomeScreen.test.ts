@@ -66,7 +66,8 @@ test('provider home is extracted from App into the action-first screen', () => {
     'utf8',
   );
   assert.match(viewSource, /export function ProviderHomeScreen/);
-  assert.match(viewSource, /providerHero/);
+  assert.match(viewSource, /ProviderScreen/);
+  assert.match(viewSource, /ProviderHeader/);
   assert.match(viewSource, /Search bookings, requests/);
   assert.match(viewSource, /Today's Agenda/);
   assert.match(viewSource, /NextAgendaRow/);

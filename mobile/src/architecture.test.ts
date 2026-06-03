@@ -1257,6 +1257,33 @@ test('provider navigation mode follows feature-level MVVM boundaries', () => {
   assert.match(viewModelSource, /navigationOrigin/);
 });
 
+test('provider UI language stays provider-scoped and excludes navigation mode', () => {
+  const providerUiSource = readProjectFile('src/shared/components/ProviderUI.tsx');
+  const sharedIndexSource = readProjectFile('src/shared/components/index.ts');
+  const navigationModeSource = readProjectFile(
+    'src/features/provider-navigation-mode/views/ProviderNavigationMode.tsx',
+  );
+  const customerViewSources = featureViewFiles()
+    .filter((path) => path.includes('/customer-'))
+    .map(readProjectFile)
+    .join('\n');
+
+  assert.match(sharedIndexSource, /ProviderUI/);
+  assert.match(providerUiSource, /ProviderScreen/);
+  assert.match(providerUiSource, /ProviderHeader/);
+  assert.match(providerUiSource, /ProviderCard/);
+  assert.match(providerUiSource, /ProviderBadge/);
+  assert.doesNotMatch(providerUiSource, /CustomerUI|components\/DesignKit/);
+  assert.doesNotMatch(
+    navigationModeSource,
+    /from ['"][^'"]*ProviderUI['"]|<Provider(?:Screen|Header)\b/,
+  );
+  assert.doesNotMatch(
+    customerViewSources,
+    /from ['"][^'"]*ProviderUI['"]|<Provider(?:Screen|Header)\b/,
+  );
+});
+
 test('provider more follows feature-level MVVM boundaries', () => {
   const viewPath = 'src/features/provider-more/views/ProviderMore.tsx';
   const viewModelPath =

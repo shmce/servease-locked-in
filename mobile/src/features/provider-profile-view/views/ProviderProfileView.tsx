@@ -1,22 +1,23 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Mail, MessageSquare, Phone, Star, User } from 'lucide-react-native';
 import {
-  Card,
-  EmptyState,
-  Field,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderEmptyState,
+  ProviderHeader,
+  ProviderIconBlock,
+  ProviderScreen,
+  ProviderSection,
+  ProviderTextField,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
   CurrentUserProfile,
   ProviderPortfolioMediaSummary,
   ReviewSummary,
 } from '../../../shared/models/types';
-import {
-  ScreenContent,
-  ScreenScroll,
-} from '../../../shared/components/ScreenLayout';
 import { useProviderProfileViewModel } from '../viewModels/useProviderProfileViewModel';
 
 type ProviderProfileViewScreenProps = {
@@ -64,34 +65,31 @@ export function ProviderProfileViewScreen({
   const { data } = providerProfile;
 
   return (
-    <>
-      <TopBar
-        title="My Profile"
-        subtitle="Public business profile"
-        onBack={onBack}
-        right={
-          <PrimaryButton
-            label="Edit"
-            variant="secondary"
-            onPress={onEditProfile}
-          />
-        }
-      />
-      <ScreenScroll>
-        <ScreenContent>
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="My Profile"
+          subtitle="Public business profile"
+          onBack={onBack}
+          right={
+            <ProviderButton
+              label="Edit"
+              variant="secondary"
+              onPress={onEditProfile}
+            />
+          }
+        />
 
-          {/* Hero */}
-          <View style={styles.heroCard}>
-            <View style={styles.heroAvatar}>
-              <Text style={styles.heroAvatarText}>{data.avatarInitial}</Text>
-            </View>
-            <Text style={styles.heroName}>{data.businessDisplayName}</Text>
-            <Text style={styles.heroSummary}>{data.profileSummary}</Text>
+        <ProviderCard style={styles.heroCard}>
+          <View style={styles.heroAvatar}>
+            <Text style={styles.heroAvatarText}>{data.avatarInitial}</Text>
           </View>
+          <Text style={styles.heroName}>{data.businessDisplayName}</Text>
+          <Text style={styles.heroSummary}>{data.profileSummary}</Text>
+        </ProviderCard>
 
-          {/* Account info */}
-          <View style={styles.sectionCard}>
-            <Text style={styles.sectionLabel}>Account Details</Text>
+        <ProviderSection title="Account Details">
+          <ProviderCard style={styles.sectionCard}>
             {data.accountRows.map((row, index) => {
               const Icon = rowIcon[row.key] ?? User;
               return (
@@ -102,9 +100,9 @@ export function ProviderProfileViewScreen({
                     index < data.accountRows.length - 1 && styles.infoRowDivider,
                   ]}
                 >
-                  <View style={styles.infoIconBg}>
-                    <Icon color={palette.mint} size={16} strokeWidth={2.2} />
-                  </View>
+                  <ProviderIconBlock compact>
+                    <Icon color={palette.mintDeep} size={16} strokeWidth={2.2} />
+                  </ProviderIconBlock>
                   <View style={styles.flex}>
                     <Text style={styles.infoLabel}>{row.label}</Text>
                     <Text style={styles.infoValue}>{row.value}</Text>
@@ -112,94 +110,89 @@ export function ProviderProfileViewScreen({
                 </View>
               );
             })}
-          </View>
+          </ProviderCard>
+        </ProviderSection>
 
-          {/* Portfolio */}
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>Portfolio</Text>
-            {data.hasPortfolioMedia ? (
-              <View style={styles.portfolioGrid}>
-                {data.portfolioPreview.map((item) => (
-                  <View key={item.id} style={styles.portfolioTile}>
-                    <Image source={{ uri: item.fileUrl }} style={styles.portfolioImage} />
-                    {item.caption ? (
-                      <Text style={styles.portfolioCaption} numberOfLines={1}>
-                        {item.caption}
-                      </Text>
-                    ) : null}
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <EmptyState
-                title="No portfolio yet"
-                body="Upload work samples to build trust with customers."
-              />
-            )}
-            <PrimaryButton
-              label="Manage Portfolio"
-              variant="secondary"
-              onPress={onManagePortfolio}
+        <ProviderSection title="Portfolio">
+          {data.hasPortfolioMedia ? (
+            <View style={styles.portfolioGrid}>
+              {data.portfolioPreview.map((item) => (
+                <View key={item.id} style={styles.portfolioTile}>
+                  <Image source={{ uri: item.fileUrl }} style={styles.portfolioImage} />
+                  {item.caption ? (
+                    <Text style={styles.portfolioCaption} numberOfLines={1}>
+                      {item.caption}
+                    </Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <ProviderEmptyState
+              title="No portfolio yet"
+              body="Upload work samples to build trust with customers."
             />
-          </View>
+          )}
+          <ProviderButton
+            label="Manage Portfolio"
+            variant="secondary"
+            onPress={onManagePortfolio}
+          />
+        </ProviderSection>
 
-          {/* Reviews */}
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>Customer Reviews</Text>
-            {data.hasReviews ? (
-              data.reviewCards.map((review) => (
-                <Card key={review.id}>
-                  <View style={styles.reviewHeader}>
-                    <View style={styles.ratingRow}>
-                      <Star color="#FFC107" fill="#FFC107" size={13} />
-                      <Text style={styles.ratingText}>{review.ratingLabel}</Text>
-                    </View>
-                    <Text style={styles.reviewerName}>{review.reviewerName}</Text>
+        <ProviderSection title="Customer Reviews">
+          {data.hasReviews ? (
+            data.reviewCards.map((review) => (
+              <ProviderCard key={review.id}>
+                <View style={styles.reviewHeader}>
+                  <View style={styles.ratingRow}>
+                    <Star color="#FFC107" fill="#FFC107" size={13} />
+                    <Text style={styles.ratingText}>{review.ratingLabel}</Text>
                   </View>
-                  <Text style={styles.reviewText}>{review.reviewText}</Text>
-                  {replyingToReviewId === review.id ? (
-                    <>
-                      <Field
-                        label="Your reply"
-                        value={reviewReplyText}
-                        onChangeText={onReviewReplyTextChange}
-                        multiline
+                  <Text style={styles.reviewerName}>{review.reviewerName}</Text>
+                </View>
+                <Text style={styles.reviewText}>{review.reviewText}</Text>
+                {replyingToReviewId === review.id ? (
+                  <>
+                    <ProviderTextField
+                      label="Your reply"
+                      value={reviewReplyText}
+                      onChangeText={onReviewReplyTextChange}
+                      multiline
+                    />
+                    <View style={styles.replyActions}>
+                      <ProviderButton
+                        label={busyAction === 'review-reply' ? 'Sending...' : 'Submit Reply'}
+                        onPress={onSubmitReviewReply}
+                        disabled={busyAction === 'review-reply'}
                       />
-                      <View style={styles.replyActions}>
-                        <PrimaryButton
-                          label={busyAction === 'review-reply' ? 'Sending...' : 'Submit Reply'}
-                          onPress={onSubmitReviewReply}
-                          disabled={busyAction === 'review-reply'}
-                        />
-                        <PrimaryButton
-                          label="Cancel"
-                          variant="secondary"
-                          onPress={onCancelReviewReply}
-                        />
-                      </View>
-                    </>
-                  ) : (
-                    <Pressable
-                      style={styles.replyButton}
-                      onPress={() => onStartReviewReply(review.id)}
-                    >
-                      <MessageSquare color={palette.mint} size={14} strokeWidth={2.2} />
-                      <Text style={styles.replyButtonText}>Reply to this review</Text>
-                    </Pressable>
-                  )}
-                </Card>
-              ))
-            ) : (
-              <EmptyState
-                title="No reviews yet"
-                body="Customer reviews will appear here once received."
-              />
-            )}
-          </View>
-
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+                      <ProviderButton
+                        label="Cancel"
+                        variant="secondary"
+                        onPress={onCancelReviewReply}
+                      />
+                    </View>
+                  </>
+                ) : (
+                  <Pressable
+                    style={styles.replyButton}
+                    onPress={() => onStartReviewReply(review.id)}
+                  >
+                    <MessageSquare color={palette.mintDeep} size={14} strokeWidth={2.2} />
+                    <Text style={styles.replyButtonText}>Reply to this review</Text>
+                  </Pressable>
+                )}
+              </ProviderCard>
+            ))
+          ) : (
+            <ProviderEmptyState
+              title="No reviews yet"
+              body="Customer reviews will appear here once received."
+            />
+          )}
+        </ProviderSection>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
@@ -208,55 +201,39 @@ const styles = StyleSheet.create({
 
   heroCard: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
     gap: spacing.sm,
     paddingVertical: spacing.xl,
     paddingHorizontal: spacing.base,
   },
   heroAvatar: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintSoft,
+    borderColor: '#A7E5C2',
+    borderWidth: 1,
     borderRadius: radius.pill,
     height: 88,
     justifyContent: 'center',
     width: 88,
   },
   heroAvatarText: {
-    color: palette.white,
+    color: palette.mintDeep,
     fontSize: 36,
-    fontWeight: '900',
+    fontWeight: '600',
   },
   heroName: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 20,
-    fontWeight: '800',
+    fontWeight: '600',
     textAlign: 'center',
   },
   heroSummary: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 19,
+    ...providerText.body,
     textAlign: 'center',
   },
 
   sectionCard: {
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
-    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+    gap: 0,
     overflow: 'hidden',
-  },
-  sectionLabel: {
-    color: palette.faint,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-    paddingBottom: spacing.sm,
-    textTransform: 'uppercase',
   },
   infoRow: {
     alignItems: 'center',
@@ -270,28 +247,16 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.lineSoft,
     borderBottomWidth: 1,
   },
-  infoIconBg: {
-    alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.sm,
-    height: 32,
-    justifyContent: 'center',
-    width: 32,
-  },
   infoLabel: {
-    color: palette.faint,
+    color: '#6D7480',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '500',
   },
   infoValue: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '500',
     marginTop: 2,
-  },
-
-  sectionBlock: {
-    gap: spacing.sm,
   },
 
   portfolioGrid: {
@@ -313,9 +278,9 @@ const styles = StyleSheet.create({
   portfolioCaption: {
     backgroundColor: 'rgba(255,255,255,0.88)',
     bottom: spacing.xs,
-    color: palette.ink,
+    color: '#202733',
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     left: spacing.xs,
     paddingHorizontal: spacing.xs,
     position: 'absolute',
@@ -334,20 +299,17 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   ratingText: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 13,
-    fontWeight: '800',
-  },
-  reviewerName: {
-    color: palette.muted,
-    fontSize: 12,
     fontWeight: '600',
   },
+  reviewerName: {
+    color: '#6D7480',
+    fontSize: 12,
+    fontWeight: '500',
+  },
   reviewText: {
-    color: palette.body,
-    fontSize: 13,
-    fontWeight: '400',
-    lineHeight: 19,
+    ...providerText.body,
   },
   replyActions: {
     flexDirection: 'row',
@@ -359,8 +321,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   replyButtonText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
   },
 });

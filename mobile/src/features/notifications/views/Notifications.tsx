@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import {
   Bell,
   Calendar,
@@ -6,11 +6,6 @@ import {
   Gift,
   MessageCircle,
 } from 'lucide-react-native';
-import {
-  Badge,
-  EmptyState,
-  TopBar,
-} from '../../../components/DesignKit';
 import { AppRole } from '../../../navigation/types';
 import {
   CustomerBadge,
@@ -23,6 +18,17 @@ import {
   CustomerSection,
   customerText,
 } from '../../../shared/components/CustomerUI';
+import {
+  ProviderBadge,
+  ProviderCard,
+  ProviderContent,
+  ProviderEmptyState,
+  ProviderHeader,
+  ProviderIconBlock,
+  ProviderScreen,
+  ProviderSection,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import { NotificationSummary } from '../../../shared/models/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useNotificationsViewModel } from '../viewModels/useNotificationsViewModel';
@@ -128,44 +134,48 @@ export function NotificationsScreen({
   }
 
   return (
-    <>
-      <TopBar
-        title="Notifications"
-        onBack={onBack}
-        right={
-          notificationsView.data.unreadCount > 0 ? (
-            <Badge label={`${notificationsView.data.unreadCount} new`} tone="success" />
-          ) : null
-        }
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Notifications"
+          subtitle="Updates about your provider workspace"
+          onBack={onBack}
+          right={
+            notificationsView.data.unreadCount > 0 ? (
+              <ProviderBadge label={`${notificationsView.data.unreadCount} new`} tone="success" />
+            ) : null
+          }
+        />
+        <ProviderSection>
           {notificationsView.data.visibleNotifications.map((item) => (
-            <Pressable
+            <ProviderCard
               key={item.notification.id}
-              style={[
-                styles.notificationCard,
-                item.isUnread && styles.notificationCardUnread,
-              ]}
               onPress={() => void openNotification(item.notification)}
+              selected={item.isUnread}
+              accessibilityLabel={`Open notification: ${item.title}`}
             >
-              <View style={styles.notificationIcon}>
-                <NotificationIcon kind={item.iconKind} />
+              <View style={styles.notificationCard}>
+                <ProviderIconBlock compact>
+                  <NotificationIcon color={palette.mintDeep} kind={item.iconKind} />
+                </ProviderIconBlock>
+                <View style={styles.flex}>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardBody}>{item.body}</Text>
+                  <Text style={styles.cardMeta}>{item.createdAtLabel}</Text>
+                </View>
+                {item.isUnread ? <View style={styles.notificationUnreadDot} /> : null}
               </View>
-              <View style={styles.flex}>
-                <Text style={styles.cardTitle}>{item.title}</Text>
-                <Text style={styles.cardBody}>{item.body}</Text>
-                <Text style={styles.cardMeta}>{item.createdAtLabel}</Text>
-              </View>
-              {item.isUnread ? <View style={styles.notificationUnreadDot} /> : null}
-            </Pressable>
+            </ProviderCard>
           ))}
           {notificationsView.data.isEmpty ? (
-            <EmptyState title="No notifications yet" body="We'll notify you when something arrives." />
+            <ProviderEmptyState
+              title="No notifications yet"
+              body="We'll notify you when something arrives."
+            />
           ) : null}
-        </View>
-      </ScrollView>
-    </>
+        </ProviderSection>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
@@ -191,38 +201,13 @@ const styles = StyleSheet.create({
     ...customerText.meta,
     marginTop: spacing.xs,
   },
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   notificationCard: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: 14,
-    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
-    padding: spacing.base,
-  },
-  notificationCardUnread: {
-    borderColor: palette.mint,
-  },
-  notificationIcon: {
-    alignItems: 'center',
-    backgroundColor: palette.ink,
-    borderRadius: 18,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
   },
   notificationUnreadDot: {
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintDeep,
     borderRadius: 5,
     height: 10,
     width: 10,
@@ -231,20 +216,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   cardBody: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    ...providerText.body,
+    marginTop: 2,
   },
   cardMeta: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 19,
+    ...providerText.meta,
+    marginTop: spacing.xs,
   },
 });

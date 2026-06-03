@@ -1,12 +1,15 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Upload } from 'lucide-react-native';
-import {
-  Field,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
-import { palette, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, spacing } from '../../../theme/serveaseDesign';
 import { MediaUploadBox } from '../../../shared/components/ScreenLayout';
+import {
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderTextField,
+} from '../../../shared/components/ProviderUI';
 import { useProviderReportIssueViewModel } from '../viewModels/useProviderReportIssueViewModel';
 
 type ProviderReportIssueScreenProps = {
@@ -45,21 +48,21 @@ export function ProviderReportIssueScreen({
   const { data } = reportIssue;
 
   return (
-    <>
-      <TopBar
-        title="Report Issue"
-        subtitle={bookingReference}
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <Field
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Report Issue"
+          subtitle={bookingReference}
+          onBack={onBack}
+        />
+        <ProviderCard style={styles.formCard}>
+          <ProviderTextField
             label="Issue subject"
             value={providerReportReason}
             onChangeText={onProviderReportReasonChange}
             placeholder="What happened?"
           />
-          <Field
+          <ProviderTextField
             label="Details"
             value={providerReportDetails}
             onChangeText={onProviderReportDetailsChange}
@@ -68,40 +71,25 @@ export function ProviderReportIssueScreen({
           />
           <MediaUploadBox
             imageUri={reportEvidencePhotoUri}
-            icon={<Upload color={palette.mint} size={32} strokeWidth={2} />}
+            icon={<Upload color={palette.mintDeep} size={32} strokeWidth={2} />}
             helper="Upload photos or videos"
             label={data.evidenceLabel}
             onPress={onPickEvidence}
             minHeight={132}
           />
-          <PrimaryButton
+          <ProviderButton
             label={data.submitLabel}
             onPress={() => void onSubmitReport()}
             disabled={!data.canSubmit}
           />
-        </View>
-      </ScrollView>
-    </>
+        </ProviderCard>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
+  formCard: {
     gap: spacing.md,
-    padding: spacing.md,
-  },
-  cardMeta: {
-    ...type.caption,
-    color: palette.muted,
-  },
-  linkText: {
-    color: palette.mint,
-    fontSize: 13,
-    fontWeight: '900',
   },
 });

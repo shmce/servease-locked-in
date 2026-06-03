@@ -1,13 +1,16 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import {
-  Card,
-  Field,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
-import { palette, spacing, type } from '../../../theme/serveaseDesign';
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderStickyFooter,
+  ProviderTextField,
+  providerText,
+} from '../../../shared/components/ProviderUI';
+import { palette } from '../../../theme/serveaseDesign';
 import { CurrentUserProfile } from '../../../shared/models/types';
-import { StickyFooter } from '../../../shared/components/ScreenLayout';
 import { useProviderEditProfileViewModel } from '../viewModels/useProviderEditProfileViewModel';
 
 type ProviderEditProfileScreenProps = {
@@ -43,39 +46,39 @@ export function ProviderEditProfileScreen({
 
   return (
     <>
-      <TopBar
-        title="Edit Profile"
-        subtitle="Update account and business details"
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withStickyFooter}>
-        <View style={styles.content}>
-          <Card>
-            <Field
+      <ProviderScreen bottomInset={148}>
+        <ProviderContent>
+          <ProviderHeader
+            title="Edit Profile"
+            subtitle="Update account and business details"
+            onBack={onBack}
+          />
+          <ProviderCard>
+            <ProviderTextField
               label="Full Name"
               value={profileFullName}
               onChangeText={onFullNameChange}
               placeholder="Your full name"
             />
-            <Field
+            <ProviderTextField
               label="Phone Number"
               value={profileContactNumber}
               onChangeText={onContactNumberChange}
               keyboardType="phone-pad"
               placeholder="+639000000000"
             />
-            <Field
+            <ProviderTextField
               label="Business Name"
               value={profileBusinessName}
               onChangeText={onBusinessNameChange}
               placeholder="Your provider business name"
             />
             <Text style={styles.noticeText}>{data.notice}</Text>
-          </Card>
-        </View>
-      </ScrollView>
-      <StickyFooter>
-        <PrimaryButton
+          </ProviderCard>
+        </ProviderContent>
+      </ProviderScreen>
+      <ProviderStickyFooter>
+        <ProviderButton
           label={data.saveButtonLabel}
           onPress={onSaveProfile}
           disabled={!data.canSave}
@@ -83,30 +86,20 @@ export function ProviderEditProfileScreen({
         <Text style={styles.footerLink} onPress={onBack}>
           Back to profile
         </Text>
-      </StickyFooter>
+      </ProviderStickyFooter>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withStickyFooter: {
-    backgroundColor: palette.white,
-    flexGrow: 1,
-    paddingBottom: 132,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   noticeText: {
-    ...type.caption,
-    color: palette.muted,
+    ...providerText.meta,
     textAlign: 'center',
   },
   footerLink: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
     textAlign: 'center',
   },
 });

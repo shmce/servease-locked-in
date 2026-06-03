@@ -15,12 +15,6 @@ import {
   User,
   Wallet,
 } from 'lucide-react-native';
-import {
-  EmptyState,
-  Pill,
-  Section,
-  TopBar,
-} from '../../../components/DesignKit';
 import { AppRole } from '../../../navigation/types';
 import {
   CustomerCard,
@@ -32,6 +26,17 @@ import {
   CustomerSection,
   customerText,
 } from '../../../shared/components/CustomerUI';
+import {
+  ProviderCard,
+  ProviderContent,
+  ProviderEmptyState,
+  ProviderHeader,
+  ProviderIconBlock,
+  ProviderPill,
+  ProviderScreen,
+  ProviderSection,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useHelpCenterViewModel } from '../viewModels/useHelpCenterViewModel';
 
@@ -181,31 +186,34 @@ export function HelpCenterScreen({
   }
 
   return (
-    <>
-      <View style={styles.helpHeader}>
-        <TopBar title="Help Center" green onBack={onBack} />
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Help Center"
+          subtitle="Find answers or contact support"
+          onBack={onBack}
+        />
         <View style={styles.helpSearch}>
-          <Search color="rgba(255,255,255,0.7)" size={16} strokeWidth={2.2} />
+          <Search color="#87919D" size={20} strokeWidth={2.1} />
           <TextInput
             style={styles.searchInput}
             value={help.data.query}
             onChangeText={help.setQuery}
             placeholder={help.data.searchPlaceholder}
-            placeholderTextColor="rgba(255,255,255,0.55)"
+            placeholderTextColor="#A0A7B2"
             returnKeyType="search"
             autoCapitalize="none"
           />
         </View>
-      </View>
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+
+        <ProviderSection title="Topics">
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.horizontalRail}
           >
             {help.data.categories.map((category) => (
-              <Pill
+              <ProviderPill
                 key={category}
                 label={category === 'all' ? 'All' : category}
                 selected={help.data.selectedCategory === category}
@@ -213,20 +221,21 @@ export function HelpCenterScreen({
               />
             ))}
           </ScrollView>
-          <Section title="Frequently Asked Questions">
-            {help.data.filteredFaq.map((item) => (
-              <Pressable
-                key={item.id}
-                style={[
-                  styles.faqCard,
-                  expandedFaqId === item.id && styles.faqCardOpen,
-                ]}
-                onPress={() => setExpandedFaqId(expandedFaqId === item.id ? null : item.id)}
-              >
+        </ProviderSection>
+
+        <ProviderSection title="Frequently Asked Questions">
+          {help.data.filteredFaq.map((item) => (
+            <ProviderCard
+              key={item.id}
+              onPress={() => setExpandedFaqId(expandedFaqId === item.id ? null : item.id)}
+              selected={expandedFaqId === item.id}
+              accessibilityLabel={`Toggle help article: ${item.question}`}
+            >
+              <View style={styles.faqCard}>
                 <View style={styles.rowBetween}>
-                  <View style={styles.faqIcon}>
-                    <HelpFaqIcon kind={item.iconKind} />
-                  </View>
+                  <ProviderIconBlock compact>
+                    <HelpFaqIcon color={palette.mintDeep} kind={item.iconKind} size={18} />
+                  </ProviderIconBlock>
                   <View style={styles.flex}>
                     <Text style={styles.cardTitle}>{item.question}</Text>
                     <Text style={styles.faqCategory}>{item.category}</Text>
@@ -235,16 +244,19 @@ export function HelpCenterScreen({
                 {expandedFaqId === item.id ? (
                   <Text style={styles.cardBody}>{item.answer}</Text>
                 ) : null}
-              </Pressable>
-            ))}
-            {help.data.isEmpty ? (
-              <EmptyState title="No results found" body="Try another search term." />
-            ) : null}
-          </Section>
-          {supportPanel}
-        </View>
-      </ScrollView>
-    </>
+              </View>
+            </ProviderCard>
+          ))}
+          {help.data.isEmpty ? (
+            <ProviderEmptyState
+              title="No results found"
+              body="Try another search term."
+            />
+          ) : null}
+        </ProviderSection>
+        {supportPanel}
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
@@ -317,63 +329,39 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     paddingTop: spacing.md,
   },
-  helpHeader: {
-    backgroundColor: palette.mint,
-  },
   helpSearch: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    borderRadius: radius.md,
+    backgroundColor: palette.white,
+    borderColor: '#EEF0F2',
+    borderRadius: radius.lg,
+    borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.md,
-    marginHorizontal: spacing.md,
+    gap: spacing.md,
+    minHeight: 58,
     paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
   },
   searchInput: {
-    color: palette.white,
+    color: '#202733',
     flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '400',
+    letterSpacing: 0,
     paddingVertical: 0,
-  },
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
   },
   horizontalRail: {
     gap: spacing.sm,
-    paddingRight: spacing.md,
+    paddingRight: spacing.lg,
   },
   faqCard: {
     gap: spacing.md,
-    paddingVertical: spacing.md,
-  },
-  faqCardOpen: {
-    borderBottomColor: palette.mintSoft,
-    borderBottomWidth: 1,
-  },
-  faqIcon: {
-    alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.sm,
-    height: 32,
-    justifyContent: 'center',
-    width: 32,
   },
   faqCategory: {
     alignSelf: 'flex-start',
     backgroundColor: palette.mintSoft,
-    borderRadius: radius.sm,
-    color: palette.mint,
+    borderRadius: radius.pill,
+    color: palette.mintDeep,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     marginTop: spacing.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
@@ -389,14 +377,14 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '700',
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   cardBody: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    ...providerText.body,
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    paddingTop: spacing.md,
   },
 });

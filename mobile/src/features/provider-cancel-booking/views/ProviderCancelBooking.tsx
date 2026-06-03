@@ -1,11 +1,14 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import {
-  Card,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
-import { StickyFooter } from '../../../shared/components/ScreenLayout';
+import {
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderStickyFooter,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import { useProviderCancelBookingViewModel } from '../viewModels/useProviderCancelBookingViewModel';
 
 type ProviderCancelBookingScreenProps = {
@@ -35,20 +38,20 @@ export function ProviderCancelBookingScreen({
 
   return (
     <>
-      <TopBar
-        title="Cancel Booking"
-        subtitle={bookingReference}
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withStickyFooter}>
-        <View style={styles.content}>
-          <View style={styles.policyCard}>
+      <ProviderScreen bottomInset={148}>
+        <ProviderContent>
+          <ProviderHeader
+            title="Cancel Booking"
+            subtitle={bookingReference}
+            onBack={onBack}
+          />
+          <ProviderCard>
             <Text style={styles.cardTitle}>Cancellation review</Text>
             <Text style={styles.manageCopy}>
               Cancelling updates the booking status immediately through the existing backend API.
             </Text>
-          </View>
-          <Card>
+          </ProviderCard>
+          <ProviderCard>
             <Text style={styles.cardTitle}>Reason</Text>
             <View style={styles.radioGroup}>
               {data.reasonRows.map((row) => (
@@ -65,11 +68,11 @@ export function ProviderCancelBookingScreen({
                 </Pressable>
               ))}
             </View>
-          </Card>
-        </View>
-      </ScrollView>
-      <StickyFooter>
-        <PrimaryButton
+          </ProviderCard>
+        </ProviderContent>
+      </ProviderScreen>
+      <ProviderStickyFooter>
+        <ProviderButton
           label="Cancel Booking"
           variant="danger"
           onPress={() => void onCancelBooking()}
@@ -78,38 +81,19 @@ export function ProviderCancelBookingScreen({
         <Text style={styles.footerLink} onPress={onKeepBooking}>
           Keep booking
         </Text>
-      </StickyFooter>
+      </ProviderStickyFooter>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withStickyFooter: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 148,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
-  policyCard: {
-    backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    padding: spacing.lg,
-  },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   manageCopy: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    ...providerText.body,
     marginTop: spacing.xs,
   },
   radioGroup: {
@@ -132,21 +116,21 @@ const styles = StyleSheet.create({
     width: 20,
   },
   radioInner: {
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintDeep,
     borderRadius: radius.pill,
     height: 10,
     width: 10,
   },
   radioLabel: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '500',
   },
   footerLink: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
     textAlign: 'center',
   },
 });
