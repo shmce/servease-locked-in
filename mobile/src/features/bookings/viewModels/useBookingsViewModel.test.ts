@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
@@ -123,6 +125,63 @@ describe('buildBookingsViewModel', () => {
 
     assert.equal(viewModel.data.isEmpty, true);
     assert.equal(viewModel.data.emptyState.title, 'No completed bookings');
+    assert.equal(viewModel.data.pagination.totalItems, 0);
+    assert.equal(viewModel.data.pagination.totalPages, 1);
+    assert.equal(viewModel.data.pagination.hasNextPage, false);
+    assert.equal(viewModel.data.pagination.hasPreviousPage, false);
+  });
+
+  it('shows five active bookings on each bookings page', () => {
+    const bookings = Array.from({ length: 7 }, (_, index) =>
+      booking(`active-${index + 1}`, 'confirmed'),
+    );
+
+    const firstPage = buildBookingsViewModel({
+      bookingFilter: 'active',
+      bookings,
+      page: 1,
+    });
+    const secondPage = buildBookingsViewModel({
+      bookingFilter: 'active',
+      bookings,
+      page: 2,
+    });
+
+    assert.deepEqual(
+      firstPage.data.cardRows.map((row) => row.id),
+      ['active-1', 'active-2', 'active-3', 'active-4', 'active-5'],
+    );
+    assert.deepEqual(
+      secondPage.data.cardRows.map((row) => row.id),
+      ['active-6', 'active-7'],
+    );
+    assert.equal(firstPage.data.pagination.pageLabel, 'Page 1 of 2');
+    assert.equal(firstPage.data.pagination.hasNextPage, true);
+    assert.equal(secondPage.data.pagination.hasPreviousPage, true);
+  });
+
+  it('shows five completed bookings per page', () => {
+    const viewModel = buildBookingsViewModel({
+      bookingFilter: 'completed',
+      bookings: Array.from({ length: 6 }, (_, index) =>
+        booking(`completed-${index + 1}`, 'completed'),
+      ),
+      page: 1,
+    });
+
+    assert.equal(viewModel.data.cardRows.length, 5);
+    assert.equal(viewModel.data.visibleBookings.length, 6);
+    assert.equal(viewModel.data.pagination.totalPages, 2);
+  });
+
+  it('resets the hook pagination page when the booking tab changes', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/features/bookings/viewModels/useBookingsViewModel.ts'),
+      'utf8',
+    );
+
+    assert.match(source, /useEffect\(\(\) => \{\s*setCurrentPage\(1\);/);
+    assert.match(source, /\}, \[bookingFilter\]\);/);
   });
 });
 

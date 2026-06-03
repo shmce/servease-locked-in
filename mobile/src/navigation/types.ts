@@ -54,6 +54,7 @@ export type DetailScreen =
   | 'providerServiceReceipt'
   | 'providerPayoutManagement'
   | 'providerRequestPayout'
+  | 'providerReviews'
   | 'providerEarnings'
   | 'providerNotifications'
   | 'providerInsights'

@@ -2,12 +2,17 @@
 // Spacing/radius/type must use the exported theme tokens.
 import {
   Bell,
+  CalendarDays,
+  CheckCircle2,
   ChevronRight,
+  Clock3,
+  MapPin,
   Navigation,
   Play,
   Search,
   Star,
   User,
+  WalletCards,
 } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { AppRole, AppScreen } from '../../../navigation/types';
@@ -15,7 +20,9 @@ import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useProviderHomeViewModel } from '../viewModels/useProviderHomeViewModel';
 import type {
   ProviderHomeActiveBooking,
+  ProviderHomeDashboardStatus,
   ProviderHomeHero,
+  ProviderHomePerformanceCard,
 } from '../viewModels/providerHomeModel';
 import type {
   BookingSummary,
@@ -29,8 +36,6 @@ import {
   ProviderContent,
   ProviderEmptyState,
   ProviderHeader,
-  ProviderIconBlock,
-  ProviderMetricCard,
   ProviderScreen,
   ProviderSection,
   providerText,
@@ -94,13 +99,6 @@ export function ProviderHomeScreen({
     navigate(screen, 'provider');
   }
 
-  const agendaItems = model.hero.kind === 'job'
-    ? [
-        { type: 'next' as const, hero: model.hero },
-        ...model.activeBookings.map((item) => ({ type: 'booking' as const, item })),
-      ]
-    : model.activeBookings.map((item) => ({ type: 'booking' as const, item }));
-
   return (
     <ProviderScreen>
       <ProviderContent>
@@ -118,52 +116,47 @@ export function ProviderHomeScreen({
                   : 'Notifications'
               }
             >
-              <Bell color="#4B5563" size={21} strokeWidth={2.2} />
+              <Bell color={palette.body} size={21} strokeWidth={2.2} />
               {unreadCount > 0 ? <View style={styles.heroUnreadDot} /> : null}
             </Pressable>
           }
         />
+        <ProviderStatusPill status={model.dashboardStatus} />
         <Pressable
           style={styles.searchBar}
           onPress={() => navigate('bookings', 'provider')}
           accessibilityRole="button"
-          accessibilityLabel="Search provider bookings"
+          accessibilityLabel="Search provider bookings and requests"
         >
-          <Search color="#87919D" size={20} strokeWidth={2.1} />
-          <Text style={styles.searchText}>Search bookings, requests...</Text>
+          <Search color={palette.faint} size={20} strokeWidth={2.1} />
+          <Text style={styles.searchText}>Search bookings</Text>
         </Pressable>
+
+        <DashboardActionCard hero={model.hero} onOpen={openHeroAction} />
 
         <ProviderSection
           title="Today's Agenda"
           action={
-            <Text style={styles.linkText} onPress={() => navigate('bookings', 'provider')}>
-              View all
-            </Text>
+            <Pressable
+              onPress={() => navigate('bookings', 'provider')}
+              accessibilityRole="button"
+              accessibilityLabel="View all provider bookings"
+            >
+              <Text style={styles.linkText}>View all</Text>
+            </Pressable>
           }
         >
-          {agendaItems.map((item, index) =>
-            item.type === 'next' ? (
-              <NextAgendaRow
-                key={item.hero.bookingId}
-                hero={item.hero}
-                onOpen={openHeroAction}
-              />
-            ) : (
-              <AgendaBookingRow
-                key={item.item.id}
-                item={item.item}
-                isFirst={index === 0}
-                onPress={() => openBooking(item.item.booking, 'providerBookingDetail')}
-              />
-            ),
-          )}
-          {model.hero.kind === 'requests' ? (
-            <PendingRequestsRow hero={model.hero} onOpen={openHeroAction} />
-          ) : null}
-          {!agendaItems.length && model.hero.kind !== 'requests' ? (
+          {model.activeBookings.map((item) => (
+            <AgendaBookingRow
+              key={item.id}
+              item={item}
+              onPress={() => openBooking(item.booking, 'providerBookingDetail')}
+            />
+          ))}
+          {!model.activeBookings.length ? (
             <ProviderEmptyState
-              title="No appointments today"
-              body="Confirmed and in-progress jobs appear here."
+              title="No other appointments today"
+              body="Confirmed and in-progress jobs that are not already highlighted appear here."
             />
           ) : null}
         </ProviderSection>
@@ -171,12 +164,13 @@ export function ProviderHomeScreen({
         <ProviderSection
           title="Performance"
           action={
-            <Text
-              style={styles.linkText}
+            <Pressable
               onPress={() => navigate('providerEarnings', 'provider')}
+              accessibilityRole="button"
+              accessibilityLabel="View provider earnings"
             >
-              View earnings
-            </Text>
+              <Text style={styles.linkText}>View earnings</Text>
+            </Pressable>
           }
         >
           <Pressable
@@ -185,17 +179,9 @@ export function ProviderHomeScreen({
             accessibilityRole="button"
             accessibilityLabel="Open provider earnings"
           >
-            <ProviderMetricCard label="Today" value={model.todayEarningsLabel} />
-            <ProviderMetricCard label="This week" value={model.weekEarningsLabel} />
-            <ProviderCard style={styles.ratingCard}>
-              <View style={styles.ratingLine}>
-                <Star color={palette.mintDeep} fill={palette.mintDeep} size={16} />
-                <Text style={styles.metricValue} numberOfLines={1}>
-                  {model.ratingLabel}
-                </Text>
-              </View>
-              <Text style={styles.metricLabel}>Rating</Text>
-            </ProviderCard>
+            {model.performanceCards.map((card) => (
+              <PerformanceMetricCard key={card.id} card={card} />
+            ))}
           </Pressable>
         </ProviderSection>
 
@@ -211,97 +197,244 @@ export function ProviderHomeScreen({
   );
 }
 
-function NextAgendaRow({
+function ProviderStatusPill({ status }: { status: ProviderHomeDashboardStatus }) {
+  return (
+    <View
+      style={styles.statusPill}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={status.accessibilityLabel}
+    >
+      <View style={styles.statusIcon}>
+        <CheckCircle2 color={palette.mintDeep} size={18} strokeWidth={2.3} />
+      </View>
+      <View style={styles.flex}>
+        <Text style={styles.statusLabel} numberOfLines={1}>
+          {status.label}
+        </Text>
+        <Text style={styles.statusHelper} numberOfLines={1}>
+          {status.helperLabel}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function DashboardActionCard({
   hero,
   onOpen,
 }: {
-  hero: Extract<ProviderHomeHero, { kind: 'job' }>;
+  hero: ProviderHomeHero;
   onOpen: (hero: ProviderHomeHero, screen: AppScreen) => void;
 }) {
-  const icon = hero.primaryActionLabel === 'Start Service' ? (
-    <Play color={palette.white} fill={palette.white} size={spacing.lg} />
-  ) : (
-    <Navigation color={palette.white} size={spacing.lg} />
-  );
+  if (hero.kind === 'job') {
+    const icon = hero.primaryActionLabel === 'Navigate' ? (
+      <Navigation color={palette.white} size={spacing.lg} />
+    ) : (
+      <Play color={palette.white} fill={palette.white} size={spacing.lg} />
+    );
 
-  return (
-    <ProviderCard style={styles.nextAgendaRow}>
-      <View style={styles.agendaTopLine}>
-        <View style={styles.nowDot} />
-        <Text style={styles.agendaLabel}>Next appointment</Text>
-      </View>
-      <View style={styles.agendaCopy}>
-        <Text style={styles.agendaMeta} numberOfLines={1}>
-          {hero.meta}
-        </Text>
-        <Text style={styles.agendaTitle} numberOfLines={2}>
+    return (
+      <ProviderCard style={styles.dashboardCard}>
+        <View style={styles.dashboardTopLine}>
+          <View style={styles.eyebrowRow}>
+            <Clock3 color={palette.mintDeep} size={16} strokeWidth={2.3} />
+            <Text style={styles.eyebrowText} numberOfLines={1}>
+              {hero.eyebrow}
+            </Text>
+          </View>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText} numberOfLines={1}>
+              {hero.statusLabel}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.dashboardCopy}>
+          <Text style={styles.jobTime} numberOfLines={1}>
+            {hero.timeLabel}
+          </Text>
+          <Text style={styles.dashboardTitle} numberOfLines={2}>
+            {hero.title}
+          </Text>
+        </View>
+
+        <View style={styles.detailStack}>
+          <View style={styles.detailRow}>
+            <User color={palette.muted} size={16} strokeWidth={2.2} />
+            <Text style={styles.detailText} numberOfLines={1}>
+              {hero.customerLabel}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <MapPin color={palette.muted} size={16} strokeWidth={2.2} />
+            <Text style={styles.detailText} numberOfLines={1}>
+              {hero.meta}
+            </Text>
+          </View>
+        </View>
+
+        <Pressable
+          style={styles.primaryAction}
+          onPress={() => onOpen(hero, hero.primaryActionScreen)}
+          accessibilityRole="button"
+          accessibilityLabel={`${hero.primaryActionLabel} for ${hero.title}`}
+        >
+          {icon}
+          <Text style={styles.primaryActionText} numberOfLines={1}>
+            {hero.primaryActionLabel}
+          </Text>
+        </Pressable>
+      </ProviderCard>
+    );
+  }
+
+  if (hero.kind === 'requests') {
+    return (
+      <ProviderCard style={styles.dashboardCard}>
+        <View style={styles.dashboardTopLine}>
+          <View style={styles.eyebrowRow}>
+            <User color={palette.mintDeep} size={16} strokeWidth={2.3} />
+            <Text style={styles.eyebrowText} numberOfLines={1}>
+              {hero.eyebrow}
+            </Text>
+          </View>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText} numberOfLines={1}>
+              {hero.countLabel}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.dashboardTitle} numberOfLines={2}>
           {hero.title}
         </Text>
-        <Text style={styles.agendaSubtitle} numberOfLines={1}>
+        <Text style={styles.dashboardSubtitle} numberOfLines={2}>
           {hero.subtitle}
         </Text>
+
+        <Pressable
+          style={styles.primaryAction}
+          onPress={() => onOpen(hero, hero.primaryActionScreen)}
+          accessibilityRole="button"
+          accessibilityLabel="Review provider booking requests"
+        >
+          <User color={palette.white} size={spacing.lg} strokeWidth={2.2} />
+          <Text style={styles.primaryActionText} numberOfLines={1}>
+            {hero.primaryActionLabel}
+          </Text>
+        </Pressable>
+      </ProviderCard>
+    );
+  }
+
+  return (
+    <ProviderCard style={styles.dashboardCard}>
+      <View style={styles.dashboardTopLine}>
+        <View style={styles.eyebrowRow}>
+          <CalendarDays color={palette.mintDeep} size={16} strokeWidth={2.3} />
+          <Text style={styles.eyebrowText} numberOfLines={1}>
+            {hero.eyebrow}
+          </Text>
+        </View>
+        <View style={styles.statusBadge}>
+          <Text style={styles.statusBadgeText} numberOfLines={1}>
+            Open
+          </Text>
+        </View>
       </View>
-      <Pressable
-        style={styles.primaryAction}
-        onPress={() => onOpen(hero, hero.primaryActionScreen)}
-        accessibilityRole="button"
-      >
-        {icon}
-        <Text style={styles.primaryActionText}>{hero.primaryActionLabel}</Text>
-      </Pressable>
+
+      <Text style={styles.dashboardTitle} numberOfLines={2}>
+        {hero.title}
+      </Text>
+      <Text style={styles.dashboardSubtitle} numberOfLines={2}>
+        {hero.subtitle}
+      </Text>
+
+      <View style={styles.actionRow}>
+        <Pressable
+          style={[styles.primaryAction, styles.actionRowButton]}
+          onPress={() => onOpen(hero, hero.primaryActionScreen)}
+          accessibilityRole="button"
+          accessibilityLabel={hero.primaryActionLabel}
+        >
+          <CalendarDays color={palette.white} size={spacing.lg} strokeWidth={2.2} />
+          <Text style={styles.primaryActionText} numberOfLines={1}>
+            {hero.primaryActionLabel}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.secondaryAction, styles.actionRowButton]}
+          onPress={() => onOpen(hero, hero.secondaryActionScreen)}
+          accessibilityRole="button"
+          accessibilityLabel={hero.secondaryActionLabel}
+        >
+          <Text style={styles.secondaryActionText} numberOfLines={1}>
+            {hero.secondaryActionLabel}
+          </Text>
+        </Pressable>
+      </View>
     </ProviderCard>
   );
 }
 
 function AgendaBookingRow({
   item,
-  isFirst,
   onPress,
 }: {
   item: ProviderHomeActiveBooking;
-  isFirst: boolean;
   onPress: () => void;
 }) {
   return (
     <ProviderCard
-      style={[styles.agendaRow, !isFirst && styles.agendaRowWithDivider]}
+      style={styles.agendaRow}
       onPress={onPress}
       accessibilityLabel={`Open ${item.summary}`}
     >
-      <View style={styles.agendaBullet} />
-      <Text style={styles.agendaText} numberOfLines={2}>
-        {item.summary}
-      </Text>
+      <View style={styles.timePill}>
+        <Text style={styles.timePillText} numberOfLines={1}>
+          {item.timeLabel}
+        </Text>
+      </View>
+      <View style={styles.agendaCopy}>
+        <Text style={styles.agendaTitle} numberOfLines={1}>
+          {item.serviceLabel}
+        </Text>
+        <Text style={styles.agendaSubtitle} numberOfLines={1}>
+          {item.customerLabel}
+        </Text>
+      </View>
       <ChevronRight color={palette.mintDeep} size={18} />
     </ProviderCard>
   );
 }
 
-function PendingRequestsRow({
-  hero,
-  onOpen,
-}: {
-  hero: Extract<ProviderHomeHero, { kind: 'requests' }>;
-  onOpen: (hero: ProviderHomeHero, screen: AppScreen) => void;
-}) {
+function PerformanceMetricCard({ card }: { card: ProviderHomePerformanceCard }) {
+  const icon = card.id === 'rating' ? (
+    <Star color={palette.mintDeep} fill={palette.mintDeep} size={16} />
+  ) : (
+    <WalletCards color={palette.mintDeep} size={16} strokeWidth={2.2} />
+  );
+
   return (
-    <ProviderCard
-      style={styles.pendingRow}
-      onPress={() => onOpen(hero, hero.primaryActionScreen)}
-      accessibilityLabel={hero.title}
-    >
-      <ProviderIconBlock compact>
-        <User color={palette.mintDeep} size={20} strokeWidth={2.2} />
-      </ProviderIconBlock>
-      <View style={styles.flex}>
-        <Text style={styles.agendaTitle} numberOfLines={1}>
-          {hero.title}
-        </Text>
-        <Text style={styles.agendaSubtitle} numberOfLines={2}>
-          {hero.subtitle}
+    <ProviderCard style={styles.metricCard} accessibilityLabel={card.accessibilityLabel}>
+      <View style={styles.metricHeader}>
+        {icon}
+        <Text style={styles.metricLabel} numberOfLines={1}>
+          {card.label}
         </Text>
       </View>
-      <ChevronRight color={palette.mintDeep} size={18} />
+      <Text
+        style={styles.metricValue}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+      >
+        {card.value}
+      </Text>
+      <Text style={styles.metricMeta} numberOfLines={1}>
+        {card.meta}
+      </Text>
     </ProviderCard>
   );
 }
@@ -313,7 +446,7 @@ const styles = StyleSheet.create({
   notificationButton: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: '#EEF0F2',
+    borderColor: palette.lineSoft,
     borderRadius: radius.md,
     borderWidth: 1,
     height: 48,
@@ -335,8 +468,8 @@ const styles = StyleSheet.create({
   searchBar: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: '#EEF0F2',
-    borderRadius: radius.lg,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
@@ -344,45 +477,121 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.base,
   },
   searchText: {
-    color: '#8B95A1',
+    color: palette.faint,
     flex: 1,
     fontSize: 15,
     fontWeight: '400',
     letterSpacing: 0,
     lineHeight: 20,
   },
-  nextAgendaRow: {
+  statusPill: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: palette.mintSoft,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
     gap: spacing.md,
+    minHeight: 52,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
   },
-  agendaTopLine: {
+  statusIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderRadius: radius.pill,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+  },
+  statusLabel: {
+    color: palette.mintDeep,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
+  statusHelper: {
+    color: palette.body,
+    fontSize: 13,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 18,
+  },
+  dashboardCard: {
+    borderRadius: radius.md,
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  dashboardTopLine: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  eyebrowRow: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
     gap: spacing.xs,
+    minWidth: 0,
   },
-  nowDot: {
-    backgroundColor: palette.mintDeep,
-    borderRadius: radius.pill,
-    height: 8,
-    width: 8,
-  },
-  agendaLabel: {
+  eyebrowText: {
     color: palette.mintDeep,
+    flex: 1,
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0,
     lineHeight: 18,
   },
-  agendaCopy: {
+  statusBadge: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    flexShrink: 0,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  statusBadgeText: {
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 16,
+  },
+  dashboardCopy: {
     gap: spacing.xs,
   },
-  agendaMeta: {
-    ...providerText.meta,
+  jobTime: {
+    color: palette.ink,
+    fontSize: 30,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 36,
   },
-  agendaTitle: {
-    ...providerText.title,
+  dashboardTitle: {
+    color: palette.ink,
+    fontSize: 20,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 26,
   },
-  agendaSubtitle: {
+  dashboardSubtitle: {
+    ...providerText.body,
+  },
+  detailStack: {
+    gap: spacing.sm,
+  },
+  detailRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minWidth: 0,
+  },
+  detailText: {
     ...providerText.meta,
+    flex: 1,
+    minWidth: 0,
   },
   primaryAction: {
     alignItems: 'center',
@@ -393,40 +602,44 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     justifyContent: 'center',
     minHeight: 48,
+    minWidth: 0,
     paddingHorizontal: spacing.base,
   },
   primaryActionText: {
     color: palette.white,
+    flexShrink: 1,
     fontSize: 15,
     fontWeight: '600',
+    letterSpacing: 0,
     lineHeight: 20,
   },
-  metricGrid: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  ratingCard: {
-    flex: 1,
-    minHeight: 94,
-  },
-  ratingLine: {
+  secondaryAction: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.xs,
+    alignSelf: 'stretch',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+    minWidth: 0,
+    paddingHorizontal: spacing.base,
   },
-  metricValue: {
-    color: '#202733',
-    fontSize: 22,
+  secondaryActionText: {
+    color: palette.ink,
+    flexShrink: 1,
+    fontSize: 15,
     fontWeight: '600',
     letterSpacing: 0,
-    lineHeight: 28,
+    lineHeight: 20,
   },
-  metricLabel: {
-    color: '#6D7480',
-    fontSize: 13,
-    fontWeight: '400',
-    letterSpacing: 0,
-    lineHeight: 18,
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minWidth: 0,
+  },
+  actionRowButton: {
+    flex: 1,
   },
   linkText: {
     ...providerText.action,
@@ -435,28 +648,74 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
-    minHeight: 62,
+    minHeight: 70,
   },
-  agendaRowWithDivider: {
-    borderTopColor: palette.lineSoft,
-    borderTopWidth: 1,
+  timePill: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    flexShrink: 0,
+    justifyContent: 'center',
+    minHeight: 34,
+    minWidth: 74,
+    paddingHorizontal: spacing.sm,
   },
-  pendingRow: {
+  timePillText: {
+    color: palette.mintDeep,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
+  },
+  agendaCopy: {
+    flex: 1,
+    gap: spacing.xs,
+    minWidth: 0,
+  },
+  agendaTitle: {
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  agendaSubtitle: {
+    ...providerText.meta,
+  },
+  metricGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  metricCard: {
+    borderRadius: radius.sm,
+    flexBasis: '31%',
+    flexGrow: 1,
+    minHeight: 112,
+    minWidth: 104,
+    padding: spacing.md,
+  },
+  metricHeader: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 72,
+    gap: spacing.xs,
+    minWidth: 0,
   },
-  agendaBullet: {
-    backgroundColor: palette.mintSoft,
-    borderColor: '#A7E5C2',
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    height: 12,
-    width: 12,
+  metricValue: {
+    color: palette.ink,
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 25,
+    minWidth: 0,
   },
-  agendaText: {
-    ...providerText.body,
+  metricLabel: {
+    color: palette.body,
     flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
+  },
+  metricMeta: {
+    ...providerText.meta,
   },
 });

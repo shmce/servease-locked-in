@@ -74,6 +74,7 @@ type ProviderRendererName =
   | 'profileView'
   | 'reportIssue'
   | 'requestPayout'
+  | 'reviews'
   | 'security'
   | 'serviceCompleted'
   | 'serviceInProgress'
@@ -86,7 +87,10 @@ type ProviderRendererName =
 export type AppRouterRenderers = {
   auth: () => ReactNode;
   customer: Record<CustomerRendererName, () => ReactNode>;
-  customerAllServices: (title: string) => ReactNode;
+  customerAllServices: (
+    title: string,
+    mode?: 'all' | 'recommended' | 'search',
+  ) => ReactNode;
   provider: Record<ProviderRendererName, () => ReactNode>;
 };
 
@@ -282,9 +286,9 @@ function renderCustomerRoute(
     case 'customerCategory':
       return renderers.customer.category();
     case 'customerAllServices':
-      return renderers.customerAllServices('All Services');
+      return renderers.customerAllServices('All Services', 'all');
     case 'customerRecommendedServices':
-      return renderers.customerAllServices('Recommended Services');
+      return renderers.customerAllServices('Recommended Services', 'recommended');
     case 'customerTopProviders':
       return renderers.customer.customerTopProviders();
     case 'customerProviderProfile':
@@ -292,7 +296,7 @@ function renderCustomerRoute(
     case 'customerBookingForm':
       return renderers.customer.bookingForm();
     case 'customerSearchResults':
-      return renderers.customerAllServices('Search Results');
+      return renderers.customerAllServices('Search Results', 'search');
     case 'customerProfile':
       return renderers.customer.profile();
     case 'customerSettings':
@@ -364,6 +368,8 @@ function renderProviderRoute(
       return renderers.provider.payoutManagement();
     case 'providerRequestPayout':
       return renderers.provider.requestPayout();
+    case 'providerReviews':
+      return renderers.provider.reviews();
     case 'providerNotifications':
       return renderers.provider.notifications();
     case 'providerInsights':

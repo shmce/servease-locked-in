@@ -75,7 +75,7 @@ export function BookingsScreen({
     bookings,
     bookingFilter,
   });
-  const { data } = bookingsList;
+  const { data, actions } = bookingsList;
   const showSkeletons = isLoading && bookings.length === 0;
   const isRefreshing = busyAction === 'refresh';
 
@@ -174,9 +174,73 @@ export function BookingsScreen({
                 onPress={handleHelperPress}
               />
             ) : null}
+
+            {!showSkeletons && !data.isEmpty && data.pagination.totalPages > 1 ? (
+              <PaginationControls
+                pageLabel={data.pagination.pageLabel}
+                hasPreviousPage={data.pagination.hasPreviousPage}
+                hasNextPage={data.pagination.hasNextPage}
+                onPrevious={actions.goToPreviousPage}
+                onNext={actions.goToNextPage}
+              />
+            ) : null}
           </View>
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+function PaginationControls({
+  pageLabel,
+  hasPreviousPage,
+  hasNextPage,
+  onPrevious,
+  onNext,
+}: {
+  pageLabel: string;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <View style={styles.paginationRow}>
+      <Pressable
+        style={[styles.paginationButton, !hasPreviousPage && styles.paginationButtonDisabled]}
+        onPress={onPrevious}
+        disabled={!hasPreviousPage}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !hasPreviousPage }}
+        accessibilityLabel="Previous bookings page"
+      >
+        <Text
+          style={[
+            styles.paginationButtonText,
+            !hasPreviousPage && styles.paginationButtonTextDisabled,
+          ]}
+        >
+          Previous
+        </Text>
+      </Pressable>
+      <Text style={styles.paginationLabel}>{pageLabel}</Text>
+      <Pressable
+        style={[styles.paginationButton, !hasNextPage && styles.paginationButtonDisabled]}
+        onPress={onNext}
+        disabled={!hasNextPage}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !hasNextPage }}
+        accessibilityLabel="Next bookings page"
+      >
+        <Text
+          style={[
+            styles.paginationButtonText,
+            !hasNextPage && styles.paginationButtonTextDisabled,
+          ]}
+        >
+          Next
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -430,6 +494,44 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: spacing.md,
+  },
+  paginationRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+    paddingTop: spacing.xs,
+  },
+  paginationButton: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: '#DCEEE5',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    minHeight: 38,
+    minWidth: 88,
+    paddingHorizontal: spacing.sm,
+    justifyContent: 'center',
+  },
+  paginationButtonDisabled: {
+    opacity: 0.48,
+  },
+  paginationButtonText: {
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  paginationButtonTextDisabled: {
+    color: '#9AA3AE',
+  },
+  paginationLabel: {
+    color: '#6D7480',
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0,
+    textAlign: 'center',
   },
   bookingCard: {
     backgroundColor: palette.white,

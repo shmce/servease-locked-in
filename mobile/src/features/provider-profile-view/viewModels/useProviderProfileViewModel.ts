@@ -11,6 +11,8 @@ type ProviderProfileViewModelInput = {
   ownReviews: ReviewSummary[];
 };
 
+const reviewPreviewLimit = 3;
+
 export function useProviderProfileViewModel({
   profile,
   providerPortfolioMedia,
@@ -42,7 +44,7 @@ export function buildProviderProfileViewModel({
   const reviewCount = profile?.providerProfile?.reviewCount ?? 0;
   const profileSummary = `${verificationStatus} · ${ratingLabel} rating · ${reviewCount} reviews`;
   const portfolioPreview = providerPortfolioMedia.slice(0, 4);
-  const reviewCards = ownReviews.slice(0, 10).map((review) => ({
+  const reviewCards = ownReviews.slice(0, reviewPreviewLimit).map((review) => ({
     id: review.id,
     ratingLabel: review.rating.toFixed(1),
     reviewerName: review.reviewerFullName ?? 'Customer',
@@ -73,6 +75,7 @@ export function buildProviderProfileViewModel({
       ],
       portfolioPreview,
       reviewCards,
+      hasMoreReviews: ownReviews.length > reviewPreviewLimit,
       hasPortfolioMedia: providerPortfolioMedia.length > 0,
       hasReviews: ownReviews.length > 0,
     },

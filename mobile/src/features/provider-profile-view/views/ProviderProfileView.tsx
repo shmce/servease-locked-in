@@ -30,6 +30,7 @@ type ProviderProfileViewScreenProps = {
   onBack: () => void;
   onEditProfile: () => void;
   onManagePortfolio: () => void;
+  onViewAllReviews: () => void;
   onStartReviewReply: (reviewId: string) => void;
   onReviewReplyTextChange: (value: string) => void;
   onCancelReviewReply: () => void;
@@ -52,6 +53,7 @@ export function ProviderProfileViewScreen({
   onBack,
   onEditProfile,
   onManagePortfolio,
+  onViewAllReviews,
   onStartReviewReply,
   onReviewReplyTextChange,
   onCancelReviewReply,
@@ -140,7 +142,20 @@ export function ProviderProfileViewScreen({
           />
         </ProviderSection>
 
-        <ProviderSection title="Customer Reviews">
+        <ProviderSection
+          title="Customer Reviews"
+          action={
+            data.hasMoreReviews ? (
+              <Pressable
+                onPress={onViewAllReviews}
+                accessibilityRole="button"
+                accessibilityLabel="View all customer reviews"
+              >
+                <Text style={styles.sectionAction}>View all</Text>
+              </Pressable>
+            ) : null
+          }
+        >
           {data.hasReviews ? (
             data.reviewCards.map((review) => (
               <ProviderCard key={review.id}>
@@ -310,6 +325,9 @@ const styles = StyleSheet.create({
   },
   reviewText: {
     ...providerText.body,
+  },
+  sectionAction: {
+    ...providerText.action,
   },
   replyActions: {
     flexDirection: 'row',

@@ -1,6 +1,10 @@
 import { useMemo } from 'react';
-import { buildProviderHomeViewModel } from './providerHomeModel';
+import {
+  buildProviderHomePerformanceCards,
+  buildProviderHomeViewModel,
+} from './providerHomeModel';
 import type {
+  ProviderHomePerformanceCard,
   ProviderHomeViewModel,
 } from './providerHomeModel';
 import type {
@@ -9,12 +13,12 @@ import type {
   PaymentSummary,
   ProviderDashboardSummary,
 } from '../../../shared/models/types';
-import { formatMoney } from '../../../shared/utils/booking';
 
 type ProviderHomeViewModelResult = {
   data: ProviderHomeViewModel & {
     businessName: string;
     ratingLabel: string;
+    performanceCards: ProviderHomePerformanceCard[];
     todayEarningsLabel: string;
     todayLabel: string;
     weekEarningsLabel: string;
@@ -53,6 +57,7 @@ export function useProviderHomeViewModel({
         providerDashboard?.summary.overallRating ??
         profile?.providerProfile?.averageRating ??
         0;
+      const ratingLabel = rating.toFixed(1);
 
       return {
         data: {
@@ -61,10 +66,15 @@ export function useProviderHomeViewModel({
             profile?.providerProfile?.businessName ??
             profile?.user.fullName ??
             'Service Provider',
-          ratingLabel: rating.toFixed(1),
-          todayEarningsLabel: formatMoney(model.todayEarnings),
+          ratingLabel,
+          performanceCards: buildProviderHomePerformanceCards({
+            todayEarnings: model.todayEarnings,
+            weekEarnings: model.weekEarnings,
+            ratingLabel,
+          }),
+          todayEarningsLabel: model.todayEarningsLabel,
           todayLabel: now.toLocaleDateString('en-PH', { weekday: 'long' }),
-          weekEarningsLabel: formatMoney(model.weekEarnings),
+          weekEarningsLabel: model.weekEarningsLabel,
         },
         isLoading: false,
         error: null,

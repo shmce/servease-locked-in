@@ -61,6 +61,7 @@ export const claireRouteManifest: ClaireRouteManifestItem[] = [
   { key: 'providerConversation', sourcePath: '/provider/conversation/:customerId', group: 'provider', backendMode: 'connected' },
   { key: 'providerEarnings', sourcePath: '/provider/earnings', group: 'provider', backendMode: 'connected' },
   { key: 'providerProfileView', sourcePath: '/provider/profile/view', group: 'provider', backendMode: 'connected' },
+  { key: 'providerReviews', sourcePath: '/provider/reviews', group: 'provider', backendMode: 'connected' },
   { key: 'providerEditProfile', sourcePath: '/provider/edit-profile', group: 'provider', backendMode: 'connected' },
   { key: 'providerPortfolio', sourcePath: '/provider/portfolio', group: 'provider', backendMode: 'connected' },
   { key: 'providerPayoutManagement', sourcePath: '/provider/payout-management', group: 'provider', backendMode: 'connected' },

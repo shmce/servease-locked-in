@@ -440,6 +440,11 @@ const ProviderProfileViewScreen = lazy(() =>
     default: module.ProviderProfileViewScreen,
   })),
 );
+const ProviderReviewsScreen = lazy(() =>
+  import('./features/provider-reviews/views/ProviderReviews').then((module) => ({
+    default: module.ProviderReviewsScreen,
+  })),
+);
 const ProviderReportIssueScreen = lazy(() =>
   import('./features/provider-report-issue/views/ProviderReportIssue').then((module) => ({
     default: module.ProviderReportIssueScreen,
@@ -3308,7 +3313,7 @@ export default function App({ initialRoute = null }: AppProps) {
           navigate('bookings', 'customer');
         }}
         onTrackBooking={(booking) => openBooking(booking, 'customerTrackServiceProvider')}
-        onViewAllServices={() => navigate('customerAllServices', 'customer')}
+        onViewAllServices={() => navigate('customerRecommendedServices', 'customer')}
         onViewTopProviders={() => navigate('customerTopProviders', 'customer')}
       />
     );
@@ -3362,10 +3367,14 @@ export default function App({ initialRoute = null }: AppProps) {
     );
   }
 
-  function renderCustomerAllServices(title: string) {
+  function renderCustomerAllServices(
+    title: string,
+    mode: 'all' | 'recommended' | 'search' = 'all',
+  ) {
     return (
       <CustomerAllServicesScreen
         title={title}
+        mode={mode}
         services={services}
         marketplaceSearchQuery={marketplaceSearchQuery}
         isLoading={isInitialCatalogLoading}
@@ -4222,6 +4231,26 @@ export default function App({ initialRoute = null }: AppProps) {
         onBack={() => goBack({ role: 'provider', screen: 'more' })}
         onEditProfile={() => navigate('providerEditProfile', 'provider')}
         onManagePortfolio={() => navigate('providerPortfolio', 'provider')}
+        onViewAllReviews={() => navigate('providerReviews', 'provider')}
+        onStartReviewReply={setReplyingToReviewId}
+        onReviewReplyTextChange={setReviewReplyText}
+        onCancelReviewReply={() => {
+          setReplyingToReviewId(null);
+          setReviewReplyText('');
+        }}
+        onSubmitReviewReply={() => void submitReviewReply()}
+      />
+    );
+  }
+
+  function renderProviderReviews() {
+    return (
+      <ProviderReviewsScreen
+        ownReviews={ownReviews}
+        replyingToReviewId={replyingToReviewId}
+        reviewReplyText={reviewReplyText}
+        busyAction={busyAction}
+        onBack={() => goBack({ role: 'provider', screen: 'providerProfileView' })}
         onStartReviewReply={setReplyingToReviewId}
         onReviewReplyTextChange={setReviewReplyText}
         onCancelReviewReply={() => {
@@ -4485,7 +4514,7 @@ export default function App({ initialRoute = null }: AppProps) {
       calendar: renderCustomerCalendar,
       cancelBooking: renderCancelBooking,
       category: renderCustomerCategory,
-      customerAllServices: () => renderCustomerAllServices('All Services'),
+      customerAllServices: () => renderCustomerAllServices('All Services', 'all'),
       customerExplore: renderCustomerExplore,
       customerProviderProfile: renderCustomerProviderProfile,
       customerTopProviders: renderCustomerTopProviders,
@@ -4527,6 +4556,7 @@ export default function App({ initialRoute = null }: AppProps) {
       profileView: renderProviderProfileView,
       reportIssue: renderProviderReportIssue,
       requestPayout: renderProviderRequestPayout,
+      reviews: renderProviderReviews,
       security: renderProviderSecurity,
       serviceCompleted: renderProviderServiceCompleted,
       serviceInProgress: renderProviderServiceInProgress,

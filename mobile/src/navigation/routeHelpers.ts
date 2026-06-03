@@ -40,17 +40,7 @@ export function getCustomerTab(screen: AppScreen): CustomerTab {
     screen === 'customerHelp' ||
     screen === 'customerServiceHistory' ||
     screen === 'customerNotifications' ||
-    screen === 'customerReferral' ||
-    screen === 'providerProfileView' ||
-    screen === 'providerApplicationDocuments' ||
-    screen === 'providerEditProfile' ||
-    screen === 'providerPortfolio' ||
-    screen === 'providerPayoutManagement' ||
-    screen === 'providerRequestPayout' ||
-    screen === 'providerEarnings' ||
-    screen === 'providerServices' ||
-    screen === 'providerSecurity' ||
-    screen === 'providerSettings'
+    screen === 'customerReferral'
   ) {
     return 'more';
   }
@@ -85,6 +75,7 @@ export function getProviderTab(screen: AppScreen): ProviderTab {
     screen === 'providerPortfolio' ||
     screen === 'providerPayoutManagement' ||
     screen === 'providerRequestPayout' ||
+    screen === 'providerReviews' ||
     screen === 'providerEarnings' ||
     screen === 'providerNotifications' ||
     screen === 'providerInsights' ||

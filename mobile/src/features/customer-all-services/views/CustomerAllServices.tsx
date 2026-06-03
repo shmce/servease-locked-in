@@ -15,10 +15,14 @@ import {
 } from '../../../shared/components/CustomerUI';
 import { CatalogServiceItem } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
-import { useCustomerAllServicesViewModel } from '../viewModels/useCustomerAllServicesViewModel';
+import {
+  CustomerServiceBrowseMode,
+  useCustomerAllServicesViewModel,
+} from '../viewModels/useCustomerAllServicesViewModel';
 
 type CustomerAllServicesScreenProps = {
   title: string;
+  mode?: CustomerServiceBrowseMode;
   services: CatalogServiceItem[];
   marketplaceSearchQuery: string;
   isLoading?: boolean;
@@ -29,6 +33,7 @@ type CustomerAllServicesScreenProps = {
 
 export function CustomerAllServicesScreen({
   title,
+  mode = 'all',
   services,
   marketplaceSearchQuery,
   isLoading = false,
@@ -37,6 +42,7 @@ export function CustomerAllServicesScreen({
   onOpenService,
 }: CustomerAllServicesScreenProps) {
   const serviceList = useCustomerAllServicesViewModel({
+    mode,
     services,
     marketplaceSearchQuery,
   });
@@ -46,8 +52,8 @@ export function CustomerAllServicesScreen({
   return (
     <CustomerScreen>
       <CustomerContent>
-        <CustomerHeader
-          title={title}
+          <CustomerHeader
+          title={data.title ?? title}
           subtitle="Find the right service for your home"
           onBack={onBack}
         />
@@ -110,17 +116,80 @@ export function CustomerAllServicesScreen({
                     </View>
                   </CustomerCard>
                 ))}
+            {!showSkeletons && data.hasVisibleServices && data.pagination.totalPages > 1 ? (
+              <PaginationControls
+                pageLabel={data.pagination.pageLabel}
+                hasPreviousPage={data.pagination.hasPreviousPage}
+                hasNextPage={data.pagination.hasNextPage}
+                onPrevious={serviceList.actions.goToPreviousPage}
+                onNext={serviceList.actions.goToNextPage}
+              />
+            ) : null}
           </View>
 
           {!showSkeletons && !data.hasVisibleServices ? (
             <CustomerEmptyState
-              title="No services found"
-              body="Try searching with different keywords."
+              title={data.emptyState.title}
+              body={data.emptyState.body}
             />
           ) : null}
         </CustomerSection>
       </CustomerContent>
     </CustomerScreen>
+  );
+}
+
+function PaginationControls({
+  pageLabel,
+  hasPreviousPage,
+  hasNextPage,
+  onPrevious,
+  onNext,
+}: {
+  pageLabel: string;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <View style={styles.paginationRow}>
+      <Pressable
+        style={[styles.paginationButton, !hasPreviousPage && styles.paginationButtonDisabled]}
+        onPress={onPrevious}
+        disabled={!hasPreviousPage}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !hasPreviousPage }}
+        accessibilityLabel="Previous services page"
+      >
+        <Text
+          style={[
+            styles.paginationButtonText,
+            !hasPreviousPage && styles.paginationButtonTextDisabled,
+          ]}
+        >
+          Previous
+        </Text>
+      </Pressable>
+      <Text style={styles.paginationLabel}>{pageLabel}</Text>
+      <Pressable
+        style={[styles.paginationButton, !hasNextPage && styles.paginationButtonDisabled]}
+        onPress={onNext}
+        disabled={!hasNextPage}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !hasNextPage }}
+        accessibilityLabel="Next services page"
+      >
+        <Text
+          style={[
+            styles.paginationButtonText,
+            !hasNextPage && styles.paginationButtonTextDisabled,
+          ]}
+        >
+          Next
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -167,6 +236,44 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: spacing.md,
+  },
+  paginationRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+    paddingTop: spacing.xs,
+  },
+  paginationButton: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: '#DCEEE5',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 38,
+    minWidth: 88,
+    paddingHorizontal: spacing.sm,
+  },
+  paginationButtonDisabled: {
+    opacity: 0.48,
+  },
+  paginationButtonText: {
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  paginationButtonTextDisabled: {
+    color: '#9AA3AE',
+  },
+  paginationLabel: {
+    color: '#6D7480',
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0,
+    textAlign: 'center',
   },
   serviceSkeletonCard: {
     alignItems: 'center',

@@ -1,5 +1,13 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { X } from 'lucide-react-native';
+import { useState } from 'react';
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { ChevronRight, Clock, X } from 'lucide-react-native';
 import {
   ApiOptions,
   ProviderAvailabilitySchedule,
@@ -33,6 +41,9 @@ export function ProviderSetAvailabilityScreen({
   onScheduleUpdated,
   onBack,
 }: ProviderSetAvailabilityScreenProps) {
+  const [activeTimePicker, setActiveTimePicker] = useState<'start' | 'end' | null>(
+    null,
+  );
   const availabilityForm = useProviderSetAvailabilityViewModel({
     selectedDate,
     availability,
@@ -40,15 +51,33 @@ export function ProviderSetAvailabilityScreen({
     onScheduleUpdated,
   });
   const { data, actions } = availabilityForm;
+  const pickerOptions =
+    activeTimePicker === 'end' ? data.endOptions : data.bookingTimeSlots;
+  const pickerTitle = activeTimePicker === 'end' ? 'End time' : 'Start time';
+  const pickerSelectedTime =
+    activeTimePicker === 'end' ? data.endTime : data.startTime;
+
+  function handleTimeSelected(time: string) {
+    if (activeTimePicker === 'start') {
+      actions.setStartTime(time);
+      const nextEnd = data.timeOffEndSlots.find((option) => option > time);
+      actions.setEndTime(nextEnd ?? time);
+    } else if (activeTimePicker === 'end') {
+      actions.setEndTime(time);
+    }
+
+    setActiveTimePicker(null);
+  }
 
   return (
-    <ProviderScreen>
-      <ProviderContent>
-        <ProviderHeader
-          title={selectedDate}
-          subtitle="Block availability for this date"
-          onBack={onBack}
-        />
+    <>
+      <ProviderScreen>
+        <ProviderContent>
+          <ProviderHeader
+            title={selectedDate}
+            subtitle="Block availability for this date"
+            onBack={onBack}
+          />
 
         <ProviderSection title="Block Time">
           <ProviderCard>
@@ -70,35 +99,17 @@ export function ProviderSetAvailabilityScreen({
 
             {data.mode === 'specific-time' ? (
               <>
-                <Text style={styles.label}>Start time</Text>
-                <View style={styles.slotGrid}>
-                  {data.bookingTimeSlots.map((slot) => (
-                    <SlotButton
-                      key={slot}
-                      label={slot}
-                      selected={slot === data.startTime}
-                      onPress={() => {
-                        actions.setStartTime(slot);
-                        const nextEnd = data.timeOffEndSlots.find(
-                          (option) => option > slot,
-                        );
-                        actions.setEndTime(nextEnd ?? slot);
-                      }}
-                    />
-                  ))}
-                </View>
-                <Text style={styles.label}>End time</Text>
-                <View style={styles.slotGrid}>
-                  {data.timeOffEndSlots.map((slot) => (
-                    <SlotButton
-                      key={slot}
-                      label={slot}
-                      selected={slot === data.endTime}
-                      disabled={slot <= data.startTime}
-                      onPress={() => actions.setEndTime(slot)}
-                    />
-                  ))}
-                </View>
+                <TimeRow
+                  label="Start time"
+                  value={data.startTime}
+                  onPress={() => setActiveTimePicker('start')}
+                />
+                <View style={styles.rowDivider} />
+                <TimeRow
+                  label="End time"
+                  value={data.endTime}
+                  onPress={() => setActiveTimePicker('end')}
+                />
               </>
             ) : null}
 
@@ -145,8 +156,17 @@ export function ProviderSetAvailabilityScreen({
             />
           ) : null}
         </ProviderSection>
-      </ProviderContent>
-    </ProviderScreen>
+        </ProviderContent>
+      </ProviderScreen>
+      <TimePickerModal
+        visible={activeTimePicker !== null}
+        title={pickerTitle}
+        times={pickerOptions}
+        selectedTime={pickerSelectedTime}
+        onSelect={handleTimeSelected}
+        onDismiss={() => setActiveTimePicker(null)}
+      />
+    </>
   );
 }
 
@@ -173,39 +193,85 @@ function ModeButton({
   );
 }
 
-function SlotButton({
+function TimeRow({
   label,
-  selected,
-  disabled,
+  value,
   onPress,
 }: {
   label: string;
-  selected: boolean;
-  disabled?: boolean;
+  value: string;
   onPress: () => void;
 }) {
   return (
     <Pressable
-      style={[
-        styles.slotButton,
-        selected && styles.slotButtonSelected,
-        disabled && styles.slotButtonDisabled,
-      ]}
+      style={styles.timeRow}
       onPress={onPress}
-      disabled={disabled}
       accessibilityRole="button"
-      accessibilityState={{ selected, disabled }}
+      accessibilityLabel={`Choose ${label.toLowerCase()}`}
     >
-      <Text
-        style={[
-          styles.slotText,
-          selected && styles.slotTextSelected,
-          disabled && styles.slotTextDisabled,
-        ]}
-      >
-        {label}
-      </Text>
+      <Clock color={palette.mintDeep} size={17} strokeWidth={2.2} />
+      <Text style={styles.timeRowLabel}>{label}</Text>
+      <Text style={styles.timeRowValue}>{value}</Text>
+      <ChevronRight color={palette.faint} size={17} strokeWidth={2.2} />
     </Pressable>
+  );
+}
+
+function TimePickerModal({
+  visible,
+  title,
+  times,
+  selectedTime,
+  onSelect,
+  onDismiss,
+}: {
+  visible: boolean;
+  title: string;
+  times: string[];
+  selectedTime: string;
+  onSelect: (time: string) => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onDismiss}>
+      <Pressable style={styles.modalBackdrop} onPress={onDismiss}>
+        <Pressable style={styles.modalSheet} onPress={() => undefined}>
+          <View style={styles.modalHandle} />
+          <Text style={styles.modalTitle}>{title}</Text>
+          <ScrollView
+            style={styles.modalList}
+            contentContainerStyle={styles.modalListContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {times.map((time) => {
+              const selected = time === selectedTime;
+              return (
+                <Pressable
+                  key={time}
+                  style={[styles.modalOption, selected && styles.modalOptionSelected]}
+                  onPress={() => onSelect(time)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
+                  accessibilityLabel={`Set time to ${time}`}
+                >
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      selected && styles.modalOptionTextSelected,
+                    ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.82}
+                  >
+                    {time}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -285,45 +351,91 @@ const styles = StyleSheet.create({
     color: palette.mintDeep,
     fontWeight: '600',
   },
-  label: {
-    color: '#202733',
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  slotGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  slotButton: {
+  timeRow: {
     alignItems: 'center',
     backgroundColor: palette.white,
     borderColor: '#E7EBEF',
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.sm,
+    minHeight: 50,
+    paddingHorizontal: spacing.base,
+  },
+  timeRowLabel: {
+    color: '#202733',
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+  timeRowValue: {
+    color: palette.mintDeep,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+  rowDivider: {
+    backgroundColor: '#EEF0F2',
+    height: 1,
+  },
+  modalBackdrop: {
+    backgroundColor: 'rgba(0,0,0,0.42)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: palette.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '72%',
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  modalHandle: {
+    alignSelf: 'center',
+    backgroundColor: '#D8DEE5',
+    borderRadius: radius.pill,
+    height: 4,
+    marginBottom: spacing.md,
+    width: 38,
+  },
+  modalTitle: {
+    color: '#202733',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0,
+    marginBottom: spacing.md,
+  },
+  modalList: {
+    maxHeight: 320,
+  },
+  modalListContent: {
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  modalOption: {
+    alignItems: 'center',
+    borderColor: '#E7EBEF',
+    borderRadius: radius.md,
     borderWidth: 1,
     justifyContent: 'center',
-    minHeight: 38,
-    width: 72,
+    minHeight: 44,
+    paddingHorizontal: spacing.base,
   },
-  slotButtonSelected: {
+  modalOptionSelected: {
     backgroundColor: palette.mintSoft,
     borderColor: '#A7E5C2',
   },
-  slotButtonDisabled: {
-    opacity: 0.42,
-  },
-  slotText: {
+  modalOptionText: {
     color: '#202733',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  slotTextSelected: {
-    color: palette.mintDeep,
+    fontSize: 14,
     fontWeight: '600',
+    letterSpacing: 0,
   },
-  slotTextDisabled: {
-    color: '#A0A7B2',
+  modalOptionTextSelected: {
+    color: palette.mintDeep,
   },
   noticeText: {
     ...providerText.meta,

@@ -1,4 +1,9 @@
-import { useMemo } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {
   BookingStatus,
   BookingSummary,
@@ -37,9 +42,11 @@ export type BookingCardRow = {
 type BookingsViewModelInput = {
   bookings: BookingSummary[];
   bookingFilter: BookingFilter;
+  page?: number;
 };
 
 const MANILA_TIME_ZONE = 'Asia/Manila';
+const bookingPageSize = 5;
 const CLOSED_BOOKING_STATUSES = new Set<BookingStatus>([
   'completed',
   'cancelled',
@@ -55,21 +62,43 @@ export function useBookingsViewModel({
   bookings,
   bookingFilter,
 }: BookingsViewModelInput) {
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [bookingFilter]);
+
   const data = useMemo(
-    () => buildBookingsViewModel({ bookings, bookingFilter }).data,
-    [bookingFilter, bookings],
+    () => buildBookingsViewModel({ bookings, bookingFilter, page: currentPage }).data,
+    [bookingFilter, bookings, currentPage],
+  );
+
+  const goToPreviousPage = useCallback(() => {
+    setCurrentPage((page) => Math.max(1, page - 1));
+  }, []);
+
+  const goToNextPage = useCallback(
+    () => {
+      setCurrentPage((page) => Math.min(data.pagination.totalPages, page + 1));
+    },
+    [data.pagination.totalPages],
   );
 
   return {
     data,
     isLoading: false,
     error: null,
+    actions: {
+      goToNextPage,
+      goToPreviousPage,
+    },
   };
 }
 
 export function buildBookingsViewModel({
   bookings,
   bookingFilter,
+  page = 1,
 }: BookingsViewModelInput) {
   const visibleBookings = bookings.filter((booking) =>
     bookingFilter === 'completed'
@@ -80,7 +109,9 @@ export function buildBookingsViewModel({
     .filter((booking) => !CLOSED_BOOKING_STATUSES.has(booking.status))
     .sort(sortActiveBookings);
   const tabKey: BookingTabKey = bookingFilter === 'completed' ? 'completed' : 'upcoming';
-  const cardRows = visibleBookings.map(buildBookingCardRow);
+  const pagination = buildPagination(visibleBookings.length, page, bookingPageSize);
+  const pageBookings = visibleBookings.slice(pagination.startIndex, pagination.endIndex);
+  const cardRows = pageBookings.map(buildBookingCardRow);
   const emptyState =
     tabKey === 'completed'
       ? {
@@ -99,6 +130,17 @@ export function buildBookingsViewModel({
       emptyState,
       helperTargetBooking: activeBookings[0] ?? null,
       isEmpty: cardRows.length === 0,
+      pagination: {
+        currentPage: pagination.currentPage,
+        hasNextPage: pagination.currentPage < pagination.totalPages,
+        hasPreviousPage: pagination.currentPage > 1,
+        pageLabel:
+          pagination.totalItems > 0
+            ? `Page ${pagination.currentPage} of ${pagination.totalPages}`
+            : 'No bookings',
+        totalItems: pagination.totalItems,
+        totalPages: pagination.totalPages,
+      },
       selectedTab: tabKey,
       tabs: [
         { key: 'upcoming' as const, filter: 'active' as const, label: 'Upcoming' },
@@ -108,6 +150,20 @@ export function buildBookingsViewModel({
     },
     isLoading: false,
     error: null,
+  };
+}
+
+function buildPagination(totalItems: number, requestedPage: number, pageSize: number) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const currentPage = Math.min(Math.max(1, Math.trunc(requestedPage) || 1), totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+
+  return {
+    currentPage,
+    endIndex: startIndex + pageSize,
+    startIndex,
+    totalItems,
+    totalPages,
   };
 }
 

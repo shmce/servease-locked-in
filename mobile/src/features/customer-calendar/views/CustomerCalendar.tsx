@@ -112,8 +112,18 @@ export function CustomerCalendarScreen({
                       <CustomerBadge label={item.statusLabel} tone="warning" />
                     </View>
                   </CustomerCard>
-                );
+                  );
               })}
+              {!calendar.data.isShowingUpcomingPreview &&
+              calendar.data.pagination.totalPages > 1 ? (
+                <PaginationControls
+                  pageLabel={calendar.data.pagination.pageLabel}
+                  hasPreviousPage={calendar.data.pagination.hasPreviousPage}
+                  hasNextPage={calendar.data.pagination.hasNextPage}
+                  onPrevious={calendar.actions.goToPreviousPage}
+                  onNext={calendar.actions.goToNextPage}
+                />
+              ) : null}
             </View>
           ) : (
             <CustomerEmptyState
@@ -124,6 +134,60 @@ export function CustomerCalendarScreen({
         </CustomerSection>
       </CustomerContent>
     </CustomerScreen>
+  );
+}
+
+function PaginationControls({
+  pageLabel,
+  hasPreviousPage,
+  hasNextPage,
+  onPrevious,
+  onNext,
+}: {
+  pageLabel: string;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <View style={styles.paginationRow}>
+      <Pressable
+        style={[styles.paginationButton, !hasPreviousPage && styles.paginationButtonDisabled]}
+        onPress={onPrevious}
+        disabled={!hasPreviousPage}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !hasPreviousPage }}
+        accessibilityLabel="Previous calendar bookings page"
+      >
+        <Text
+          style={[
+            styles.paginationButtonText,
+            !hasPreviousPage && styles.paginationButtonTextDisabled,
+          ]}
+        >
+          Previous
+        </Text>
+      </Pressable>
+      <Text style={styles.paginationLabel}>{pageLabel}</Text>
+      <Pressable
+        style={[styles.paginationButton, !hasNextPage && styles.paginationButtonDisabled]}
+        onPress={onNext}
+        disabled={!hasNextPage}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !hasNextPage }}
+        accessibilityLabel="Next calendar bookings page"
+      >
+        <Text
+          style={[
+            styles.paginationButtonText,
+            !hasNextPage && styles.paginationButtonTextDisabled,
+          ]}
+        >
+          Next
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -180,6 +244,44 @@ const styles = StyleSheet.create({
   },
   agendaList: {
     gap: spacing.md,
+  },
+  paginationRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+    paddingTop: spacing.xs,
+  },
+  paginationButton: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: '#DCEEE5',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 38,
+    minWidth: 88,
+    paddingHorizontal: spacing.sm,
+  },
+  paginationButtonDisabled: {
+    opacity: 0.48,
+  },
+  paginationButtonText: {
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  paginationButtonTextDisabled: {
+    color: '#9AA3AE',
+  },
+  paginationLabel: {
+    color: '#6D7480',
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0,
+    textAlign: 'center',
   },
   agendaRow: {
     alignItems: 'center',
