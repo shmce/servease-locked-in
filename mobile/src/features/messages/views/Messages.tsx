@@ -31,6 +31,10 @@ import {
   providerText,
 } from '../../../shared/components/ProviderUI';
 import {
+  DetailScreenSkeleton,
+  ListSectionSkeleton,
+} from '../../../shared/components/LoadingStates';
+import {
   ApiOptions,
   BookingSummary,
   ConversationMessage,
@@ -46,6 +50,7 @@ type MessagesScreenProps = {
   busyAction: string | null;
   conversations: ConversationSummary[];
   hasSession: boolean;
+  isLoading?: boolean;
   messageDraft: string;
   messages: ConversationMessage[];
   selectedConversationId: string | null;
@@ -65,6 +70,7 @@ export function MessagesScreen({
   busyAction,
   conversations,
   hasSession,
+  isLoading = false,
   messageDraft,
   messages,
   selectedConversationId,
@@ -91,8 +97,13 @@ export function MessagesScreen({
   });
   const { data } = messagesViewModel;
   const isCustomer = appRole === 'customer';
+  const isInitialListLoading = isLoading && conversations.length === 0;
 
   if (selectedConversationId) {
+    if (isLoading && messages.length === 0) {
+      return <DetailScreenSkeleton label="Loading conversation" />;
+    }
+
     return (
       <ChatDetailScreen
         data={data}
@@ -109,6 +120,7 @@ export function MessagesScreen({
   return (
     <ConversationListScreen
       data={data}
+      isLoading={isInitialListLoading}
       isCustomer={isCustomer}
       onSelectConversation={(id) => void messagesViewModel.selectConversation(id)}
     />
@@ -119,10 +131,12 @@ export function MessagesScreen({
 
 function ConversationListScreen({
   data,
+  isLoading,
   isCustomer,
   onSelectConversation,
 }: {
   data: ReturnType<typeof useMessagesViewModel>['data'];
+  isLoading: boolean;
   isCustomer: boolean;
   onSelectConversation: (id: string) => void;
 }) {
@@ -136,7 +150,9 @@ function ConversationListScreen({
           />
 
           <CustomerSection>
-            {data.hasConversations ? (
+            {isLoading ? (
+              <ListSectionSkeleton count={4} label="Loading conversations" />
+            ) : data.hasConversations ? (
               <View style={styles.customerConvoList}>
                 {data.conversationRows.map((row) => (
                   <CustomerCard
@@ -192,32 +208,36 @@ function ConversationListScreen({
           subtitle="Conversations about provider jobs"
         />
         <ProviderSection>
-          {data.conversationRows.map((row) => (
-            <ProviderCard
-              key={row.conversation.id}
-              onPress={() => onSelectConversation(row.conversation.id)}
-              accessibilityLabel={`Open conversation with ${row.counterparty}`}
-            >
-              <View style={styles.convoRow}>
-                <View style={styles.convoAvatar}>
-                  <Text style={styles.convoInitial}>{row.initial}</Text>
-                </View>
-                <View style={styles.convoBody}>
-                  <Text style={styles.convoName} numberOfLines={1}>
-                    {row.counterparty}
+          {isLoading ? (
+            <ListSectionSkeleton count={4} label="Loading conversations" />
+          ) : (
+            data.conversationRows.map((row) => (
+              <ProviderCard
+                key={row.conversation.id}
+                onPress={() => onSelectConversation(row.conversation.id)}
+                accessibilityLabel={`Open conversation with ${row.counterparty}`}
+              >
+                <View style={styles.convoRow}>
+                  <View style={styles.convoAvatar}>
+                    <Text style={styles.convoInitial}>{row.initial}</Text>
+                  </View>
+                  <View style={styles.convoBody}>
+                    <Text style={styles.convoName} numberOfLines={1}>
+                      {row.counterparty}
+                    </Text>
+                    <Text style={styles.convoService} numberOfLines={1}>
+                      {row.serviceName}
+                    </Text>
+                  </View>
+                  <Text style={styles.convoTime} numberOfLines={1}>
+                    {row.timeLabel}
                   </Text>
-                  <Text style={styles.convoService} numberOfLines={1}>
-                    {row.serviceName}
-                  </Text>
+                  <ChevronRight color={palette.mintDeep} size={18} strokeWidth={2.1} />
                 </View>
-                <Text style={styles.convoTime} numberOfLines={1}>
-                  {row.timeLabel}
-                </Text>
-                <ChevronRight color={palette.mintDeep} size={18} strokeWidth={2.1} />
-              </View>
-            </ProviderCard>
-          ))}
-          {!data.hasConversations ? (
+              </ProviderCard>
+            ))
+          )}
+          {!isLoading && !data.hasConversations ? (
             <ProviderEmptyState
               title="No conversations yet"
               body="Start chatting from a booking detail."

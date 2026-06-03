@@ -55,4 +55,69 @@ describe('buildCustomerCategoryViewModel', () => {
       ['pipe-repair'],
     );
   });
+
+  it('filters category services before pagination', () => {
+    const viewModel = buildCustomerCategoryViewModel({
+      categories,
+      page: 1,
+      selectedCategoryId: 'cleaning',
+      services: [
+        ...Array.from({ length: 6 }, (_, index) => ({
+          id: `cleaning-${index + 1}`,
+          categoryId: 'cleaning',
+          name: `Cleaning ${index + 1}`,
+          description: 'Cleaning service',
+          price: 500,
+          pricingMode: 'flat' as const,
+        })),
+        {
+          id: 'repair-outside-scope',
+          categoryId: 'repairs',
+          name: 'Repair outside scope',
+          description: 'Should not show on a cleaning page',
+          price: 600,
+          pricingMode: 'flat',
+        },
+      ],
+    });
+
+    assert.deepEqual(
+      viewModel.data.serviceRows.map((row) => row.id),
+      ['cleaning-1', 'cleaning-2', 'cleaning-3', 'cleaning-4', 'cleaning-5'],
+    );
+    assert.equal(viewModel.data.pagination.totalItems, 6);
+    assert.equal(viewModel.data.pagination.pageLabel, 'Page 1 of 2');
+  });
+
+  it('keeps search scoped to the selected category', () => {
+    const viewModel = buildCustomerCategoryViewModel({
+      categories,
+      searchQuery: 'pipe',
+      selectedCategoryId: 'cleaning',
+      services: [
+        {
+          id: 'pipe-cleaning',
+          categoryId: 'cleaning',
+          name: 'Pipe Cleaning',
+          description: 'Clean pipes',
+          price: 500,
+          pricingMode: 'flat',
+        },
+        {
+          id: 'pipe-repair',
+          categoryId: 'repairs',
+          name: 'Pipe Repair',
+          description: 'Repair pipes',
+          price: 600,
+          pricingMode: 'flat',
+        },
+      ],
+    });
+
+    assert.deepEqual(
+      viewModel.data.serviceRows.map((row) => row.id),
+      ['pipe-cleaning'],
+    );
+    assert.equal(viewModel.data.emptyState.title, 'No Cleaning services found');
+  });
 });

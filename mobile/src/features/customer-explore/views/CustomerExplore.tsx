@@ -34,6 +34,10 @@ import {
   CurrentUserProfile,
   ProviderListing,
 } from '../../../shared/models/types';
+import {
+  InlineRefreshHint,
+  ListSectionSkeleton,
+} from '../../../shared/components/LoadingStates';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { CategoryFilter, useCustomerExploreViewModel } from '../viewModels/useCustomerExploreViewModel';
 import { CategorySheet } from './CategorySheet';
@@ -70,6 +74,7 @@ type CustomerExploreScreenProps = {
   onShowNotifications: () => void;
   onShowRecentBookings: () => void;
   onTrackBooking?: (booking: BookingSummary) => void;
+  isCatalogLoading?: boolean;
   isProfileLoading?: boolean;
   onViewAllServices: () => void;
   onViewTopProviders: () => void;
@@ -108,6 +113,13 @@ export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
   const contentWidth = Math.max(width - 40, 280);
   const categoryTileWidth = Math.min(62, Math.max(58, Math.floor((contentWidth - spacing.sm * 4) / 5)));
   const recommendationCardWidth = Math.min(112, Math.max(104, Math.floor((contentWidth - spacing.sm * 2) / 3)));
+  const isCatalogInitialLoading =
+    Boolean(props.isCatalogLoading) &&
+    props.categories.length === 0 &&
+    props.services.length === 0 &&
+    props.providers.length === 0;
+  const isCatalogRefreshing =
+    Boolean(props.isCatalogLoading) && !isCatalogInitialLoading;
 
   function openSheet(category: CatalogCategory) {
     setSheetCategory(category);
@@ -121,7 +133,6 @@ export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
 
   function handleCategoryPress(category: CatalogCategory | null) {
     if (!category) {
-      props.onSearch();
       return;
     }
 
@@ -178,18 +189,28 @@ export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
 
           <HeroCard onBook={props.onSearch} />
 
-          <CategoryRail
-            rows={data.referenceCategoryRows}
-            tileWidth={categoryTileWidth}
-            onPress={handleCategoryPress}
-          />
+          {isCatalogRefreshing ? (
+            <InlineRefreshHint label="Refreshing catalog" />
+          ) : null}
 
-          <RecommendedSection
-            cardWidth={recommendationCardWidth}
-            rows={data.recommendedServiceRows}
-            onPress={handleRecommendationPress}
-            onSeeAll={props.onViewAllServices}
-          />
+          {isCatalogInitialLoading ? (
+            <ExploreCatalogSkeleton />
+          ) : (
+            <>
+              <CategoryRail
+                rows={data.referenceCategoryRows}
+                tileWidth={categoryTileWidth}
+                onPress={handleCategoryPress}
+              />
+
+              <RecommendedSection
+                cardWidth={recommendationCardWidth}
+                rows={data.recommendedServiceRows}
+                onPress={handleRecommendationPress}
+                onSeeAll={props.onViewAllServices}
+              />
+            </>
+          )}
 
           <UpcomingBookingCard
             card={data.upcomingBookingCard}
@@ -213,6 +234,14 @@ export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
         onSeeAll={handleSeeAllCategory}
         onClose={closeSheet}
       />
+    </View>
+  );
+}
+
+function ExploreCatalogSkeleton() {
+  return (
+    <View style={styles.catalogLoadingGroup}>
+      <ListSectionSkeleton count={4} label="Loading service categories" />
     </View>
   );
 }
@@ -369,6 +398,7 @@ function CategoryTile({
   onPress: () => void;
 }) {
   const Icon = categoryIconFor(row.iconKey);
+  const isDisabled = !row.isAvailable;
 
   return (
     <Pressable
@@ -376,15 +406,36 @@ function CategoryTile({
         styles.categoryTile,
         { width: tileWidth },
         row.isSelected && styles.categoryTileSelected,
+        isDisabled && styles.categoryTileDisabled,
       ]}
       onPress={onPress}
+      disabled={isDisabled}
       accessibilityRole="button"
-      accessibilityLabel={`Browse ${row.label}`}
+      accessibilityLabel={
+        isDisabled
+          ? `${row.label} category not available yet`
+          : `Browse ${row.label}`
+      }
+      accessibilityState={{ disabled: isDisabled, selected: row.isSelected }}
     >
-      <Icon color={palette.mintDeep} size={21} strokeWidth={2.05} />
-      <Text style={styles.categoryLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+      <Icon
+        color={isDisabled ? '#A9B0B8' : palette.mintDeep}
+        size={21}
+        strokeWidth={2.05}
+      />
+      <Text
+        style={[styles.categoryLabel, isDisabled && styles.categoryLabelDisabled]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.82}
+      >
         {row.label}
       </Text>
+      {isDisabled ? (
+        <Text style={styles.categoryStatus} numberOfLines={1}>
+          Soon
+        </Text>
+      ) : null}
     </Pressable>
   );
 }
@@ -747,6 +798,9 @@ const styles = StyleSheet.create({
   categoryRow: {
     gap: spacing.sm,
   },
+  catalogLoadingGroup: {
+    gap: spacing.md,
+  },
   categoryTile: {
     alignItems: 'center',
     backgroundColor: palette.white,
@@ -762,6 +816,10 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     borderColor: '#CDEEDD',
   },
+  categoryTileDisabled: {
+    backgroundColor: '#F5F6F7',
+    borderColor: '#ECEFF1',
+  },
   categoryLabel: {
     color: '#22262C',
     fontSize: 9,
@@ -769,6 +827,17 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     lineHeight: 11,
     maxWidth: '100%',
+    textAlign: 'center',
+  },
+  categoryLabelDisabled: {
+    color: '#7D8791',
+  },
+  categoryStatus: {
+    color: '#8A95A1',
+    fontSize: 7,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 9,
     textAlign: 'center',
   },
   section: {

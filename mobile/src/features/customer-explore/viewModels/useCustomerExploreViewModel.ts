@@ -398,6 +398,7 @@ function buildReferenceCategoryRows({
       category,
       iconKey: config.key,
       id: category?.id ?? config.key,
+      isAvailable: Boolean(category),
       isSelected: category?.id === selectedCategoryId,
       label: config.label,
     };

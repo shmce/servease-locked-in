@@ -165,6 +165,35 @@ test('tracking screens subscribe to HTTP live tracking before polling fallback',
   assert.match(source, /subscription\.close\(\)/);
 });
 
+test('app shell keeps ordinary busy actions local to screens', () => {
+  const shellSource = readFileSync(
+    join(process.cwd(), 'src/legacy-router/AppShell.tsx'),
+    'utf8',
+  );
+
+  assert.match(shellSource, /RouteLoadingSurface/);
+  assert.match(shellSource, /shouldShowGlobalBusyPill\(busyAction\)/);
+  assert.doesNotMatch(shellSource, /styles\.busyPill/);
+  assert.doesNotMatch(shellSource, /<ActivityIndicator color=\{palette\.white\}/);
+});
+
+test('mobile skeleton loading surfaces stay accessible without exposing decorative blocks', () => {
+  const loadingSource = readFileSync(
+    join(process.cwd(), 'src/shared/components/LoadingStates.tsx'),
+    'utf8',
+  );
+  const designKitSource = readFileSync(
+    join(process.cwd(), 'src/components/DesignKit.tsx'),
+    'utf8',
+  );
+
+  assert.match(loadingSource, /accessibilityRole="progressbar"/);
+  assert.match(loadingSource, /RouteLoadingSurface/);
+  assert.match(designKitSource, /accessibilityElementsHidden/);
+  assert.match(designKitSource, /importantForAccessibility="no-hide-descendants"/);
+  assert.match(designKitSource, /AccessibilityInfo\.isReduceMotionEnabled/);
+});
+
 test('customer catalog bootstrap loads full services and provider listings for browsing', () => {
   const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const loadCatalogStart = source.indexOf('async function loadCatalogImpl');

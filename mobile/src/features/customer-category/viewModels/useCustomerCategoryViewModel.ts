@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CatalogCategory,
   CatalogServiceItem,
@@ -6,8 +6,11 @@ import {
 } from '../../../shared/models/types';
 import { formatMoney } from '../../../shared/utils/booking';
 
+const CATEGORY_PAGE_SIZE = 5;
+
 type CustomerCategoryViewModelInput = {
   categories: CatalogCategory[];
+  page?: number;
   providers?: ProviderListing[];
   searchQuery?: string;
   selectedCategoryId: string | null;
@@ -16,26 +19,48 @@ type CustomerCategoryViewModelInput = {
 
 export function useCustomerCategoryViewModel({
   categories,
+  page,
   providers,
   searchQuery,
   selectedCategoryId,
   services,
 }: CustomerCategoryViewModelInput) {
-  return useMemo(
+  const [currentPage, setCurrentPage] = useState(page ?? 1);
+
+  useEffect(() => {
+    setCurrentPage(page ?? 1);
+  }, [page, searchQuery, selectedCategoryId, services.length]);
+
+  const viewModel = useMemo(
     () =>
       buildCustomerCategoryViewModel({
         categories,
+        page: currentPage,
         providers,
         searchQuery,
         selectedCategoryId,
         services,
       }),
-    [categories, providers, searchQuery, selectedCategoryId, services],
+    [categories, currentPage, providers, searchQuery, selectedCategoryId, services],
   );
+
+  return {
+    ...viewModel,
+    actions: {
+      goToNextPage: () =>
+        setCurrentPage((nextPage) =>
+          Math.min(nextPage + 1, viewModel.data.pagination.totalPages),
+        ),
+      goToPreviousPage: () =>
+        setCurrentPage((nextPage) => Math.max(nextPage - 1, 1)),
+      setPage: setCurrentPage,
+    },
+  };
 }
 
 export function buildCustomerCategoryViewModel({
   categories,
+  page = 1,
   providers = [],
   searchQuery = '',
   selectedCategoryId,
@@ -56,13 +81,21 @@ export function buildCustomerCategoryViewModel({
       s.toLowerCase().includes(query),
     );
   });
+  const totalItems = filteredServices.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / CATEGORY_PAGE_SIZE));
+  const safePage = Math.min(Math.max(Math.trunc(page) || 1, 1), totalPages);
+  const pageStartIndex = (safePage - 1) * CATEGORY_PAGE_SIZE;
+  const pageEndIndex = pageStartIndex + CATEGORY_PAGE_SIZE;
+  const pageServices = filteredServices.slice(pageStartIndex, pageEndIndex);
+  const pageStartLabel = totalItems > 0 ? pageStartIndex + 1 : 0;
+  const pageEndLabel = Math.min(pageEndIndex, totalItems);
 
   const serviceCountLabel =
     query
       ? `${filteredServices.length} of ${categoryServices.length} services`
       : `${categoryServices.length} services available`;
 
-  const serviceRows = filteredServices.map((service) => {
+  const serviceRows = pageServices.map((service) => {
     const rating = serviceRatings.get(service.id);
     return {
       service,
@@ -76,13 +109,37 @@ export function buildCustomerCategoryViewModel({
       hasRating: (rating?.reviewCount ?? 0) > 0,
     };
   });
+  const emptyScope = categoryName === 'Services' ? 'services' : `${categoryName} services`;
+  const emptyState = query
+    ? {
+        title: `No ${emptyScope} found`,
+        body: 'Try a different search term inside this category.',
+      }
+    : {
+        title: `No ${emptyScope} available`,
+        body: 'Check back later for services in this category.',
+      };
 
   return {
     data: {
       categoryName,
+      emptyState,
       serviceCountLabel,
       serviceRows,
-      hasServices: filteredServices.length > 0,
+      hasServices: totalItems > 0,
+      pagination: {
+        hasNextPage: safePage < totalPages,
+        hasPreviousPage: safePage > 1,
+        itemRangeLabel:
+          totalItems > 0
+            ? `${pageStartLabel}-${pageEndLabel} of ${totalItems}`
+            : 'No services to show',
+        page: safePage,
+        pageLabel: `Page ${safePage} of ${totalPages}`,
+        pageSize: CATEGORY_PAGE_SIZE,
+        totalItems,
+        totalPages,
+      },
     },
     isLoading: false,
     error: null,

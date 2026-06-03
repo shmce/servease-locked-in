@@ -20,6 +20,7 @@ import { AppShell } from './legacy-router/AppShell';
 import {
   MissingSelection,
 } from './components/AppDisplay';
+import { resolveSelectedEntityState } from './domain/mobileLoading';
 import {
   buildCalendarExportUrl,
   buildBookingTransitionRequest,
@@ -51,6 +52,7 @@ import {
   BookingTimelineEventsSection,
 } from './shared/components/BookingDetailSections';
 import { SupportPanel } from './shared/components/SupportPanel';
+import { DetailScreenSkeleton } from './shared/components/LoadingStates';
 import { useStableCallback } from './shared/hooks/useStableCallback';
 import type { CustomerProviderProfileTab } from './features/customer-provider-profile/viewModels/useCustomerProviderProfileViewModel';
 import type { CustomerTrackingSheetLevel } from './features/customer-track-provider/viewModels/useCustomerTrackProviderViewModel';
@@ -734,6 +736,16 @@ export default function App({ initialRoute = null }: AppProps) {
   const isInitialWorkspaceLoading =
     Boolean(session?.accessToken) && busyAction === 'refresh' && !hasWorkspaceLoaded;
   const isInitialCatalogLoading = busyAction === 'catalog' && !hasCatalogLoaded;
+  const selectedProviderLoadState = resolveSelectedEntityState({
+    entity: selectedProvider,
+    hasLoaded: hasCatalogLoaded && !providerResultsLoading,
+    selectedId: selectedProviderId,
+  });
+  const selectedBookingLoadState = resolveSelectedEntityState({
+    entity: selectedBooking,
+    hasLoaded: hasWorkspaceLoaded && !isInitialWorkspaceLoading,
+    selectedId: selectedBookingId,
+  });
   const apiOptions = useMemo(
     () => ({
       baseUrl: apiBaseUrl,
@@ -3274,6 +3286,22 @@ export default function App({ initialRoute = null }: AppProps) {
     );
   }
 
+  function renderMissingProviderSelection(onBack: () => void) {
+    if (selectedProviderLoadState === 'loading') {
+      return <DetailScreenSkeleton label="Loading provider details" />;
+    }
+
+    return <MissingSelection onBack={onBack} />;
+  }
+
+  function renderMissingBookingSelection(onBack: () => void) {
+    if (selectedBookingLoadState === 'loading') {
+      return <DetailScreenSkeleton label="Loading booking details" />;
+    }
+
+    return <MissingSelection onBack={onBack} />;
+  }
+
   function renderCustomerExplore() {
     return (
       <CustomerExploreScreen
@@ -3294,6 +3322,7 @@ export default function App({ initialRoute = null }: AppProps) {
         }
         onOpenBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
         onSearch={() => navigate('customerSearchResults', 'customer')}
+        isCatalogLoading={isInitialCatalogLoading}
         isProfileLoading={isInitialWorkspaceLoading}
         onSelectCategory={(category) => {
           setSelectedCategoryId(category.id);
@@ -3323,7 +3352,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderBookingReview() {
     if (!selectedProvider) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'customerTopProviders' })} />;
+      return renderMissingProviderSelection(() =>
+        goBack({ role: 'customer', screen: 'customerTopProviders' }),
+      );
     }
 
     return (
@@ -3360,6 +3391,7 @@ export default function App({ initialRoute = null }: AppProps) {
         providers={catalogProviders}
         selectedCategoryId={selectedCategoryId}
         services={services}
+        isLoading={isInitialCatalogLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
         onOpenService={(service) => {
           setSelectedServiceId(service.id);
@@ -3410,7 +3442,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderCustomerProviderProfile() {
     if (!selectedProvider) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'customerTopProviders' })} />;
+      return renderMissingProviderSelection(() =>
+        goBack({ role: 'customer', screen: 'customerTopProviders' }),
+      );
     }
 
     return (
@@ -3433,7 +3467,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderCustomerBookingForm() {
     if (!selectedProvider) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'customerTopProviders' })} />;
+      return renderMissingProviderSelection(() =>
+        goBack({ role: 'customer', screen: 'customerTopProviders' }),
+      );
     }
 
     return (
@@ -3508,7 +3544,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderReservePayment() {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'customer', screen: 'bookings' }),
+      );
     }
 
     return (
@@ -3535,6 +3573,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderBookingConfirmation() {
+    if (!selectedBooking && selectedBookingLoadState === 'loading') {
+      return <DetailScreenSkeleton label="Loading booking confirmation" />;
+    }
+
     return (
       <CustomerBookingConfirmationScreen
         selectedBooking={selectedBooking ?? null}
@@ -3572,6 +3614,7 @@ export default function App({ initialRoute = null }: AppProps) {
     return (
       <CustomerCalendarScreen
         bookings={bookings}
+        isLoading={isInitialWorkspaceLoading}
         onRefresh={refreshWorkspace}
         openBooking={(booking) =>
           openBooking(booking, 'customerBookingDetail', {
@@ -3588,7 +3631,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderCustomerBookingDetail() {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'customer', screen: 'bookings' }),
+      );
     }
     return (
       <CustomerBookingDetailScreen
@@ -3642,7 +3687,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderCustomerTrackServiceProvider(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'customer', screen: 'bookings' }),
+      );
     }
 
     return (
@@ -3732,6 +3779,7 @@ export default function App({ initialRoute = null }: AppProps) {
         apiOptions={apiOptions}
         messageDraft={messagesFlow.data.messageDraft}
         busyAction={busyAction}
+        isLoading={isInitialWorkspaceLoading}
         hasSession={Boolean(session)}
         onMessageDraftChange={messagesFlow.actions.setMessageDraft}
         onAttachImage={messagesFlow.actions.attachAndSendMessageImage}
@@ -3756,6 +3804,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderCustomerProfile() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading customer profile" />;
+    }
+
     return (
       <CustomerProfileScreen
         profile={profile}
@@ -3775,6 +3827,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderCustomerAddresses() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading saved addresses" />;
+    }
+
     return (
       <CustomerAddressesScreen
         addresses={profile?.customerAddresses ?? []}
@@ -3807,6 +3863,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderCustomerSettings() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading customer settings" />;
+    }
+
     return (
       <CustomerSettingsScreen
         userPreferences={userPreferences}
@@ -3831,6 +3891,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderCustomerSecurity() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading security settings" />;
+    }
+
     return (
       <CustomerSecurityScreen
         busyAction={busyAction}
@@ -3860,6 +3924,7 @@ export default function App({ initialRoute = null }: AppProps) {
     return (
       <CustomerServiceHistoryScreen
         bookings={bookings}
+        isLoading={isInitialWorkspaceLoading}
         onBack={() => goBack({ role: 'customer', screen: 'more' })}
         openBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
       />
@@ -3881,6 +3946,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderInsights() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider insights" />;
+    }
+
     return (
       <ProviderInsightsScreen
         providerDashboard={providerDashboard}
@@ -3899,6 +3968,7 @@ export default function App({ initialRoute = null }: AppProps) {
     return (
       <NotificationsScreen
         notifications={notificationsFlow.data.notifications}
+        isLoading={isInitialWorkspaceLoading}
         role={role}
         onBack={() =>
           goBack({ role, screen: role === 'provider' ? 'home' : 'more' })
@@ -3942,6 +4012,7 @@ export default function App({ initialRoute = null }: AppProps) {
         navigate={navigate}
         openBooking={openBooking}
         busyAction={busyAction}
+        isLoading={isInitialWorkspaceLoading}
         onRefreshProviderApplication={async () => {
           setBusyAction('provider-application');
           try {
@@ -3979,7 +4050,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderProviderBookingDetail(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
 
     return (
@@ -4045,7 +4118,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderProviderNavigationMode(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderNavigationModeScreen
@@ -4069,7 +4144,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderProviderStartService(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderStartServiceScreen
@@ -4092,7 +4169,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderProviderServiceInProgress(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderServiceInProgressScreen
@@ -4117,7 +4196,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderProviderCompleteService(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderCompleteServiceScreen
@@ -4139,7 +4220,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderProviderServiceCompleted(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderServiceCompletedScreen
@@ -4153,7 +4236,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderProviderCancelBooking(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
 
     return (
@@ -4171,7 +4256,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderProviderReportIssue(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderReportIssueScreen
@@ -4196,7 +4283,9 @@ export default function App({ initialRoute = null }: AppProps) {
 
   function renderProviderServiceReceipt(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderServiceReceiptScreen
@@ -4209,6 +4298,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderCalendar() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider calendar" />;
+    }
+
     return (
       <ProviderCalendarScreen
         availability={availability}
@@ -4237,6 +4330,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderProfileView() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider profile" />;
+    }
+
     return (
       <ProviderProfileViewScreen
         profile={profile}
@@ -4261,6 +4358,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderReviews() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider reviews" />;
+    }
+
     return (
       <ProviderReviewsScreen
         ownReviews={ownReviews}
@@ -4297,6 +4398,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderPortfolio() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider portfolio" />;
+    }
+
     return (
       <ProviderPortfolioScreen
         providerPortfolioMedia={providerPortfolioMedia}
@@ -4327,6 +4432,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderPayoutManagement() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading payout details" />;
+    }
+
     return (
       <ProviderPayoutManagementScreen
         payoutAccount={payoutAccount}
@@ -4354,6 +4463,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderRequestPayout() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading payout request" />;
+    }
+
     return (
       <ProviderRequestPayoutScreen
         payoutAccount={payoutAccount}
@@ -4381,6 +4494,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderApplicationDocuments() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading application documents" />;
+    }
+
     return (
       <ProviderApplicationDocumentsScreen
         providerApplication={providerApplication}
@@ -4396,6 +4513,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderServices() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider services" />;
+    }
+
     return (
       <ProviderServicesScreen
         ownedServices={ownedServices}
@@ -4465,6 +4586,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderSecurity() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading security settings" />;
+    }
+
     return (
       <ProviderSecurityScreen
         busyAction={busyAction}
@@ -4481,6 +4606,10 @@ export default function App({ initialRoute = null }: AppProps) {
   }
 
   function renderProviderSettings() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider settings" />;
+    }
+
     return (
       <ProviderSettingsScreen
         profile={profile}

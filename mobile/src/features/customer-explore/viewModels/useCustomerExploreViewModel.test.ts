@@ -231,7 +231,7 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
     assert.equal(explore.data.popularServiceRows.length, 2);
   });
 
-  it('builds the five reference category tiles with safe fallbacks', () => {
+  it('builds reference category tiles without routing unavailable placeholders', () => {
     const explore = buildCustomerExploreViewModel({
       ...baseInput(),
       categories: [
@@ -256,7 +256,9 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
       ['Cleaning', 'Repairs', 'Plumbing', 'Electrical', 'Home Care'],
     );
     assert.equal(explore.data.referenceCategoryRows[0]?.category?.id, 'cleaning');
+    assert.equal(explore.data.referenceCategoryRows[0]?.isAvailable, true);
     assert.equal(explore.data.referenceCategoryRows[1]?.category, null);
+    assert.equal(explore.data.referenceCategoryRows[1]?.isAvailable, false);
     assert.equal(explore.data.referenceCategoryRows[3]?.category?.id, 'electrical');
     assert.equal(explore.data.referenceCategoryRows[3]?.isSelected, true);
   });

@@ -40,6 +40,10 @@ import {
   ProviderSection,
   providerText,
 } from '../../../shared/components/ProviderUI';
+import {
+  DashboardScreenSkeleton,
+  InlineRefreshHint,
+} from '../../../shared/components/LoadingStates';
 import { ProviderApplicationBanner } from './ProviderApplicationBanner';
 
 const EXISTING_MINIMUM_PAYOUT_AMOUNT = 1;
@@ -55,6 +59,7 @@ type ProviderHomeScreenProps = {
   navigate: (screen: AppScreen, role: AppRole) => void;
   openBooking: (booking: BookingSummary, screen: AppScreen) => void;
   busyAction: string | null;
+  isLoading?: boolean;
   onRefreshProviderApplication: () => void | Promise<void>;
   onOpenApplicationDocuments: () => void;
   now?: Date;
@@ -72,11 +77,14 @@ export function ProviderHomeScreen({
   navigate,
   openBooking,
   busyAction,
+  isLoading = false,
   onRefreshProviderApplication,
   onOpenApplicationDocuments,
   now = new Date(),
   minimumPayoutAmount = EXISTING_MINIMUM_PAYOUT_AMOUNT,
 }: ProviderHomeScreenProps) {
+  const isInitialLoading =
+    isLoading && !profile && bookings.length === 0 && payments.length === 0;
   const model = useProviderHomeViewModel({
     bookings,
     payments,
@@ -86,6 +94,14 @@ export function ProviderHomeScreen({
     profile,
     providerDashboard,
   }).data;
+
+  if (isInitialLoading) {
+    return (
+      <ProviderScreen>
+        <DashboardScreenSkeleton label="Loading provider home" />
+      </ProviderScreen>
+    );
+  }
 
   function openHeroAction(hero: ProviderHomeHero, screen: AppScreen) {
     if (hero.kind === 'job') {
@@ -121,6 +137,7 @@ export function ProviderHomeScreen({
             </Pressable>
           }
         />
+        {isLoading ? <InlineRefreshHint label="Refreshing dashboard" /> : null}
         <ProviderStatusPill status={model.dashboardStatus} />
         <Pressable
           style={styles.searchBar}

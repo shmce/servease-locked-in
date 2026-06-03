@@ -10,22 +10,26 @@ import {
   CustomerSection,
   customerText,
 } from '../../../shared/components/CustomerUI';
+import { ListSectionSkeleton } from '../../../shared/components/LoadingStates';
 import { BookingSummary } from '../../../shared/models/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerServiceHistoryViewModel } from '../viewModels/useCustomerServiceHistoryViewModel';
 
 type CustomerServiceHistoryScreenProps = {
   bookings: BookingSummary[];
+  isLoading?: boolean;
   onBack: () => void;
   openBooking: (booking: BookingSummary) => void;
 };
 
 export function CustomerServiceHistoryScreen({
   bookings,
+  isLoading = false,
   onBack,
   openBooking,
 }: CustomerServiceHistoryScreenProps) {
   const history = useCustomerServiceHistoryViewModel({ bookings });
+  const isInitialLoading = isLoading && bookings.length === 0;
 
   return (
     <CustomerScreen>
@@ -37,7 +41,9 @@ export function CustomerServiceHistoryScreen({
         />
 
         <CustomerSection title="Completed">
-          {history.data.completedRows.length ? (
+          {isInitialLoading ? (
+            <ListSectionSkeleton count={4} label="Loading service history" />
+          ) : history.data.completedRows.length ? (
             <View style={styles.historyList}>
               {history.data.completedRows.map((row) => (
                 <CustomerCard

@@ -12,12 +12,17 @@ import {
   CustomerSection,
   customerText,
 } from '../../../shared/components/CustomerUI';
+import {
+  InlineRefreshHint,
+  ListSectionSkeleton,
+} from '../../../shared/components/LoadingStates';
 import { BookingSummary } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerCalendarViewModel } from '../viewModels/useCustomerCalendarViewModel';
 
 type CustomerCalendarScreenProps = {
   bookings: BookingSummary[];
+  isLoading?: boolean;
   onRefresh: () => Promise<void> | void;
   openBooking: (booking: BookingSummary) => void;
   onViewAllBookings: () => void;
@@ -25,11 +30,14 @@ type CustomerCalendarScreenProps = {
 
 export function CustomerCalendarScreen({
   bookings,
+  isLoading = false,
   onRefresh,
   openBooking,
   onViewAllBookings,
 }: CustomerCalendarScreenProps) {
   const calendar = useCustomerCalendarViewModel({ bookings, onRefresh });
+  const isInitialLoading = isLoading && bookings.length === 0;
+  const isRefreshing = (isLoading || calendar.isLoading) && !isInitialLoading;
   const openCalendarBooking = (booking: BookingSummary) => {
     openBooking(booking);
   };
@@ -44,15 +52,17 @@ export function CustomerCalendarScreen({
             <Pressable
               style={[
                 styles.refreshButton,
-                calendar.isLoading && styles.refreshButtonDisabled,
+                (calendar.isLoading || isLoading) && styles.refreshButtonDisabled,
               ]}
               accessibilityRole="button"
               accessibilityLabel={
-                calendar.isLoading ? 'Refreshing bookings' : 'Refresh bookings'
+                calendar.isLoading || isLoading
+                  ? 'Refreshing bookings'
+                  : 'Refresh bookings'
               }
-              accessibilityState={{ disabled: calendar.isLoading }}
+              accessibilityState={{ disabled: calendar.isLoading || isLoading }}
               onPress={() => void calendar.refreshBookings()}
-              disabled={calendar.isLoading}
+              disabled={calendar.isLoading || isLoading}
             >
               <RefreshCw color={palette.mintDeep} size={20} strokeWidth={2.2} />
             </Pressable>
@@ -86,7 +96,11 @@ export function CustomerCalendarScreen({
             ) : null
           }
         >
-          {calendar.data.selectedDateBookings.length ? (
+          {isRefreshing ? <InlineRefreshHint label="Refreshing bookings" /> : null}
+
+          {isInitialLoading ? (
+            <ListSectionSkeleton count={3} label="Loading calendar bookings" />
+          ) : calendar.data.selectedDateBookings.length ? (
             <View style={styles.agendaList}>
               {calendar.data.selectedDateBookings.map((item) => {
                 const { booking } = item;

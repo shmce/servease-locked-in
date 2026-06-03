@@ -29,12 +29,14 @@ import {
   ProviderSection,
   providerText,
 } from '../../../shared/components/ProviderUI';
+import { ListSectionSkeleton } from '../../../shared/components/LoadingStates';
 import { NotificationSummary } from '../../../shared/models/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useNotificationsViewModel } from '../viewModels/useNotificationsViewModel';
 
 type NotificationsScreenProps = {
   notifications: NotificationSummary[];
+  isLoading?: boolean;
   onBack: () => void;
   openNotification: (notification: NotificationSummary) => Promise<void>;
   role: AppRole;
@@ -64,11 +66,13 @@ function NotificationIcon({
 
 export function NotificationsScreen({
   notifications,
+  isLoading = false,
   onBack,
   openNotification,
   role,
 }: NotificationsScreenProps) {
   const notificationsView = useNotificationsViewModel({ notifications });
+  const isInitialLoading = isLoading && notifications.length === 0;
 
   if (role === 'customer') {
     return (
@@ -89,7 +93,9 @@ export function NotificationsScreen({
           />
 
           <CustomerSection>
-            {notificationsView.data.visibleNotifications.length ? (
+            {isInitialLoading ? (
+              <ListSectionSkeleton count={4} label="Loading notifications" />
+            ) : notificationsView.data.visibleNotifications.length ? (
               <View style={styles.customerNotificationList}>
                 {notificationsView.data.visibleNotifications.map((item) => (
                   <CustomerCard
@@ -147,27 +153,31 @@ export function NotificationsScreen({
           }
         />
         <ProviderSection>
-          {notificationsView.data.visibleNotifications.map((item) => (
-            <ProviderCard
-              key={item.notification.id}
-              onPress={() => void openNotification(item.notification)}
-              selected={item.isUnread}
-              accessibilityLabel={`Open notification: ${item.title}`}
-            >
-              <View style={styles.notificationCard}>
-                <ProviderIconBlock compact>
-                  <NotificationIcon color={palette.mintDeep} kind={item.iconKind} />
-                </ProviderIconBlock>
-                <View style={styles.flex}>
-                  <Text style={styles.cardTitle}>{item.title}</Text>
-                  <Text style={styles.cardBody}>{item.body}</Text>
-                  <Text style={styles.cardMeta}>{item.createdAtLabel}</Text>
+          {isInitialLoading ? (
+            <ListSectionSkeleton count={4} label="Loading notifications" />
+          ) : (
+            notificationsView.data.visibleNotifications.map((item) => (
+              <ProviderCard
+                key={item.notification.id}
+                onPress={() => void openNotification(item.notification)}
+                selected={item.isUnread}
+                accessibilityLabel={`Open notification: ${item.title}`}
+              >
+                <View style={styles.notificationCard}>
+                  <ProviderIconBlock compact>
+                    <NotificationIcon color={palette.mintDeep} kind={item.iconKind} />
+                  </ProviderIconBlock>
+                  <View style={styles.flex}>
+                    <Text style={styles.cardTitle}>{item.title}</Text>
+                    <Text style={styles.cardBody}>{item.body}</Text>
+                    <Text style={styles.cardMeta}>{item.createdAtLabel}</Text>
+                  </View>
+                  {item.isUnread ? <View style={styles.notificationUnreadDot} /> : null}
                 </View>
-                {item.isUnread ? <View style={styles.notificationUnreadDot} /> : null}
-              </View>
-            </ProviderCard>
-          ))}
-          {notificationsView.data.isEmpty ? (
+              </ProviderCard>
+            ))
+          )}
+          {!isInitialLoading && notificationsView.data.isEmpty ? (
             <ProviderEmptyState
               title="No notifications yet"
               body="We'll notify you when something arrives."
