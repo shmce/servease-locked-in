@@ -18,6 +18,12 @@ import {
   ProviderListing,
 } from '../../../shared/models/types';
 import { paymentMethodMeta } from '../../../shared/utils/paymentMethods';
+import type { CustomerBookingLocationState } from '../../../domain/customerBookingLocation';
+import {
+  customerBookingLocationCanContinue,
+  customerBookingLocationNotice,
+  customerMapPinRequiredCopy,
+} from '../../../domain/customerBookingLocation';
 
 type CustomerBookingReviewViewModelInput = {
   provider: ProviderListing;
@@ -25,6 +31,7 @@ type CustomerBookingReviewViewModelInput = {
   scheduledAt: string;
   hoursRequired: string;
   address: string;
+  serviceLocation: CustomerBookingLocationState;
   notes: string;
   bookingReferencePhotoUrl: string | null;
   pricingQuote: PricingQuoteSummary | null;
@@ -42,6 +49,7 @@ export function useCustomerBookingReviewViewModel({
   scheduledAt,
   hoursRequired,
   address,
+  serviceLocation,
   notes,
   bookingReferencePhotoUrl,
   pricingQuote,
@@ -60,6 +68,7 @@ export function useCustomerBookingReviewViewModel({
         scheduledAt,
         hoursRequired,
         address,
+        serviceLocation,
         notes,
         bookingReferencePhotoUrl,
         pricingQuote,
@@ -72,6 +81,7 @@ export function useCustomerBookingReviewViewModel({
       }),
     [
       address,
+      serviceLocation,
       bookingReferencePhotoUrl,
       busyAction,
       hoursRequired,
@@ -95,6 +105,7 @@ export function buildCustomerBookingReviewViewModel({
   scheduledAt,
   hoursRequired,
   address,
+  serviceLocation,
   notes,
   bookingReferencePhotoUrl,
   pricingQuote,
@@ -125,6 +136,12 @@ export function buildCustomerBookingReviewViewModel({
     null;
   const isCashPayment =
     !selectedPaymentMethod || selectedPaymentMethod.methodType === 'cash_on_service';
+  const locationCanConfirm =
+    customerBookingLocationCanContinue(serviceLocation) ||
+    serviceLocation.status === 'error';
+  const locationBlockingMessage = locationCanConfirm
+    ? null
+    : customerBookingLocationNotice(serviceLocation) ?? customerMapPinRequiredCopy;
   const paymentMethodRows = customerPaymentMethods.map((method) => ({
     method,
     label: paymentMethodLabel(method.methodType),
@@ -208,6 +225,17 @@ export function buildCustomerBookingReviewViewModel({
           value: address || 'Address required',
         },
         {
+          key: 'service-pin',
+          label: 'Service pin',
+          value:
+            customerBookingLocationCanContinue(serviceLocation) &&
+            serviceLocation.confirmedPin
+            ? `Confirmed - ${serviceLocation.confirmedPin.latitude.toFixed(5)}, ${serviceLocation.confirmedPin.longitude.toFixed(5)}`
+            : serviceLocation.status === 'error'
+              ? 'Manual address fallback'
+              : 'Pin not confirmed',
+        },
+        {
           key: 'reference-photo',
           label: 'Reference photo',
           value: bookingReferencePhotoUrl ? 'Attached' : 'None',
@@ -227,6 +255,7 @@ export function buildCustomerBookingReviewViewModel({
         ? 'Cash is due directly to the provider after the service is completed.'
         : 'APICenter will collect wallet or card details in secure checkout after you confirm.',
       quoteExplanation:
+        locationBlockingMessage ??
         scheduleMessage ??
         pricingQuote?.explanation ??
         (isCashPayment
@@ -246,6 +275,7 @@ export function buildCustomerBookingReviewViewModel({
         busyAction === 'create-booking' ||
         busyAction === 'payment' ||
         busyAction === 'pricing-quote' ||
+        Boolean(locationBlockingMessage) ||
         !address.trim() ||
         !scheduledAtIso ||
         Boolean(scheduleMessage),

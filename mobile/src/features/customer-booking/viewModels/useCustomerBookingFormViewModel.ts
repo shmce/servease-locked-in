@@ -1,11 +1,18 @@
 import { useMemo } from 'react';
 import { formatMoney } from '../../../shared/utils/booking';
+import type { CustomerBookingLocationState } from '../../../domain/customerBookingLocation';
+import {
+  customerBookingLocationCanContinue,
+  customerBookingLocationNotice,
+} from '../../../domain/customerBookingLocation';
 import {
   ProviderAvailabilitySchedule,
   ProviderListing,
   CustomerAddressSummary,
 } from '../../../shared/models/types';
 import { buildCustomerBookingViewModel } from './useCustomerBookingViewModel';
+
+type PinAddressStatus = 'idle' | 'scheduled' | 'resolving' | 'failed';
 
 type CustomerBookingFormViewModelInput = {
   provider: ProviderListing;
@@ -15,10 +22,12 @@ type CustomerBookingFormViewModelInput = {
   timeSlots: string[];
   bookingSlotError: string;
   address: string;
+  serviceLocation: CustomerBookingLocationState;
   savedAddresses: CustomerAddressSummary[];
   selectedSavedAddressId: string | null;
   bookingReferencePhotoUrl: string | null;
   busyAction: string | null;
+  pinAddressStatus: PinAddressStatus;
   now?: Date;
 };
 
@@ -30,10 +39,12 @@ export function useCustomerBookingFormViewModel({
   timeSlots,
   bookingSlotError,
   address,
+  serviceLocation,
   savedAddresses,
   selectedSavedAddressId,
   bookingReferencePhotoUrl,
   busyAction,
+  pinAddressStatus,
   now,
 }: CustomerBookingFormViewModelInput) {
   return useMemo(
@@ -46,18 +57,22 @@ export function useCustomerBookingFormViewModel({
         timeSlots,
         bookingSlotError,
         address,
+        serviceLocation,
         savedAddresses,
         selectedSavedAddressId,
         bookingReferencePhotoUrl,
         busyAction,
+        pinAddressStatus,
         now,
       }),
     [
       address,
+      serviceLocation,
       bookingReferencePhotoUrl,
       bookingSlotError,
       busyAction,
       hoursRequired,
+      pinAddressStatus,
       provider,
       providerAvailability,
       savedAddresses,
@@ -77,10 +92,12 @@ export function buildCustomerBookingFormViewModel({
   timeSlots,
   bookingSlotError,
   address,
+  serviceLocation,
   savedAddresses,
   selectedSavedAddressId,
   bookingReferencePhotoUrl,
   busyAction,
+  pinAddressStatus,
   now,
 }: CustomerBookingFormViewModelInput) {
   const bookingSchedule = buildCustomerBookingViewModel({
@@ -107,13 +124,34 @@ export function buildCustomerBookingFormViewModel({
   if (!address.trim()) {
     missingFields.push('the service address');
   }
+  const locationCanContinue =
+    customerBookingLocationCanContinue(serviceLocation) ||
+    serviceLocation.status === 'error';
+  if (address.trim() && !locationCanContinue) {
+    missingFields.push('a confirmed service pin');
+  }
 
   const baseRate = provider.price ?? 0;
   const estimatedTotal =
     provider.pricingMode === 'hourly' ? baseRate * duration : baseRate;
   const displayName = provider.providerBusinessName ?? provider.title;
   const isPreparingEstimate = busyAction === 'pricing-quote';
-  const canContinue = missingFields.length === 0 && !isPreparingEstimate;
+  const isResolvingPin =
+    busyAction === 'geo-map-search' ||
+    busyAction === 'geo-current-location' ||
+    busyAction === 'geo-reverse-pin';
+  const canContinue =
+    missingFields.length === 0 && !isPreparingEstimate && !isResolvingPin;
+  const locationNotice = customerBookingLocationNotice(serviceLocation);
+  const locationStatusLabel = resolveCustomerBookingLocationStatusLabel(
+    serviceLocation,
+    pinAddressStatus,
+  );
+  const continueNotice = canContinue
+    ? null
+    : isResolvingPin
+      ? 'Resolving service location...'
+      : locationNotice ?? `Add ${formatMissingFields(missingFields)} to continue.`;
 
   return {
     data: {
@@ -126,14 +164,22 @@ export function buildCustomerBookingFormViewModel({
       duration,
       canContinue,
       continueLabel: isPreparingEstimate ? 'Getting estimate...' : 'Continue to Review',
-      canVerifyAddress: Boolean(address.trim()) && busyAction !== 'geo-address',
+      canVerifyAddress: Boolean(address.trim()) && busyAction !== 'geo-map-search',
       useCurrentLocationDisabled: busyAction === 'geo-current-location',
-      verifyAddressDisabled: !address.trim() || busyAction === 'geo-address',
+      verifyAddressDisabled: !address.trim() || busyAction === 'geo-map-search',
       saveAddressDisabled: !address.trim() || busyAction === 'save-address',
       useCurrentLocationLabel:
         busyAction === 'geo-current-location' ? 'Locating...' : 'Use current',
-      verifyAddressLabel: busyAction === 'geo-address' ? 'Checking...' : 'Verify address',
+      verifyAddressLabel:
+        busyAction === 'geo-map-search' ? 'Searching...' : 'Choose on map',
       saveAddressLabel: busyAction === 'save-address' ? 'Saving...' : 'Save as home',
+      locationNotice,
+      locationStatusLabel,
+      locationCoordinateLabel: serviceLocation.confirmedPin
+        ? `${serviceLocation.confirmedPin.latitude.toFixed(5)}, ${serviceLocation.confirmedPin.longitude.toFixed(5)}`
+        : serviceLocation.pendingPin
+          ? `${serviceLocation.pendingPin.latitude.toFixed(5)}, ${serviceLocation.pendingPin.longitude.toFixed(5)}`
+          : null,
       savedAddressOptions: savedAddresses.map((item) => ({
         id: item.id,
         label: item.isDefault ? `${item.label} (default)` : item.label,
@@ -146,9 +192,7 @@ export function buildCustomerBookingFormViewModel({
           : 'Service rate',
       calloutFeeLabel: 'Calculated on review',
       estimatedTotalLabel: formatMoney(estimatedTotal),
-      continueNotice: canContinue
-        ? null
-        : `Add ${formatMissingFields(missingFields)} to continue.`,
+      continueNotice,
       referencePhotoLabel: bookingReferencePhotoUrl
         ? 'Photo attached - tap to replace'
         : 'Attach a photo',
@@ -156,6 +200,36 @@ export function buildCustomerBookingFormViewModel({
     isLoading: false,
     error: null,
   };
+}
+
+function resolveCustomerBookingLocationStatusLabel(
+  serviceLocation: CustomerBookingLocationState,
+  pinAddressStatus: PinAddressStatus,
+): string {
+  if (
+    serviceLocation.pendingPin &&
+    (pinAddressStatus === 'scheduled' || pinAddressStatus === 'resolving')
+  ) {
+    return 'Finding pin address';
+  }
+
+  if (serviceLocation.pendingPin && pinAddressStatus === 'failed') {
+    return 'Address lookup needs retry';
+  }
+
+  if (serviceLocation.confirmedPin) {
+    return 'Confirmed service pin';
+  }
+
+  if (serviceLocation.pendingPin) {
+    return 'Pin ready to confirm';
+  }
+
+  if (serviceLocation.status === 'error') {
+    return 'Manual address fallback';
+  }
+
+  return 'Service pin required';
 }
 
 function formatMissingFields(missingFields: string[]): string {

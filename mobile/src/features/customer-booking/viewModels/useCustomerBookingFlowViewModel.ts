@@ -1,12 +1,27 @@
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addressVerifiedNotice,
+  canSubmitBookingAfterPricingRefresh,
   isPricingQuoteFresh,
   providerUnavailableSlotPickerMessage,
   promotionNotice,
   validateCustomerBookingScheduleSelection,
 } from '../../../domain/booking';
+import {
+  confirmCustomerBookingPin,
+  createCustomerBookingLocationState,
+  customerBookingLocationCanContinue,
+  customerBookingLocationFromSavedAddress,
+  customerBookingLocationNotice,
+  customerMapPinFallbackCopy,
+  customerMapPinRequiredCopy,
+  failCustomerBookingLocationResolution,
+  moveCustomerBookingPendingPin,
+  startCustomerBookingPendingPin,
+  updateCustomerBookingLocationAddress,
+} from '../../../domain/customerBookingLocation';
+import type { CustomerBookingMapPin } from '../../../domain/customerBookingLocation';
 import { defaultScheduledAt } from '../../../constants/appContent';
 import { readError } from '../../../navigation/routeHelpers';
 import type { AppRole, AppScreen } from '../../../navigation/types';
@@ -32,6 +47,12 @@ import {
   reverseGeocode,
   validatePromotion,
 } from '../../../shared/models/apiService';
+
+const initialServiceAddress = 'Unit 12B Greenfield Residences';
+const autoReverseGeocodeDebounceMs = 750;
+const autoReverseGeocodeDistanceThresholdMeters = 20;
+
+type PinAddressStatus = 'idle' | 'scheduled' | 'resolving' | 'failed';
 
 type CustomerBookingFlowViewModelInput = {
   apiOptions: ApiOptions;
@@ -71,7 +92,11 @@ export function useCustomerBookingFlowViewModel({
   now,
 }: CustomerBookingFlowViewModelInput) {
   const [bookingSlotError, setBookingSlotError] = useState('');
-  const [address, setAddress] = useState('Unit 12B Greenfield Residences');
+  const [address, setAddress] = useState(initialServiceAddress);
+  const [serviceLocation, setServiceLocation] = useState(() =>
+    createCustomerBookingLocationState(initialServiceAddress),
+  );
+  const [mapPickerVisible, setMapPickerVisible] = useState(false);
   const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt);
   const [hoursRequired, setHoursRequired] = useState('2');
   const [notes, setNotes] = useState('');
@@ -89,11 +114,120 @@ export function useCustomerBookingFlowViewModel({
   const [pricingQuote, setPricingQuote] = useState<PricingQuoteSummary | null>(null);
   const [selectedSavedAddressId, setSelectedSavedAddressId] =
     useState<string | null>(null);
+  const [pinAddressStatus, setPinAddressStatus] =
+    useState<PinAddressStatus>('idle');
+  const [lastResolvedPin, setLastResolvedPin] =
+    useState<Pick<CustomerBookingMapPin, 'latitude' | 'longitude'> | null>(null);
+  const reverseGeocodeRequestRef = useRef(0);
+  const latestServiceLocationRef = useRef(serviceLocation);
+
+  const resolveServiceLocationPinAddress = useCallback(
+    async (
+      pin: CustomerBookingMapPin,
+      mode: 'auto' | 'manual',
+    ): Promise<void> => {
+      const requestId = reverseGeocodeRequestRef.current + 1;
+      reverseGeocodeRequestRef.current = requestId;
+      setPinAddressStatus('resolving');
+      if (mode === 'manual') {
+        setBusyAction('geo-reverse-pin');
+      }
+
+      try {
+        const result = await reverseGeocode(pin.latitude, pin.longitude, {
+          ...apiOptions,
+          language: 'en',
+        });
+        if (requestId !== reverseGeocodeRequestRef.current) {
+          return;
+        }
+
+        const activePin =
+          latestServiceLocationRef.current.pendingPin ??
+          latestServiceLocationRef.current.confirmedPin;
+        if (!isActivePinCoordinate(pin, activePin)) {
+          return;
+        }
+
+        setServiceLocation((current) =>
+          moveCustomerBookingPendingPin(
+            current,
+            result.latitude,
+            result.longitude,
+            result.formattedAddress,
+          ),
+        );
+        setLastResolvedPin({
+          latitude: result.latitude,
+          longitude: result.longitude,
+        });
+        setPinAddressStatus('idle');
+        if (mode === 'manual') {
+          setNotice('Pin address refreshed.');
+        }
+      } catch (error) {
+        if (requestId !== reverseGeocodeRequestRef.current) {
+          return;
+        }
+        const message = readError(error);
+        setServiceLocation((current) => ({
+          ...current,
+          errorMessage: message,
+        }));
+        setPinAddressStatus('failed');
+        if (mode === 'manual') {
+          setNotice(message);
+        }
+      } finally {
+        if (mode === 'manual') {
+          setBusyAction(null);
+        }
+      }
+    },
+    [apiOptions, setBusyAction, setNotice],
+  );
+
+  useEffect(() => {
+    latestServiceLocationRef.current = serviceLocation;
+  }, [serviceLocation]);
+
+  const pendingServicePin = serviceLocation.pendingPin;
+
+  useEffect(() => {
+    const pin = pendingServicePin;
+    if (!mapPickerVisible || !pin) {
+      setPinAddressStatus('idle');
+      return undefined;
+    }
+
+    if (
+      lastResolvedPin &&
+      distanceBetweenCoordinatesMeters(pin, lastResolvedPin) <
+        autoReverseGeocodeDistanceThresholdMeters
+    ) {
+      setPinAddressStatus('idle');
+      return undefined;
+    }
+
+    setPinAddressStatus('scheduled');
+    const timeout = setTimeout(() => {
+      void resolveServiceLocationPinAddress(pin, 'auto');
+    }, autoReverseGeocodeDebounceMs);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [
+    lastResolvedPin,
+    mapPickerVisible,
+    pendingServicePin,
+    resolveServiceLocationPinAddress,
+  ]);
 
   useEffect(() => {
     if (
       selectedSavedAddressId ||
-      (address.trim() && address.trim() !== 'Unit 12B Greenfield Residences')
+      (address.trim() && address.trim() !== initialServiceAddress)
     ) {
       return;
     }
@@ -124,18 +258,35 @@ export function useCustomerBookingFlowViewModel({
     setAddress(value);
     setAddressGeoResult(null);
     setSelectedSavedAddressId(null);
+    setLastResolvedPin(null);
+    setPinAddressStatus('idle');
+    reverseGeocodeRequestRef.current += 1;
+    setServiceLocation((current) =>
+      updateCustomerBookingLocationAddress(current, value),
+    );
   }
 
   function applySavedAddress(savedAddress: CustomerAddressSummary) {
+    const nextLocation = customerBookingLocationFromSavedAddress(savedAddress);
     setSelectedSavedAddressId(savedAddress.id);
     setAddress(savedAddress.address);
     setPricingQuote(null);
-    setAddressGeoResult(
-      savedAddress.latitude !== null && savedAddress.longitude !== null
+    setServiceLocation(nextLocation);
+    setLastResolvedPin(
+      nextLocation.confirmedPin
         ? {
-            formattedAddress: savedAddress.address,
-            latitude: savedAddress.latitude,
-            longitude: savedAddress.longitude,
+            latitude: nextLocation.confirmedPin.latitude,
+            longitude: nextLocation.confirmedPin.longitude,
+          }
+        : null,
+    );
+    setPinAddressStatus('idle');
+    setAddressGeoResult(
+      nextLocation.confirmedPin
+        ? {
+            formattedAddress: nextLocation.confirmedPin.formattedAddress,
+            latitude: nextLocation.confirmedPin.latitude,
+            longitude: nextLocation.confirmedPin.longitude,
             provider: 'mock',
           }
         : null,
@@ -175,9 +326,15 @@ export function useCustomerBookingFlowViewModel({
       return null;
     }
 
+    if (!validateServiceLocationForReview()) {
+      return null;
+    }
+
     setBusyAction('create-booking');
     try {
       const serviceId = selectedService?.id ?? selectedProvider.serviceId;
+      const paymentMethod =
+        selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
       let quote = pricingQuote;
 
       if (serviceId && selectedProvider.providerId) {
@@ -191,10 +348,20 @@ export function useCustomerBookingFlowViewModel({
             pricingMode: selectedProvider.pricingMode,
           })
         ) {
-          quote = await fetchPricingQuote();
-          setPricingQuote(quote);
-          setNotice('Pricing estimate refreshed. Review the updated total before confirming.');
-          return null;
+          try {
+            quote = await fetchPricingQuote();
+            setPricingQuote(quote);
+          } catch (error) {
+            if (!canSubmitBookingAfterPricingRefresh(paymentMethod)) {
+              throw error;
+            }
+            quote = null;
+            setPricingQuote(null);
+          }
+          if (!canSubmitBookingAfterPricingRefresh(paymentMethod)) {
+            setNotice('Pricing estimate refreshed. Review the updated total before confirming.');
+            return null;
+          }
         }
       } else {
         quote = null;
@@ -207,13 +374,17 @@ export function useCustomerBookingFlowViewModel({
         serviceName: selectedService?.name ?? selectedProvider.title,
         serviceDescription: selectedProvider.description,
         serviceAddress: address.trim(),
+        serviceLatitude: serviceLocation.confirmedPin?.latitude ?? null,
+        serviceLongitude: serviceLocation.confirmedPin?.longitude ?? null,
         scheduledAt: scheduleValidation.scheduledAtIso,
         hoursRequired: Number(hoursRequired) || 1,
         serviceAmount:
           quote?.estimatedTotal ?? selectedProvider.price ?? selectedService?.price ?? 0,
         pricingMode: selectedProvider.pricingMode,
-        acceptedQuoteId: quote?.quoteId ?? null,
-        paymentMethod: selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service',
+        acceptedQuoteId: canSubmitBookingAfterPricingRefresh(paymentMethod)
+          ? null
+          : quote?.quoteId ?? null,
+        paymentMethod,
         customerNotes: notes.trim() || null,
         attachments: bookingReferenceUpload
           ? [
@@ -275,7 +446,12 @@ export function useCustomerBookingFlowViewModel({
         hoursRequired: Number(hoursRequired) || 1,
         bookingUrgency: 'standard',
         region: 'default',
-        destination: addressGeoResult
+        destination: serviceLocation.confirmedPin
+          ? {
+              latitude: serviceLocation.confirmedPin.latitude,
+              longitude: serviceLocation.confirmedPin.longitude,
+            }
+          : addressGeoResult
           ? {
               latitude: addressGeoResult.latitude,
               longitude: addressGeoResult.longitude,
@@ -295,6 +471,10 @@ export function useCustomerBookingFlowViewModel({
     const scheduleValidation = validateSelectedSchedule();
     if (!scheduleValidation.isValid) {
       handleScheduleValidationFailure(scheduleValidation.message);
+      return false;
+    }
+
+    if (!validateServiceLocationForReview()) {
       return false;
     }
 
@@ -373,19 +553,34 @@ export function useCustomerBookingFlowViewModel({
       return;
     }
 
-    setBusyAction('geo-address');
+    setBusyAction('geo-map-search');
     try {
       const result = await geocodeAddress(trimmed, {
         ...apiOptions,
         language: 'en',
         region: 'PH',
       });
+      const nextLocation = startCustomerBookingPendingPin(
+        serviceLocation,
+        result,
+        'search',
+      );
       setAddress(result.formattedAddress);
       setAddressGeoResult(result);
+      setServiceLocation(nextLocation);
+      setLastResolvedPin({
+        latitude: result.latitude,
+        longitude: result.longitude,
+      });
+      setPinAddressStatus('idle');
+      setMapPickerVisible(true);
       setNotice(addressVerifiedNotice(result));
     } catch (error) {
       setAddressGeoResult(null);
-      setNotice(readError(error));
+      setServiceLocation((current) =>
+        failCustomerBookingLocationResolution(current, readError(error)),
+      );
+      setNotice(`${readError(error)} ${customerMapPinFallbackCopy}`);
     } finally {
       setBusyAction(null);
     }
@@ -412,12 +607,27 @@ export function useCustomerBookingFlowViewModel({
         },
       );
 
+      const nextLocation = startCustomerBookingPendingPin(
+        serviceLocation,
+        result,
+        'current',
+      );
       setAddress(result.formattedAddress);
       setAddressGeoResult(result);
-      setNotice('Current location added as your service address.');
+      setServiceLocation(nextLocation);
+      setLastResolvedPin({
+        latitude: result.latitude,
+        longitude: result.longitude,
+      });
+      setPinAddressStatus('idle');
+      setMapPickerVisible(true);
+      setNotice('Current location found. Confirm the service pin before review.');
     } catch (error) {
       setAddressGeoResult(null);
-      setNotice(readError(error));
+      setServiceLocation((current) =>
+        failCustomerBookingLocationResolution(current, readError(error)),
+      );
+      setNotice(`${readError(error)} ${customerMapPinFallbackCopy}`);
     } finally {
       setBusyAction(null);
     }
@@ -440,8 +650,12 @@ export function useCustomerBookingFlowViewModel({
         {
           label: 'Home',
           address: trimmed,
-          latitude: addressGeoResult?.latitude ?? null,
-          longitude: addressGeoResult?.longitude ?? null,
+          latitude:
+            serviceLocation.confirmedPin?.latitude ?? addressGeoResult?.latitude ?? null,
+          longitude:
+            serviceLocation.confirmedPin?.longitude ??
+            addressGeoResult?.longitude ??
+            null,
           isDefault: true,
         },
         apiOptions,
@@ -454,6 +668,130 @@ export function useCustomerBookingFlowViewModel({
     } finally {
       setBusyAction(null);
     }
+  }
+
+  async function openServiceLocationPicker(): Promise<void> {
+    const existingPin =
+      serviceLocation.pendingPin ?? serviceLocation.confirmedPin ?? null;
+    if (existingPin) {
+      setLastResolvedPin({
+        latitude: existingPin.latitude,
+        longitude: existingPin.longitude,
+      });
+      setPinAddressStatus('idle');
+      setServiceLocation((current) => ({
+        ...current,
+        pendingPin: existingPin,
+        status: 'pending',
+        errorMessage: null,
+      }));
+      setMapPickerVisible(true);
+      return;
+    }
+
+    await verifyServiceAddress();
+  }
+
+  function closeServiceLocationPicker() {
+    reverseGeocodeRequestRef.current += 1;
+    setPinAddressStatus('idle');
+    setMapPickerVisible(false);
+  }
+
+  function setServiceLocationManualDetails(value: string) {
+    setServiceLocation((current) => ({
+      ...current,
+      manualDetails: value,
+    }));
+  }
+
+  function moveServiceLocationPin(
+    latitude: number,
+    longitude: number,
+    formattedAddress?: string,
+  ) {
+    setServiceLocation((current) =>
+      moveCustomerBookingPendingPin(
+        current,
+        latitude,
+        longitude,
+        formattedAddress,
+      ),
+    );
+  }
+
+  async function reverseGeocodeServiceLocationPin(): Promise<void> {
+    const pin = serviceLocation.pendingPin ?? serviceLocation.confirmedPin;
+    if (!pin) {
+      setNotice('Choose a map pin first.');
+      return;
+    }
+
+    await resolveServiceLocationPinAddress(pin, 'manual');
+  }
+
+  function confirmServiceLocationPin() {
+    const pin = serviceLocation.pendingPin ?? serviceLocation.confirmedPin;
+    if (!pin) {
+      setNotice(customerMapPinRequiredCopy);
+      return;
+    }
+
+    reverseGeocodeRequestRef.current += 1;
+    const detail = serviceLocation.manualDetails.trim();
+    const confirmedAddress = detail
+      ? `${pin.formattedAddress} - ${detail}`
+      : pin.formattedAddress;
+    const nextLocation = confirmCustomerBookingPin(
+      {
+        ...serviceLocation,
+        pendingPin: pin,
+      },
+      confirmedAddress,
+    );
+
+    setServiceLocation(nextLocation);
+    setAddress(nextLocation.addressText);
+    setLastResolvedPin(
+      nextLocation.confirmedPin
+        ? {
+            latitude: nextLocation.confirmedPin.latitude,
+            longitude: nextLocation.confirmedPin.longitude,
+          }
+        : null,
+    );
+    setPinAddressStatus('idle');
+    setAddressGeoResult(
+      nextLocation.confirmedPin
+        ? {
+            formattedAddress: nextLocation.confirmedPin.formattedAddress,
+            latitude: nextLocation.confirmedPin.latitude,
+            longitude: nextLocation.confirmedPin.longitude,
+            provider: 'mock',
+          }
+        : null,
+    );
+    setPricingQuote(null);
+    setMapPickerVisible(false);
+    setNotice('Service pin confirmed.');
+  }
+
+  function validateServiceLocationForReview(): boolean {
+    if (customerBookingLocationCanContinue(serviceLocation)) {
+      return true;
+    }
+
+    if (serviceLocation.status === 'error') {
+      setNotice(
+        customerBookingLocationNotice(serviceLocation) ?? customerMapPinFallbackCopy,
+      );
+      return true;
+    }
+
+    setNotice(
+      customerBookingLocationNotice(serviceLocation) ?? customerMapPinRequiredCopy,
+    );
+    return false;
   }
 
   function validateSelectedSchedule() {
@@ -484,24 +822,33 @@ export function useCustomerBookingFlowViewModel({
       bookingReferencePhotoUrl,
       bookingSlotError,
       hoursRequired,
+      mapPickerVisible,
       notes,
+      pinAddressStatus,
       pricingQuote,
       promoCode,
       promotionValidation,
       scheduledAt,
       savedAddresses: customerAddresses,
       selectedSavedAddressId,
+      serviceLocation,
     },
     actions: {
       applySavedAddress,
       applyPromotionCode,
+      closeServiceLocationPicker,
+      confirmServiceLocationPin,
+      moveServiceLocationPin,
+      openServiceLocationPicker,
       prepareBookingReview,
       previewPricingQuote,
+      reverseGeocodeServiceLocationPin,
       saveCurrentAddressAsHome,
       setAddress: setServiceAddress,
       setBookingReferenceUploadResult,
       setBookingSlotError,
       setHoursRequired,
+      setServiceLocationManualDetails,
       setNotes,
       setPricingQuote,
       setPromoCode,
@@ -525,4 +872,45 @@ function mediaAttachmentFromUpload(upload: UploadSummary) {
     fileSize: upload.size,
     caption: null,
   };
+}
+
+function isActivePinCoordinate(
+  requestedPin: Pick<CustomerBookingMapPin, 'latitude' | 'longitude'>,
+  activePin: Pick<CustomerBookingMapPin, 'latitude' | 'longitude'> | null,
+): boolean {
+  if (!activePin) {
+    return false;
+  }
+
+  return (
+    Math.abs(requestedPin.latitude - activePin.latitude) < 0.000001 &&
+    Math.abs(requestedPin.longitude - activePin.longitude) < 0.000001
+  );
+}
+
+function distanceBetweenCoordinatesMeters(
+  first: Pick<CustomerBookingMapPin, 'latitude' | 'longitude'>,
+  second: Pick<CustomerBookingMapPin, 'latitude' | 'longitude'>,
+): number {
+  const earthRadiusMeters = 6371000;
+  const firstLatitude = toRadians(first.latitude);
+  const secondLatitude = toRadians(second.latitude);
+  const latitudeDelta = toRadians(second.latitude - first.latitude);
+  const longitudeDelta = toRadians(second.longitude - first.longitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2) +
+    Math.cos(firstLatitude) *
+      Math.cos(secondLatitude) *
+      Math.sin(longitudeDelta / 2) *
+      Math.sin(longitudeDelta / 2);
+
+  return (
+    2 *
+    earthRadiusMeters *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
+}
+
+function toRadians(value: number): number {
+  return (value * Math.PI) / 180;
 }

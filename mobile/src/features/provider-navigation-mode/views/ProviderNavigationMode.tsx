@@ -173,7 +173,7 @@ export function ProviderNavigationModeScreen({
           title="Head to the service location"
           subtitle={data.routeLabel}
           directions={directions}
-          destinationMarkerLabel="Service address"
+          destinationMarkerLabel={data.destinationMarkerLabel}
           navigationOrigin={data.navigationOrigin}
           providerMarkerLabel="You"
         />

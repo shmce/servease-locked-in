@@ -7,6 +7,10 @@ import type {
   PricingQuoteSummary,
   ProviderListing,
 } from '../../../shared/models/types';
+import {
+  customerBookingLocationFromSavedAddress,
+  customerMapPinRequiredCopy,
+} from '../../../domain/customerBookingLocation';
 
 const provider = {
   id: 'listing-1',
@@ -43,6 +47,22 @@ const gcashMethod: CustomerPaymentMethodSummary = {
   createdAt: null,
 };
 
+const confirmedServiceLocation = customerBookingLocationFromSavedAddress({
+  id: 'address-1',
+  userId: 'customer-1',
+  label: 'Home',
+  address: '123 Test St',
+  barangay: null,
+  city: 'Makati',
+  province: null,
+  region: 'NCR',
+  latitude: 14.554729,
+  longitude: 121.024445,
+  isDefault: true,
+  createdAt: null,
+  updatedAt: null,
+});
+
 test('customer booking review shows payment-first cash confirmation copy', () => {
   const model = buildCustomerBookingReviewViewModel({
     provider,
@@ -50,6 +70,7 @@ test('customer booking review shows payment-first cash confirmation copy', () =>
     scheduledAt: '2026-06-01T09:00',
     hoursRequired: '2',
     address: '123 Test St',
+    serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
     pricingQuote: null,
@@ -73,6 +94,7 @@ test('customer booking review shows secure checkout copy for online methods', ()
     scheduledAt: '2026-06-01T09:00',
     hoursRequired: '2',
     address: '123 Test St',
+    serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
     pricingQuote: null,
@@ -122,6 +144,7 @@ test('customer booking review separates provider rate from pricing engine total'
     scheduledAt: '2026-06-01T09:00',
     hoursRequired: '1',
     address: '123 Test St',
+    serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
     pricingQuote: quote,
@@ -160,6 +183,7 @@ test('customer booking review blocks confirmation when the selected schedule has
     scheduledAt: '2026-06-03T10:00',
     hoursRequired: '2',
     address: '123 Test St',
+    serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
     pricingQuote: null,
@@ -173,4 +197,55 @@ test('customer booking review blocks confirmation when the selected schedule has
 
   assert.equal(model.data.confirmDisabled, true);
   assert.equal(model.data.quoteExplanation, customerPastSlotPickerCopy);
+});
+
+test('customer booking review shows the confirmed service pin', () => {
+  const model = buildCustomerBookingReviewViewModel({
+    provider,
+    selectedService: null,
+    scheduledAt: '2026-06-01T09:00',
+    hoursRequired: '2',
+    address: '123 Test St',
+    serviceLocation: confirmedServiceLocation,
+    notes: '',
+    bookingReferencePhotoUrl: null,
+    pricingQuote: null,
+    promotionValidation: null,
+    promoCode: '',
+    busyAction: null,
+    customerPaymentMethods: [cashMethod],
+    selectedPaymentMethodId: cashMethod.id,
+  });
+
+  const pinRow = model.data.serviceRows.find((row) => row.key === 'service-pin');
+  assert.match(pinRow?.value ?? '', /14.55473, 121.02445/);
+});
+
+test('customer booking review blocks confirmation when the service pin regresses to pending', () => {
+  const model = buildCustomerBookingReviewViewModel({
+    provider,
+    selectedService: null,
+    scheduledAt: '2026-06-01T09:00',
+    hoursRequired: '2',
+    address: '123 Test St',
+    serviceLocation: {
+      ...confirmedServiceLocation,
+      pendingPin: confirmedServiceLocation.confirmedPin,
+      status: 'pending',
+    },
+    notes: '',
+    bookingReferencePhotoUrl: null,
+    pricingQuote: null,
+    promotionValidation: null,
+    promoCode: '',
+    busyAction: null,
+    customerPaymentMethods: [cashMethod],
+    selectedPaymentMethodId: cashMethod.id,
+    now: new Date('2026-05-31T00:00:00.000Z'),
+  });
+
+  const pinRow = model.data.serviceRows.find((row) => row.key === 'service-pin');
+  assert.equal(model.data.confirmDisabled, true);
+  assert.equal(model.data.quoteExplanation, customerMapPinRequiredCopy);
+  assert.equal(pinRow?.value, 'Pin not confirmed');
 });

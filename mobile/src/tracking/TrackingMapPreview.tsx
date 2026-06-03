@@ -40,6 +40,10 @@ type TrackingMapMode = 'tracking' | 'navigation';
 
 const OPENFREEMAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 const MAPLIBRE_CDN_BASE = 'https://unpkg.com/maplibre-gl@5.24.0/dist';
+const servicePickerDefaultCenter: TrackingMapLocation = {
+  latitude: 14.554729,
+  longitude: 121.024445,
+};
 const trackingMapIframeStyle = {
   border: 0,
   height: '100%',
@@ -257,6 +261,158 @@ export function AddressVerificationPreview({
   );
 }
 
+export function ServiceLocationPickerMap({
+  center,
+  onCenterChange,
+}: {
+  center: TrackingMapLocation | null;
+  onCenterChange: (location: TrackingMapLocation) => void;
+}) {
+  const [mapFailed, setMapFailed] = useState(false);
+  const webViewRef = useRef<WebView>(null);
+  const iframeRef =
+    useRef<{ contentWindow?: { postMessage: (message: string, target: string) => void } } | null>(
+      null,
+    );
+  const mapCenter = useMemo(() => center ?? servicePickerDefaultCenter, [center]);
+  const initialMapCenterRef = useRef(mapCenter);
+  const lastMapCenterRef = useRef(initialMapCenterRef.current);
+  const points = projectTrackingPoints(null, mapCenter);
+  const mapHtml = useMemo(() => buildServiceLocationPickerHtml(initialMapCenterRef.current), []);
+
+  const recenterPickerMap = useCallback((location: TrackingMapLocation) => {
+    const payload = JSON.stringify({
+      type: 'recenter',
+      latitude: location.latitude,
+      longitude: location.longitude,
+    });
+    if (Platform.OS === 'web') {
+      iframeRef.current?.contentWindow?.postMessage(payload, '*');
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(`
+      window.__serveasePickerMap?.recenter(${JSON.stringify(location.longitude)}, ${JSON.stringify(location.latitude)});
+      true;
+    `);
+  }, []);
+
+  const handleMessage = useCallback(
+    (event: { nativeEvent: { data: string } }) => {
+      try {
+        const payload = JSON.parse(event.nativeEvent.data) as {
+          type?: string;
+          latitude?: number;
+          longitude?: number;
+        };
+        if (
+          payload.type !== 'pin-change' ||
+          typeof payload.latitude !== 'number' ||
+          typeof payload.longitude !== 'number'
+        ) {
+          return;
+        }
+        const location = {
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+        };
+        lastMapCenterRef.current = location;
+        onCenterChange(location);
+      } catch {
+        // Ignore malformed map messages.
+      }
+    },
+    [onCenterChange],
+  );
+
+  useEffect(() => {
+    if (!center) {
+      return;
+    }
+    if (sameTrackingLocation(center, lastMapCenterRef.current)) {
+      return;
+    }
+
+    lastMapCenterRef.current = center;
+    recenterPickerMap(center);
+  }, [center, recenterPickerMap]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleWindowMessage = (event: MessageEvent) => {
+      const data =
+        typeof event.data === 'string' ? event.data : JSON.stringify(event.data);
+      handleMessage({ nativeEvent: { data } });
+    };
+
+    window.addEventListener('message', handleWindowMessage);
+    return () => {
+      window.removeEventListener('message', handleWindowMessage);
+    };
+  }, [handleMessage]);
+
+  if (mapFailed) {
+    return (
+      <TrackingMapSvgPreview
+        destinationLabel="Service pin"
+        providerLabel="Route preview"
+        routePath={null}
+        points={points}
+      />
+    );
+  }
+
+  return (
+    <View style={mapStyles.servicePickerMapFrame}>
+      {Platform.OS === 'web' ? (
+        createElement('iframe', {
+          ref: iframeRef,
+          srcDoc: mapHtml,
+          style: trackingMapIframeStyle,
+          title: 'Choose service location map',
+        })
+      ) : (
+        <WebView
+          ref={webViewRef}
+          domStorageEnabled
+          javaScriptEnabled
+          mixedContentMode="never"
+          onError={() => setMapFailed(true)}
+          onHttpError={() => setMapFailed(true)}
+          onMessage={handleMessage}
+          originWhitelist={['*']}
+          scrollEnabled={false}
+          setSupportMultipleWindows={false}
+          source={{ html: mapHtml }}
+          style={mapStyles.trackingMapWebView}
+        />
+      )}
+      <View pointerEvents="none" style={mapStyles.servicePickerFixedPin}>
+        <MapPin
+          color={palette.mintDeep}
+          fill={palette.white}
+          size={42}
+          strokeWidth={2.35}
+        />
+        <View style={mapStyles.servicePickerPinShadow} />
+      </View>
+    </View>
+  );
+}
+
+function sameTrackingLocation(
+  first: TrackingMapLocation,
+  second: TrackingMapLocation,
+): boolean {
+  return (
+    Math.abs(first.latitude - second.latitude) < 0.000001 &&
+    Math.abs(first.longitude - second.longitude) < 0.000001
+  );
+}
+
 function TrackingMapWebView({
   destination,
   destinationLabel,
@@ -350,6 +506,122 @@ function TrackingMapWebView({
       style={mapStyles.trackingMapWebView}
     />
   );
+}
+
+function buildServiceLocationPickerHtml(center: TrackingMapLocation): string {
+  const coordinate = [center.longitude, center.latitude];
+  return `<!doctype html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <link rel="stylesheet" href="${MAPLIBRE_CDN_BASE}/maplibre-gl.css" />
+  <style>
+    html, body, #map { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+    body { background: #E5E7EB; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    #fallback {
+      align-items: center;
+      background: linear-gradient(135deg, #E8F8EF 0%, #E6F0FF 100%);
+      color: #6B7280;
+      display: flex;
+      font-size: 13px;
+      font-weight: 700;
+      inset: 0;
+      justify-content: center;
+      padding: 18px;
+      position: fixed;
+      text-align: center;
+    }
+    .maplibregl-ctrl-bottom-right {
+      bottom: 214px !important;
+      right: 14px !important;
+    }
+    .maplibregl-ctrl-attrib {
+      border-radius: 999px;
+      box-shadow: 0 6px 16px rgba(17,24,39,0.12);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div id="map" aria-label="Service location picker map"></div>
+  <div id="fallback">Loading map tiles...</div>
+  <script src="${MAPLIBRE_CDN_BASE}/maplibre-gl.js"></script>
+  <script>
+    const styleUrl = ${JSON.stringify(OPENFREEMAP_STYLE_URL)};
+    const initialCenter = ${JSON.stringify(coordinate)};
+    const fallback = document.getElementById('fallback');
+    const postPin = (map) => {
+      const center = map.getCenter();
+      const payload = JSON.stringify({
+        type: 'pin-change',
+        latitude: center.lat,
+        longitude: center.lng
+      });
+      window.ReactNativeWebView?.postMessage(payload);
+      window.parent?.postMessage(payload, '*');
+    };
+    try {
+      const map = new maplibregl.Map({
+        attributionControl: false,
+        center: initialCenter,
+        container: 'map',
+        interactive: true,
+        pitchWithRotate: false,
+        style: styleUrl,
+        zoom: 16
+      });
+      map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+      map.dragRotate.disable();
+      map.touchPitch?.disable?.();
+      window.__serveasePickerMap = {
+        recenter: (longitude, latitude) => {
+          if (typeof longitude !== 'number' || typeof latitude !== 'number') {
+            return;
+          }
+          map.easeTo({
+            center: [longitude, latitude],
+            duration: 180
+          });
+        }
+      };
+      window.addEventListener('message', (event) => {
+        try {
+          const message = typeof event.data === 'string'
+            ? JSON.parse(event.data)
+            : event.data;
+          if (
+            message?.type === 'recenter' &&
+            typeof message.latitude === 'number' &&
+            typeof message.longitude === 'number'
+          ) {
+            window.__serveasePickerMap.recenter(message.longitude, message.latitude);
+          }
+        } catch (error) {
+          // Ignore malformed parent messages.
+        }
+      });
+      map.on('load', () => {
+        fallback.style.display = 'none';
+        postPin(map);
+      });
+      map.on('moveend', () => postPin(map));
+      map.on('click', (event) => {
+        map.easeTo({
+          center: [event.lngLat.lng, event.lngLat.lat],
+          duration: 180
+        });
+      });
+      map.on('error', () => {
+        if (!map.loaded()) {
+          fallback.textContent = 'Map tiles are temporarily unavailable.';
+        }
+      });
+    } catch (error) {
+      fallback.textContent = 'Map tiles are temporarily unavailable.';
+    }
+  </script>
+</body>
+</html>`;
 }
 
 function TrackingMapSvgPreview({
@@ -1158,6 +1430,35 @@ const mapStyles = StyleSheet.create({
     height: 36,
     justifyContent: 'center',
     width: 36,
+  },
+  servicePickerFixedPin: {
+    alignItems: 'center',
+    height: 54,
+    justifyContent: 'center',
+    left: '50%',
+    marginLeft: -21,
+    marginTop: -48,
+    position: 'absolute',
+    shadowColor: '#00A85A',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    top: '50%',
+    width: 42,
+    zIndex: 4,
+  },
+  servicePickerPinShadow: {
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 8,
+    height: 7,
+    marginTop: -6,
+    width: 18,
+  },
+  servicePickerMapFrame: {
+    backgroundColor: '#E5E7EB',
+    flex: 1,
+    overflow: 'hidden',
+    position: 'relative',
   },
   trackingLegendDot: {
     borderRadius: 4,

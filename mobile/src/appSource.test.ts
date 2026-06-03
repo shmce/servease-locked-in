@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-test('booking form verifies service addresses through the APICenter geo gateway', () => {
+test('booking form chooses service pins through the APICenter geo gateway', () => {
   const bookingFlowViewModel = readFileSync(
     join(
       process.cwd(),
@@ -36,8 +36,11 @@ test('booking form verifies service addresses through the APICenter geo gateway'
   assert.match(bookingFlowViewModel, /geocodeAddress/);
   assert.match(bookingFlowViewModel, /verifyServiceAddress/);
   assert.match(bookingFormSource, /verifyAddressLabel/);
+  assert.match(bookingFormSource, /ServiceLocationPickerMap/);
   assert.match(bookingFormSource, /AddressVerificationPreview/);
-  assert.match(bookingFormViewModel, /Verify address/);
+  assert.match(bookingFormViewModel, /Choose on map/);
+  assert.match(mapSource, /export function ServiceLocationPickerMap/);
+  assert.match(mapSource, /postMessage\(payload\)/);
   assert.match(addressPreviewSource, /addressTrackingMapFrame/);
   assert.match(addressPreviewSource, /addressVerificationMapOverlay/);
   assert.match(addressPreviewSource, /Service pin verified/);
@@ -431,11 +434,18 @@ test('customer tracking uses the provider navigation map mode with route geometr
   assert.doesNotMatch(routeSource, /getCurrentNavigationLocation/);
 });
 
-test('customer tracking map labels provider and service address markers', () => {
+test('customer tracking map labels provider and destination markers', () => {
   const customerTrackSource = readFileSync(
     join(
       process.cwd(),
       'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+    ),
+    'utf8',
+  );
+  const customerTrackViewModelSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-track-provider/viewModels/useCustomerTrackProviderViewModel.ts',
     ),
     'utf8',
   );
@@ -450,7 +460,9 @@ test('customer tracking map labels provider and service address markers', () => 
   const svgSource = mapSource.slice(svgStart, htmlStart);
 
   assert.match(customerTrackSource, /providerMarkerLabel="Provider"/);
-  assert.match(customerTrackSource, /destinationMarkerLabel="Service address"/);
+  assert.match(customerTrackSource, /destinationMarkerLabel=\{data\.destinationMarkerLabel\}/);
+  assert.match(customerTrackViewModelSource, /Confirmed service pin/);
+  assert.match(customerTrackViewModelSource, /Service address/);
   assert.match(htmlSource, /provider-location-label/);
   assert.match(htmlSource, /destinationMarkerLabel/);
   assert.match(htmlSource, /data-label/);

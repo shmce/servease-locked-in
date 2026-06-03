@@ -48,6 +48,13 @@ export class BookingLifecycleService {
       throw new BookingScheduleInPastError();
     }
 
+    if (
+      !this.isOptionalCoordinate(input.serviceLatitude, 90) ||
+      !this.isOptionalCoordinate(input.serviceLongitude, 180)
+    ) {
+      throw new InvalidBookingRequestError();
+    }
+
     return this.bookingRepository.createBooking(input);
   }
 
@@ -204,7 +211,7 @@ export class BookingLifecycleService {
       trafficLevel:
         distanceKm === null ? null : this.trackingTrafficForSeed(seed),
       destinationAddress: booking.serviceAddress,
-      destinationLocation: null,
+      destinationLocation: this.bookingDestinationLocation(booking),
       providerLocation,
       scheduledAt: booking.scheduledAt,
       lastUpdatedAt: providerLocation?.updatedAt ?? new Date().toISOString(),
@@ -278,6 +285,25 @@ export class BookingLifecycleService {
     }
   }
 
+  private bookingDestinationLocation(
+    booking: BookingSummary,
+  ): BookingTrackingLocation | null {
+    const latitude = booking.serviceLatitude;
+    const longitude = booking.serviceLongitude;
+
+    if (
+      !this.isCoordinate(latitude ?? undefined, 90) ||
+      !this.isCoordinate(longitude ?? undefined, 180)
+    ) {
+      return null;
+    }
+
+    return {
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+    };
+  }
+
   private deriveDistanceKm(status: BookingStatus, seed: number): number | null {
     if (!['confirmed', 'in_progress'].includes(status)) {
       return null;
@@ -346,6 +372,17 @@ export class BookingLifecycleService {
       typeof value === 'number' &&
       Number.isFinite(value) &&
       Math.abs(value) <= maxAbsolute
+    );
+  }
+
+  private isOptionalCoordinate(
+    value: number | null | undefined,
+    maxAbsolute: number,
+  ): boolean {
+    return (
+      value === null ||
+      value === undefined ||
+      this.isCoordinate(value, maxAbsolute)
     );
   }
 

@@ -352,6 +352,13 @@ export class BookingController {
       throw new BookingScheduleInPastError();
     }
 
+    if (
+      !this.isOptionalCoordinate(body.serviceLatitude, 90) ||
+      !this.isOptionalCoordinate(body.serviceLongitude, 180)
+    ) {
+      throw new InvalidBookingRequestError();
+    }
+
     body.attachments?.forEach((attachment) => {
       if (!attachment.fileUrl?.trim()) {
         throw new InvalidBookingRequestError();
@@ -409,6 +416,17 @@ export class BookingController {
       typeof value === 'number' &&
       Number.isFinite(value) &&
       Math.abs(value) <= maxAbsolute
+    );
+  }
+
+  private isOptionalCoordinate(
+    value: number | null | undefined,
+    maxAbsolute: number,
+  ): boolean {
+    return (
+      value === null ||
+      value === undefined ||
+      this.isCoordinate(value, maxAbsolute)
     );
   }
 

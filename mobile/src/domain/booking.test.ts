@@ -4,6 +4,7 @@ import {
   activeBookingCount,
   addressVerifiedNotice,
   bookingStatusChip,
+  canSubmitBookingAfterPricingRefresh,
   buildCustomerBookingAvailability,
   buildCalendarExportUrl,
   buildBookingTransitionRequest,
@@ -172,6 +173,15 @@ describe('booking domain helpers', () => {
       '2026-05-20T02:00:00.000Z',
     );
     assert.equal(toManilaBookingIso('not-a-date'), null);
+  });
+
+  it('continues cash booking submission after refreshing a pricing estimate', () => {
+    assert.equal(canSubmitBookingAfterPricingRefresh('cash_on_service'), true);
+    assert.equal(canSubmitBookingAfterPricingRefresh(null), true);
+    assert.equal(canSubmitBookingAfterPricingRefresh(undefined), true);
+    assert.equal(canSubmitBookingAfterPricingRefresh('gcash'), false);
+    assert.equal(canSubmitBookingAfterPricingRefresh('paymaya'), false);
+    assert.equal(canSubmitBookingAfterPricingRefresh('card'), false);
   });
 
   it('filters same-day customer booking slots that have already passed in Manila', () => {

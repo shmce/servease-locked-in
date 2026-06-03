@@ -48,6 +48,8 @@ describe('BookingGatewayService', () => {
     const booking = await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
       providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
       serviceAddress: '123 Test St',
+      serviceLatitude: 14.554729,
+      serviceLongitude: 121.024445,
       scheduledAt: '2026-07-20T08:00:00.000Z',
     });
 
@@ -56,6 +58,8 @@ describe('BookingGatewayService', () => {
       {
         providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
         serviceAddress: '123 Test St',
+        serviceLatitude: 14.554729,
+        serviceLongitude: 121.024445,
         scheduledAt: '2026-07-20T08:00:00.000Z',
       },
     );
@@ -560,6 +564,51 @@ describe('BookingGatewayService', () => {
       longitude: 120.9842,
     });
     expect(snapshot.destinationAddress).toBe('123 Test St, Manila, Philippines');
+  });
+
+  it('uses stored tracking destination coordinates before address geocoding', async () => {
+    const client = {
+      getTrackingSnapshot: jest.fn().mockResolvedValue({
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        bookingReference: 'SE-ABC123',
+        status: 'in_progress',
+        phase: 'on_the_way',
+        etaMinutes: 18,
+        distanceKm: 5.2,
+        trafficLevel: 'moderate',
+        destinationAddress: '123 Test St',
+        destinationLocation: {
+          latitude: 14.554729,
+          longitude: 121.024445,
+        },
+        providerLocation: null,
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        lastUpdatedAt: '2026-05-16T00:00:00.000Z',
+      }),
+    } as unknown as BookingServiceClient;
+    const geoClient = {
+      geocodeAddress: jest.fn(),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      geoClient as unknown as GeoServiceClient,
+    );
+
+    const snapshot = await service.getTrackingSnapshot(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      null,
+    );
+
+    expect(geoClient.geocodeAddress).not.toHaveBeenCalled();
+    expect(snapshot.destinationLocation).toEqual({
+      latitude: 14.554729,
+      longitude: 121.024445,
+    });
+    expect(snapshot.destinationAddress).toBe('123 Test St');
   });
 
   it('streams booking tracking snapshots over the gateway cadence', async () => {
@@ -1133,6 +1182,8 @@ function createBookingSummary(overrides = {}) {
     serviceId: 'service-1',
     serviceTitle: 'Deep Clean',
     serviceAddress: '123 Test St',
+    serviceLatitude: null,
+    serviceLongitude: null,
     scheduledAt: '2026-07-20T08:00:00.000Z',
     status: 'pending',
     totalAmount: 1200,

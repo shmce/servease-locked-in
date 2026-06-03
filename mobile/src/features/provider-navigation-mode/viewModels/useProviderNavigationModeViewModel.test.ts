@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
+import type {
   BookingSummary,
   BookingTrackingSnapshot,
   GeoDirectionsRoute,
 } from '../../../shared/models/types';
-import { buildCustomerTrackProviderViewModel } from './useCustomerTrackProviderViewModel';
+import { buildProviderNavigationModeViewModel } from './useProviderNavigationModeViewModel';
 
 const booking = {
   id: 'booking-1',
@@ -15,6 +15,8 @@ const booking = {
   serviceId: 'service-1',
   serviceTitle: 'Cleaning',
   serviceAddress: 'Makati',
+  serviceLatitude: 14.5547,
+  serviceLongitude: 121.0244,
   scheduledAt: '2026-05-21T08:00:00.000Z',
   status: 'confirmed',
   totalAmount: 1500,
@@ -24,7 +26,7 @@ const tracking: BookingTrackingSnapshot = {
   bookingId: 'booking-1',
   bookingReference: 'SRV-001',
   status: 'confirmed',
-  phase: 'on_the_way',
+  phase: 'scheduled',
   etaMinutes: 14,
   distanceKm: 4.2,
   trafficLevel: 'moderate',
@@ -33,11 +35,7 @@ const tracking: BookingTrackingSnapshot = {
     latitude: 14.5547,
     longitude: 121.0244,
   },
-  providerLocation: {
-    latitude: 14.5794,
-    longitude: 121.0359,
-    accuracyMeters: 24,
-  },
+  providerLocation: null,
   scheduledAt: '2026-05-21T08:00:00.000Z',
   lastUpdatedAt: '2026-05-21T07:45:00.000Z',
 };
@@ -53,42 +51,48 @@ const directions: GeoDirectionsRoute = {
   provider: 'openrouteservice',
 };
 
-test('customer tracking exposes navigation-style route stats from provider directions', () => {
-  const model = buildCustomerTrackProviderViewModel({
+test('provider navigation labels stored destinations as confirmed service pins', () => {
+  const model = buildProviderNavigationModeViewModel({
     booking,
     directions,
+    fallbackOrigin: { latitude: 14.5794, longitude: 121.0359 },
+    liveLocation: {
+      error: null,
+      isPublishing: false,
+      location: null,
+    },
     navigationRouteError: null,
     navigationRouteLoading: false,
     sheetLevel: 'half',
     trackingSnapshot: tracking,
   });
 
-  assert.equal(model.data.routeDurationLabel, '14 min');
-  assert.equal(model.data.distanceLabel, '4.2 km');
-  assert.equal(model.data.providerLocationLabel, 'Live');
-  assert.equal(model.data.routeLabel, '4.2 km - 14 min');
   assert.equal(model.data.destinationMarkerLabel, 'Confirmed service pin');
-  assert.deepEqual(model.data.navigationOrigin, tracking.providerLocation);
+  assert.equal(model.data.routeLabel, '4.2 km - 14 min');
 });
 
-test('customer tracking keeps clear loading and unavailable route labels', () => {
-  const loading = buildCustomerTrackProviderViewModel({
-    booking,
+test('provider navigation keeps legacy address marker copy without stored coordinates', () => {
+  const model = buildProviderNavigationModeViewModel({
+    booking: {
+      ...booking,
+      serviceLatitude: null,
+      serviceLongitude: null,
+    },
     directions: null,
+    fallbackOrigin: null,
+    liveLocation: {
+      error: null,
+      isPublishing: false,
+      location: null,
+    },
     navigationRouteError: null,
-    navigationRouteLoading: true,
-    sheetLevel: 'peek',
-    trackingSnapshot: null,
-  });
-  const unavailable = buildCustomerTrackProviderViewModel({
-    booking,
-    directions: null,
-    navigationRouteError: 'Provider location unavailable.',
     navigationRouteLoading: false,
     sheetLevel: 'peek',
-    trackingSnapshot: null,
+    trackingSnapshot: {
+      ...tracking,
+      destinationLocation: null,
+    },
   });
 
-  assert.equal(loading.data.routeLabel, 'Loading provider route');
-  assert.equal(unavailable.data.routeLabel, 'Provider location unavailable.');
+  assert.equal(model.data.destinationMarkerLabel, 'Service address');
 });

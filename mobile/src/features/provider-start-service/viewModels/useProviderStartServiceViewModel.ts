@@ -45,6 +45,13 @@ export function buildProviderStartServiceViewModel({
   busyAction,
 }: ProviderStartServiceViewModelInput) {
   const canStart = Object.values(checklist).every(Boolean);
+  const servicePinLabel =
+    booking.serviceLatitude !== null &&
+    booking.serviceLatitude !== undefined &&
+    booking.serviceLongitude !== null &&
+    booking.serviceLongitude !== undefined
+      ? `Confirmed service pin - ${booking.serviceLatitude.toFixed(5)}, ${booking.serviceLongitude.toFixed(5)}`
+      : null;
 
   return {
     data: {
@@ -72,6 +79,7 @@ export function buildProviderStartServiceViewModel({
         },
       ],
       scheduleLabel: formatDateTime(booking.scheduledAt),
+      servicePinLabel,
       serviceTitle: booking.serviceTitle ?? 'Service booking',
       startDisabled: !canStart || busyAction === 'booking-in_progress',
       startingConditionUploaded: Boolean(beforePhotoUrl),

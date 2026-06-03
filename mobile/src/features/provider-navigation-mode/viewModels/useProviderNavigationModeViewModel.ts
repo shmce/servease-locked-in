@@ -95,6 +95,9 @@ export function buildProviderNavigationModeViewModel({
   return {
     data: {
       addressLabel: booking.serviceAddress ?? 'Address unavailable',
+      destinationMarkerLabel: tracking?.destinationLocation
+        ? 'Confirmed service pin'
+        : 'Service address',
       distanceLabel: directions ? formatRouteDistance(directions.distanceMeters) : '--',
       guidance: providerNavigationGuidance(
         directions,

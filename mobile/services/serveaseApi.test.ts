@@ -112,6 +112,8 @@ describe('serveaseApi', () => {
           serviceId: 'service-1',
           serviceTitle: 'Deep Clean',
           serviceAddress: '123 Test St',
+          serviceLatitude: 14.554729,
+          serviceLongitude: 121.024445,
           scheduledAt: '2026-05-20T02:00:00.000Z',
           status: 'pending',
           totalAmount: 1200,
@@ -124,6 +126,8 @@ describe('serveaseApi', () => {
         providerId: 'provider-1',
         serviceId: 'service-1',
         serviceAddress: '123 Test St',
+        serviceLatitude: 14.554729,
+        serviceLongitude: 121.024445,
         scheduledAt: '2026-05-20T02:00:00.000Z',
       },
       {
@@ -138,6 +142,8 @@ describe('serveaseApi', () => {
       providerId: 'provider-1',
       serviceId: 'service-1',
       serviceAddress: '123 Test St',
+      serviceLatitude: 14.554729,
+      serviceLongitude: 121.024445,
       scheduledAt: '2026-05-20T02:00:00.000Z',
     });
   });

@@ -74,6 +74,17 @@ export function buildProviderBookingDetailViewModel({
       value: booking.serviceAddress ?? 'Address unavailable',
     },
     {
+      key: 'service-pin',
+      label: 'Service pin',
+      value:
+        booking.serviceLatitude !== null &&
+        booking.serviceLatitude !== undefined &&
+        booking.serviceLongitude !== null &&
+        booking.serviceLongitude !== undefined
+          ? `Confirmed - ${booking.serviceLatitude.toFixed(5)}, ${booking.serviceLongitude.toFixed(5)}`
+          : 'Address geocoding fallback',
+    },
+    {
       key: 'service',
       label: 'Service',
       value: booking.serviceTitle ?? 'Service booking',

@@ -114,6 +114,8 @@ export interface BookingSummary {
   serviceTitle: string | null;
   serviceDescription?: string | null;
   serviceAddress: string | null;
+  serviceLatitude?: number | null;
+  serviceLongitude?: number | null;
   scheduledAt: string;
   hoursRequired?: number | null;
   serviceAmount?: number | null;
@@ -879,6 +881,8 @@ export interface CreateBookingRequest {
   serviceName?: string | null;
   serviceDescription?: string | null;
   serviceAddress: string;
+  serviceLatitude?: number | null;
+  serviceLongitude?: number | null;
   scheduledAt: string;
   hoursRequired?: number | null;
   serviceAmount?: number | null;

@@ -61,6 +61,9 @@ export function buildCustomerTrackProviderViewModel({
     data: {
       addressLabel:
         tracking?.destinationAddress ?? booking.serviceAddress ?? 'Address unavailable',
+      destinationMarkerLabel: tracking?.destinationLocation
+        ? 'Confirmed service pin'
+        : 'Service address',
       distanceLabel: directions ? formatRouteDistance(directions.distanceMeters) : '--',
       isExpandedSheet,
       isHalfSheet,

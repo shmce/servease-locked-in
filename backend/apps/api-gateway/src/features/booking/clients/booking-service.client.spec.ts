@@ -128,6 +128,69 @@ describe('BookingServiceClient', () => {
     );
   });
 
+  it('sends service destination coordinates when creating a booking', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: {
+          id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+          bookingReference: 'SE-ABC123',
+          customerId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+          providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+          serviceAddress: '123 Test St',
+          serviceLatitude: 14.554729,
+          serviceLongitude: 121.024445,
+          scheduledAt: '2026-05-20T08:00:00.000Z',
+          status: 'pending',
+          totalAmount: 1200,
+          attachments: [],
+        },
+      }),
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const client = new BookingServiceClient(configService());
+
+      await expect(
+        client.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+          providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+          serviceAddress: '123 Test St',
+          serviceLatitude: 14.554729,
+          serviceLongitude: 121.024445,
+          scheduledAt: '2026-05-20T08:00:00.000Z',
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          serviceLatitude: 14.554729,
+          serviceLongitude: 121.024445,
+        }),
+      );
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://booking-service.test/internal/bookings',
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            customerId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+            providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+            serviceAddress: '123 Test St',
+            serviceLatitude: 14.554729,
+            serviceLongitude: 121.024445,
+            scheduledAt: '2026-05-20T08:00:00.000Z',
+          }),
+        },
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      jest.restoreAllMocks();
+    }
+  });
+
   it('sends booking service update requests to the booking service', async () => {
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,

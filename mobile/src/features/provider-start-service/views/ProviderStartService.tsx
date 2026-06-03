@@ -74,6 +74,9 @@ export function ProviderStartServiceScreen({
             <Text style={styles.cardTitle}>{data.serviceTitle}</Text>
             <Text style={styles.cardMeta}>{data.scheduleLabel}</Text>
             <Text style={styles.cardBody}>{data.addressLabel}</Text>
+            {data.servicePinLabel ? (
+              <Text style={styles.cardMeta}>{data.servicePinLabel}</Text>
+            ) : null}
           </ProviderCard>
           <ProviderCard>
             <Text style={styles.cardTitle}>Pre-service checklist</Text>

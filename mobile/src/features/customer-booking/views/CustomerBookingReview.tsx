@@ -18,6 +18,7 @@ import {
   ProviderListing,
 } from '../../../shared/models/types';
 import { useCustomerBookingReviewViewModel } from '../viewModels/useCustomerBookingReviewViewModel';
+import type { CustomerBookingLocationState } from '../../../domain/customerBookingLocation';
 
 type CustomerBookingReviewScreenProps = {
   provider: ProviderListing;
@@ -25,6 +26,7 @@ type CustomerBookingReviewScreenProps = {
   hoursRequired: string;
   scheduledAt: string;
   address: string;
+  serviceLocation: CustomerBookingLocationState;
   notes: string;
   bookingReferencePhotoUrl: string | null;
   pricingQuote: PricingQuoteSummary | null;
@@ -48,6 +50,7 @@ export function CustomerBookingReviewScreen({
   hoursRequired,
   scheduledAt,
   address,
+  serviceLocation,
   notes,
   bookingReferencePhotoUrl,
   pricingQuote,
@@ -70,6 +73,7 @@ export function CustomerBookingReviewScreen({
     hoursRequired,
     scheduledAt,
     address,
+    serviceLocation,
     notes,
     bookingReferencePhotoUrl,
     pricingQuote,

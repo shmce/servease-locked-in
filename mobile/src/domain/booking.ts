@@ -1,6 +1,7 @@
 import {
   BookingPricingMode,
   BookingStatus,
+  CustomerPaymentMethodType,
   PaymentSummary,
   PricingQuoteSummary,
   ProviderAvailabilitySchedule,
@@ -786,6 +787,12 @@ export function isPricingQuoteFresh(
 
 function normalizeQuoteAddress(value: string | null | undefined): string {
   return (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+export function canSubmitBookingAfterPricingRefresh(
+  paymentMethod: CustomerPaymentMethodType | null | undefined,
+): boolean {
+  return !paymentMethod || paymentMethod === 'cash_on_service';
 }
 
 function activeWindowsForDate(

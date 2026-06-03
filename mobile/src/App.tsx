@@ -3333,6 +3333,7 @@ export default function App({ initialRoute = null }: AppProps) {
         hoursRequired={customerBookingFlow.data.hoursRequired}
         scheduledAt={customerBookingFlow.data.scheduledAt}
         address={customerBookingFlow.data.address}
+        serviceLocation={customerBookingFlow.data.serviceLocation}
         notes={customerBookingFlow.data.notes}
         bookingReferencePhotoUrl={customerBookingFlow.data.bookingReferencePhotoUrl}
         pricingQuote={customerBookingFlow.data.pricingQuote}
@@ -3448,6 +3449,9 @@ export default function App({ initialRoute = null }: AppProps) {
         savedAddresses={customerBookingFlow.data.savedAddresses}
         selectedSavedAddressId={customerBookingFlow.data.selectedSavedAddressId}
         addressGeoResult={customerBookingFlow.data.addressGeoResult}
+        serviceLocation={customerBookingFlow.data.serviceLocation}
+        mapPickerVisible={customerBookingFlow.data.mapPickerVisible}
+        pinAddressStatus={customerBookingFlow.data.pinAddressStatus}
         notes={customerBookingFlow.data.notes}
         bookingReferencePhotoUri={customerBookingFlow.data.bookingReferencePhotoUri}
         bookingReferencePhotoUrl={customerBookingFlow.data.bookingReferencePhotoUrl}
@@ -3478,7 +3482,18 @@ export default function App({ initialRoute = null }: AppProps) {
         onUseCurrentLocation={() =>
           void customerBookingFlow.actions.useCurrentServiceLocation()
         }
-        onVerifyAddress={() => void customerBookingFlow.actions.verifyServiceAddress()}
+        onOpenMapPicker={() =>
+          void customerBookingFlow.actions.openServiceLocationPicker()
+        }
+        onCloseMapPicker={customerBookingFlow.actions.closeServiceLocationPicker}
+        onMapPinMove={customerBookingFlow.actions.moveServiceLocationPin}
+        onReverseGeocodePin={() =>
+          void customerBookingFlow.actions.reverseGeocodeServiceLocationPin()
+        }
+        onConfirmMapPin={customerBookingFlow.actions.confirmServiceLocationPin}
+        onManualDetailsChange={
+          customerBookingFlow.actions.setServiceLocationManualDetails
+        }
         onUploadReferencePhoto={() =>
           void pickAndUploadImage('booking_reference', (uri, uploaded) => {
             customerBookingFlow.actions.setBookingReferenceUploadResult(

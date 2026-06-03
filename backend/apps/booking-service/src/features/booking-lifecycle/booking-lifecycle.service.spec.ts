@@ -1,5 +1,6 @@
 import { BookingLifecycleService } from './booking-lifecycle.service';
 import {
+  InvalidBookingRequestError,
   BookingScheduleInPastError,
   InvalidBookingScheduleError,
 } from './booking.errors';
@@ -32,6 +33,8 @@ describe('BookingLifecycleService', () => {
     serviceTitle: 'Deep Clean',
     serviceDescription: null,
     serviceAddress: '123 Test St',
+    serviceLatitude: null,
+    serviceLongitude: null,
     scheduledAt: '2026-05-20T08:00:00.000Z',
     hoursRequired: null,
     serviceAmount: 1200,
@@ -81,6 +84,25 @@ describe('BookingLifecycleService', () => {
     expect(repository.createBooking).not.toHaveBeenCalled();
   });
 
+  it('rejects invalid service destination coordinates before repository creation', async () => {
+    const repository = {
+      createBooking: jest.fn(),
+    } as unknown as SupabaseBookingRepository;
+    const service = new BookingLifecycleService(repository);
+
+    await expect(
+      service.createBooking({
+        customerId: 'customer-1',
+        providerId: 'provider-1',
+        serviceAddress: '123 Test St',
+        serviceLatitude: 91,
+        serviceLongitude: 120.9842,
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(InvalidBookingRequestError);
+    expect(repository.createBooking).not.toHaveBeenCalled();
+  });
+
   it('derives a tracking snapshot for a visible in-progress booking', async () => {
     const repository = {
       findVisibleBooking: jest.fn().mockResolvedValue({
@@ -91,6 +113,8 @@ describe('BookingLifecycleService', () => {
         serviceId: 'service-1',
         serviceTitle: 'Deep Clean',
         serviceAddress: '123 Test St',
+        serviceLatitude: 14.554729,
+        serviceLongitude: 121.024445,
         scheduledAt: '2026-05-20T08:00:00.000Z',
         status: 'in_progress',
         totalAmount: 1200,
@@ -125,6 +149,10 @@ describe('BookingLifecycleService', () => {
         status: 'in_progress',
         phase: 'on_the_way',
         destinationAddress: '123 Test St',
+        destinationLocation: {
+          latitude: 14.554729,
+          longitude: 121.024445,
+        },
         scheduledAt: '2026-05-20T08:00:00.000Z',
         providerLocation: {
           latitude: 14.5995,
@@ -144,6 +172,28 @@ describe('BookingLifecycleService', () => {
     );
     expect(snapshot.etaMinutes).toBeGreaterThanOrEqual(8);
     expect(snapshot.distanceKm).toBeGreaterThanOrEqual(2.5);
+  });
+
+  it('keeps legacy tracking destinations null when a booking has no stored coordinates', async () => {
+    const repository = {
+      findVisibleBooking: jest.fn().mockResolvedValue(createBookingSummary({
+        id: 'booking-legacy',
+        status: 'confirmed',
+        serviceLatitude: null,
+        serviceLongitude: null,
+      })),
+      getLiveLocation: jest.fn().mockResolvedValue(null),
+    } as unknown as SupabaseBookingRepository;
+    const service = new BookingLifecycleService(repository);
+
+    const snapshot = await service.getTrackingSnapshot(
+      'booking-legacy',
+      'customer-1',
+      null,
+    );
+
+    expect(snapshot.destinationAddress).toBe('123 Test St');
+    expect(snapshot.destinationLocation).toBeNull();
   });
 
   it('validates and forwards provider live location updates', async () => {

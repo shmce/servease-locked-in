@@ -54,6 +54,8 @@ interface BookingRow {
   service_title: string | null;
   service_description?: string | null;
   service_address: string | null;
+  service_latitude?: string | number | null;
+  service_longitude?: string | number | null;
   scheduled_at: string;
   hours_required?: number | null;
   service_amount?: string | number | null;
@@ -153,6 +155,8 @@ export class SupabaseBookingRepository {
         p_service_name: input.serviceName ?? null,
         p_service_description: input.serviceDescription ?? null,
         p_service_address: input.serviceAddress,
+        p_service_latitude: input.serviceLatitude ?? null,
+        p_service_longitude: input.serviceLongitude ?? null,
         p_scheduled_at: input.scheduledAt,
         p_hours_required: input.hoursRequired ?? 1,
         p_service_amount: input.serviceAmount ?? 0,
@@ -559,6 +563,14 @@ export class SupabaseBookingRepository {
       serviceTitle: row.service_title,
       serviceDescription: row.service_description ?? null,
       serviceAddress: row.service_address,
+      serviceLatitude:
+        row.service_latitude === null || row.service_latitude === undefined
+          ? null
+          : Number(row.service_latitude),
+      serviceLongitude:
+        row.service_longitude === null || row.service_longitude === undefined
+          ? null
+          : Number(row.service_longitude),
       scheduledAt: row.scheduled_at,
       hoursRequired:
         row.hours_required === null || row.hours_required === undefined
