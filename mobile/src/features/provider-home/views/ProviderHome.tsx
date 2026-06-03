@@ -34,7 +34,6 @@ import type {
 import {
   ProviderCard,
   ProviderContent,
-  ProviderEmptyState,
   ProviderHeader,
   ProviderScreen,
   ProviderSection,
@@ -103,7 +102,7 @@ export function ProviderHomeScreen({
     <ProviderScreen>
       <ProviderContent>
         <ProviderHeader
-          title={`Hi, ${model.businessName}`}
+          title={`Hi, ${model.greetingName}`}
           subtitle={`Today, ${model.todayLabel}`}
           right={
             <Pressable
@@ -154,10 +153,7 @@ export function ProviderHomeScreen({
             />
           ))}
           {!model.activeBookings.length ? (
-            <ProviderEmptyState
-              title="No other appointments today"
-              body="Confirmed and in-progress jobs that are not already highlighted appear here."
-            />
+            <AgendaEmptyState />
           ) : null}
         </ProviderSection>
 
@@ -206,14 +202,12 @@ function ProviderStatusPill({ status }: { status: ProviderHomeDashboardStatus })
       accessibilityLabel={status.accessibilityLabel}
     >
       <View style={styles.statusIcon}>
-        <CheckCircle2 color={palette.mintDeep} size={18} strokeWidth={2.3} />
+        <CheckCircle2 color={palette.mintDeep} size={16} strokeWidth={2.3} />
       </View>
-      <View style={styles.flex}>
-        <Text style={styles.statusLabel} numberOfLines={1}>
-          {status.label}
-        </Text>
-        <Text style={styles.statusHelper} numberOfLines={1}>
-          {status.helperLabel}
+      <View style={styles.statusCopy}>
+        <Text style={styles.statusLine} numberOfLines={1}>
+          <Text style={styles.statusLabel}>{status.label}</Text>
+          <Text style={styles.statusHelper}> · {status.helperLabel}</Text>
         </Text>
       </View>
     </View>
@@ -337,11 +331,6 @@ function DashboardActionCard({
             {hero.eyebrow}
           </Text>
         </View>
-        <View style={styles.statusBadge}>
-          <Text style={styles.statusBadgeText} numberOfLines={1}>
-            Open
-          </Text>
-        </View>
       </View>
 
       <Text style={styles.dashboardTitle} numberOfLines={2}>
@@ -409,12 +398,52 @@ function AgendaBookingRow({
   );
 }
 
+function AgendaEmptyState() {
+  return (
+    <View style={styles.agendaEmpty}>
+      <Text style={styles.agendaEmptyTitle} numberOfLines={1}>
+        No appointments today
+      </Text>
+      <Text style={styles.agendaEmptyBody} numberOfLines={2}>
+        Confirmed jobs will appear here.
+      </Text>
+    </View>
+  );
+}
+
 function PerformanceMetricCard({ card }: { card: ProviderHomePerformanceCard }) {
+  const isRating = card.id === 'rating';
   const icon = card.id === 'rating' ? (
     <Star color={palette.mintDeep} fill={palette.mintDeep} size={16} />
   ) : (
     <WalletCards color={palette.mintDeep} size={16} strokeWidth={2.2} />
   );
+
+  if (isRating) {
+    return (
+      <ProviderCard
+        style={[styles.metricCard, styles.ratingMetricCard]}
+        accessibilityLabel={card.accessibilityLabel}
+      >
+        <View style={styles.ratingMetricRow}>
+          <View style={styles.metricHeader}>
+            {icon}
+            <View style={styles.ratingCopy}>
+              <Text style={styles.metricLabel} numberOfLines={1}>
+                {card.label}
+              </Text>
+              <Text style={styles.metricMeta} numberOfLines={1}>
+                {card.meta}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.ratingMetricValue} numberOfLines={1}>
+            {card.value}
+          </Text>
+        </View>
+      </ProviderCard>
+    );
+  }
 
   return (
     <ProviderCard style={styles.metricCard} accessibilityLabel={card.accessibilityLabel}>
@@ -449,10 +478,10 @@ const styles = StyleSheet.create({
     borderColor: palette.lineSoft,
     borderRadius: radius.md,
     borderWidth: 1,
-    height: 48,
+    height: 46,
     justifyContent: 'center',
     position: 'relative',
-    width: 48,
+    width: 46,
   },
   heroUnreadDot: {
     backgroundColor: palette.alert,
@@ -473,8 +502,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
-    minHeight: 58,
-    paddingHorizontal: spacing.base,
+    minHeight: 50,
+    paddingHorizontal: spacing.md,
   },
   searchText: {
     color: palette.faint,
@@ -492,18 +521,29 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 52,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
+    gap: spacing.sm,
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
   },
   statusIcon: {
     alignItems: 'center',
     backgroundColor: palette.white,
     borderRadius: radius.pill,
-    height: 34,
+    height: 28,
     justifyContent: 'center',
-    width: 34,
+    width: 28,
+  },
+  statusCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  statusLine: {
+    color: palette.body,
+    fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 19,
   },
   statusLabel: {
     color: palette.mintDeep,
@@ -514,15 +554,15 @@ const styles = StyleSheet.create({
   },
   statusHelper: {
     color: palette.body,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '400',
     letterSpacing: 0,
-    lineHeight: 18,
+    lineHeight: 19,
   },
   dashboardCard: {
     borderRadius: radius.md,
-    gap: spacing.md,
-    padding: spacing.lg,
+    gap: spacing.sm,
+    padding: spacing.base,
   },
   dashboardTopLine: {
     alignItems: 'center',
@@ -560,27 +600,27 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   dashboardCopy: {
-    gap: spacing.xs,
+    gap: spacing.xxs,
   },
   jobTime: {
     color: palette.ink,
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '700',
     letterSpacing: 0,
-    lineHeight: 36,
+    lineHeight: 33,
   },
   dashboardTitle: {
     color: palette.ink,
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: '700',
     letterSpacing: 0,
-    lineHeight: 26,
+    lineHeight: 24,
   },
   dashboardSubtitle: {
     ...providerText.body,
   },
   detailStack: {
-    gap: spacing.sm,
+    gap: spacing.xs,
   },
   detailRow: {
     alignItems: 'center',
@@ -601,7 +641,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 46,
     minWidth: 0,
     paddingHorizontal: spacing.base,
   },
@@ -621,7 +661,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 46,
     minWidth: 0,
     paddingHorizontal: spacing.base,
   },
@@ -648,7 +688,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
-    minHeight: 70,
+    minHeight: 62,
   },
   timePill: {
     alignItems: 'center',
@@ -680,6 +720,31 @@ const styles = StyleSheet.create({
   agendaSubtitle: {
     ...providerText.meta,
   },
+  agendaEmpty: {
+    backgroundColor: palette.surface,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    minHeight: 86,
+    padding: spacing.base,
+  },
+  agendaEmptyTitle: {
+    color: palette.ink,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 21,
+    textAlign: 'center',
+  },
+  agendaEmptyBody: {
+    color: palette.muted,
+    fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
   metricGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -687,29 +752,34 @@ const styles = StyleSheet.create({
   },
   metricCard: {
     borderRadius: radius.sm,
-    flexBasis: '31%',
+    flexBasis: '47%',
     flexGrow: 1,
-    minHeight: 112,
-    minWidth: 104,
+    minHeight: 98,
+    minWidth: 148,
     padding: spacing.md,
+  },
+  ratingMetricCard: {
+    flexBasis: '100%',
+    minHeight: 64,
   },
   metricHeader: {
     alignItems: 'center',
+    flex: 1,
     flexDirection: 'row',
     gap: spacing.xs,
     minWidth: 0,
   },
   metricValue: {
     color: palette.ink,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '600',
     letterSpacing: 0,
-    lineHeight: 25,
+    lineHeight: 23,
     minWidth: 0,
   },
   metricLabel: {
     color: palette.body,
-    flex: 1,
+    flexShrink: 1,
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0,
@@ -717,5 +787,26 @@ const styles = StyleSheet.create({
   },
   metricMeta: {
     ...providerText.meta,
+    minWidth: 0,
+  },
+  ratingMetricRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+    minWidth: 0,
+  },
+  ratingCopy: {
+    flex: 1,
+    gap: spacing.xxs,
+    minWidth: 0,
+  },
+  ratingMetricValue: {
+    color: palette.ink,
+    flexShrink: 0,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 28,
   },
 });

@@ -17,6 +17,7 @@ import type {
 type ProviderHomeViewModelResult = {
   data: ProviderHomeViewModel & {
     businessName: string;
+    greetingName: string;
     ratingLabel: string;
     performanceCards: ProviderHomePerformanceCard[];
     todayEarningsLabel: string;
@@ -58,14 +59,16 @@ export function useProviderHomeViewModel({
         profile?.providerProfile?.averageRating ??
         0;
       const ratingLabel = rating.toFixed(1);
+      const businessName =
+        profile?.providerProfile?.businessName ??
+        profile?.user.fullName ??
+        'Service Provider';
 
       return {
         data: {
           ...model,
-          businessName:
-            profile?.providerProfile?.businessName ??
-            profile?.user.fullName ??
-            'Service Provider',
+          businessName,
+          greetingName: formatProviderHomeGreetingName(businessName),
           ratingLabel,
           performanceCards: buildProviderHomePerformanceCards({
             todayEarnings: model.todayEarnings,
@@ -90,4 +93,18 @@ export function useProviderHomeViewModel({
       providerDashboard,
     ],
   );
+}
+
+function formatProviderHomeGreetingName(value: string): string {
+  const trimmed = value.trim();
+  const suffixes = ['Home Services', 'Services'];
+
+  for (const suffix of suffixes) {
+    if (trimmed.toLowerCase().endsWith(` ${suffix.toLowerCase()}`)) {
+      const compact = trimmed.slice(0, -suffix.length).trim();
+      return compact || trimmed;
+    }
+  }
+
+  return trimmed;
 }

@@ -37,7 +37,7 @@ export type ProviderHomeHero =
       title: 'All caught up.';
       subtitle: string;
       meta: string;
-      primaryActionLabel: 'Block time off';
+      primaryActionLabel: 'Block time';
       secondaryActionLabel: 'Share profile';
       primaryActionScreen: AppScreen;
       secondaryActionScreen: AppScreen;
@@ -192,9 +192,9 @@ function buildCaughtUpHero(): ProviderHomeHero {
     kind: 'caught-up',
     eyebrow: 'Schedule open',
     title: 'All caught up.',
-    subtitle: 'No jobs or booking requests need action right now.',
+    subtitle: 'No jobs need action right now.',
     meta: 'Open schedule',
-    primaryActionLabel: 'Block time off',
+    primaryActionLabel: 'Block time',
     secondaryActionLabel: 'Share profile',
     primaryActionScreen: 'calendar',
     secondaryActionScreen: 'providerProfileView',

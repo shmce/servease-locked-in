@@ -73,7 +73,12 @@ test('provider home is extracted from App into the action-first screen', () => {
   assert.match(viewSource, /Today's Agenda/);
   assert.match(viewSource, /DashboardActionCard/);
   assert.match(viewSource, /PerformanceMetricCard/);
-  assert.match(viewSource, /No other appointments today/);
+  assert.match(viewSource, /ratingMetricCard/);
+  assert.match(viewSource, /flexBasis: '47%'/);
+  assert.match(viewSource, /flexBasis: '100%'/);
+  assert.match(viewSource, /AgendaEmptyState/);
+  assert.match(viewSource, /No appointments today/);
+  assert.match(viewSource, /model\.greetingName/);
   assert.match(viewSource, /adjustsFontSizeToFit/);
   assert.match(viewSource, /minimumFontScale=\{0\.72\}/);
   assert.match(viewSource, /flexWrap: 'wrap'/);
@@ -89,6 +94,7 @@ test('provider home is extracted from App into the action-first screen', () => {
   assert.doesNotMatch(viewSource, /PendingRequestsRow/);
   assert.doesNotMatch(viewSource, /ProviderMetricCard/);
   assert.doesNotMatch(viewSource, /Request Payout/);
+  assert.doesNotMatch(viewSource, /Block time off/);
   assert.doesNotMatch(viewSource, /Block Time/);
   assert.doesNotMatch(viewSource, /Available Payout/);
   assert.doesNotMatch(viewSource, /My Services/);
@@ -178,6 +184,7 @@ test('provider home hero state matrix follows the action priority', async () => 
   }).hero;
   assert.equal(emptyHero.kind, 'caught-up');
   assert.match(emptyHero.title, /All caught up/);
+  assert.equal(emptyHero.primaryActionLabel, 'Block time');
 });
 
 test('provider home dashboard model exposes job, request, and caught-up display rows', async () => {
@@ -243,6 +250,7 @@ test('provider home dashboard model exposes job, request, and caught-up display 
   assert.equal(caughtUpModel.hero.eyebrow, 'Schedule open');
   assert.equal(caughtUpModel.hero.primaryActionScreen, 'calendar');
   assert.equal(caughtUpModel.hero.secondaryActionScreen, 'providerProfileView');
+  assert.equal(caughtUpModel.hero.primaryActionLabel, 'Block time');
 });
 
 test('provider home dashboard status reflects active in-progress work', async () => {
@@ -353,9 +361,9 @@ test('provider home model snapshots cover empty and one-job states', async () =>
         kind: 'caught-up',
         eyebrow: 'Schedule open',
         title: 'All caught up.',
-        subtitle: 'No jobs or booking requests need action right now.',
+        subtitle: 'No jobs need action right now.',
         meta: 'Open schedule',
-        primaryActionLabel: 'Block time off',
+        primaryActionLabel: 'Block time',
         secondaryActionLabel: 'Share profile',
         primaryActionScreen: 'calendar',
         secondaryActionScreen: 'providerProfileView',
