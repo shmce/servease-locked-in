@@ -205,7 +205,7 @@ export function ServiceAreas() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Service Areas</h1>
           <p className="text-gray-500 mt-1">
-            Monitor live provider coverage by service area.
+            Read-only coverage view derived from live provider listings.
           </p>
         </div>
         <Button variant="outline" onClick={() => void loadProviders()} disabled={isLoading}>

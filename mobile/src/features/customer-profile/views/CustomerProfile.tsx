@@ -83,7 +83,7 @@ export function CustomerProfileScreen({
                 <Camera color={palette.white} size={14} />
               </View>
             </Pressable>
-            <Text style={styles.avatarHint}>Tap photo to update</Text>
+            <Text style={styles.avatarHint}>Stored on this device only</Text>
           </View>
 
           {/* Personal info section */}

@@ -1,4 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Copy, Gift, Users } from 'lucide-react-native';
 import {
   PrimaryButton,
@@ -62,12 +67,19 @@ export function CustomerReferralScreen({
             <Text style={styles.codeLabel}>Your Referral Code</Text>
             <View style={styles.codeRow}>
               <Text style={styles.codeText}>{referral.data.referralCode}</Text>
-              <View style={styles.copyButton}>
+              <Pressable
+                style={styles.copyButton}
+                onPress={() =>
+                  onNotice('Copy the referral code manually. Clipboard copy is not enabled in this build.')
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Copy referral code manually"
+              >
                 <Copy color={palette.mint} size={16} strokeWidth={2.2} />
-              </View>
+              </Pressable>
             </View>
             <Text style={styles.codeHint}>
-              Share this code when friends create a ServEase account.
+              Share this code manually when friends create a ServEase account.
             </Text>
           </View>
 

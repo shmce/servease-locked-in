@@ -5,9 +5,14 @@ import {
 } from '../src/app/lib/gateway-base-url';
 
 assert.equal(getServerGatewayBaseUrl(undefined, 'development'), 'http://localhost:5001');
+assert.equal(resolvePublicGatewayBaseUrl(undefined, 'development'), 'http://localhost:5001');
 assert.equal(
   getServerGatewayBaseUrl('https://api.servease.test/', 'production'),
   'https://api.servease.test',
+);
+assert.equal(
+  resolvePublicGatewayBaseUrl('https://public-api.servease.test/', 'production'),
+  'https://public-api.servease.test',
 );
 assert.throws(
   () => getServerGatewayBaseUrl('', 'production'),

@@ -28,6 +28,7 @@ const expected = {
 }
 
 async function main() {
+  await seedDemoData()
   await startCoreServices()
 
   const adminApi = await import('../src/services/serveaseAdminApi')
@@ -244,6 +245,33 @@ async function main() {
       auditLogCount: auditLogs.length,
     }),
   )
+}
+
+function seedDemoData(): Promise<void> {
+  return new Promise((resolveSeed, reject) => {
+    const child = spawn('node', ['scripts/seed-demo-data.mjs'], {
+      cwd: backendDir,
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    processes.push(child)
+
+    let logs = ''
+    child.stdout?.on('data', (chunk) => {
+      logs += chunk.toString()
+    })
+    child.stderr?.on('data', (chunk) => {
+      logs += chunk.toString()
+    })
+    child.once('exit', (code) => {
+      if (code === 0) {
+        resolveSeed()
+        return
+      }
+      reject(new Error(`Demo seed failed with exit code ${code ?? 'unknown'}\n${logs}`))
+    })
+    child.once('error', reject)
+  })
 }
 
 async function startCoreServices(): Promise<void> {

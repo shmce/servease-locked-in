@@ -3,11 +3,6 @@ import { Save, ChevronRight } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { useNavigate } from "react-router";
 import { useProviderData } from "../context/ProviderDataContext";
-import { useProviderAuth } from "../context/ProviderAuthContext";
-import {
-  getStoredProviderAccessToken,
-  updateCurrentUserProfile,
-} from "../../services/serveaseProviderApi";
 
 const styles = {
   container: {
@@ -110,7 +105,6 @@ const styles = {
 export function EditProfilePage() {
   const navigate = useNavigate();
   const providerData = useProviderData();
-  const providerAuth = useProviderAuth();
   const {
     profile,
     updateProfile,
@@ -137,15 +131,9 @@ export function EditProfilePage() {
   }, [profile]);
 
   const handleSave = async () => {
-    const token = getStoredProviderAccessToken();
     const yearsExperienceValue = yearsExperience.trim()
       ? Number(yearsExperience)
       : null;
-
-    if (!token) {
-      setProfileSaveError("Sign in to save provider profile changes.");
-      return;
-    }
 
     if (isProfileLoading) {
       setProfileSaveError("Wait for the live provider profile to finish loading before saving.");
@@ -174,31 +162,11 @@ export function EditProfilePage() {
     setProfileSaveError(null);
 
     try {
-      const nextProfile = await updateCurrentUserProfile(token, {
-        fullName:
-          providerAuth.profile?.user.fullName?.trim() ||
-          businessName.trim(),
-        contactNumber: providerAuth.profile?.user.contactNumber ?? null,
+      await updateProfile({
         businessName: businessName.trim(),
-        bio: bio.trim() || null,
-        serviceDescription: bio.trim() || null,
-        serviceArea: serviceAreas.trim() || null,
-        yearsExperience: yearsExperienceValue,
-      });
-
-      updateProfile({
-        businessName:
-          nextProfile.providerProfile?.businessName ||
-          businessName.trim(),
-        bio: nextProfile.providerProfile?.bio || bio,
-        serviceAreas:
-          nextProfile.providerProfile?.serviceArea ||
-          serviceAreas,
-        yearsExperience:
-          nextProfile.providerProfile?.yearsExperience === null ||
-          nextProfile.providerProfile?.yearsExperience === undefined
-            ? yearsExperience
-            : String(nextProfile.providerProfile.yearsExperience),
+        bio: bio.trim(),
+        serviceAreas: serviceAreas.trim(),
+        yearsExperience: yearsExperienceValue === null ? "" : String(yearsExperienceValue),
       });
 
       navigate("/provider/profile");

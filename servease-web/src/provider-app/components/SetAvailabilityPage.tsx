@@ -369,7 +369,7 @@ export function SetAvailabilityPage() {
                     </span>
                   </p>
                   <p style={{ fontSize: "12px", color: "#6B7280", marginBottom: "12px" }}>
-                    Set a break period during your working hours
+                    Breaks are planning-only in this editor. The backend sync saves your overall start and end time.
                   </p>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                     <div>

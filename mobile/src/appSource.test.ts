@@ -175,6 +175,30 @@ test('customer catalog bootstrap loads full services and provider listings for b
   assert.match(loadCatalogSource, /listProviderListings\(null,\s*\{ baseUrl: apiBaseUrl \}\)/);
 });
 
+test('customer auth recovers catalog data before settling on explore', () => {
+  const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const signInStart = source.indexOf('async function signIn');
+  const signUpStart = source.indexOf('async function signUp', signInStart);
+  const passwordResetStart = source.indexOf('async function sendPasswordReset', signUpStart);
+  const ensureCatalogStart = source.indexOf('async function ensureCustomerExploreCatalog');
+  const loadServicesStart = source.indexOf('async function loadServices', ensureCatalogStart);
+  assert.notEqual(signInStart, -1);
+  assert.notEqual(signUpStart, -1);
+  assert.notEqual(passwordResetStart, -1);
+  assert.notEqual(ensureCatalogStart, -1);
+  assert.notEqual(loadServicesStart, -1);
+
+  const signInSource = source.slice(signInStart, signUpStart);
+  const signUpSource = source.slice(signUpStart, passwordResetStart);
+  const ensureCatalogSource = source.slice(ensureCatalogStart, loadServicesStart);
+
+  assert.match(signInSource, /nextRole === 'customer'[\s\S]*ensureCustomerExploreCatalog\(\)/);
+  assert.match(signUpSource, /nextRole === 'customer'[\s\S]*ensureCustomerExploreCatalog\(\)/);
+  assert.match(ensureCatalogSource, /categories\.length/);
+  assert.match(ensureCatalogSource, /services\.length/);
+  assert.match(ensureCatalogSource, /loadCatalogImpl\(\)/);
+});
+
 test('tracking navigation uses compact collapsible sheet states', () => {
   const source = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
   const customerTrackSource = readFileSync(

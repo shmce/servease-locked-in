@@ -8,7 +8,7 @@ const listingId = 'listing-public-cleaning';
 const categories = [
   {
     id: 'category-home',
-    name: 'Home Services',
+    name: 'Domestic & Cleaning Services',
     description: 'Trusted help for cleaning and household tasks.',
     icon: null,
   },
@@ -71,6 +71,14 @@ const server = http.createServer(async (request, response) => {
 
   if (request.method === 'GET' && url.pathname === '/__requests') {
     sendJson(response, 200, { data: requestLog });
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/auth/v1/token') {
+    sendJson(response, 400, {
+      error: 'invalid_grant',
+      error_description: 'Invalid login credentials',
+    });
     return;
   }
 
@@ -155,6 +163,99 @@ const server = http.createServer(async (request, response) => {
         updatedAt: '2026-05-20T08:00:00.000Z',
       },
     });
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/v1/me/two-factor') {
+    sendJson(response, 200, {
+      data: {
+        enabled: false,
+        verifiedAt: null,
+      },
+    });
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/v1/me/sessions') {
+    sendJson(response, 200, { data: [] });
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/v1/provider/profile') {
+    sendJson(response, 200, {
+      data: {
+        account: {
+          id: 'provider-user-1',
+          email: 'provider@example.test',
+          fullName: 'Alex Provider',
+          contactNumber: '+639171234567',
+          role: 'provider',
+          status: 'active',
+        },
+        provider: {
+          id: 'provider-profile-1',
+          businessName: 'Acme Home Services',
+          bio: 'Trusted home service provider.',
+          serviceDescription: 'Cleaning and home maintenance.',
+          serviceArea: 'Metro Manila',
+          yearsExperience: 6,
+          verificationStatus: 'approved',
+          averageRating: 4.9,
+          reviewCount: 38,
+        },
+        services: [],
+        portfolio: [],
+      },
+    });
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/v1/provider/dashboard') {
+    sendJson(response, 200, {
+      data: {
+        summary: {
+          newRequests: 1,
+          todayBookings: 1,
+          todayCompleted: 0,
+          todayEarnings: 500,
+          totalEarnings: 12000,
+          overallRating: 4.9,
+          reviewCount: 38,
+        },
+        upcomingBookings: [],
+        performance: {
+          acceptanceRate: 95,
+          completionRate: 98,
+          cancellationRate: 2,
+          responseTimeMinutes: 10,
+        },
+      },
+    });
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/v1/provider/availability') {
+    sendJson(response, 200, {
+      data: {
+        providerId: 'provider-profile-1',
+        windows: [
+          {
+            id: 'availability-provider-1',
+            dayOfWeek: 'monday',
+            startTime: '09:00',
+            endTime: '17:00',
+            isActive: true,
+            sortOrder: 1,
+          },
+        ],
+        daysOff: [],
+      },
+    });
+    return;
+  }
+
+  if (request.method === 'GET' && url.pathname === '/v1/payments') {
+    sendJson(response, 200, { data: [] });
     return;
   }
 

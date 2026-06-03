@@ -119,6 +119,14 @@ export function ProviderRegSuccess() {
                   {statusView.label}
                 </span>
               </div>
+              <div className="flex justify-between gap-4">
+                <span className="font-['Poppins',sans-serif] text-sm text-gray-600">Document Upload:</span>
+                <span className={`font-['Poppins',sans-serif] text-sm font-semibold text-right ${
+                  documentUploadWarning ? "text-amber-700" : "text-[#00BF63]"
+                }`}>
+                  {documentUploadWarning ? "Needs follow-up" : "Received for review"}
+                </span>
+              </div>
               {statusError && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                   <p className="font-['Poppins',sans-serif] text-xs text-amber-800 leading-relaxed">

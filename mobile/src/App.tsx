@@ -524,8 +524,15 @@ type NavigationOptions = {
   clearNotice?: boolean;
 };
 
-export default function App() {
-  const [route, setRoute] = useState<RouteState>({ role: null, screen: 'authGate' });
+type AppProps = {
+  initialRoute?: RouteState | null;
+};
+
+export default function App({ initialRoute = null }: AppProps) {
+  const initialRouteRef = useRef<RouteState>(
+    initialRoute ?? { role: null, screen: 'authGate' },
+  );
+  const [route, setRoute] = useState<RouteState>(initialRouteRef.current);
   const routeRef = useRef<RouteState>(route);
   const routeHistoryRef = useRef<RouteState[]>([]);
   const goBackRef = useRef<() => void>(() => undefined);
@@ -648,6 +655,7 @@ export default function App() {
   const checkoutReconcileRetryRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const catalogLoadPromiseRef = useRef<Promise<void> | null>(null);
   const payoutIdempotencyKeyRef = useRef<string | null>(null);
   const [providerPortfolioPhotoUri, setProviderPortfolioPhotoUri] = useState<string | null>(null);
   const [providerPortfolioPhotoUrl, setProviderPortfolioPhotoUrl] = useState<string | null>(null);
@@ -1137,42 +1145,66 @@ export default function App() {
   ]);
 
   async function loadCatalogImpl() {
-    setBusyAction('catalog');
-    try {
-      const nextCategories = await listCatalogCategories({ baseUrl: apiBaseUrl });
-      const [nextServices, nextCatalogProviders] = await Promise.all([
-        listCatalogServices(null, { baseUrl: apiBaseUrl }),
-        listProviderListings(null, { baseUrl: apiBaseUrl }),
-      ]);
-      const firstCategoryId = nextCategories[0]?.id ?? null;
-      const firstServiceId =
-        nextServices.find((service) => service.categoryId === firstCategoryId)?.id ??
-        nextServices[0]?.id ??
-        null;
-      const firstProviders = firstServiceId
-        ? nextCatalogProviders.filter((provider) => provider.serviceId === firstServiceId)
-        : nextCatalogProviders;
-      setCategories(nextCategories);
-      setServices(nextServices);
-      setCatalogProviders(nextCatalogProviders);
-      setSelectedCategoryId(firstCategoryId);
-      setSelectedServiceId(firstServiceId);
-      setProviders(firstProviders);
-      setSelectedProviderId(firstProviders[0]?.providerId ?? null);
-      if (firstProviders[0]?.providerId) {
-        await refreshProviderReviews(firstProviders[0].providerId);
-        await refreshSelectedProviderAvailability(firstProviders[0].providerId);
-        await refreshSelectedProviderPortfolio(firstProviders[0].providerId);
-      } else {
-        setSelectedProviderAvailability(null);
-        setSelectedProviderPortfolioMedia([]);
-      }
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setHasCatalogLoaded(true);
-      setBusyAction(null);
+    if (catalogLoadPromiseRef.current) {
+      await catalogLoadPromiseRef.current;
+      return;
     }
+
+    const loadPromise = (async () => {
+      setBusyAction('catalog');
+      try {
+        const nextCategories = await listCatalogCategories({ baseUrl: apiBaseUrl });
+        const [nextServices, nextCatalogProviders] = await Promise.all([
+          listCatalogServices(null, { baseUrl: apiBaseUrl }),
+          listProviderListings(null, { baseUrl: apiBaseUrl }),
+        ]);
+        const firstCategoryId = nextCategories[0]?.id ?? null;
+        const firstServiceId =
+          nextServices.find((service) => service.categoryId === firstCategoryId)?.id ??
+          nextServices[0]?.id ??
+          null;
+        const firstProviders = firstServiceId
+          ? nextCatalogProviders.filter((provider) => provider.serviceId === firstServiceId)
+          : nextCatalogProviders;
+        setCategories(nextCategories);
+        setServices(nextServices);
+        setCatalogProviders(nextCatalogProviders);
+        setSelectedCategoryId(firstCategoryId);
+        setSelectedServiceId(firstServiceId);
+        setProviders(firstProviders);
+        setSelectedProviderId(firstProviders[0]?.providerId ?? null);
+        if (firstProviders[0]?.providerId) {
+          await refreshProviderReviews(firstProviders[0].providerId);
+          await refreshSelectedProviderAvailability(firstProviders[0].providerId);
+          await refreshSelectedProviderPortfolio(firstProviders[0].providerId);
+        } else {
+          setSelectedProviderAvailability(null);
+          setSelectedProviderPortfolioMedia([]);
+        }
+      } catch (error) {
+        setNotice(readError(error));
+      } finally {
+        setHasCatalogLoaded(true);
+        setBusyAction(null);
+      }
+    })();
+
+    catalogLoadPromiseRef.current = loadPromise;
+    try {
+      await loadPromise;
+    } finally {
+      if (catalogLoadPromiseRef.current === loadPromise) {
+        catalogLoadPromiseRef.current = null;
+      }
+    }
+  }
+
+  async function ensureCustomerExploreCatalog() {
+    if (categories.length > 0 && services.length > 0) {
+      return;
+    }
+
+    await loadCatalogImpl();
   }
 
   async function loadServices(categoryId: string | null) {
@@ -1311,6 +1343,14 @@ export default function App() {
       setSession(nextSession);
       setProfile(nextProfile);
       setPassword('');
+      await refreshWorkspace(
+        nextSession.accessToken,
+        nextRole,
+        nextProfile.providerProfile?.id ?? null,
+      );
+      if (nextRole === 'customer') {
+        await ensureCustomerExploreCatalog();
+      }
       resetRoute({
         role: nextRole,
         screen: nextRole === 'provider' ? 'home' : 'explore',
@@ -1319,11 +1359,6 @@ export default function App() {
         intendedRole !== nextRole
           ? `Signed in as ${roleLabel(nextRole)}.`
           : `Welcome back, ${nextProfile.user.fullName ?? nextProfile.user.email}.`,
-      );
-      await refreshWorkspace(
-        nextSession.accessToken,
-        nextRole,
-        nextProfile.providerProfile?.id ?? null,
       );
     } catch (error) {
       setNotice(readError(error));
@@ -1415,16 +1450,19 @@ export default function App() {
       setSignupServiceArea('');
       setSignupServiceDescription('');
       setSignupExperienceYears('');
-      resetRoute({
-        role: nextRole,
-        screen: nextRole === 'provider' ? 'home' : 'explore',
-      });
-      setNotice(`Welcome to ServEase, ${nextProfile.user.fullName ?? nextProfile.user.email}.`);
       await refreshWorkspace(
         nextSession.accessToken,
         nextRole,
         nextProfile.providerProfile?.id ?? null,
       );
+      if (nextRole === 'customer') {
+        await ensureCustomerExploreCatalog();
+      }
+      resetRoute({
+        role: nextRole,
+        screen: nextRole === 'provider' ? 'home' : 'explore',
+      });
+      setNotice(`Welcome to ServEase, ${nextProfile.user.fullName ?? nextProfile.user.email}.`);
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -2160,7 +2198,7 @@ export default function App() {
     }
 
     setCustomerAvatarUri(result.assets[0].uri);
-    setNotice('Avatar updated on this device.');
+    setNotice('Avatar updated on this device only.');
   }
 
   function notifyMissingCustomerPhone() {
@@ -3250,6 +3288,7 @@ export default function App() {
         }
         onOpenBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
         onSearch={() => navigate('customerSearchResults', 'customer')}
+        isProfileLoading={isInitialWorkspaceLoading}
         onSelectCategory={(category) => {
           setSelectedCategoryId(category.id);
           void loadServices(category.id);
@@ -3269,6 +3308,7 @@ export default function App() {
           setBookingFilter('completed');
           navigate('bookings', 'customer');
         }}
+        onTrackBooking={(booking) => openBooking(booking, 'customerTrackServiceProvider')}
         onViewAllServices={() => navigate('customerAllServices', 'customer')}
         onViewTopProviders={() => navigate('customerTopProviders', 'customer')}
       />

@@ -121,7 +121,7 @@ export function CustomerBookingConfirmationScreen({
             onPress={() => navigate('customerBookingManage', 'customer')}
           />
           <PrimaryButton
-            label="Add to calendar"
+            label="Add to Google Calendar"
             variant="secondary"
             onPress={() => void addSelectedBookingToCalendar()}
           />

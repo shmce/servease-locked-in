@@ -97,7 +97,8 @@ export function BackendSupportMatrix() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Backend Support Matrix</h1>
           <p className="text-gray-500 mt-1">
-            Tracks the admin capabilities currently wired to backend contracts.
+            Static documentation of admin capabilities currently wired to backend contracts.
+            This page is not a live runtime probe.
           </p>
         </div>
         <Button onClick={exportRows} className="bg-[#00BF63] hover:bg-[#00A055]">

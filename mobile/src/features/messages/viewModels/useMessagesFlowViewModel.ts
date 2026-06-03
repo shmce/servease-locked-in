@@ -15,6 +15,7 @@ import {
   listConversations,
   openConversation,
 } from '../../../shared/models/apiService';
+import { resolveSelectedConversationAfterReplace } from './messagesSelection';
 
 type UploadMessageAttachment = (
   onUploaded: (uri: string, upload: UploadSummary) => void | Promise<void>,
@@ -86,7 +87,8 @@ export function useMessagesFlowViewModel({
     (nextConversations: ConversationSummary[]) => {
       setConversations(nextConversations);
       setSelectedConversationId(
-        (current) => current ?? nextConversations[0]?.id ?? null,
+        (current) =>
+          resolveSelectedConversationAfterReplace(current, nextConversations),
       );
     },
     [],

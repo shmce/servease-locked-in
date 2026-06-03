@@ -29,7 +29,7 @@ export default defineConfig({
     },
     {
       command:
-        'SERVEASE_API_BASE_URL=http://127.0.0.1:5101 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:5101 npm run start -- --port 3102',
+        'SERVEASE_API_BASE_URL=http://127.0.0.1:5101 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:5101 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:5101 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=e2e-publishable-key npm run start -- --port 3102',
       url: 'http://localhost:3102',
       reuseExistingServer: false,
       timeout: 120_000,
