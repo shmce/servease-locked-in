@@ -1486,7 +1486,8 @@ test('bookings list follows feature-level MVVM boundaries', () => {
   assert.doesNotMatch(viewSource, /booking\.status !== 'completed'/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /visibleBookings/);
-  assert.match(viewModelSource, /booking\.status !== 'completed'/);
+  assert.match(viewModelSource, /CLOSED_BOOKING_STATUSES/);
+  assert.match(viewModelSource, /cardRows/);
 });
 
 test('shared booking detail sections are outside the app shell', () => {

@@ -3534,9 +3534,11 @@ export default function App({ initialRoute = null }: AppProps) {
         role={appRole}
         busyAction={busyAction}
         isLoading={isInitialWorkspaceLoading}
+        unreadNotificationCount={notificationsFlow.data.unreadCount}
         setBookingFilter={setBookingFilter}
         refreshWorkspace={refreshWorkspace}
         openBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
+        onOpenNotifications={() => navigate('customerNotifications', 'customer')}
       />
     );
   }
