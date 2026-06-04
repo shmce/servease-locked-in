@@ -52,12 +52,21 @@ export class SupabaseCustomerAddressRepository
   }
 
   async listByUserId(userId: string): Promise<CustomerAddressSummary[]> {
-    const { data, error } = await this.client.rpc(
-      'servease_list_customer_addresses',
+    let { data, error } = await this.client.rpc(
+      'servease_list_customer_addresses_mobile',
       {
         p_user_id: userId,
+        p_limit: 20,
       },
     );
+    if (this.isMissingRpcError(error, 'servease_list_customer_addresses_mobile')) {
+      ({ data, error } = await this.client.rpc(
+        'servease_list_customer_addresses',
+        {
+          p_user_id: userId,
+        },
+      ));
+    }
 
     if (error) {
       throw new Error(`Failed to list customer addresses: ${error.message}`);
@@ -162,5 +171,16 @@ export class SupabaseCustomerAddressRepository
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  private isMissingRpcError(
+    error: { message: string } | null,
+    functionName: string,
+  ): boolean {
+    const message = error?.message.toLowerCase() ?? '';
+    return (
+      message.includes(functionName.toLowerCase()) ||
+      message.includes('does not exist')
+    );
   }
 }

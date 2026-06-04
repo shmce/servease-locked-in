@@ -4,6 +4,7 @@ import {
   addProviderPortfolioMedia,
   addProviderTimeOffWindow,
   checkGeoFence,
+  clearServeaseApiReadCache,
   createCustomerAddress,
   createBooking,
   createBookingServiceUpdate,
@@ -71,6 +72,223 @@ import {
 } from './serveaseApi';
 
 describe('serveaseApi', () => {
+  it('dedupes concurrent stable catalog reads and reuses fresh cached responses', async () => {
+    clearServeaseApiReadCache();
+    let fetchCount = 0;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      fetchCount += 1;
+      assert.equal(url, 'http://gateway-cache.test/v1/catalog/categories');
+      assert.equal(init?.method, 'GET');
+      return jsonResponse({
+        data: [
+          {
+            id: 'category-cache-1',
+            name: 'Cleaning',
+            description: null,
+            icon: 'spray',
+          },
+        ],
+      });
+    };
+
+    const [first, second] = await Promise.all([
+      listCatalogCategories({
+        baseUrl: 'http://gateway-cache.test',
+        fetcher,
+      }),
+      listCatalogCategories({
+        baseUrl: 'http://gateway-cache.test',
+        fetcher,
+      }),
+    ]);
+    const third = await listCatalogCategories({
+      baseUrl: 'http://gateway-cache.test',
+      fetcher,
+    });
+
+    assert.equal(fetchCount, 1);
+    assert.equal(first[0]?.name, 'Cleaning');
+    assert.equal(second[0]?.name, 'Cleaning');
+    assert.equal(third[0]?.name, 'Cleaning');
+    clearServeaseApiReadCache();
+  });
+
+  it('invalidates stable address reads after address mutations', async () => {
+    clearServeaseApiReadCache();
+    let addressGetCount = 0;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      if (url === 'http://gateway-address-cache.test/v1/me/addresses') {
+        if (init?.method === 'GET') {
+          addressGetCount += 1;
+          return jsonResponse({
+            data: [
+              {
+                id: `address-${addressGetCount}`,
+                label: 'Home',
+                address: `Address version ${addressGetCount}`,
+                isDefault: true,
+                latitude: 14.55,
+                longitude: 121.01,
+                createdAt: '2026-06-04T00:00:00.000Z',
+                updatedAt: '2026-06-04T00:00:00.000Z',
+              },
+            ],
+          });
+        }
+
+        assert.equal(init?.method, 'POST');
+        return jsonResponse({
+          data: {
+            id: 'address-created',
+            label: 'Office',
+            address: 'Office address',
+            isDefault: false,
+            latitude: 14.56,
+            longitude: 121.02,
+            createdAt: '2026-06-04T00:00:00.000Z',
+            updatedAt: '2026-06-04T00:00:00.000Z',
+          },
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const options = {
+      baseUrl: 'http://gateway-address-cache.test',
+      fetcher,
+      token: 'customer-token',
+    };
+    const first = await listCustomerAddresses(options);
+    const cached = await listCustomerAddresses(options);
+    await createCustomerAddress(
+      {
+        label: 'Office',
+        address: 'Office address',
+        isDefault: false,
+        latitude: 14.56,
+        longitude: 121.02,
+      },
+      options,
+    );
+    const refreshed = await listCustomerAddresses(options);
+
+    assert.equal(addressGetCount, 2);
+    assert.equal(first[0]?.address, 'Address version 1');
+    assert.equal(cached[0]?.address, 'Address version 1');
+    assert.equal(refreshed[0]?.address, 'Address version 2');
+    clearServeaseApiReadCache();
+  });
+
+  it('invalidates profile and notification stable reads after mutations', async () => {
+    clearServeaseApiReadCache();
+    let profileGetCount = 0;
+    let notificationGetCount = 0;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      if (url === 'http://gateway-profile-cache.test/v1/me') {
+        if (init?.method === 'GET') {
+          profileGetCount += 1;
+          return jsonResponse({
+            data: {
+              user: {
+                id: 'customer-1',
+                email: 'casey@example.test',
+                fullName: `Casey ${profileGetCount}`,
+                role: 'customer',
+                status: 'active',
+                contactNumber: null,
+                avatarUrl: null,
+                avatarStoragePath: null,
+              },
+              customerAddresses: [],
+              providerProfile: null,
+              providerApplication: null,
+            },
+          });
+        }
+
+        assert.equal(init?.method, 'PATCH');
+        return jsonResponse({
+          data: {
+            user: {
+              id: 'customer-1',
+              email: 'casey@example.test',
+              fullName: 'Casey Updated',
+              role: 'customer',
+              status: 'active',
+              contactNumber: null,
+              avatarUrl: null,
+              avatarStoragePath: null,
+            },
+            customerAddresses: [],
+            providerProfile: null,
+            providerApplication: null,
+          },
+        });
+      }
+
+      if (url === 'http://gateway-profile-cache.test/v1/notifications') {
+        if (init?.method === 'GET') {
+          notificationGetCount += 1;
+          return jsonResponse({
+            data: [
+              {
+                id: `notification-${notificationGetCount}`,
+                userId: 'customer-1',
+                type: 'booking_update',
+                title: 'Booking update',
+                body: 'Your booking changed.',
+                isRead: false,
+                metadata: null,
+                createdAt: '2026-06-04T00:00:00.000Z',
+              },
+            ],
+          });
+        }
+      }
+
+      if (
+        url === 'http://gateway-profile-cache.test/v1/notifications/read-all'
+      ) {
+        assert.equal(init?.method, 'PATCH');
+        return jsonResponse({
+          data: [
+            {
+              id: 'notification-read',
+              userId: 'customer-1',
+              type: 'booking_update',
+              title: 'Booking update',
+              body: 'Your booking changed.',
+              isRead: true,
+              metadata: null,
+              createdAt: '2026-06-04T00:00:00.000Z',
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const options = {
+      baseUrl: 'http://gateway-profile-cache.test',
+      fetcher,
+      token: 'customer-token',
+    };
+    await getCurrentUser(options);
+    await getCurrentUser(options);
+    await updateCurrentUserProfile({ fullName: 'Casey Updated' }, options);
+    await getCurrentUser(options);
+    await listNotifications(options);
+    await listNotifications(options);
+    await markAllNotificationsRead(options);
+    await listNotifications(options);
+
+    assert.equal(profileGetCount, 2);
+    assert.equal(notificationGetCount, 2);
+    clearServeaseApiReadCache();
+  });
+
   it('loads catalog categories from the gateway', async () => {
     const calls: RequestInit[] = [];
     const fetcher = async (url: string, init?: RequestInit) => {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timedGatewayFetch } from '../../observability/downstream-timing';
 import {
   CurrentUserIdentity,
   TwoFactorProvisioningResponse,
@@ -55,7 +56,13 @@ export class AuthServiceClient {
       'AUTH_SERVICE_URL',
       'http://localhost:8501',
     );
-    const response = await fetch(`${baseUrl}/internal/users/${userId}`);
+    const path = `/internal/users/${userId}`;
+    const response = await timedGatewayFetch({
+      method: 'GET',
+      operation: path,
+      service: 'auth-service',
+      url: `${baseUrl}${path}`,
+    });
 
     if (response.status === 404) {
       throw new UserNotFoundError();
@@ -370,18 +377,27 @@ export class AuthServiceClient {
     userId: string,
     input: UpdateCurrentUserProfileInput,
   ): Promise<CurrentUserIdentity> {
-    const response = await fetch(`${this.baseUrl()}/internal/users/${userId}`, {
-      method: 'PATCH',
-      headers: {
-        'content-type': 'application/json',
+    const path = `/internal/users/${userId}`;
+    const response = await timedGatewayFetch(
+      {
+        method: 'PATCH',
+        operation: path,
+        service: 'auth-service',
+        url: `${this.baseUrl()}${path}`,
       },
-      body: JSON.stringify({
-        fullName: input.fullName,
-        contactNumber: input.contactNumber ?? null,
-        avatarUrl: input.avatarUrl ?? null,
-        avatarStoragePath: input.avatarStoragePath ?? null,
-      }),
-    });
+      {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          fullName: input.fullName,
+          contactNumber: input.contactNumber ?? null,
+          avatarUrl: input.avatarUrl ?? null,
+          avatarStoragePath: input.avatarStoragePath ?? null,
+        }),
+      },
+    );
 
     if (response.status === 404) {
       throw new UserNotFoundError();

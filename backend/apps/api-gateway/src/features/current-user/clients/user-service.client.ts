@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timedGatewayFetch } from '../../observability/downstream-timing';
 import { ProfileDependencyUnavailableError } from '../current-user.errors';
 import {
   CreateCustomerAddressRequest,
@@ -23,8 +24,8 @@ export class UserServiceClient {
   async findCustomerProfileByUserId(
     userId: string,
   ): Promise<CustomerProfileSummary | null> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/customer-profile`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/customer-profile`,
     );
 
     if (response.status === 404) {
@@ -45,8 +46,8 @@ export class UserServiceClient {
     userId: string,
     address?: string | null,
   ): Promise<CustomerProfileSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/customer-profile`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/customer-profile`,
       {
         method: 'POST',
         headers: {
@@ -70,8 +71,8 @@ export class UserServiceClient {
     userId: string,
     address?: string | null,
   ): Promise<CustomerProfileSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/customer-profile`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/customer-profile`,
       {
         method: 'PATCH',
         headers: {
@@ -92,8 +93,8 @@ export class UserServiceClient {
   }
 
   async listCustomerAddresses(userId: string): Promise<CustomerAddressSummary[]> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/addresses`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/addresses`,
     );
 
     if (!response.ok) {
@@ -110,8 +111,8 @@ export class UserServiceClient {
     userId: string,
     body: CreateCustomerAddressRequest,
   ): Promise<CustomerAddressSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/addresses`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/addresses`,
       {
         method: 'POST',
         headers: {
@@ -136,8 +137,8 @@ export class UserServiceClient {
     addressId: string,
     body: UpdateCustomerAddressRequest,
   ): Promise<CustomerAddressSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/addresses/${addressId}`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/addresses/${addressId}`,
       {
         method: 'PATCH',
         headers: {
@@ -161,8 +162,8 @@ export class UserServiceClient {
     userId: string,
     addressId: string,
   ): Promise<CustomerAddressSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/addresses/${addressId}/default`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/addresses/${addressId}/default`,
       {
         method: 'POST',
       },
@@ -182,8 +183,8 @@ export class UserServiceClient {
     userId: string,
     addressId: string,
   ): Promise<{ ok: true }> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/addresses/${addressId}`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/addresses/${addressId}`,
       {
         method: 'DELETE',
       },
@@ -200,8 +201,8 @@ export class UserServiceClient {
   }
 
   async getReferralSummary(userId: string): Promise<ReferralSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/referral-summary`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/referral-summary`,
     );
 
     if (!response.ok) {
@@ -215,8 +216,8 @@ export class UserServiceClient {
   }
 
   async getUserPreferences(userId: string): Promise<UserPreferenceSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/preferences`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/preferences`,
     );
 
     if (!response.ok) {
@@ -233,8 +234,8 @@ export class UserServiceClient {
     userId: string,
     input: UpdateUserPreferencesRequest,
   ): Promise<UserPreferenceSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/users/${userId}/preferences`,
+    const response = await this.fetchUserService(
+      `/internal/users/${userId}/preferences`,
       {
         method: 'PUT',
         headers: {
@@ -258,6 +259,22 @@ export class UserServiceClient {
     return this.configService.get<string>(
       'USER_SERVICE_URL',
       'http://localhost:8502',
+    );
+  }
+
+  private fetchUserService(
+    path: string,
+    init?: RequestInit,
+  ): Promise<Response> {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    return timedGatewayFetch(
+      {
+        method,
+        operation: path,
+        service: 'user-service',
+        url: `${this.baseUrl()}${path}`,
+      },
+      init,
     );
   }
 }

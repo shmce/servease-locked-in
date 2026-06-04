@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import {
   ArrowRight,
+  Bell,
   Calendar,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Droplets,
@@ -15,10 +17,12 @@ import {
   Star,
   Tag,
   Wrench,
+  X,
   Zap,
 } from 'lucide-react-native';
 import {
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -43,7 +47,6 @@ import { CategoryFilter, useCustomerExploreViewModel } from '../viewModels/useCu
 import { CategorySheet } from './CategorySheet';
 
 const exploreImages = {
-  avatar: require('../../../../assets/explore/customer-explore-avatar.png'),
   hero: require('../../../../assets/explore/customer-explore-hero-home.png'),
   recommendations: {
     aircon: require('../../../../assets/explore/customer-explore-aircon.png'),
@@ -67,6 +70,8 @@ type CustomerExploreScreenProps = {
   onDismissGuide: () => void;
   onNextGuideStep: () => void;
   onOpenBooking: (booking: BookingSummary) => void;
+  onOpenProfile: () => void;
+  onOpenSavedAddresses: () => void;
   onSearch: () => void;
   onSelectCategory: (category: CatalogCategory) => void;
   onSelectProvider: (provider: ProviderListing) => void;
@@ -81,15 +86,42 @@ type CustomerExploreScreenProps = {
 };
 
 type ExploreData = ReturnType<typeof useCustomerExploreViewModel>['data'];
+type AvatarData = ExploreData['avatar'];
+type CategoryFilterData = ExploreData['categoryFilter'];
+type LocationData = ExploreData['location'];
+type NotificationData = ExploreData['notification'];
 type ReferenceCategoryRow = ExploreData['referenceCategoryRows'][number];
 type RecommendedServiceRow = ExploreData['recommendedServiceRows'][number];
 type TrustRow = ExploreData['referenceTrustRows'][number];
+
+const CATEGORY_FILTER_OPTIONS: {
+  value: CategoryFilter;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: 'all',
+    label: 'All',
+    description: 'Keep the default Explore order.',
+  },
+  {
+    value: 'popular',
+    label: 'Popular',
+    description: 'Show busier categories first.',
+  },
+  {
+    value: 'top-rated',
+    label: 'Top-rated',
+    description: 'Prioritize stronger customer ratings.',
+  },
+];
 
 export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
   const { width } = useWindowDimensions();
   const [sheetCategory, setSheetCategory] = useState<CatalogCategory | null>(null);
   const [sheetSearchQuery, setSheetSearchQuery] = useState('');
-  const categoryFilter: CategoryFilter = 'all';
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [isFilterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const explore = useCustomerExploreViewModel({
     bookings: props.bookings,
@@ -179,13 +211,20 @@ export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
       >
         <View style={styles.content}>
           <ExploreHeader
+            avatar={data.avatar}
             customerName={data.customerName}
-            locationLabel={data.locationLabel}
-            unreadCount={data.unreadCount}
-            onAvatarPress={props.onShowNotifications}
+            location={data.location}
+            notification={data.notification}
+            onAvatarPress={props.onOpenProfile}
+            onLocationPress={props.onOpenSavedAddresses}
+            onNotificationPress={props.onShowNotifications}
           />
 
-          <SearchFilterRow onFilter={props.onSearch} onSearch={props.onSearch} />
+          <SearchFilterRow
+            categoryFilter={data.categoryFilter}
+            onFilter={() => setFilterSheetOpen(true)}
+            onSearch={props.onSearch}
+          />
 
           <HeroCard onBook={props.onSearch} />
 
@@ -234,6 +273,16 @@ export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
         onSeeAll={handleSeeAllCategory}
         onClose={closeSheet}
       />
+
+      <CategoryFilterSheet
+        selectedFilter={categoryFilter}
+        visible={isFilterSheetOpen}
+        onClose={() => setFilterSheetOpen(false)}
+        onSelectFilter={(filter) => {
+          setCategoryFilter(filter);
+          setFilterSheetOpen(false);
+        }}
+      />
     </View>
   );
 }
@@ -247,17 +296,28 @@ function ExploreCatalogSkeleton() {
 }
 
 function ExploreHeader({
+  avatar,
   customerName,
-  locationLabel,
-  unreadCount,
+  location,
+  notification,
   onAvatarPress,
+  onLocationPress,
+  onNotificationPress,
 }: {
+  avatar: AvatarData;
   customerName: string;
-  locationLabel: string;
-  unreadCount: number;
+  location: LocationData;
+  notification: NotificationData;
   onAvatarPress: () => void;
+  onLocationPress: () => void;
+  onNotificationPress: () => void;
 }) {
   const displayName = compactCustomerName(customerName);
+  const locationAccentColor = location.state === 'needs_verification'
+    ? '#A66A00'
+    : location.state === 'verified'
+      ? palette.mintDeep
+      : '#69736F';
 
   return (
     <View style={styles.header}>
@@ -266,28 +326,62 @@ function ExploreHeader({
         <Text style={styles.customerName} numberOfLines={1}>
           {displayName} 👋
         </Text>
-        <View style={styles.locationRow}>
-          <MapPin color={palette.mintDeep} size={17} strokeWidth={2.6} />
+        <Pressable
+          style={[
+            styles.locationRow,
+            location.state === 'needs_verification' && styles.locationRowWarning,
+            location.state === 'setup' && styles.locationRowNeutral,
+            location.state === 'loading' && styles.locationRowNeutral,
+          ]}
+          onPress={onLocationPress}
+          accessibilityRole="button"
+          accessibilityLabel={location.accessibilityLabel}
+        >
+          <MapPin color={locationAccentColor} size={17} strokeWidth={2.6} />
           <Text style={styles.locationText} numberOfLines={1}>
-            {locationLabel}
+            {location.label}
           </Text>
-          <ChevronDown color="#69736F" size={16} strokeWidth={2.4} />
-        </View>
+          <View style={styles.locationStatusDivider} />
+          <Text
+            style={[
+              styles.locationStatusText,
+              location.state === 'verified' && styles.locationStatusVerified,
+              location.state === 'needs_verification' &&
+                styles.locationStatusWarning,
+            ]}
+            numberOfLines={1}
+          >
+            {location.statusLabel}
+          </Text>
+          <ChevronDown color={locationAccentColor} size={16} strokeWidth={2.4} />
+        </Pressable>
       </View>
 
-      <Pressable
-        style={styles.avatarButton}
-        onPress={onAvatarPress}
-        accessibilityRole="button"
-        accessibilityLabel={
-          unreadCount > 0
-            ? `Notifications, ${unreadCount} unread`
-            : 'Notifications'
-        }
-      >
-        <Image source={exploreImages.avatar} style={styles.avatarImage} />
-        {unreadCount > 0 ? <View style={styles.unreadDot} /> : null}
-      </Pressable>
+      <View style={styles.headerActions}>
+        <Pressable
+          style={styles.notificationButton}
+          onPress={onNotificationPress}
+          accessibilityRole="button"
+          accessibilityLabel={notification.accessibilityLabel}
+          hitSlop={10}
+        >
+          <Bell color={palette.mintDeep} size={20} strokeWidth={2.2} />
+          {notification.hasUnread ? <View style={styles.unreadDot} /> : null}
+        </Pressable>
+
+        <Pressable
+          style={styles.avatarButton}
+          onPress={onAvatarPress}
+          accessibilityRole="button"
+          accessibilityLabel={avatar.accessibilityLabel}
+        >
+          {avatar.uri ? (
+            <Image source={{ uri: avatar.uri }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarInitial}>{avatar.initial}</Text>
+          )}
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -298,9 +392,11 @@ function compactCustomerName(customerName: string): string {
 }
 
 function SearchFilterRow({
+  categoryFilter,
   onFilter,
   onSearch,
 }: {
+  categoryFilter: CategoryFilterData;
   onFilter: () => void;
   onSearch: () => void;
 }) {
@@ -319,14 +415,102 @@ function SearchFilterRow({
       </Pressable>
 
       <Pressable
-        style={styles.filterButton}
+        style={[
+          styles.filterButton,
+          categoryFilter.isActive && styles.filterButtonActive,
+        ]}
         onPress={onFilter}
         accessibilityRole="button"
-        accessibilityLabel="Filter services"
+        accessibilityLabel={categoryFilter.accessibilityLabel}
       >
         <SlidersHorizontal color={palette.mintDeep} size={23} strokeWidth={2.2} />
+        {categoryFilter.isActive ? <View style={styles.filterActiveDot} /> : null}
       </Pressable>
     </View>
+  );
+}
+
+function CategoryFilterSheet({
+  selectedFilter,
+  visible,
+  onClose,
+  onSelectFilter,
+}: {
+  selectedFilter: CategoryFilter;
+  visible: boolean;
+  onClose: () => void;
+  onSelectFilter: (filter: CategoryFilter) => void;
+}) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={styles.filterSheetOverlay}>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <View style={styles.filterSheet}>
+          <View style={styles.filterSheetHandle} />
+          <View style={styles.filterSheetHeader}>
+            <View style={styles.filterSheetTitleCopy}>
+              <Text style={styles.filterSheetTitle}>Sort categories</Text>
+              <Text style={styles.filterSheetBody}>
+                Choose how Explore prioritizes category tiles.
+              </Text>
+            </View>
+            <Pressable
+              style={styles.filterCloseButton}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close category filters"
+            >
+              <X color="#69736F" size={18} strokeWidth={2.2} />
+            </Pressable>
+          </View>
+
+          <View style={styles.filterOptions}>
+            {CATEGORY_FILTER_OPTIONS.map((option) => {
+              const isSelected = option.value === selectedFilter;
+              return (
+                <Pressable
+                  key={option.value}
+                  style={[
+                    styles.filterOption,
+                    isSelected && styles.filterOptionSelected,
+                  ]}
+                  onPress={() => onSelectFilter(option.value)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${option.label} category filter`}
+                  accessibilityState={{ selected: isSelected }}
+                >
+                  <View style={styles.filterOptionCopy}>
+                    <Text
+                      style={[
+                        styles.filterOptionTitle,
+                        isSelected && styles.filterOptionTitleSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                    <Text style={styles.filterOptionBody}>
+                      {option.description}
+                    </Text>
+                  </View>
+                  {isSelected ? (
+                    <CheckCircle2
+                      color={palette.mintDeep}
+                      size={20}
+                      strokeWidth={2.3}
+                    />
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -558,7 +742,11 @@ function UpcomingBookingCard({
           {card.meta}
         </Text>
       </View>
-      <Image source={exploreImages.avatar} style={styles.bookingAvatar} />
+      <View style={styles.bookingAvatar}>
+        <Text style={styles.bookingAvatarText}>
+          {card.title.slice(0, 1).toUpperCase()}
+        </Text>
+      </View>
       <ChevronRight color="#7E8582" size={24} strokeWidth={2.1} />
     </Pressable>
   );
@@ -635,13 +823,14 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
   },
   header: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    minHeight: 76,
+    minHeight: 98,
   },
   headerText: {
     flex: 1,
+    minWidth: 0,
     paddingRight: spacing.md,
   },
   greeting: {
@@ -661,18 +850,73 @@ const styles = StyleSheet.create({
   },
   locationRow: {
     alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#EFF9F3',
+    borderColor: '#D9F0E4',
+    borderRadius: radius.pill,
+    borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
+    gap: 7,
+    marginTop: 12,
     maxWidth: '100%',
+    minHeight: 34,
+    paddingLeft: 10,
+    paddingRight: 9,
+  },
+  locationRowWarning: {
+    backgroundColor: '#FFF8E8',
+    borderColor: '#F1DCA6',
+  },
+  locationRowNeutral: {
+    backgroundColor: '#F6F7F8',
+    borderColor: '#E4E6E8',
   },
   locationText: {
-    color: '#43464C',
+    color: '#26302B',
     flexShrink: 1,
-    fontSize: 14,
-    fontWeight: '400',
+    fontSize: 12,
+    fontWeight: '700',
     letterSpacing: 0,
-    lineHeight: 20,
+    lineHeight: 16,
+    maxWidth: 120,
+  },
+  locationStatusDivider: {
+    backgroundColor: '#BFDCCB',
+    borderRadius: radius.pill,
+    height: 4,
+    width: 4,
+  },
+  locationStatusText: {
+    color: '#7A828D',
+    flexShrink: 0,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 15,
+  },
+  locationStatusVerified: {
+    color: palette.mintDeep,
+  },
+  locationStatusWarning: {
+    color: '#A66A00',
+  },
+  headerActions: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 9,
+    justifyContent: 'flex-end',
+    minWidth: 110,
+  },
+  notificationButton: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: '#E3E5E8',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: 'center',
+    position: 'relative',
+    width: 42,
   },
   avatarButton: {
     alignItems: 'center',
@@ -690,16 +934,23 @@ const styles = StyleSheet.create({
     height: 50,
     width: 50,
   },
+  avatarInitial: {
+    color: palette.mintDeep,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: 0,
+    lineHeight: 25,
+  },
   unreadDot: {
     backgroundColor: palette.mintDeep,
     borderColor: palette.white,
     borderRadius: radius.pill,
     borderWidth: 2,
-    height: 11,
+    height: 10,
     position: 'absolute',
-    right: 3,
+    right: 4,
     top: 4,
-    width: 11,
+    width: 10,
   },
   searchRow: {
     alignItems: 'center',
@@ -734,7 +985,118 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     height: 58,
     justifyContent: 'center',
+    position: 'relative',
     width: 58,
+  },
+  filterButtonActive: {
+    backgroundColor: '#EFF9F3',
+    borderColor: '#CDEEDD',
+  },
+  filterActiveDot: {
+    backgroundColor: palette.mintDeep,
+    borderColor: palette.white,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    height: 11,
+    position: 'absolute',
+    right: 9,
+    top: 9,
+    width: 11,
+  },
+  filterSheetOverlay: {
+    backgroundColor: 'rgba(0,0,0,0.34)',
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  filterSheet: {
+    backgroundColor: palette.white,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    paddingBottom: spacing.xl,
+    paddingHorizontal: spacing.base,
+  },
+  filterSheetHandle: {
+    alignSelf: 'center',
+    backgroundColor: '#DDE1E5',
+    borderRadius: radius.pill,
+    height: 4,
+    marginBottom: spacing.md,
+    marginTop: spacing.sm,
+    width: 42,
+  },
+  filterSheetHeader: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  filterSheetTitleCopy: {
+    flex: 1,
+  },
+  filterSheetTitle: {
+    color: '#16191E',
+    fontSize: 19,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 25,
+  },
+  filterSheetBody: {
+    color: '#68707D',
+    fontSize: 13,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  filterCloseButton: {
+    alignItems: 'center',
+    backgroundColor: '#F5F6F7',
+    borderRadius: radius.pill,
+    height: 34,
+    justifyContent: 'center',
+    width: 34,
+  },
+  filterOptions: {
+    gap: spacing.sm,
+  },
+  filterOption: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderColor: '#E4E6E8',
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 72,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  filterOptionSelected: {
+    backgroundColor: '#EFF9F3',
+    borderColor: '#CDEEDD',
+  },
+  filterOptionCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  filterOptionTitle: {
+    color: '#22262C',
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 20,
+  },
+  filterOptionTitleSelected: {
+    color: palette.mintDeep,
+  },
+  filterOptionBody: {
+    color: '#68707D',
+    fontSize: 12,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 16,
+    marginTop: 2,
   },
   heroCard: {
     backgroundColor: '#F3F8F5',
@@ -990,11 +1352,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   bookingAvatar: {
+    alignItems: 'center',
+    backgroundColor: '#EFF9F3',
     borderColor: 'rgba(0,160,85,0.28)',
     borderRadius: radius.pill,
     borderWidth: 2,
     height: 54,
+    justifyContent: 'center',
     width: 54,
+  },
+  bookingAvatarText: {
+    color: palette.mintDeep,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0,
+    lineHeight: 23,
   },
   trustStrip: {
     alignItems: 'center',

@@ -42,7 +42,7 @@ interface SupabaseQueryClient {
 interface SupabaseUserRow {
   id: string;
   email: string;
-  password_hash: string;
+  password_hash?: string | null;
   full_name: string | null;
   contact_number: string | null;
   avatar_url?: string | null;
@@ -68,11 +68,18 @@ export class SupabaseUserRepository implements UserRepository {
   }
 
   async findById(userId: string): Promise<StoredUserRecord | null> {
-    const { data, error } = await this.client
-      .rpc('servease_get_internal_user', {
+    let { data, error } = await this.client
+      .rpc('servease_get_internal_user_summary', {
         p_user_id: userId,
       })
       .maybeSingle();
+    if (this.isMissingRpcError(error, 'servease_get_internal_user_summary')) {
+      ({ data, error } = await this.client
+        .rpc('servease_get_internal_user', {
+          p_user_id: userId,
+        })
+        .maybeSingle());
+    }
 
     if (error) {
       throw new Error(`Failed to load user: ${error.message}`);
@@ -237,7 +244,7 @@ export class SupabaseUserRepository implements UserRepository {
     return {
       id: row.id,
       email: row.email,
-      passwordHash: row.password_hash,
+      passwordHash: row.password_hash ?? '',
       fullName: row.full_name,
       contactNumber: row.contact_number,
       avatarUrl: row.avatar_url ?? null,
@@ -245,5 +252,15 @@ export class SupabaseUserRepository implements UserRepository {
       role: row.role,
       status: row.status,
     };
+  }
+
+  private isMissingRpcError(
+    error: { message: string; code?: string } | null,
+    functionName: string,
+  ): boolean {
+    return (
+      error?.code === '42883' ||
+      error?.message.toLowerCase().includes(functionName.toLowerCase()) === true
+    );
   }
 }

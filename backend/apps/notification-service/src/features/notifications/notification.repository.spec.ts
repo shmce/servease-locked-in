@@ -96,6 +96,42 @@ describe('SupabaseNotificationRepository', () => {
     ]);
   });
 
+  it('lists current-user notifications through the mobile bounded RPC', async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'notification-1',
+          user_id: 'user-1',
+          type: 'booking_update',
+          title: 'Booking updated',
+          body: 'Your booking changed.',
+          is_read: false,
+          metadata: { bookingId: 'booking-1' },
+          created_at: '2026-06-04T10:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const repository = new SupabaseNotificationRepository({ rpc });
+
+    await expect(repository.listNotifications('user-1')).resolves.toEqual([
+      {
+        id: 'notification-1',
+        userId: 'user-1',
+        type: 'booking_update',
+        title: 'Booking updated',
+        body: 'Your booking changed.',
+        isRead: false,
+        metadata: { bookingId: 'booking-1' },
+        createdAt: '2026-06-04T10:00:00.000Z',
+      },
+    ]);
+    expect(rpc).toHaveBeenCalledWith('servease_list_notifications_mobile', {
+      p_user_id: 'user-1',
+      p_limit: 30,
+    });
+  });
+
   it('marks all current-user notifications read through the bulk service RPC', async () => {
     const rpc = jest.fn().mockResolvedValue({
       data: [

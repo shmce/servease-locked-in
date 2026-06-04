@@ -23,7 +23,9 @@ describe('SupabaseCatalogBrowseRepository', () => {
         icon: 'sparkles',
       },
     ]);
-    expect(rpc).toHaveBeenCalledWith('servease_list_catalog_categories');
+    expect(rpc).toHaveBeenCalledWith('servease_list_catalog_categories_mobile', {
+      p_limit: 20,
+    });
   });
 
   it('forwards category filters when listing services', async () => {
@@ -54,8 +56,9 @@ describe('SupabaseCatalogBrowseRepository', () => {
         pricingMode: 'flat',
       },
     ]);
-    expect(rpc).toHaveBeenCalledWith('servease_list_catalog_services', {
+    expect(rpc).toHaveBeenCalledWith('servease_list_catalog_services_mobile', {
       p_category_id: '2de4b01a-9321-4e04-91d2-0ce48fdddf7d',
+      p_limit: 75,
     });
   });
 
@@ -143,9 +146,13 @@ describe('SupabaseCatalogBrowseRepository', () => {
         verificationStatus: 'approved',
       },
     ]);
-    expect(rpc).toHaveBeenCalledWith('servease_list_provider_service_listings', {
-      p_service_id: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
-      p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
-    });
+    expect(rpc).toHaveBeenCalledWith(
+      'servease_list_provider_service_listings_mobile',
+      {
+        p_service_id: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
+        p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        p_limit: 10,
+      },
+    );
   });
 });

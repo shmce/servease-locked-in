@@ -10,6 +10,10 @@ import {
   ProviderSection,
   providerText,
 } from '../../../shared/components/ProviderUI';
+import {
+  InlineRefreshHint,
+  ListSectionSkeleton,
+} from '../../../shared/components/LoadingStates';
 import { MonthCalendar } from '../../../components/MonthCalendar';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
@@ -42,6 +46,8 @@ export function ProviderCalendarScreen({
     apiOptions,
     onScheduleLoaded,
   });
+  const isInitialScheduleLoading = calendar.isLoading && !availability;
+  const isRefreshingSchedule = calendar.isLoading && Boolean(availability);
 
   return (
     <ProviderScreen>
@@ -59,16 +65,25 @@ export function ProviderCalendarScreen({
           }
         />
         <ProviderSection>
-          <MonthCalendar
-            selectedDate={null}
-            onSelectDate={onSelectDate}
-            markers={calendar.data.calendarMarkers}
-          />
-          <View style={styles.legendRow}>
-            <LegendDot color={palette.alert} label="Whole day off" />
-            <LegendDot color="#C96B00" label="Partial block" />
-            <LegendDot color={palette.mintDeep} label="Active booking" />
-          </View>
+          {isRefreshingSchedule ? (
+            <InlineRefreshHint label="Refreshing schedule" />
+          ) : null}
+          {isInitialScheduleLoading ? (
+            <ListSectionSkeleton count={2} label="Loading provider calendar" />
+          ) : (
+            <>
+              <MonthCalendar
+                selectedDate={null}
+                onSelectDate={onSelectDate}
+                markers={calendar.data.calendarMarkers}
+              />
+              <View style={styles.legendRow}>
+                <LegendDot color={palette.alert} label="Whole day off" />
+                <LegendDot color="#C96B00" label="Partial block" />
+                <LegendDot color={palette.mintDeep} label="Active booking" />
+              </View>
+            </>
+          )}
         </ProviderSection>
 
         <ProviderSection
@@ -83,7 +98,9 @@ export function ProviderCalendarScreen({
             </Pressable>
           }
         >
-          {calendar.data.upcomingRows.length ? (
+          {isInitialScheduleLoading ? (
+            <ListSectionSkeleton count={3} label="Loading provider bookings" />
+          ) : calendar.data.upcomingRows.length ? (
             calendar.data.upcomingRows.map((item) => (
               <ProviderCard
                 key={item.booking.id}

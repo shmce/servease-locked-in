@@ -6,7 +6,6 @@ describe('SupabaseUserRepository', () => {
       data: {
         id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
         email: 'customer@example.com',
-        password_hash: 'hashed-password',
         full_name: 'Customer Name',
         contact_number: '+639000000000',
         avatar_url: 'https://storage.test/avatar.jpg',
@@ -25,7 +24,7 @@ describe('SupabaseUserRepository', () => {
     ).resolves.toEqual({
       id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
       email: 'customer@example.com',
-      passwordHash: 'hashed-password',
+      passwordHash: '',
       fullName: 'Customer Name',
       contactNumber: '+639000000000',
       avatarUrl: 'https://storage.test/avatar.jpg',
@@ -33,7 +32,7 @@ describe('SupabaseUserRepository', () => {
       role: 'customer',
       status: 'active',
     });
-    expect(rpc).toHaveBeenCalledWith('servease_get_internal_user', {
+    expect(rpc).toHaveBeenCalledWith('servease_get_internal_user_summary', {
       p_user_id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
     });
   });

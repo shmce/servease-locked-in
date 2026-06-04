@@ -10,7 +10,7 @@ import {
 interface SupabaseRpcClient {
   rpc(
     functionName: string,
-    args?: Record<string, string | null>,
+    args?: Record<string, string | number | null>,
   ): PromiseLike<{
     data: unknown[] | null;
     error: { message: string } | null;
@@ -68,9 +68,17 @@ export class SupabaseCatalogBrowseRepository {
   }
 
   async listCategories(): Promise<CatalogCategory[]> {
-    const { data, error } = await this.client.rpc(
-      'servease_list_catalog_categories',
+    let { data, error } = await this.client.rpc(
+      'servease_list_catalog_categories_mobile',
+      {
+        p_limit: 20,
+      },
     );
+    if (this.isMissingRpcError(error, 'servease_list_catalog_categories_mobile')) {
+      ({ data, error } = await this.client.rpc(
+        'servease_list_catalog_categories',
+      ));
+    }
 
     if (error) {
       throw new Error(`Failed to load catalog categories: ${error.message}`);
@@ -85,12 +93,21 @@ export class SupabaseCatalogBrowseRepository {
   }
 
   async listServices(categoryId?: string): Promise<CatalogServiceItem[]> {
-    const { data, error } = await this.client.rpc(
-      'servease_list_catalog_services',
+    let { data, error } = await this.client.rpc(
+      'servease_list_catalog_services_mobile',
       {
         p_category_id: categoryId ?? null,
+        p_limit: 75,
       },
     );
+    if (this.isMissingRpcError(error, 'servease_list_catalog_services_mobile')) {
+      ({ data, error } = await this.client.rpc(
+        'servease_list_catalog_services',
+        {
+          p_category_id: categoryId ?? null,
+        },
+      ));
+    }
 
     if (error) {
       throw new Error(`Failed to load catalog services: ${error.message}`);
@@ -133,13 +150,28 @@ export class SupabaseCatalogBrowseRepository {
     serviceId?: string,
     providerId?: string,
   ): Promise<ProviderServiceListing[]> {
-    const { data, error } = await this.client.rpc(
-      'servease_list_provider_service_listings',
+    let { data, error } = await this.client.rpc(
+      'servease_list_provider_service_listings_mobile',
       {
         p_service_id: serviceId ?? null,
         p_provider_id: providerId ?? null,
+        p_limit: providerId ? 10 : 50,
       },
     );
+    if (
+      this.isMissingRpcError(
+        error,
+        'servease_list_provider_service_listings_mobile',
+      )
+    ) {
+      ({ data, error } = await this.client.rpc(
+        'servease_list_provider_service_listings',
+        {
+          p_service_id: serviceId ?? null,
+          p_provider_id: providerId ?? null,
+        },
+      ));
+    }
 
     if (error) {
       throw new Error(`Failed to load provider listings: ${error.message}`);
@@ -158,5 +190,16 @@ export class SupabaseCatalogBrowseRepository {
       reviewCount: row.review_count ?? 0,
       verificationStatus: row.verification_status,
     }));
+  }
+
+  private isMissingRpcError(
+    error: { message: string } | null,
+    functionName: string,
+  ): boolean {
+    const message = error?.message.toLowerCase() ?? '';
+    return (
+      message.includes(functionName.toLowerCase()) ||
+      message.includes('does not exist')
+    );
   }
 }

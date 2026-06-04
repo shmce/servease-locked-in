@@ -26,6 +26,7 @@ import type { CustomerBookingMapPin } from '../../../domain/customerBookingLocat
 import { defaultScheduledAt } from '../../../constants/appContent';
 import { readError } from '../../../navigation/routeHelpers';
 import type { AppRole, AppScreen } from '../../../navigation/types';
+import { runExclusiveNetworkAction } from '../../../shared/utils/networkActions';
 import type {
   ApiOptions,
   BookingSummary,
@@ -338,11 +339,8 @@ export function useCustomerBookingFlowViewModel({
 
     const scheduleValidation = validateSelectedSchedule();
 
-    if (
-      !selectedProvider ||
-      !address.trim() ||
-      !scheduleValidation.scheduledAtIso
-    ) {
+    const scheduledAtIso = scheduleValidation.scheduledAtIso;
+    if (!selectedProvider || !address.trim() || !scheduledAtIso) {
       setNotice('Choose a service provider, address, and schedule.');
       return null;
     }
@@ -358,103 +356,115 @@ export function useCustomerBookingFlowViewModel({
     if (!validateServiceLocationForReview()) {
       return null;
     }
+    const confirmedPin = serviceLocation.confirmedPin;
 
-    setBookingSlotError('');
-    setBusyAction('create-booking');
-    try {
-      const serviceId = selectedService?.id ?? selectedProvider.serviceId;
-      const paymentMethod =
-        selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
-      let quote = pricingQuote;
+    return runExclusiveNetworkAction(
+      'customer:create-booking',
+      async () => {
+        setBookingSlotError('');
+        setBusyAction('create-booking');
+        try {
+          const serviceId = selectedService?.id ?? selectedProvider.serviceId;
+          const paymentMethod =
+            selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
+          let quote = pricingQuote;
 
-      if (serviceId && selectedProvider.providerId) {
-        if (
-          !isPricingQuoteFresh(quote, Date.now(), {
+          if (serviceId && selectedProvider.providerId) {
+            if (
+              !isPricingQuoteFresh(quote, Date.now(), {
+                providerId: selectedProvider.providerId,
+                serviceId,
+                serviceAddress: address,
+                scheduledAt: scheduledAtIso,
+                hoursRequired: Number(hoursRequired) || 1,
+                pricingMode: selectedProvider.pricingMode,
+              })
+            ) {
+              try {
+                quote = await fetchPricingQuote();
+                setPricingQuote(quote);
+              } catch (error) {
+                if (!canSubmitBookingAfterPricingRefresh(paymentMethod)) {
+                  throw error;
+                }
+                quote = null;
+                setPricingQuote(null);
+              }
+              if (!canSubmitBookingAfterPricingRefresh(paymentMethod)) {
+                setNotice(
+                  'Pricing estimate refreshed. Review the updated breakdown before confirming.',
+                );
+                return null;
+              }
+            }
+          } else {
+            quote = null;
+          }
+
+          const request: CreateBookingRequest = {
             providerId: selectedProvider.providerId,
             serviceId,
-            serviceAddress: address,
-            scheduledAt: scheduleValidation.scheduledAtIso,
+            serviceTitle: selectedProvider.title,
+            serviceName: selectedService?.name ?? selectedProvider.title,
+            serviceDescription: selectedProvider.description,
+            serviceAddress: address.trim(),
+            serviceLatitude: confirmedPin?.latitude ?? null,
+            serviceLongitude: confirmedPin?.longitude ?? null,
+            scheduledAt: scheduledAtIso,
             hoursRequired: Number(hoursRequired) || 1,
+            serviceAmount:
+              selectedProvider.price ??
+              selectedService?.price ??
+              quote?.estimatedTotal ??
+              0,
             pricingMode: selectedProvider.pricingMode,
-          })
-        ) {
-          try {
-            quote = await fetchPricingQuote();
-            setPricingQuote(quote);
-          } catch (error) {
-            if (!canSubmitBookingAfterPricingRefresh(paymentMethod)) {
-              throw error;
+            acceptedQuoteId: null,
+            paymentMethod,
+            customerNotes: notes.trim() || null,
+            attachments: bookingReferenceUpload
+              ? [
+                  {
+                    ...mediaAttachmentFromUpload(bookingReferenceUpload),
+                    mediaKind: 'booking_reference',
+                  },
+                ]
+              : [],
+          };
+          const booking = await createBooking(request, apiOptions);
+          onBookingCreated(booking);
+          resetBookingReferenceUpload();
+          if (options.navigateOnSuccess ?? true) {
+            setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
+          }
+          if (options.showSuccessNotice ?? true) {
+            setNotice(`Booking ${booking.bookingReference} created.`);
+          }
+          return booking;
+        } catch (error) {
+          const message = readError(error);
+          const slotMessage = providerUnavailableSlotPickerMessage(error, message);
+          if (slotMessage && selectedProvider) {
+            setBookingSlotError(slotMessage);
+            setNotice(slotMessage);
+            onRefreshProviderAvailability(selectedProvider.providerId);
+            if (options.navigateOnScheduleFailure ?? true) {
+              setRoute({ role: 'customer', screen: 'customerBookingForm' });
             }
-            quote = null;
-            setPricingQuote(null);
+          } else {
+            setNotice(message);
           }
-          if (!canSubmitBookingAfterPricingRefresh(paymentMethod)) {
-            setNotice(
-              'Pricing estimate refreshed. Review the updated breakdown before confirming.',
-            );
-            return null;
-          }
+          return null;
+        } finally {
+          setBusyAction(null);
         }
-      } else {
-        quote = null;
-      }
-
-      const request: CreateBookingRequest = {
-        providerId: selectedProvider.providerId,
-        serviceId,
-        serviceTitle: selectedProvider.title,
-        serviceName: selectedService?.name ?? selectedProvider.title,
-        serviceDescription: selectedProvider.description,
-        serviceAddress: address.trim(),
-        serviceLatitude: serviceLocation.confirmedPin?.latitude ?? null,
-        serviceLongitude: serviceLocation.confirmedPin?.longitude ?? null,
-        scheduledAt: scheduleValidation.scheduledAtIso,
-        hoursRequired: Number(hoursRequired) || 1,
-        serviceAmount:
-          selectedProvider.price ??
-          selectedService?.price ??
-          quote?.estimatedTotal ??
-          0,
-        pricingMode: selectedProvider.pricingMode,
-        acceptedQuoteId: null,
-        paymentMethod,
-        customerNotes: notes.trim() || null,
-        attachments: bookingReferenceUpload
-          ? [
-              {
-                ...mediaAttachmentFromUpload(bookingReferenceUpload),
-                mediaKind: 'booking_reference',
-              },
-            ]
-          : [],
-      };
-      const booking = await createBooking(request, apiOptions);
-      onBookingCreated(booking);
-      resetBookingReferenceUpload();
-      if (options.navigateOnSuccess ?? true) {
-        setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
-      }
-      if (options.showSuccessNotice ?? true) {
-        setNotice(`Booking ${booking.bookingReference} created.`);
-      }
-      return booking;
-    } catch (error) {
-      const message = readError(error);
-      const slotMessage = providerUnavailableSlotPickerMessage(error, message);
-      if (slotMessage && selectedProvider) {
-        setBookingSlotError(slotMessage);
-        setNotice(slotMessage);
-        onRefreshProviderAvailability(selectedProvider.providerId);
-        if (options.navigateOnScheduleFailure ?? true) {
-          setRoute({ role: 'customer', screen: 'customerBookingForm' });
-        }
-      } else {
-        setNotice(message);
-      }
-      return null;
-    } finally {
-      setBusyAction(null);
-    }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Booking confirmation is already in progress.');
+          return null;
+        },
+      },
+    );
   }
 
   async function fetchPricingQuote(): Promise<PricingQuoteSummary> {
@@ -744,31 +754,42 @@ export function useCustomerBookingFlowViewModel({
       setNotice('Confirm the service pin before saving it as Home.');
       return;
     }
+    const confirmedPin = serviceLocation.confirmedPin;
 
-    setBusyAction('save-address');
-    try {
-      const homeAddress = resolveHomeAddressToSave(
-        customerAddresses,
-        selectedSavedAddressId,
-      );
-      const addressPayload = {
-        label: 'Home',
-        address: trimmed,
-        latitude: serviceLocation.confirmedPin.latitude,
-        longitude: serviceLocation.confirmedPin.longitude,
-        isDefault: true,
-      };
-      const savedAddress = homeAddress
-        ? await updateCustomerAddress(homeAddress.id, addressPayload, apiOptions)
-        : await createCustomerAddress(addressPayload, apiOptions);
-      applySavedAddress(savedAddress);
-      onCustomerAddressSaved(savedAddress);
-      setNotice(homeAddress ? 'Home address updated.' : 'Home address saved.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+    return runExclusiveNetworkAction(
+      'customer:save-home-address',
+      async () => {
+        setBusyAction('save-address');
+        try {
+          const homeAddress = resolveHomeAddressToSave(
+            customerAddresses,
+            selectedSavedAddressId,
+          );
+          const addressPayload = {
+            label: 'Home',
+            address: trimmed,
+            latitude: confirmedPin.latitude,
+            longitude: confirmedPin.longitude,
+            isDefault: true,
+          };
+          const savedAddress = homeAddress
+            ? await updateCustomerAddress(homeAddress.id, addressPayload, apiOptions)
+            : await createCustomerAddress(addressPayload, apiOptions);
+          applySavedAddress(savedAddress);
+          onCustomerAddressSaved(savedAddress);
+          setNotice(homeAddress ? 'Home address updated.' : 'Home address saved.');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Home address save is already in progress.');
+        },
+      },
+    );
   }
 
   async function openServiceLocationPicker(): Promise<void> {

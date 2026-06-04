@@ -186,8 +186,9 @@ test('customer booking saves Home from confirmed coordinates and reuses the save
   assert.match(actionSource, /if \(!serviceLocation\.confirmedPin\)/);
   assert.match(actionSource, /Confirm the service pin before saving it as Home/);
   assert.match(actionSource, /resolveHomeAddressToSave/);
-  assert.match(actionSource, /latitude: serviceLocation\.confirmedPin\.latitude/);
-  assert.match(actionSource, /longitude: serviceLocation\.confirmedPin\.longitude/);
+  assert.match(actionSource, /const confirmedPin = serviceLocation\.confirmedPin/);
+  assert.match(actionSource, /latitude: confirmedPin\.latitude/);
+  assert.match(actionSource, /longitude: confirmedPin\.longitude/);
   assert.match(actionSource, /await updateCustomerAddress\(homeAddress\.id/);
   assert.match(actionSource, /await createCustomerAddress\(addressPayload/);
   assert.match(actionSource, /applySavedAddress\(savedAddress\)/);

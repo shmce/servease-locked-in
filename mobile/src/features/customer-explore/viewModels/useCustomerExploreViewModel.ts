@@ -11,6 +11,7 @@ import {
 import { formatDateTime, formatMoney, statusLabel } from '../../../shared/utils/booking';
 
 export type CategoryFilter = 'all' | 'popular' | 'top-rated';
+type LocationReadinessState = 'loading' | 'verified' | 'needs_verification' | 'setup';
 
 const TOP_RATED_MIN_REVIEWS = 10;
 const DEFAULT_PLATFORM_AVERAGE_RATING = 4.5;
@@ -211,10 +212,11 @@ export function buildCustomerExploreViewModel({
   now = Date.now(),
   unreadCount,
 }: CustomerExploreViewModelInput) {
-  const { customerName, locationLabel } = buildCustomerContext({
+  const customerContext = buildCustomerContext({
     isProfileLoading,
     profile,
   });
+  const { customerName } = customerContext;
   const safeGuideStep = customerGuideStep % guideSteps.length;
   const guideStep = guideSteps[safeGuideStep];
   const popularityScoresByCategory = buildPopularityScoresByCategory(
@@ -294,11 +296,28 @@ export function buildCustomerExploreViewModel({
   return {
     data: {
       bookAgainRows,
+      avatar: {
+        accessibilityLabel: customerContext.avatarAccessibilityLabel,
+        initial: customerContext.avatarInitial,
+        uri: customerContext.avatarUri,
+      },
       categoryRows,
+      categoryFilter: {
+        accessibilityLabel: `Category filter, ${categoryFilterLabel(categoryFilter)} selected`,
+        isActive: categoryFilter !== 'all',
+        label: categoryFilterLabel(categoryFilter),
+        value: categoryFilter,
+      },
       compactBookAgainRows,
       customerInitial: customerName.slice(0, 1).toUpperCase(),
       customerName,
-      locationLabel,
+      location: {
+        accessibilityLabel: customerContext.locationAccessibilityLabel,
+        label: customerContext.locationLabel,
+        state: customerContext.locationState,
+        statusLabel: customerContext.locationStatusLabel,
+      },
+      locationLabel: customerContext.locationLabel,
       guide: {
         body: guideStep.body,
         currentStep: safeGuideStep,
@@ -317,10 +336,12 @@ export function buildCustomerExploreViewModel({
         secondaryActionLabel: 'View past bookings',
         title: 'No booking right now',
       },
-      notificationAccessibilityLabel:
-        unreadCount > 0
-          ? `Notifications, ${unreadCount} unread`
-          : 'Notifications',
+      notification: {
+        accessibilityLabel: notificationAccessibilityLabel(unreadCount),
+        hasUnread: unreadCount > 0,
+        unreadCount,
+      },
+      notificationAccessibilityLabel: notificationAccessibilityLabel(unreadCount),
       popularProviderRows,
       popularServiceRows,
       recommendedServiceRows: buildRecommendedServiceRows({
@@ -343,7 +364,10 @@ export function buildCustomerExploreViewModel({
         : null,
       quickCategoryRows,
       referenceCategoryRows: buildReferenceCategoryRows({
+        categoryFilter,
         categories,
+        popularityScoresByCategory,
+        ratingScoresByCategory,
         selectedCategoryId,
       }),
       referenceTrustRows: REFERENCE_TRUST_VALUE_ROWS,
@@ -380,15 +404,21 @@ export function buildCustomerExploreViewModel({
 }
 
 function buildReferenceCategoryRows({
+  categoryFilter,
   categories,
+  popularityScoresByCategory,
+  ratingScoresByCategory,
   selectedCategoryId,
 }: {
+  categoryFilter: CategoryFilter;
   categories: CatalogCategory[];
+  popularityScoresByCategory: Map<string, number>;
+  ratingScoresByCategory: Map<string, number>;
   selectedCategoryId: string | null;
 }) {
   const usedCategoryIds = new Set<string>();
 
-  return REFERENCE_CATEGORY_CONFIGS.map((config) => {
+  const rows = REFERENCE_CATEGORY_CONFIGS.map((config, index) => {
     const category = findMatchingCategory(categories, config, usedCategoryIds);
     if (category) {
       usedCategoryIds.add(category.id);
@@ -401,7 +431,23 @@ function buildReferenceCategoryRows({
       isAvailable: Boolean(category),
       isSelected: category?.id === selectedCategoryId,
       label: config.label,
+      sortIndex: index,
     };
+  });
+
+  if (categoryFilter === 'all') {
+    return rows;
+  }
+
+  const scores =
+    categoryFilter === 'popular'
+      ? popularityScoresByCategory
+      : ratingScoresByCategory;
+
+  return [...rows].sort((a, b) => {
+    const aScore = a.category ? scores.get(a.category.id) ?? 0 : -1;
+    const bScore = b.category ? scores.get(b.category.id) ?? 0 : -1;
+    return bScore - aScore || a.sortIndex - b.sortIndex;
   });
 }
 
@@ -672,22 +718,78 @@ function buildCustomerContext({
   isProfileLoading: boolean;
   profile: CurrentUserProfile | null;
 }): {
+  avatarAccessibilityLabel: string;
+  avatarInitial: string;
+  avatarUri: string | null;
   customerName: string;
+  locationAccessibilityLabel: string;
   locationLabel: string;
+  locationState: LocationReadinessState;
+  locationStatusLabel: string;
 } {
   if (isProfileLoading) {
     return {
+      avatarAccessibilityLabel: 'Open customer profile',
+      avatarInitial: 'Y',
+      avatarUri: null,
       customerName: 'You',
+      locationAccessibilityLabel: 'Saved address loading',
       locationLabel: 'Loading location...',
+      locationState: 'loading',
+      locationStatusLabel: 'Checking saved address',
     };
   }
 
   const customerName = optionalDisplayText(profile?.user.fullName) ?? 'You';
+  const avatarSource =
+    optionalDisplayText(profile?.user.fullName) ??
+    optionalDisplayText(profile?.user.email) ??
+    'You';
   const defaultAddress = selectDefaultAddress(profile?.customerAddresses ?? []);
+  const location = buildLocationReadiness(defaultAddress);
 
   return {
+    avatarAccessibilityLabel: `Open customer profile for ${compactDisplayName(avatarSource)}`,
+    avatarInitial: avatarSource.slice(0, 1).toUpperCase(),
+    avatarUri: profile?.user.avatarUrl ?? null,
     customerName,
-    locationLabel: formatAddressLabel(defaultAddress),
+    locationAccessibilityLabel: location.accessibilityLabel,
+    locationLabel: location.label,
+    locationState: location.state,
+    locationStatusLabel: location.statusLabel,
+  };
+}
+
+function buildLocationReadiness(address: CustomerAddressSummary | null): {
+  accessibilityLabel: string;
+  label: string;
+  state: LocationReadinessState;
+  statusLabel: string;
+} {
+  if (!address) {
+    return {
+      accessibilityLabel: 'Set home address',
+      label: 'Set home address',
+      state: 'setup',
+      statusLabel: 'Add a saved address',
+    };
+  }
+
+  const label = formatAddressLabel(address);
+  if (hasVerifiedCoordinates(address)) {
+    return {
+      accessibilityLabel: `${label}, pin verified`,
+      label,
+      state: 'verified',
+      statusLabel: 'Pin verified',
+    };
+  }
+
+  return {
+    accessibilityLabel: `${label}, verify pin once`,
+    label,
+    state: 'needs_verification',
+    statusLabel: 'Verify pin once',
   };
 }
 
@@ -723,6 +825,30 @@ function formatAddressLabel(address: CustomerAddressSummary | null): string {
   }
 
   return optionalDisplayText(address.address) ?? 'Home location';
+}
+
+function hasVerifiedCoordinates(address: CustomerAddressSummary): boolean {
+  return Number.isFinite(address.latitude) && Number.isFinite(address.longitude);
+}
+
+function categoryFilterLabel(filter: CategoryFilter): string {
+  if (filter === 'popular') {
+    return 'Popular';
+  }
+  if (filter === 'top-rated') {
+    return 'Top-rated';
+  }
+  return 'All';
+}
+
+function notificationAccessibilityLabel(unreadCount: number): string {
+  return unreadCount > 0
+    ? `Notifications, ${unreadCount} unread`
+    : 'Notifications';
+}
+
+function compactDisplayName(value: string): string {
+  return value.trim().split(/\s+/)[0] || 'customer';
 }
 
 function displayText(value: string | null | undefined, fallback: string | null): string {

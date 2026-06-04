@@ -13,6 +13,7 @@ import {
   CustomerSection,
   customerText,
 } from '../../../shared/components/CustomerUI';
+import { InlineRefreshHint } from '../../../shared/components/LoadingStates';
 import { CatalogServiceItem } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
@@ -48,11 +49,12 @@ export function CustomerAllServicesScreen({
   });
   const { data } = serviceList;
   const showSkeletons = isLoading && services.length === 0;
+  const isRefreshing = isLoading && services.length > 0;
 
   return (
     <CustomerScreen>
       <CustomerContent>
-          <CustomerHeader
+        <CustomerHeader
           title={data.title ?? title}
           subtitle="Find the right service for your home"
           onBack={onBack}
@@ -84,6 +86,7 @@ export function CustomerAllServicesScreen({
         </CustomerSection>
 
         <CustomerSection title="Services">
+          {isRefreshing ? <InlineRefreshHint label="Refreshing services" /> : null}
           <View style={styles.list}>
             {showSkeletons
               ? Array.from({ length: 5 }).map((_, index) => (

@@ -9,6 +9,7 @@ import {
   ProviderPill,
   ProviderScreen,
 } from '../../../shared/components/ProviderUI';
+import { InlineRefreshHint } from '../../../shared/components/LoadingStates';
 import { BookingCard, BookingCardSkeleton } from '../../../components/AppDisplay';
 import { providerBookingTabs, ProviderBookingTab } from '../../../constants/appContent';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
@@ -42,6 +43,7 @@ export function ProviderBookingsScreen({
     providerSearchQuery,
   });
   const showSkeletons = isLoading && bookings.length === 0;
+  const isRefreshing = isLoading && bookings.length > 0;
 
   return (
     <ProviderScreen>
@@ -51,9 +53,10 @@ export function ProviderBookingsScreen({
           subtitle="Review requests and update booking status"
           right={
             <ProviderButton
-              label="Refresh"
+              label={isLoading ? 'Refreshing' : 'Refresh'}
               variant="secondary"
               onPress={() => void refreshWorkspace()}
+              disabled={isLoading}
             />
           }
         />
@@ -78,6 +81,7 @@ export function ProviderBookingsScreen({
             accessibilityLabel="Search provider bookings"
           />
         </View>
+        {isRefreshing ? <InlineRefreshHint label="Refreshing bookings" /> : null}
         {showSkeletons
           ? Array.from({ length: 3 }).map((_, index) => (
               <BookingCardSkeleton key={`provider-booking-skeleton-${index}`} />

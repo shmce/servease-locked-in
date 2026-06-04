@@ -259,6 +259,65 @@ describe('ProviderGatewayService', () => {
     });
   });
 
+  it('samples only recent decided bookings when calculating response time', async () => {
+    const bookings = Array.from({ length: 12 }, (_, index) => ({
+      id: `booking-${index + 1}`,
+      scheduledAt: new Date(Date.UTC(2026, 4, 1 + index)).toISOString(),
+      status: 'completed',
+    }));
+    const bookingGatewayService = {
+      listBookings: jest.fn().mockResolvedValue(bookings),
+      listTimelineEvents: jest.fn().mockResolvedValue([
+        {
+          id: 'timeline-1',
+          bookingId: 'booking-1',
+          eventType: 'created',
+          label: 'Booking requested',
+          icon: 'calendar',
+          createdAt: '2026-05-16T00:00:00.000Z',
+        },
+        {
+          id: 'timeline-2',
+          bookingId: 'booking-1',
+          eventType: 'status_changed',
+          label: 'Booking status changed to confirmed',
+          icon: 'activity',
+          createdAt: '2026-05-16T00:15:00.000Z',
+        },
+      ]),
+    } as unknown as BookingGatewayService;
+    const service = new ProviderGatewayService(
+      {
+        getCurrentUser: jest.fn().mockResolvedValue({
+          user: {
+            id: 'c5246383-cdd6-4639-a7ff-bf3e290e9838',
+            role: 'provider',
+          },
+          providerProfile: {
+            id: '9d02cb22-c44a-4634-9fd1-cfa14abc34e5',
+            averageRating: 0,
+            reviewCount: 0,
+          },
+        }),
+      } as unknown as CurrentUserService,
+      {} as CatalogGatewayService,
+      bookingGatewayService,
+      {
+        listPayments: jest.fn().mockResolvedValue([]),
+      } as unknown as PaymentGatewayService,
+    );
+
+    await service.getProviderDashboard('c5246383-cdd6-4639-a7ff-bf3e290e9838');
+
+    expect(bookingGatewayService.listTimelineEvents).toHaveBeenCalledTimes(10);
+    expect(bookingGatewayService.listTimelineEvents).toHaveBeenNthCalledWith(
+      1,
+      'booking-12',
+      null,
+      '9d02cb22-c44a-4634-9fd1-cfa14abc34e5',
+    );
+  });
+
   it('blocks pending providers from replacing marketplace services', async () => {
     const catalogGatewayService = {
       replaceProviderOwnedServices: jest.fn(),

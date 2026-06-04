@@ -1009,6 +1009,47 @@ export interface IdempotentApiOptions extends ApiOptions {
   idempotencyKey?: string | null;
 }
 
+type ReadCacheGroup =
+  | 'addresses'
+  | 'catalog'
+  | 'notifications'
+  | 'profile'
+  | 'provider-dashboard'
+  | 'provider-profile';
+
+type ReadCacheEntry = {
+  expiresAt: number;
+  group: ReadCacheGroup;
+  value: unknown;
+};
+
+const STABLE_READ_TTL_MS = 15_000;
+const DASHBOARD_READ_TTL_MS = 8_000;
+const stableReadCache = new Map<string, ReadCacheEntry>();
+const pendingStableReads = new Map<string, Promise<unknown>>();
+const fetcherIds = new WeakMap<ApiOptions['fetcher'] & object, number>();
+let fetcherIdCounter = 0;
+
+export function clearServeaseApiReadCache(group?: ReadCacheGroup): void {
+  if (!group) {
+    stableReadCache.clear();
+    pendingStableReads.clear();
+    return;
+  }
+
+  for (const [key, entry] of stableReadCache.entries()) {
+    if (entry.group === group) {
+      stableReadCache.delete(key);
+    }
+  }
+
+  for (const key of pendingStableReads.keys()) {
+    if (key.includes(`|group=${group}|`)) {
+      pendingStableReads.delete(key);
+    }
+  }
+}
+
 export interface BookingTrackingStreamHandlers {
   onSnapshot: (snapshot: BookingTrackingSnapshot) => void;
   onError?: (error: Error) => void;
@@ -1033,9 +1074,10 @@ export function createProviderPayoutIdempotencyKey(): string {
 export function listCatalogCategories(
   options: ApiOptions = {},
 ): Promise<CatalogCategory[]> {
-  return request<CatalogCategory[]>('/v1/catalog/categories', {
+  return stableReadRequest<CatalogCategory[]>('/v1/catalog/categories', {
     ...options,
     method: 'GET',
+    cacheGroup: 'catalog',
   });
 }
 
@@ -1046,9 +1088,10 @@ export function listCatalogServices(
   const path = categoryId
     ? `/v1/catalog/services?categoryId=${encodeURIComponent(categoryId)}`
     : '/v1/catalog/services';
-  return request<CatalogServiceItem[]>(path, {
+  return stableReadRequest<CatalogServiceItem[]>(path, {
     ...options,
     method: 'GET',
+    cacheGroup: 'catalog',
   });
 }
 
@@ -1059,9 +1102,10 @@ export function listProviderListings(
   const path = serviceId
     ? `/v1/catalog/providers?serviceId=${encodeURIComponent(serviceId)}`
     : '/v1/catalog/providers';
-  return request<ProviderListing[]>(path, {
+  return stableReadRequest<ProviderListing[]>(path, {
     ...options,
     method: 'GET',
+    cacheGroup: 'catalog',
   });
 }
 
@@ -1090,7 +1134,11 @@ export function addProviderPortfolioMedia(
       body,
       requiresAuth: true,
     },
-  );
+  ).then((media) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    return media;
+  });
 }
 
 export function deleteProviderPortfolioMedia(
@@ -1104,7 +1152,11 @@ export function deleteProviderPortfolioMedia(
       method: 'DELETE',
       requiresAuth: true,
     },
-  );
+  ).then((result) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    return result;
+  });
 }
 
 export function updateProviderPortfolioMedia(
@@ -1120,7 +1172,11 @@ export function updateProviderPortfolioMedia(
       body,
       requiresAuth: true,
     },
-  );
+  ).then((media) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    return media;
+  });
 }
 
 export function reorderProviderPortfolio(
@@ -1135,26 +1191,32 @@ export function reorderProviderPortfolio(
       body: { items },
       requiresAuth: true,
     },
-  );
+  ).then((media) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    return media;
+  });
 }
 
 export function getCurrentUser(
   options: ApiOptions = {},
 ): Promise<CurrentUserProfile> {
-  return request<CurrentUserProfile>('/v1/me', {
+  return stableReadRequest<CurrentUserProfile>('/v1/me', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'profile',
   });
 }
 
 export function listCustomerAddresses(
   options: ApiOptions = {},
 ): Promise<CustomerAddressSummary[]> {
-  return request<CustomerAddressSummary[]>('/v1/me/addresses', {
+  return stableReadRequest<CustomerAddressSummary[]>('/v1/me/addresses', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'addresses',
   });
 }
 
@@ -1167,6 +1229,10 @@ export function createCustomerAddress(
     method: 'POST',
     body,
     requiresAuth: true,
+  }).then((address) => {
+    clearServeaseApiReadCache('addresses');
+    clearServeaseApiReadCache('profile');
+    return address;
   });
 }
 
@@ -1183,7 +1249,11 @@ export function updateCustomerAddress(
       body,
       requiresAuth: true,
     },
-  );
+  ).then((address) => {
+    clearServeaseApiReadCache('addresses');
+    clearServeaseApiReadCache('profile');
+    return address;
+  });
 }
 
 export function setDefaultCustomerAddress(
@@ -1197,7 +1267,11 @@ export function setDefaultCustomerAddress(
       method: 'POST',
       requiresAuth: true,
     },
-  );
+  ).then((address) => {
+    clearServeaseApiReadCache('addresses');
+    clearServeaseApiReadCache('profile');
+    return address;
+  });
 }
 
 export function deleteCustomerAddress(
@@ -1211,7 +1285,11 @@ export function deleteCustomerAddress(
       method: 'DELETE',
       requiresAuth: true,
     },
-  );
+  ).then((result) => {
+    clearServeaseApiReadCache('addresses');
+    clearServeaseApiReadCache('profile');
+    return result;
+  });
 }
 
 export function registerAccount(
@@ -1352,6 +1430,10 @@ export function updateCurrentUserProfile(
     method: 'PATCH',
     body,
     requiresAuth: true,
+  }).then((profile) => {
+    clearServeaseApiReadCache('profile');
+    clearServeaseApiReadCache('provider-profile');
+    return profile;
   });
 }
 
@@ -2137,10 +2219,11 @@ export function createSupportTicketReply(
 export function listNotifications(
   options: ApiOptions = {},
 ): Promise<NotificationSummary[]> {
-  return request<NotificationSummary[]>('/v1/notifications', {
+  return stableReadRequest<NotificationSummary[]>('/v1/notifications', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'notifications',
   });
 }
 
@@ -2187,7 +2270,10 @@ export function markNotificationRead(
       method: 'PATCH',
       requiresAuth: true,
     },
-  );
+  ).then((notification) => {
+    clearServeaseApiReadCache('notifications');
+    return notification;
+  });
 }
 
 export function markAllNotificationsRead(
@@ -2197,6 +2283,9 @@ export function markAllNotificationsRead(
     ...options,
     method: 'PATCH',
     requiresAuth: true,
+  }).then((notifications) => {
+    clearServeaseApiReadCache('notifications');
+    return notifications;
   });
 }
 
@@ -2209,6 +2298,9 @@ export function registerPushDevice(
     method: 'POST',
     body,
     requiresAuth: true,
+  }).then((device) => {
+    clearServeaseApiReadCache('notifications');
+    return device;
   });
 }
 
@@ -2223,26 +2315,32 @@ export function unregisterPushDevice(
       method: 'DELETE',
       requiresAuth: true,
     },
-  );
+  ).then((result) => {
+    clearServeaseApiReadCache('notifications');
+    return result;
+  });
 }
 
 export function getProviderProfile(
   options: ApiOptions = {},
 ): Promise<ProviderProfileSnapshot> {
-  return request<ProviderProfileSnapshot>('/v1/provider/profile', {
+  return stableReadRequest<ProviderProfileSnapshot>('/v1/provider/profile', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'provider-profile',
   });
 }
 
 export function getProviderDashboard(
   options: ApiOptions = {},
 ): Promise<ProviderDashboardSummary> {
-  return request<ProviderDashboardSummary>('/v1/provider/dashboard', {
+  return stableReadRequest<ProviderDashboardSummary>('/v1/provider/dashboard', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'provider-dashboard',
+    cacheTtlMs: DASHBOARD_READ_TTL_MS,
   });
 }
 
@@ -2265,6 +2363,11 @@ export function replaceProviderServices(
     method: 'PUT',
     body: { services },
     requiresAuth: true,
+  }).then((nextServices) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    clearServeaseApiReadCache('provider-dashboard');
+    return nextServices;
   });
 }
 
@@ -2409,6 +2512,42 @@ interface RequestOptions extends ApiOptions {
   idempotencyKey?: string | null;
 }
 
+async function stableReadRequest<T>(
+  path: string,
+  options: RequestOptions & {
+    cacheGroup: ReadCacheGroup;
+    cacheTtlMs?: number;
+  },
+): Promise<T> {
+  const cacheKey = buildStableReadCacheKey(path, options);
+  const now = Date.now();
+  const cached = stableReadCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.value as T;
+  }
+
+  const pending = pendingStableReads.get(cacheKey);
+  if (pending) {
+    return pending as Promise<T>;
+  }
+
+  const requestPromise = request<T>(path, options)
+    .then((value) => {
+      stableReadCache.set(cacheKey, {
+        expiresAt: Date.now() + (options.cacheTtlMs ?? STABLE_READ_TTL_MS),
+        group: options.cacheGroup,
+        value,
+      });
+      return value;
+    })
+    .finally(() => {
+      pendingStableReads.delete(cacheKey);
+    });
+
+  pendingStableReads.set(cacheKey, requestPromise);
+  return requestPromise;
+}
+
 async function request<T>(
   path: string,
   {
@@ -2457,6 +2596,55 @@ async function request<T>(
   }
 
   return payload.data as T;
+}
+
+function buildStableReadCacheKey(
+  path: string,
+  {
+    baseUrl,
+    cacheGroup,
+    fetcher = fetch,
+    token,
+  }: RequestOptions & { cacheGroup: ReadCacheGroup },
+): string {
+  const resolvedBaseUrl =
+    baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
+  return [
+    `group=${cacheGroup}`,
+    `base=${resolvedBaseUrl}`,
+    `path=${path}`,
+    `token=${hashCacheToken(token)}`,
+    `fetcher=${resolveFetcherId(fetcher)}`,
+  ].join('|');
+}
+
+function resolveFetcherId(fetcher: NonNullable<ApiOptions['fetcher']>): string {
+  if (fetcher === fetch) {
+    return 'default';
+  }
+
+  const objectFetcher = fetcher as ApiOptions['fetcher'] & object;
+  const existingId = fetcherIds.get(objectFetcher);
+  if (existingId) {
+    return `custom-${existingId}`;
+  }
+
+  fetcherIdCounter += 1;
+  fetcherIds.set(objectFetcher, fetcherIdCounter);
+  return `custom-${fetcherIdCounter}`;
+}
+
+function hashCacheToken(token?: string): string {
+  const value = token?.trim();
+  if (!value) {
+    return 'anonymous';
+  }
+
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return `${value.length}-${hash.toString(36)}`;
 }
 
 function readTrackingStreamEvent(

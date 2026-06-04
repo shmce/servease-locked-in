@@ -100,6 +100,63 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
 
     assert.equal(explore.data.customerName, 'Ada Lovelace');
     assert.equal(explore.data.locationLabel, 'Home - Manila');
+    assert.equal(explore.data.location.state, 'verified');
+    assert.equal(explore.data.location.statusLabel, 'Pin verified');
+  });
+
+  it('uses persisted avatar data with initials fallback', () => {
+    const withAvatar = buildCustomerExploreViewModel({
+      ...baseInput(),
+      profile: customerProfile({
+        avatarUrl: 'https://storage.test/customer-avatar.jpg',
+        userFullName: 'Ada Lovelace',
+      }),
+    });
+    const fallback = buildCustomerExploreViewModel({
+      ...baseInput(),
+      profile: customerProfile({
+        avatarUrl: null,
+        userEmail: 'maria@example.com',
+        userFullName: '   ',
+      }),
+    });
+
+    assert.equal(
+      withAvatar.data.avatar.uri,
+      'https://storage.test/customer-avatar.jpg',
+    );
+    assert.equal(withAvatar.data.avatar.initial, 'A');
+    assert.equal(
+      withAvatar.data.avatar.accessibilityLabel,
+      'Open customer profile for Ada',
+    );
+    assert.equal(fallback.data.avatar.uri, null);
+    assert.equal(fallback.data.avatar.initial, 'M');
+    assert.equal(
+      fallback.data.avatar.accessibilityLabel,
+      'Open customer profile for Maria@example.com',
+    );
+  });
+
+  it('keeps notification display data separate from avatar display data', () => {
+    const explore = buildCustomerExploreViewModel({
+      ...baseInput(),
+      unreadCount: 3,
+      profile: customerProfile({
+        avatarUrl: 'https://storage.test/customer-avatar.jpg',
+      }),
+    });
+
+    assert.equal(explore.data.notification.hasUnread, true);
+    assert.equal(explore.data.notification.unreadCount, 3);
+    assert.equal(
+      explore.data.notification.accessibilityLabel,
+      'Notifications, 3 unread',
+    );
+    assert.equal(
+      explore.data.avatar.accessibilityLabel,
+      'Open customer profile for Customer',
+    );
   });
 
   it('uses safe greeting fallback when customer name is missing', () => {
@@ -121,7 +178,35 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
       }),
     });
 
-    assert.equal(explore.data.locationLabel, 'Home location');
+    assert.equal(explore.data.locationLabel, 'Set home address');
+    assert.equal(explore.data.location.label, 'Set home address');
+    assert.equal(explore.data.location.state, 'setup');
+    assert.equal(explore.data.location.statusLabel, 'Add a saved address');
+  });
+
+  it('marks saved addresses without coordinates as needing verification', () => {
+    const explore = buildCustomerExploreViewModel({
+      ...baseInput(),
+      profile: customerProfile({
+        customerAddresses: [
+          customerAddress({
+            id: 'address-home',
+            city: 'Makati',
+            isDefault: true,
+            latitude: null,
+            longitude: null,
+          }),
+        ],
+      }),
+    });
+
+    assert.equal(explore.data.location.label, 'Home - Makati');
+    assert.equal(explore.data.location.state, 'needs_verification');
+    assert.equal(explore.data.location.statusLabel, 'Verify pin once');
+    assert.equal(
+      explore.data.location.accessibilityLabel,
+      'Home - Makati, verify pin once',
+    );
   });
 
   it('uses loading-safe context labels while profile context is loading', () => {
@@ -142,6 +227,9 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
 
     assert.equal(explore.data.customerName, 'You');
     assert.equal(explore.data.locationLabel, 'Loading location...');
+    assert.equal(explore.data.location.state, 'loading');
+    assert.equal(explore.data.location.statusLabel, 'Checking saved address');
+    assert.equal(explore.data.avatar.initial, 'Y');
   });
 
   it('selects the highest-priority present booking deterministically', () => {
@@ -261,6 +349,70 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
     assert.equal(explore.data.referenceCategoryRows[1]?.isAvailable, false);
     assert.equal(explore.data.referenceCategoryRows[3]?.category?.id, 'electrical');
     assert.equal(explore.data.referenceCategoryRows[3]?.isSelected, true);
+  });
+
+  it('applies active filters to the visible reference category rail', () => {
+    const filterCategories: CatalogCategory[] = [
+      {
+        id: 'cleaning',
+        name: 'Home Cleaning',
+        description: null,
+        icon: null,
+      },
+      {
+        id: 'plumbing',
+        name: 'Plumbing',
+        description: null,
+        icon: null,
+      },
+      {
+        id: 'electrical',
+        name: 'Electrical',
+        description: null,
+        icon: null,
+      },
+    ];
+    const filterServices = [
+      service('cleaning-service', 'cleaning'),
+      service('plumbing-service', 'plumbing'),
+      service('electrical-service', 'electrical'),
+    ];
+    const popular = buildCustomerExploreViewModel({
+      ...baseInput(),
+      categoryFilter: 'popular',
+      categories: filterCategories,
+      services: filterServices,
+      providers: [
+        provider('cleaning-provider', 'cleaning-service', 4.9, 12),
+        provider('plumbing-provider-1', 'plumbing-service', 4.2, 3),
+        provider('plumbing-provider-2', 'plumbing-service', 4.1, 4),
+        provider('plumbing-provider-3', 'plumbing-service', 4.0, 5),
+      ],
+    });
+    const topRated = buildCustomerExploreViewModel({
+      ...baseInput(),
+      categoryFilter: 'top-rated',
+      categories: filterCategories,
+      services: filterServices,
+      providers: [
+        provider('cleaning-provider', 'cleaning-service', 4.95, 25),
+        provider('plumbing-provider', 'plumbing-service', 4.4, 25),
+      ],
+    });
+    const all = buildCustomerExploreViewModel({
+      ...baseInput(),
+      categoryFilter: 'all',
+      categories: filterCategories,
+      services: filterServices,
+    });
+
+    assert.equal(popular.data.categoryFilter.label, 'Popular');
+    assert.equal(popular.data.categoryFilter.isActive, true);
+    assert.equal(popular.data.referenceCategoryRows[0]?.label, 'Plumbing');
+    assert.equal(topRated.data.categoryFilter.label, 'Top-rated');
+    assert.equal(topRated.data.referenceCategoryRows[0]?.label, 'Cleaning');
+    assert.equal(all.data.categoryFilter.isActive, false);
+    assert.equal(all.data.referenceCategoryRows[0]?.label, 'Cleaning');
   });
 
   it('builds recommendation card fallbacks that match the reference copy', () => {
@@ -477,15 +629,19 @@ function booking(
 }
 
 function customerProfile(overrides: {
+  avatarUrl?: string | null;
   customerAddresses?: CustomerAddressSummary[];
+  userEmail?: string;
   userFullName?: string | null;
 } = {}): CurrentUserProfile {
   return {
     user: {
       id: 'customer-1',
-      email: 'customer@example.com',
+      email: overrides.userEmail ?? 'customer@example.com',
       fullName: overrides.userFullName ?? 'Customer One',
       contactNumber: '+1 234 567 8900',
+      avatarUrl: overrides.avatarUrl ?? null,
+      avatarStoragePath: overrides.avatarUrl ? 'avatar/customer-1/avatar.jpg' : null,
       role: 'customer',
       status: 'active',
     },
@@ -514,6 +670,8 @@ function customerAddress(
     city?: string | null;
     barangay?: string | null;
     isDefault?: boolean;
+    latitude?: number | null;
+    longitude?: number | null;
   } = {
     id: 'address-1',
   },
@@ -527,8 +685,8 @@ function customerAddress(
     city: overrides.city ?? 'Manila',
     province: 'Metro Manila',
     region: 'NCR',
-    latitude: 14.5995,
-    longitude: 120.9842,
+    latitude: overrides.latitude === undefined ? 14.5995 : overrides.latitude,
+    longitude: overrides.longitude === undefined ? 120.9842 : overrides.longitude,
     isDefault: Boolean(overrides.isDefault),
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',

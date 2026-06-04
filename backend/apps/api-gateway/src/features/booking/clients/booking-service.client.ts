@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timedGatewayFetch } from '../../observability/downstream-timing';
 import {
   AttachmentForbiddenError,
   AttachmentNotFoundError,
@@ -228,13 +229,22 @@ export class BookingServiceClient {
       'BOOKING_SERVICE_URL',
       'http://localhost:8504',
     );
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        'content-type': 'application/json',
+    const url = `${baseUrl}${path}`;
+    const response = await timedGatewayFetch(
+      {
+        method,
+        operation: path,
+        service: 'booking-service',
+        url,
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+      {
+        method,
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+    );
 
     if (!response.ok) {
       const code = await this.readErrorCode(response);

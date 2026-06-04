@@ -13,6 +13,7 @@ import type {
   PaymentSummary,
   UploadSummary,
 } from '../../../shared/models/types';
+import { runExclusiveNetworkAction } from '../../../shared/utils/networkActions';
 
 type ProviderPhotoKind = 'before' | 'progress' | 'completion';
 
@@ -92,51 +93,62 @@ export function useProviderServiceFlowViewModel({
       return;
     }
 
-    setBusyAction('service-start');
-    try {
-      let activeBooking = selectedBooking;
-      if (selectedBooking.status !== 'in_progress') {
-        const updated = await transitionBookingStatus(
-          selectedBooking.id,
-          {
-            currentStatus: selectedBooking.status,
-            nextStatus: 'in_progress',
-          },
-          apiOptions,
-        );
-        onBookingUpdated(updated);
-        onRefreshBookingTracking(updated.id);
-        onRefreshBookingTimelineEvents(updated.id);
-        activeBooking = updated;
-      }
-      try {
-        const update = await createBookingServiceUpdate(
-          activeBooking.id,
-          {
-            updateType: 'checklist',
-            message:
-              providerPhotoCaption.trim() || 'Pre-service checklist completed.',
-            checklist: providerChecklist,
-          },
-          apiOptions,
-        );
-        onServiceUpdateCreated(update);
-      } catch (serviceUpdateError) {
-        setNotice(
-          `Service started. Checklist update could not be saved: ${readError(
-            serviceUpdateError,
-          )}`,
-        );
-        setProviderRoute('providerServiceInProgress');
-        return;
-      }
-      setNotice('Service started.');
-      setProviderRoute('providerServiceInProgress');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+    return runExclusiveNetworkAction(
+      `provider:start-service:${selectedBooking.id}`,
+      async () => {
+        setBusyAction('service-start');
+        try {
+          let activeBooking = selectedBooking;
+          if (selectedBooking.status !== 'in_progress') {
+            const updated = await transitionBookingStatus(
+              selectedBooking.id,
+              {
+                currentStatus: selectedBooking.status,
+                nextStatus: 'in_progress',
+              },
+              apiOptions,
+            );
+            onBookingUpdated(updated);
+            onRefreshBookingTracking(updated.id);
+            onRefreshBookingTimelineEvents(updated.id);
+            activeBooking = updated;
+          }
+          try {
+            const update = await createBookingServiceUpdate(
+              activeBooking.id,
+              {
+                updateType: 'checklist',
+                message:
+                  providerPhotoCaption.trim() ||
+                  'Pre-service checklist completed.',
+                checklist: providerChecklist,
+              },
+              apiOptions,
+            );
+            onServiceUpdateCreated(update);
+          } catch (serviceUpdateError) {
+            setNotice(
+              `Service started. Checklist update could not be saved: ${readError(
+                serviceUpdateError,
+              )}`,
+            );
+            setProviderRoute('providerServiceInProgress');
+            return;
+          }
+          setNotice('Service started.');
+          setProviderRoute('providerServiceInProgress');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Service start is already in progress.');
+        },
+      },
+    );
   }, [
     apiOptions,
     onBookingUpdated,
@@ -166,46 +178,56 @@ export function useProviderServiceFlowViewModel({
       return;
     }
 
-    setBusyAction('service-complete');
-    try {
-      const updated = await transitionBookingStatus(
-        selectedBooking.id,
-        {
-          currentStatus: selectedBooking.status,
-          nextStatus: 'completed',
+    return runExclusiveNetworkAction(
+      `provider:complete-service:${selectedBooking.id}`,
+      async () => {
+        setBusyAction('service-complete');
+        try {
+          const updated = await transitionBookingStatus(
+            selectedBooking.id,
+            {
+              currentStatus: selectedBooking.status,
+              nextStatus: 'completed',
+            },
+            apiOptions,
+          );
+          onBookingUpdated(updated);
+          onRefreshBookingTracking(updated.id);
+          const update = await createBookingServiceUpdate(
+            updated.id,
+            {
+              updateType: 'completion',
+              message: completionNotes.trim() || 'Service marked completed.',
+            },
+            apiOptions,
+          );
+          onServiceUpdateCreated(update);
+          onRefreshBookingTimelineEvents(updated.id);
+          let paymentRefreshFailed = false;
+          try {
+            await onPaymentsRefresh();
+          } catch {
+            paymentRefreshFailed = true;
+          }
+          setCompletionNotes('');
+          setNotice(
+            paymentRefreshFailed
+              ? 'Service completed. Payment summary could not refresh yet.'
+              : 'Service completed.',
+          );
+          setProviderRoute('providerServiceCompleted');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Service completion is already in progress.');
         },
-        apiOptions,
-      );
-      onBookingUpdated(updated);
-      onRefreshBookingTracking(updated.id);
-      const update = await createBookingServiceUpdate(
-        updated.id,
-        {
-          updateType: 'completion',
-          message: completionNotes.trim() || 'Service marked completed.',
-        },
-        apiOptions,
-      );
-      onServiceUpdateCreated(update);
-      onRefreshBookingTimelineEvents(updated.id);
-      let paymentRefreshFailed = false;
-      try {
-        await onPaymentsRefresh();
-      } catch {
-        paymentRefreshFailed = true;
-      }
-      setCompletionNotes('');
-      setNotice(
-        paymentRefreshFailed
-          ? 'Service completed. Payment summary could not refresh yet.'
-          : 'Service completed.',
-      );
-      setProviderRoute('providerServiceCompleted');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+      },
+    );
   }, [
     apiOptions,
     completionNotes,
@@ -233,24 +255,34 @@ export function useProviderServiceFlowViewModel({
       return;
     }
 
-    setBusyAction('service-progress');
-    try {
-      const update = await createBookingServiceUpdate(
-        selectedBooking.id,
-        {
-          updateType: 'progress',
-          message,
+    return runExclusiveNetworkAction(
+      `provider:progress-update:${selectedBooking.id}`,
+      async () => {
+        setBusyAction('service-progress');
+        try {
+          const update = await createBookingServiceUpdate(
+            selectedBooking.id,
+            {
+              updateType: 'progress',
+              message,
+            },
+            apiOptions,
+          );
+          onServiceUpdateCreated(update);
+          setProviderProgressMessage('');
+          setNotice('Progress update sent.');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Progress update is already in progress.');
         },
-        apiOptions,
-      );
-      onServiceUpdateCreated(update);
-      setProviderProgressMessage('');
-      setNotice('Progress update sent.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+      },
+    );
   }, [
     apiOptions,
     onServiceUpdateCreated,

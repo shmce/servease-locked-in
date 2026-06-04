@@ -22,6 +22,8 @@ import {
   ProviderProfileSnapshot,
 } from './provider.types';
 
+const RESPONSE_TIME_SAMPLE_LIMIT = 10;
+
 @Injectable()
 export class ProviderGatewayService {
   constructor(
@@ -228,11 +230,18 @@ async function calculateResponseTimeMinutes(
   providerId: string,
   bookingGatewayService: BookingGatewayService,
 ): Promise<number | null> {
-  const decidedBookings = bookings.filter((booking) =>
-    ['confirmed', 'in_progress', 'completed', 'rejected'].includes(
-      booking.status,
-    ),
-  );
+  const decidedBookings = bookings
+    .filter((booking) =>
+      ['confirmed', 'in_progress', 'completed', 'rejected'].includes(
+        booking.status,
+      ),
+    )
+    .sort(
+      (left, right) =>
+        new Date(right.scheduledAt).getTime() -
+        new Date(left.scheduledAt).getTime(),
+    )
+    .slice(0, RESPONSE_TIME_SAMPLE_LIMIT);
 
   if (decidedBookings.length === 0) {
     return null;

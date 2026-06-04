@@ -54,6 +54,7 @@ import {
 import { SupportPanel } from './shared/components/SupportPanel';
 import { DetailScreenSkeleton } from './shared/components/LoadingStates';
 import { useStableCallback } from './shared/hooks/useStableCallback';
+import { runExclusiveNetworkAction } from './shared/utils/networkActions';
 import type { CustomerProviderProfileTab } from './features/customer-provider-profile/viewModels/useCustomerProviderProfileViewModel';
 import type { CustomerTrackingSheetLevel } from './features/customer-track-provider/viewModels/useCustomerTrackProviderViewModel';
 import type { ProviderNavigationSheetLevel } from './features/provider-navigation-mode/viewModels/useProviderNavigationModeViewModel';
@@ -735,7 +736,7 @@ export default function App({ initialRoute = null }: AppProps) {
     Boolean(profile?.user.email) && deleteConfirmText.trim() === profile?.user.email;
   const isInitialWorkspaceLoading =
     Boolean(session?.accessToken) && busyAction === 'refresh' && !hasWorkspaceLoaded;
-  const isInitialCatalogLoading = busyAction === 'catalog' && !hasCatalogLoaded;
+  const isCatalogLoading = busyAction === 'catalog';
   const selectedProviderLoadState = resolveSelectedEntityState({
     entity: selectedProvider,
     hasLoaded: hasCatalogLoaded && !providerResultsLoading,
@@ -1678,16 +1679,26 @@ export default function App({ initialRoute = null }: AppProps) {
       return;
     }
 
-    setBusyAction(`default-address-${addressId}`);
-    try {
-      const savedAddress = await setDefaultCustomerAddress(addressId, apiOptions);
-      setProfile((current) => upsertCustomerAddressInProfile(current, savedAddress));
-      setNotice(`${savedAddress.label} is now your home address.`);
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+    return runExclusiveNetworkAction(
+      `customer:default-address:${addressId}`,
+      async () => {
+        setBusyAction(`default-address-${addressId}`);
+        try {
+          const savedAddress = await setDefaultCustomerAddress(addressId, apiOptions);
+          setProfile((current) => upsertCustomerAddressInProfile(current, savedAddress));
+          setNotice(`${savedAddress.label} is now your home address.`);
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Address update is already in progress.');
+        },
+      },
+    );
   }
 
   async function removeCustomerAddress(addressId: string) {
@@ -1696,17 +1707,27 @@ export default function App({ initialRoute = null }: AppProps) {
       return;
     }
 
-    setBusyAction(`delete-address-${addressId}`);
-    try {
-      await deleteCustomerAddress(addressId, apiOptions);
-      const nextProfile = await getCurrentUser(apiOptions);
-      setProfile(nextProfile);
-      setNotice('Address deleted.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+    return runExclusiveNetworkAction(
+      `customer:delete-address:${addressId}`,
+      async () => {
+        setBusyAction(`delete-address-${addressId}`);
+        try {
+          await deleteCustomerAddress(addressId, apiOptions);
+          const nextProfile = await getCurrentUser(apiOptions);
+          setProfile(nextProfile);
+          setNotice('Address deleted.');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Address delete is already in progress.');
+        },
+      },
+    );
   }
 
   async function savePassword() {
@@ -2047,24 +2068,40 @@ export default function App({ initialRoute = null }: AppProps) {
       return false;
     }
 
-    setBusyAction(`booking-${nextStatus}`);
-    try {
-      const updated = await transitionBookingStatus(
-        selectedBooking.id,
-        buildBookingTransitionRequest(selectedBooking.status, nextStatus, reason),
-        apiOptions,
-      );
-      replaceBooking(updated);
-      void refreshBookingTimelineEvents(updated.id);
-      void refreshBookingTracking(updated.id);
-      setNotice(`Booking moved to ${statusLabel(updated.status)}.`);
-      return true;
-    } catch (error) {
-      setNotice(readError(error));
-      return false;
-    } finally {
-      setBusyAction(null);
-    }
+    const actionKey = `booking:${selectedBooking.id}:${nextStatus}`;
+    return runExclusiveNetworkAction(
+      actionKey,
+      async () => {
+        setBusyAction(`booking-${nextStatus}`);
+        try {
+          const updated = await transitionBookingStatus(
+            selectedBooking.id,
+            buildBookingTransitionRequest(
+              selectedBooking.status,
+              nextStatus,
+              reason,
+            ),
+            apiOptions,
+          );
+          replaceBooking(updated);
+          void refreshBookingTimelineEvents(updated.id);
+          void refreshBookingTracking(updated.id);
+          setNotice(`Booking moved to ${statusLabel(updated.status)}.`);
+          return true;
+        } catch (error) {
+          setNotice(readError(error));
+          return false;
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Booking update is already in progress.');
+          return false;
+        },
+      },
+    );
   }
 
   async function cancelSelectedProviderBooking() {
@@ -2377,72 +2414,83 @@ export default function App({ initialRoute = null }: AppProps) {
       return false;
     }
 
-    setBusyAction('payment');
-    try {
-      const code = customerBookingFlow.data.promoCode.trim();
-      let promoCodeForPayment: string | null = null;
+    return runExclusiveNetworkAction(
+      `customer:collect-payment:${bookingForPayment.id}`,
+      async () => {
+        setBusyAction('payment');
+        try {
+          const code = customerBookingFlow.data.promoCode.trim();
+          let promoCodeForPayment: string | null = null;
 
-      if (code) {
-        const promotion = await validatePromotion(
-          bookingForPayment.id,
-          code,
-          apiOptions,
-        );
-        customerBookingFlow.actions.setPromotionValidation(promotion);
+          if (code) {
+            const promotion = await validatePromotion(
+              bookingForPayment.id,
+              code,
+              apiOptions,
+            );
+            customerBookingFlow.actions.setPromotionValidation(promotion);
 
-        if (!promotion.valid) {
-          setNotice(promotion.message);
+            if (!promotion.valid) {
+              setNotice(promotion.message);
+              return false;
+            }
+
+            promoCodeForPayment = promotion.code;
+          }
+
+          const methodType =
+            methodTypeOverride ??
+            selectedCustomerPaymentMethod?.methodType ??
+            'cash_on_service';
+          if (methodType !== 'cash_on_service') {
+            const checkout = await createCheckoutSession(
+              {
+                bookingId: bookingForPayment.id,
+                successUrl: 'servease://payment/success',
+                cancelUrl: 'servease://payment/cancel',
+                promoCode: promoCodeForPayment,
+                paymentMethods: [toSharedPaymentMethod(methodType)],
+              },
+              apiOptions,
+            );
+            setPendingCheckout({
+              checkoutId: checkout.checkoutId,
+              bookingId: bookingForPayment.id,
+            });
+            const nextPayments = await listPayments(apiOptions).catch(() => payments);
+            setPayments(nextPayments);
+            await Linking.openURL(checkout.redirectUrl);
+            setNotice('Secure checkout opened. Return after completing payment.');
+          } else {
+            const payment = await createPayment(
+              {
+                bookingId: bookingForPayment.id,
+                paymentMethod: methodType,
+                promoCode: promoCodeForPayment,
+              },
+              apiOptions,
+            );
+            setPayments((current) => [
+              payment,
+              ...current.filter((item) => item.id !== payment.id),
+            ]);
+            setNotice(paymentNotice(payment));
+          }
+          return true;
+        } catch (error) {
+          setNotice(readError(error));
           return false;
+        } finally {
+          setBusyAction(null);
         }
-
-        promoCodeForPayment = promotion.code;
-      }
-
-      const methodType =
-        methodTypeOverride ??
-        selectedCustomerPaymentMethod?.methodType ??
-        'cash_on_service';
-      if (methodType !== 'cash_on_service') {
-        const checkout = await createCheckoutSession(
-          {
-            bookingId: bookingForPayment.id,
-            successUrl: 'servease://payment/success',
-            cancelUrl: 'servease://payment/cancel',
-            promoCode: promoCodeForPayment,
-            paymentMethods: [toSharedPaymentMethod(methodType)],
-          },
-          apiOptions,
-        );
-        setPendingCheckout({
-          checkoutId: checkout.checkoutId,
-          bookingId: bookingForPayment.id,
-        });
-        const nextPayments = await listPayments(apiOptions).catch(() => payments);
-        setPayments(nextPayments);
-        await Linking.openURL(checkout.redirectUrl);
-        setNotice('Secure checkout opened. Return after completing payment.');
-      } else {
-        const payment = await createPayment(
-          {
-            bookingId: bookingForPayment.id,
-            paymentMethod: methodType,
-            promoCode: promoCodeForPayment,
-          },
-          apiOptions,
-        );
-        setPayments((current) => [
-          payment,
-          ...current.filter((item) => item.id !== payment.id),
-        ]);
-        setNotice(paymentNotice(payment));
-      }
-      return true;
-    } catch (error) {
-      setNotice(readError(error));
-      return false;
-    } finally {
-      setBusyAction(null);
-    }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Payment confirmation is already in progress.');
+          return false;
+        },
+      },
+    );
   }
 
   async function confirmBookingWithPayment() {
@@ -2729,45 +2777,65 @@ export default function App({ initialRoute = null }: AppProps) {
       },
     };
 
-    setBusyAction(`customer-payment-${methodType}`);
-    try {
-      const method = await upsertCustomerPaymentMethod(
-        {
-          methodId: existing?.id ?? null,
-          methodType,
-          ...defaults[methodType],
-          isDefault: true,
+    return runExclusiveNetworkAction(
+      `customer:payment-method:${methodType}`,
+      async () => {
+        setBusyAction(`customer-payment-${methodType}`);
+        try {
+          const method = await upsertCustomerPaymentMethod(
+            {
+              methodId: existing?.id ?? null,
+              methodType,
+              ...defaults[methodType],
+              isDefault: true,
+            },
+            apiOptions,
+          );
+          const methods = await listCustomerPaymentMethods(apiOptions).catch(() => [
+            method,
+          ]);
+          setCustomerPaymentMethods(methods);
+          setSelectedCustomerPaymentMethodId(method.id);
+          setNotice(`${method.label} selected for checkout.`);
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Payment method update is already in progress.');
         },
-        apiOptions,
-      );
-      const methods = await listCustomerPaymentMethods(apiOptions).catch(() => [
-        method,
-      ]);
-      setCustomerPaymentMethods(methods);
-      setSelectedCustomerPaymentMethodId(method.id);
-      setNotice(`${method.label} selected for checkout.`);
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+      },
+    );
   }
 
   async function removeCustomerPaymentMethod(methodId: string) {
-    setBusyAction(`delete-customer-payment-${methodId}`);
-    try {
-      await deleteCustomerPaymentMethod(methodId, apiOptions);
-      const methods = await listCustomerPaymentMethods(apiOptions);
-      setCustomerPaymentMethods(methods);
-      setSelectedCustomerPaymentMethodId(
-        methods.find((method) => method.isDefault)?.id ?? methods[0]?.id ?? null,
-      );
-      setNotice('Payment method removed.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+    return runExclusiveNetworkAction(
+      `customer:delete-payment-method:${methodId}`,
+      async () => {
+        setBusyAction(`delete-customer-payment-${methodId}`);
+        try {
+          await deleteCustomerPaymentMethod(methodId, apiOptions);
+          const methods = await listCustomerPaymentMethods(apiOptions);
+          setCustomerPaymentMethods(methods);
+          setSelectedCustomerPaymentMethodId(
+            methods.find((method) => method.isDefault)?.id ?? methods[0]?.id ?? null,
+          );
+          setNotice('Payment method removed.');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Payment method removal is already in progress.');
+        },
+      },
+    );
   }
 
   function toSharedPaymentMethod(
@@ -2788,25 +2856,38 @@ export default function App({ initialRoute = null }: AppProps) {
       return;
     }
 
-    setBusyAction('review');
-    try {
-      const normalizedRating = Math.min(5, Math.max(1, Number(rating) || 5));
-      const review = await createReview(
-        {
-          bookingId: selectedBooking.id,
-          rating: normalizedRating,
-          reviewText: reviewText.trim() || null,
+    return runExclusiveNetworkAction(
+      `customer:review:${selectedBooking.id}`,
+      async () => {
+        setBusyAction('review');
+        try {
+          const normalizedRating = Math.min(5, Math.max(1, Number(rating) || 5));
+          const review = await createReview(
+            {
+              bookingId: selectedBooking.id,
+              rating: normalizedRating,
+              reviewText: reviewText.trim() || null,
+            },
+            apiOptions,
+          );
+          setReviews((current) => [
+            review,
+            ...current.filter((item) => item.id !== review.id),
+          ]);
+          setReviewText('');
+          setNotice('Review submitted.');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Review submission is already in progress.');
         },
-        apiOptions,
-      );
-      setReviews((current) => [review, ...current.filter((item) => item.id !== review.id)]);
-      setReviewText('');
-      setNotice('Review submitted.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+      },
+    );
   }
 
   async function submitReviewReply() {
@@ -3299,8 +3380,10 @@ export default function App({ initialRoute = null }: AppProps) {
           setCustomerGuideStep((current) => (current + 1) % 3)
         }
         onOpenBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
+        onOpenProfile={() => navigate('customerProfile', 'customer')}
+        onOpenSavedAddresses={() => navigate('customerAddresses', 'customer')}
         onSearch={() => navigate('customerSearchResults', 'customer')}
-        isCatalogLoading={isInitialCatalogLoading}
+        isCatalogLoading={isCatalogLoading}
         isProfileLoading={isInitialWorkspaceLoading}
         onSelectCategory={(category) => {
           setSelectedCategoryId(category.id);
@@ -3370,7 +3453,7 @@ export default function App({ initialRoute = null }: AppProps) {
         providers={catalogProviders}
         selectedCategoryId={selectedCategoryId}
         services={services}
-        isLoading={isInitialCatalogLoading}
+        isLoading={isCatalogLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
         onOpenCategory={(category) => {
           setSelectedCategoryId(category?.id ?? null);
@@ -3394,7 +3477,7 @@ export default function App({ initialRoute = null }: AppProps) {
         mode={mode}
         services={services}
         marketplaceSearchQuery={marketplaceSearchQuery}
-        isLoading={isInitialCatalogLoading}
+        isLoading={isCatalogLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
         onSearchQueryChange={setMarketplaceSearchQuery}
         onOpenService={(service) => {
@@ -3411,7 +3494,7 @@ export default function App({ initialRoute = null }: AppProps) {
       <CustomerTopProvidersScreen
         providers={providers}
         marketplaceSearchQuery={marketplaceSearchQuery}
-        isLoading={isInitialCatalogLoading || providerResultsLoading}
+        isLoading={isCatalogLoading || providerResultsLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
         onSearchQueryChange={setMarketplaceSearchQuery}
         onOpenProvider={(provider) => {

@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { getBackendEnvFilePaths } from '../../../libs/common/src';
 import { AdminAuditController } from './features/admin/admin-audit.controller';
 import { AdminAuditGatewayService } from './features/admin/admin-audit.service';
@@ -54,6 +55,7 @@ import { MessagingGatewayService } from './features/messaging/messaging.service'
 import { NotificationServiceClient } from './features/notifications/clients/notification-service.client';
 import { NotificationController } from './features/notifications/notification.controller';
 import { NotificationGatewayService } from './features/notifications/notification.service';
+import { RequestTimingInterceptor } from './features/observability/request-timing.interceptor';
 import { PaymentServiceClient } from './features/payments/clients/payment-service.client';
 import { PaymentController } from './features/payments/payment.controller';
 import { PaymentGatewayService } from './features/payments/payment.service';
@@ -165,6 +167,10 @@ import { UploadGatewayService } from './features/uploads/upload.service';
     UserPreferenceGatewayService,
     UploadGatewayService,
     RateLimitMiddleware,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: RequestTimingInterceptor,
+    },
     {
       provide: AuthTokenService,
       useFactory: () => new AuthTokenService(),

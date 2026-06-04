@@ -41,9 +41,13 @@ describe('SupabaseCustomerAddressRepository', () => {
         updatedAt: '2026-05-23T00:00:00.000Z',
       },
     ]);
-    expect(rpc).toHaveBeenCalledWith('servease_list_customer_addresses', {
-      p_user_id: 'user-1',
-    });
+    expect(rpc).toHaveBeenCalledWith(
+      'servease_list_customer_addresses_mobile',
+      {
+        p_user_id: 'user-1',
+        p_limit: 20,
+      },
+    );
   });
 
   it('creates a default home address through the service-role RPC', async () => {

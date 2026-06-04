@@ -14,6 +14,7 @@ import {
   CustomerSection,
   customerText,
 } from '../../../shared/components/CustomerUI';
+import { InlineRefreshHint } from '../../../shared/components/LoadingStates';
 import { ProviderListing } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerTopProvidersViewModel } from '../viewModels/useCustomerTopProvidersViewModel';
@@ -41,6 +42,7 @@ export function CustomerTopProvidersScreen({
   });
   const { data } = topProviders;
   const showSkeletons = isLoading && providers.length === 0;
+  const isRefreshing = isLoading && providers.length > 0;
 
   return (
     <CustomerScreen>
@@ -77,6 +79,7 @@ export function CustomerTopProvidersScreen({
         </CustomerSection>
 
         <CustomerSection title="Providers">
+          {isRefreshing ? <InlineRefreshHint label="Refreshing providers" /> : null}
           <View style={styles.providerList}>
             {showSkeletons
               ? Array.from({ length: 5 }).map((_, index) => (

@@ -317,6 +317,51 @@ test('customer UI language primitives remain opt-in and outside provider trackin
   }
 });
 
+test('customer Explore and Provider Home keep role-specific route-state ownership', () => {
+  const exploreSource = readProjectFile(
+    'src/features/customer-explore/views/CustomerExplore.tsx',
+  );
+  const providerHomeSource = readProjectFile(
+    'src/features/provider-home/views/ProviderHome.tsx',
+  );
+
+  assert.match(exploreSource, /Search for a service or task/);
+  assert.match(exploreSource, /Book a service/);
+  assert.match(exploreSource, /InlineRefreshHint/);
+  assert.doesNotMatch(
+    exploreSource,
+    /ProviderHeader|ProviderScreen|Search provider bookings|View earnings/,
+  );
+
+  assert.match(providerHomeSource, /Search bookings/);
+  assert.match(providerHomeSource, /Today's Agenda/);
+  assert.match(providerHomeSource, /View earnings/);
+  assert.match(providerHomeSource, /InlineRefreshHint/);
+  assert.doesNotMatch(
+    providerHomeSource,
+    /CustomerHeader|CustomerScreen|Book a service|Recommended for you/,
+  );
+});
+
+test('customer identity surfaces share account-backed avatar state', () => {
+  const exploreViewModelSource = readProjectFile(
+    'src/features/customer-explore/viewModels/useCustomerExploreViewModel.ts',
+  );
+  const moreViewModelSource = readProjectFile(
+    'src/features/customer-more/viewModels/useCustomerMoreViewModel.ts',
+  );
+  const profileViewModelSource = readProjectFile(
+    'src/features/customer-profile/viewModels/useCustomerProfileViewModel.ts',
+  );
+
+  assert.match(exploreViewModelSource, /profile\?\.user\.avatarUrl \?\? null/);
+  assert.match(moreViewModelSource, /profile\?\.user\.avatarUrl \?\? null/);
+  assert.match(profileViewModelSource, /profile\?\.user\.avatarUrl \?\? null/);
+  assert.match(exploreViewModelSource, /profile\?\.user\.fullName/);
+  assert.match(moreViewModelSource, /profile\?\.user\.fullName/);
+  assert.match(profileViewModelSource, /profile\?\.user\.fullName/);
+});
+
 test('app shell delegates display notice formatting to domain helpers', () => {
   const appSource = readProjectFile('src/App.tsx');
   const bookingFlowSource = readProjectFile(
@@ -617,6 +662,8 @@ test('provider home follows feature-level MVVM boundaries', () => {
     viewSource,
     /providerDashboard\?\.summary\.overallRating/,
   );
+  assert.doesNotMatch(viewSource, /avatarImage|avatarUri|profile\?\.user\.avatarUrl/);
+  assert.match(viewSource, /notificationButton/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /buildProviderHomeViewModel/);
   assert.match(viewModelSource, /import type \{[\s\S]*ProviderHomeViewModel/);
@@ -662,6 +709,7 @@ test('provider bookings follows feature-level MVVM boundaries', () => {
   assert.match(viewSource, /useProviderBookingsViewModel/);
   assert.doesNotMatch(viewSource, /filterProviderBookings/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(viewSource, /InlineRefreshHint label="Refreshing bookings"/);
   assert.match(viewModelSource, /filterProviderBookings/);
   assert.match(viewModelSource, /useMemo/);
 });
@@ -717,6 +765,11 @@ test('provider calendar follows feature-level MVVM boundaries', () => {
   assert.doesNotMatch(viewSource, /formatDateTime|booking\.status\.replace/);
   assert.doesNotMatch(viewSource, /booking\.serviceTitle|booking\.scheduledAt/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(viewSource, /InlineRefreshHint label="Refreshing schedule"/);
+  assert.match(
+    viewSource,
+    /ListSectionSkeleton count=\{3\} label="Loading provider bookings"/,
+  );
   assert.match(viewModelSource, /getProviderAvailability/);
   assert.match(viewModelSource, /useEffect/);
   assert.match(viewModelSource, /calendarMarkers/);
@@ -892,8 +945,32 @@ test('customer explore follows feature-level MVVM boundaries', () => {
     /formatMoney|formatDateTime|completedRebookOptions/,
   );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.doesNotMatch(viewSource, /customer-explore-avatar|exploreImages\.avatar/);
+  assert.match(
+    appSource,
+    /onOpenProfile=\{\(\) => navigate\('customerProfile', 'customer'\)\}/,
+  );
+  assert.match(
+    appSource,
+    /onOpenSavedAddresses=\{\(\) => navigate\('customerAddresses', 'customer'\)\}/,
+  );
+  assert.match(
+    viewSource,
+    /onAvatarPress=\{props\.onOpenProfile\}/,
+  );
+  assert.match(
+    viewSource,
+    /onNotificationPress=\{props\.onShowNotifications\}/,
+  );
+  assert.match(viewSource, /CategoryFilterSheet/);
+  assert.match(viewSource, /setCategoryFilter/);
+  assert.match(viewSource, /onLocationPress=\{props\.onOpenSavedAddresses\}/);
   assert.match(viewModelSource, /completedRebookOptions/);
   assert.match(viewModelSource, /guideSteps/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
+  assert.match(viewModelSource, /locationStatusLabel/);
+  assert.match(viewModelSource, /needs_verification/);
+  assert.match(viewModelSource, /categoryFilterLabel/);
   assert.match(viewModelSource, /bookAgainRows/);
   assert.match(viewModelSource, /serviceRows/);
   assert.match(viewModelSource, /providerRows/);
@@ -1710,6 +1787,7 @@ test('customer top providers follows feature-level MVVM boundaries', () => {
     /providers\.filter|marketplaceSearchQuery\.trim/,
   );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(viewSource, /InlineRefreshHint label="Refreshing providers"/);
   assert.match(viewModelSource, /visibleProviders/);
   assert.match(viewModelSource, /providerBusinessName/);
 });
@@ -1730,6 +1808,7 @@ test('customer all services follows feature-level MVVM boundaries', () => {
     /services\.filter|marketplaceSearchQuery\.trim|formatMoney/,
   );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(viewSource, /InlineRefreshHint label="Refreshing services"/);
   assert.match(viewModelSource, /visibleServices/);
   assert.match(viewModelSource, /formatMoney/);
 });
