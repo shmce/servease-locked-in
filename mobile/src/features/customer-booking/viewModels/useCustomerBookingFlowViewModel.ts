@@ -98,6 +98,9 @@ export function useCustomerBookingFlowViewModel({
     createCustomerBookingLocationState(initialServiceAddress),
   );
   const [mapPickerVisible, setMapPickerVisible] = useState(false);
+  const [mapSearchQuery, setMapSearchQuery] = useState(initialServiceAddress);
+  const [mapSearchError, setMapSearchError] = useState<string | null>(null);
+  const [mapSearchBusy, setMapSearchBusy] = useState(false);
   const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt);
   const [hoursRequired, setHoursRequired] = useState('2');
   const [notes, setNotes] = useState('');
@@ -169,6 +172,8 @@ export function useCustomerBookingFlowViewModel({
           latitude: result.latitude,
           longitude: result.longitude,
         });
+        setMapSearchQuery(result.formattedAddress);
+        setMapSearchError(null);
         setPinAddressStatus('idle');
         if (mode === 'manual') {
           setNotice('Pin address refreshed.');
@@ -267,6 +272,8 @@ export function useCustomerBookingFlowViewModel({
     setAddressGeoResult(null);
     setSelectedSavedAddressId(null);
     setLastResolvedPin(null);
+    setMapSearchQuery(value);
+    setMapSearchError(null);
     setPinAddressStatus('idle');
     reverseGeocodeRequestRef.current += 1;
     setServiceLocation((current) =>
@@ -278,6 +285,8 @@ export function useCustomerBookingFlowViewModel({
     const nextLocation = customerBookingLocationFromSavedAddress(savedAddress);
     setSelectedSavedAddressId(savedAddress.id);
     setAddress(savedAddress.address);
+    setMapSearchQuery(savedAddress.address);
+    setMapSearchError(null);
     setPricingQuote(null);
     setServiceLocation(nextLocation);
     setLastResolvedPin(
@@ -314,7 +323,11 @@ export function useCustomerBookingFlowViewModel({
   }
 
   async function submitBooking(
-    options: { navigateOnSuccess?: boolean; showSuccessNotice?: boolean } = {},
+    options: {
+      navigateOnScheduleFailure?: boolean;
+      navigateOnSuccess?: boolean;
+      showSuccessNotice?: boolean;
+    } = {},
   ): Promise<BookingSummary | null> {
     if (!hasSession) {
       setNotice('Sign in before creating a booking.');
@@ -334,7 +347,10 @@ export function useCustomerBookingFlowViewModel({
     }
 
     if (!canSubmitBookingWithServerScheduleValidation(scheduleValidation)) {
-      handleScheduleValidationFailure(scheduleValidation.message);
+      handleScheduleValidationFailure(
+        scheduleValidation.message,
+        options.navigateOnScheduleFailure ?? true,
+      );
       return null;
     }
 
@@ -342,6 +358,7 @@ export function useCustomerBookingFlowViewModel({
       return null;
     }
 
+    setBookingSlotError('');
     setBusyAction('create-booking');
     try {
       const serviceId = selectedService?.id ?? selectedProvider.serviceId;
@@ -427,7 +444,9 @@ export function useCustomerBookingFlowViewModel({
         setBookingSlotError(slotMessage);
         setNotice(slotMessage);
         onRefreshProviderAvailability(selectedProvider.providerId);
-        setRoute({ role: 'customer', screen: 'customerBookingForm' });
+        if (options.navigateOnScheduleFailure ?? true) {
+          setRoute({ role: 'customer', screen: 'customerBookingForm' });
+        }
       } else {
         setNotice(message);
       }
@@ -592,6 +611,8 @@ export function useCustomerBookingFlowViewModel({
       setAddress(result.formattedAddress);
       setAddressGeoResult(result);
       setServiceLocation(nextLocation);
+      setMapSearchQuery(result.formattedAddress);
+      setMapSearchError(null);
       setLastResolvedPin({
         latitude: result.latitude,
         longitude: result.longitude,
@@ -606,6 +627,50 @@ export function useCustomerBookingFlowViewModel({
       );
       setNotice(`${readError(error)} ${customerMapPinFallbackCopy}`);
     } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function searchServiceLocationPin(): Promise<void> {
+    const trimmed = mapSearchQuery.trim();
+    if (!trimmed) {
+      setMapSearchError('Enter an address or place to search.');
+      return;
+    }
+
+    setMapSearchBusy(true);
+    setBusyAction('geo-picker-search');
+    setMapSearchError(null);
+    try {
+      const result = await geocodeAddress(trimmed, {
+        ...apiOptions,
+        language: 'en',
+        region: 'PH',
+      });
+      reverseGeocodeRequestRef.current += 1;
+      const nextLocation = startCustomerBookingPendingPin(
+        latestServiceLocationRef.current,
+        result,
+        'search',
+      );
+      setSelectedSavedAddressId(null);
+      setAddress(result.formattedAddress);
+      setAddressGeoResult(result);
+      setServiceLocation(nextLocation);
+      setMapSearchQuery(result.formattedAddress);
+      setLastResolvedPin({
+        latitude: result.latitude,
+        longitude: result.longitude,
+      });
+      setPinAddressStatus('idle');
+      setMapPickerVisible(true);
+      setNotice('Search result pinned. Confirm the service pin before review.');
+    } catch (error) {
+      const message = readError(error);
+      setMapSearchError(message);
+      setNotice(message);
+    } finally {
+      setMapSearchBusy(false);
       setBusyAction(null);
     }
   }
@@ -641,6 +706,8 @@ export function useCustomerBookingFlowViewModel({
       setAddress(result.formattedAddress);
       setAddressGeoResult(result);
       setServiceLocation(nextLocation);
+      setMapSearchQuery(result.formattedAddress);
+      setMapSearchError(null);
       setLastResolvedPin({
         latitude: result.latitude,
         longitude: result.longitude,
@@ -715,6 +782,8 @@ export function useCustomerBookingFlowViewModel({
         status: 'pending',
         errorMessage: null,
       }));
+      setMapSearchQuery(existingPin.formattedAddress || address);
+      setMapSearchError(null);
       setMapPickerVisible(true);
       return;
     }
@@ -725,6 +794,7 @@ export function useCustomerBookingFlowViewModel({
   function closeServiceLocationPicker() {
     reverseGeocodeRequestRef.current += 1;
     setPinAddressStatus('idle');
+    setMapSearchError(null);
     setMapPickerVisible(false);
   }
 
@@ -740,6 +810,7 @@ export function useCustomerBookingFlowViewModel({
     longitude: number,
     formattedAddress?: string,
   ) {
+    setMapSearchError(null);
     setServiceLocation((current) =>
       moveCustomerBookingPendingPin(
         current,
@@ -836,14 +907,19 @@ export function useCustomerBookingFlowViewModel({
     });
   }
 
-  function handleScheduleValidationFailure(message: string | null) {
+  function handleScheduleValidationFailure(
+    message: string | null,
+    navigateOnScheduleFailure = true,
+  ) {
     const scheduleMessage = message ?? 'Choose an available future schedule.';
     setBookingSlotError(scheduleMessage);
     setNotice(scheduleMessage);
     if (selectedProvider) {
       onRefreshProviderAvailability(selectedProvider.providerId);
     }
-    setRoute({ role: 'customer', screen: 'customerBookingForm' });
+    if (navigateOnScheduleFailure) {
+      setRoute({ role: 'customer', screen: 'customerBookingForm' });
+    }
   }
 
   return {
@@ -854,6 +930,9 @@ export function useCustomerBookingFlowViewModel({
       bookingReferencePhotoUrl,
       bookingSlotError,
       hoursRequired,
+      mapSearchBusy,
+      mapSearchError,
+      mapSearchQuery,
       mapPickerVisible,
       notes,
       pinAddressStatus,
@@ -876,10 +955,12 @@ export function useCustomerBookingFlowViewModel({
       previewPricingQuote,
       reverseGeocodeServiceLocationPin,
       saveCurrentAddressAsHome,
+      searchServiceLocationPin,
       setAddress: setServiceAddress,
       setBookingReferenceUploadResult,
       setBookingSlotError,
       setHoursRequired,
+      setMapSearchQuery,
       setServiceLocationManualDetails,
       setNotes,
       setPricingQuote,

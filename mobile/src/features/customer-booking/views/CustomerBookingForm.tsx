@@ -15,6 +15,7 @@ import {
   MapPin,
   Navigation,
   RefreshCw,
+  Search,
   Upload,
   X,
 } from 'lucide-react-native';
@@ -59,6 +60,9 @@ type CustomerBookingFormScreenProps = {
   addressGeoResult: GeoAddressResult | null;
   serviceLocation: CustomerBookingLocationState;
   mapPickerVisible: boolean;
+  mapSearchBusy: boolean;
+  mapSearchError: string | null;
+  mapSearchQuery: string;
   pinAddressStatus: PinAddressStatus;
   notes: string;
   bookingReferencePhotoUri: string | null;
@@ -74,6 +78,8 @@ type CustomerBookingFormScreenProps = {
   onUseCurrentLocation: () => void;
   onOpenMapPicker: () => void;
   onCloseMapPicker: () => void;
+  onMapSearchQueryChange: (value: string) => void;
+  onSearchMapPin: () => void;
   onMapPinMove: (
     latitude: number,
     longitude: number,
@@ -103,6 +109,9 @@ export function CustomerBookingFormScreen({
   addressGeoResult,
   serviceLocation,
   mapPickerVisible,
+  mapSearchBusy,
+  mapSearchError,
+  mapSearchQuery,
   pinAddressStatus,
   notes,
   bookingReferencePhotoUri,
@@ -118,6 +127,8 @@ export function CustomerBookingFormScreen({
   onUseCurrentLocation,
   onOpenMapPicker,
   onCloseMapPicker,
+  onMapSearchQueryChange,
+  onSearchMapPin,
   onMapPinMove,
   onReverseGeocodePin,
   onConfirmMapPin,
@@ -368,11 +379,16 @@ export function CustomerBookingFormScreen({
       </View>
       <CustomerMapPinPickerModal
         busyAction={busyAction}
+        mapSearchBusy={mapSearchBusy}
+        mapSearchError={mapSearchError}
+        mapSearchQuery={mapSearchQuery}
         pinAddressStatus={pinAddressStatus}
         serviceLocation={serviceLocation}
         visible={mapPickerVisible}
         onClose={onCloseMapPicker}
         onConfirm={onConfirmMapPin}
+        onMapSearchQueryChange={onMapSearchQueryChange}
+        onSearchMapPin={onSearchMapPin}
         onManualDetailsChange={onManualDetailsChange}
         onMovePin={onMapPinMove}
         onRefreshAddress={onReverseGeocodePin}
@@ -423,22 +439,32 @@ function LocationStatusCard({
 
 function CustomerMapPinPickerModal({
   busyAction,
+  mapSearchBusy,
+  mapSearchError,
+  mapSearchQuery,
   pinAddressStatus,
   serviceLocation,
   visible,
   onClose,
   onConfirm,
+  onMapSearchQueryChange,
+  onSearchMapPin,
   onManualDetailsChange,
   onMovePin,
   onRefreshAddress,
   onUseCurrentLocation,
 }: {
   busyAction: string | null;
+  mapSearchBusy: boolean;
+  mapSearchError: string | null;
+  mapSearchQuery: string;
   pinAddressStatus: PinAddressStatus;
   serviceLocation: CustomerBookingLocationState;
   visible: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  onMapSearchQueryChange: (value: string) => void;
+  onSearchMapPin: () => void;
   onManualDetailsChange: (value: string) => void;
   onMovePin: (
     latitude: number,
@@ -457,6 +483,7 @@ function CustomerMapPinPickerModal({
     ? `${pin.latitude.toFixed(5)}, ${pin.longitude.toFixed(5)}`
     : 'No pin selected';
   const isRefreshing = busyAction === 'geo-reverse-pin';
+  const isSearching = mapSearchBusy || busyAction === 'geo-picker-search';
   const isFindingAddress =
     isRefreshing ||
     pinAddressStatus === 'scheduled' ||
@@ -498,11 +525,33 @@ function CustomerMapPinPickerModal({
           >
             <X color={palette.ink} size={20} strokeWidth={2.5} />
           </Pressable>
-          <View style={styles.mapPickerAddressPill}>
-            <MapPin color={palette.mintDeep} size={18} strokeWidth={2.5} />
-            <Text style={styles.mapPickerAddressPillText} numberOfLines={1}>
-              {displayedAddressLabel}
-            </Text>
+          <View style={styles.mapPickerSearchBar}>
+            <Search color={palette.muted} size={18} strokeWidth={2.4} />
+            <TextInput
+              style={styles.mapPickerSearchInput}
+              value={mapSearchQuery}
+              onChangeText={onMapSearchQueryChange}
+              onSubmitEditing={onSearchMapPin}
+              placeholder="Search address or place"
+              placeholderTextColor={palette.muted}
+              returnKeyType="search"
+              editable={!isSearching}
+              selectTextOnFocus
+            />
+            <Pressable
+              style={[
+                styles.mapPickerSearchSubmit,
+                isSearching && styles.faded,
+              ]}
+              onPress={onSearchMapPin}
+              disabled={isSearching}
+              accessibilityRole="button"
+              accessibilityLabel="Search map address"
+            >
+              <Text style={styles.mapPickerSearchSubmitText} numberOfLines={1}>
+                {isSearching ? 'Searching' : 'Search'}
+              </Text>
+            </Pressable>
           </View>
         </View>
 
@@ -542,6 +591,9 @@ function CustomerMapPinPickerModal({
               <Text style={styles.mapPickerAddressMeta}>{coordinateLabel}</Text>
             </View>
           </View>
+          {mapSearchError ? (
+            <Text style={styles.mapPickerSearchError}>{mapSearchError}</Text>
+          ) : null}
 
           <TextInput
             style={styles.manualDetailsInput}
@@ -786,6 +838,56 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0,
     lineHeight: 19,
+  },
+  mapPickerSearchBar: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    borderColor: 'rgba(17,24,39,0.08)',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    elevation: 5,
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    minHeight: 48,
+    minWidth: 0,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.xs,
+    shadowColor: '#111827',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 18,
+  },
+  mapPickerSearchError: {
+    color: '#B42318',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 17,
+  },
+  mapPickerSearchInput: {
+    color: palette.ink,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0,
+    minWidth: 0,
+    paddingVertical: 0,
+  },
+  mapPickerSearchSubmit: {
+    alignItems: 'center',
+    backgroundColor: '#F1FAF5',
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 36,
+    minWidth: 70,
+    paddingHorizontal: spacing.sm,
+  },
+  mapPickerSearchSubmitText: {
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0,
   },
   mapPickerCloseButton: {
     alignItems: 'center',

@@ -28,6 +28,7 @@ type CustomerBookingReviewViewModelInput = {
   selectedService: CatalogServiceItem | null;
   scheduledAt: string;
   hoursRequired: string;
+  bookingSlotError?: string;
   address: string;
   serviceLocation: CustomerBookingLocationState;
   notes: string;
@@ -46,6 +47,7 @@ export function useCustomerBookingReviewViewModel({
   selectedService,
   scheduledAt,
   hoursRequired,
+  bookingSlotError = '',
   address,
   serviceLocation,
   notes,
@@ -65,6 +67,7 @@ export function useCustomerBookingReviewViewModel({
         selectedService,
         scheduledAt,
         hoursRequired,
+        bookingSlotError,
         address,
         serviceLocation,
         notes,
@@ -79,6 +82,7 @@ export function useCustomerBookingReviewViewModel({
       }),
     [
       address,
+      bookingSlotError,
       serviceLocation,
       bookingReferencePhotoUrl,
       busyAction,
@@ -102,6 +106,7 @@ export function buildCustomerBookingReviewViewModel({
   selectedService,
   scheduledAt,
   hoursRequired,
+  bookingSlotError,
   address,
   serviceLocation,
   notes,
@@ -119,10 +124,11 @@ export function buildCustomerBookingReviewViewModel({
   const subtotal =
     provider.pricingMode === 'hourly' ? baseAmount * duration : baseAmount;
   const scheduledAtIso = toManilaBookingIso(scheduledAt);
-  const scheduleMessage =
+  const localScheduleMessage =
     scheduledAtIso && !isFutureManilaBookingDateTime(scheduledAt, now)
       ? customerPastSlotPickerCopy
       : null;
+  const scheduleMessage = bookingSlotError || localScheduleMessage;
   const pricingPreview = buildBookingPriceBreakdownPreview({
     subtotal,
     pricingQuote,
@@ -252,7 +258,7 @@ export function buildCustomerBookingReviewViewModel({
         Boolean(locationBlockingMessage) ||
         !address.trim() ||
         !scheduledAtIso ||
-        Boolean(scheduleMessage),
+        Boolean(localScheduleMessage),
     },
     isLoading: false,
     error: null,

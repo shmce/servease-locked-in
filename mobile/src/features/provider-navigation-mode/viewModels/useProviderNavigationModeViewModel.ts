@@ -9,6 +9,11 @@ import {
 } from '../../../shared/models/types';
 
 export type ProviderNavigationSheetLevel = 'peek' | 'half' | 'expanded';
+export type ProviderNavigationOriginState =
+  | 'live'
+  | 'fallback'
+  | 'loading'
+  | 'unavailable';
 
 export type ProviderNavigationGuidance = {
   instruction: string;
@@ -21,6 +26,13 @@ type ProviderLiveLocationState = {
   error: string | null;
   isPublishing: boolean;
   location: BookingTrackingLocation | null;
+};
+
+type ProviderNavigationOriginStatus = {
+  description: string;
+  label: string;
+  origin: BookingTrackingLocation | GeoRouteLocation | null;
+  state: ProviderNavigationOriginState;
 };
 
 type ProviderNavigationModeViewModelInput = {
@@ -81,14 +93,18 @@ export function buildProviderNavigationModeViewModel({
 }: ProviderNavigationModeViewModelInput) {
   const tracking =
     trackingSnapshot?.bookingId === booking.id ? trackingSnapshot : null;
-  const navigationOrigin =
-    liveLocation.location ?? fallbackOrigin ?? tracking?.providerLocation ?? null;
+  const originStatus = providerNavigationOriginStatus({
+    fallbackOrigin,
+    liveLocation,
+    trackingOrigin: tracking?.providerLocation ?? null,
+  });
+  const navigationOrigin = originStatus.origin;
   const routeLabel = providerDirectionsLabel(
     directions,
     navigationRouteLoading,
     navigationRouteError,
   );
-  const liveLocationLabel = providerLiveLocationStatusLabel(liveLocation);
+  const liveLocationLabel = originStatus.label;
   const isHalfSheet = sheetLevel !== 'peek';
   const isExpandedSheet = sheetLevel === 'expanded';
 
@@ -102,13 +118,18 @@ export function buildProviderNavigationModeViewModel({
       guidance: providerNavigationGuidance(
         directions,
         navigationOrigin,
+        originStatus,
         navigationRouteLoading,
         navigationRouteError,
       ),
       isExpandedSheet,
       isHalfSheet,
       liveLocationLabel,
+      navigationMapSubtitle: navigationOrigin ? routeLabel : originStatus.description,
       navigationOrigin,
+      originState: originStatus.state,
+      originStateDescription: originStatus.description,
+      originStateLabel: originStatus.label,
       refreshRouteDisabled: navigationRouteLoading,
       refreshRouteLabel: navigationRouteLoading ? 'Loading...' : 'Refresh route',
       routeDurationLabel: directions
@@ -148,6 +169,7 @@ function providerDirectionsLabel(
 function providerNavigationGuidance(
   directions: GeoDirectionsRoute | null,
   origin: BookingTrackingLocation | GeoRouteLocation | null,
+  originStatus: ProviderNavigationOriginStatus,
   loading: boolean,
   error: string | null,
 ): ProviderNavigationGuidance {
@@ -157,6 +179,15 @@ function providerNavigationGuidance(
       nextInstruction: null,
       distanceLabel: '...',
       maneuverSymbol: '↑',
+    };
+  }
+
+  if (!origin) {
+    return {
+      instruction: originStatus.description,
+      nextInstruction: null,
+      distanceLabel: '--',
+      maneuverSymbol: '◎',
     };
   }
 
@@ -280,6 +311,51 @@ function navigationManeuverSymbol(step: GeoDirectionsStep): string {
     return '◎';
   }
   return '↑';
+}
+
+function providerNavigationOriginStatus({
+  fallbackOrigin,
+  liveLocation,
+  trackingOrigin,
+}: {
+  fallbackOrigin: BookingTrackingLocation | GeoRouteLocation | null;
+  liveLocation: ProviderLiveLocationState;
+  trackingOrigin: BookingTrackingLocation | null;
+}): ProviderNavigationOriginStatus {
+  if (liveLocation.location) {
+    return {
+      description: providerLiveLocationStatusLabel(liveLocation),
+      label: 'Live GPS',
+      origin: liveLocation.location,
+      state: 'live',
+    };
+  }
+
+  const fallback = fallbackOrigin ?? trackingOrigin ?? null;
+  if (fallback) {
+    return {
+      description: 'Using last known location until live GPS is ready.',
+      label: 'Last known location',
+      origin: fallback,
+      state: 'fallback',
+    };
+  }
+
+  if (liveLocation.error) {
+    return {
+      description: 'Allow location permission to show your current spot.',
+      label: 'Location unavailable',
+      origin: null,
+      state: 'unavailable',
+    };
+  }
+
+  return {
+    description: 'Waiting for your current location.',
+    label: 'Finding GPS',
+    origin: null,
+    state: 'loading',
+  };
 }
 
 function providerLiveLocationStatusLabel({

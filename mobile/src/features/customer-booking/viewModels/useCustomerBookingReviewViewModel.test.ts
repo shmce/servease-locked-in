@@ -240,6 +240,33 @@ test('customer booking review blocks confirmation when the selected schedule has
   assert.equal(model.data.quoteExplanation, customerPastSlotPickerCopy);
 });
 
+test('customer booking review surfaces final schedule submission failures inline without disabling retry', () => {
+  const model = buildCustomerBookingReviewViewModel({
+    provider,
+    selectedService: null,
+    scheduledAt: '2026-06-01T09:00',
+    hoursRequired: '2',
+    address: '123 Test St',
+    serviceLocation: confirmedServiceLocation,
+    notes: '',
+    bookingReferencePhotoUrl: null,
+    pricingQuote: null,
+    promotionValidation: null,
+    promoCode: '',
+    busyAction: null,
+    bookingSlotError: 'This slot was just taken or blocked. Please pick another.',
+    customerPaymentMethods: [cashMethod],
+    selectedPaymentMethodId: cashMethod.id,
+    now: new Date('2026-05-31T00:00:00.000Z'),
+  });
+
+  assert.equal(model.data.confirmDisabled, false);
+  assert.equal(
+    model.data.quoteExplanation,
+    'This slot was just taken or blocked. Please pick another.',
+  );
+});
+
 test('customer booking review shows the confirmed service pin', () => {
   const model = buildCustomerBookingReviewViewModel({
     provider,

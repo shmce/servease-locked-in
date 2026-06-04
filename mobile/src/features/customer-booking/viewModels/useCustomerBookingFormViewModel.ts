@@ -138,6 +138,7 @@ export function buildCustomerBookingFormViewModel({
   const isPreparingEstimate = busyAction === 'pricing-quote';
   const isResolvingPin =
     busyAction === 'geo-map-search' ||
+    busyAction === 'geo-picker-search' ||
     busyAction === 'geo-current-location' ||
     busyAction === 'geo-reverse-pin';
   const canContinue =

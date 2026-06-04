@@ -2472,6 +2472,7 @@ export default function App({ initialRoute = null }: AppProps) {
     const methodType =
       selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
     const booking = await customerBookingFlow.actions.submitBooking({
+      navigateOnScheduleFailure: false,
       navigateOnSuccess: false,
       showSuccessNotice: false,
     });
@@ -2481,7 +2482,7 @@ export default function App({ initialRoute = null }: AppProps) {
 
     setHideSelectedBookingReservePayment(true);
     if (methodType === 'cash_on_service') {
-      await refreshPayments().catch(() => undefined);
+      void refreshPayments().catch(() => undefined);
       navigate('customerBookingConfirmation', 'customer');
       setNotice(
         `Booking ${booking.bookingReference} confirmed. Cash is due after service.`,
@@ -3363,6 +3364,7 @@ export default function App({ initialRoute = null }: AppProps) {
         selectedService={selectedService ?? null}
         hoursRequired={customerBookingFlow.data.hoursRequired}
         scheduledAt={customerBookingFlow.data.scheduledAt}
+        bookingSlotError={customerBookingFlow.data.bookingSlotError}
         address={customerBookingFlow.data.address}
         serviceLocation={customerBookingFlow.data.serviceLocation}
         notes={customerBookingFlow.data.notes}
@@ -3487,6 +3489,9 @@ export default function App({ initialRoute = null }: AppProps) {
         addressGeoResult={customerBookingFlow.data.addressGeoResult}
         serviceLocation={customerBookingFlow.data.serviceLocation}
         mapPickerVisible={customerBookingFlow.data.mapPickerVisible}
+        mapSearchBusy={customerBookingFlow.data.mapSearchBusy}
+        mapSearchError={customerBookingFlow.data.mapSearchError}
+        mapSearchQuery={customerBookingFlow.data.mapSearchQuery}
         pinAddressStatus={customerBookingFlow.data.pinAddressStatus}
         notes={customerBookingFlow.data.notes}
         bookingReferencePhotoUri={customerBookingFlow.data.bookingReferencePhotoUri}
@@ -3522,6 +3527,10 @@ export default function App({ initialRoute = null }: AppProps) {
           void customerBookingFlow.actions.openServiceLocationPicker()
         }
         onCloseMapPicker={customerBookingFlow.actions.closeServiceLocationPicker}
+        onMapSearchQueryChange={customerBookingFlow.actions.setMapSearchQuery}
+        onSearchMapPin={() =>
+          void customerBookingFlow.actions.searchServiceLocationPin()
+        }
         onMapPinMove={customerBookingFlow.actions.moveServiceLocationPin}
         onReverseGeocodePin={() =>
           void customerBookingFlow.actions.reverseGeocodeServiceLocationPin()

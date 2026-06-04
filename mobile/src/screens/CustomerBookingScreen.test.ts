@@ -159,6 +159,7 @@ test('customer booking map picker flow supports search current manual reverse an
   assert.match(bookingFlowViewModel, /moveCustomerBookingPendingPin/);
   assert.match(bookingFlowViewModel, /reverseGeocodeServiceLocationPin/);
   assert.match(bookingFlowViewModel, /confirmCustomerBookingPin/);
+  assert.match(bookingFlowViewModel, /searchServiceLocationPin/);
   assert.match(mapSource, /map\.on\('moveend', \(\) => postPin\(map\)\)/);
   assert.match(mapSource, /map\.on\('click', \(event\) =>/);
   assert.match(bookingFormView, /onManualDetailsChange/);
@@ -180,7 +181,7 @@ test('customer booking map picker uses a full-screen map-first layout', () => {
 
   assert.match(bookingFormView, /KeyboardAvoidingView/);
   assert.match(bookingFormView, /mapPickerTopOverlay/);
-  assert.match(bookingFormView, /mapPickerAddressPill/);
+  assert.match(bookingFormView, /mapPickerSearchBar/);
   assert.match(bookingFormView, /mapPickerFloatingActions/);
   assert.match(bookingFormView, /mapPickerSheet[\s\S]*position: 'absolute'/);
   assert.match(mapSource, /servicePickerMapFrame[\s\S]*flex: 1/);
@@ -190,6 +191,31 @@ test('customer booking map picker uses a full-screen map-first layout', () => {
   assert.doesNotMatch(bookingFormView, /nudgePin/);
   assert.doesNotMatch(bookingFormView, /nudgeButton/);
   assert.doesNotMatch(mapSource, /picker-hint/);
+});
+
+test('customer booking map picker searches inside the map without replacing current and refresh controls', () => {
+  const bookingFormView = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/views/CustomerBookingForm.tsx',
+    ),
+    'utf8',
+  );
+  const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+
+  assert.match(bookingFormView, /mapSearchQuery/);
+  assert.match(bookingFormView, /mapSearchError/);
+  assert.match(bookingFormView, /onMapSearchQueryChange/);
+  assert.match(bookingFormView, /onSearchMapPin/);
+  assert.match(bookingFormView, /returnKeyType="search"/);
+  assert.match(bookingFormView, /onSubmitEditing=\{onSearchMapPin\}/);
+  assert.match(bookingFormView, /accessibilityLabel="Search map address"/);
+  assert.match(bookingFormView, /mapPickerSearchSubmit/);
+  assert.match(bookingFormView, /mapPickerFloatingActions/);
+  assert.match(bookingFormView, /accessibilityLabel="Use current location"/);
+  assert.match(bookingFormView, /accessibilityLabel=\{[\s\S]*'Retry pin address'/);
+  assert.match(appSource, /mapSearchQuery=\{customerBookingFlow\.data\.mapSearchQuery\}/);
+  assert.match(appSource, /onSearchMapPin=\{\(\) =>[\s\S]*searchServiceLocationPin\(\)/);
 });
 
 test('customer booking address actions wrap inside the booking form body', () => {
@@ -357,6 +383,41 @@ test('cash booking confirmation does not block on pricing quote failures', () =>
     /catch \(error\) \{\s*if \(!canSubmitBookingAfterPricingRefresh\(paymentMethod\)\) \{\s*throw error;\s*\}\s*quote = null;\s*setPricingQuote\(null\);/s,
   );
   assert.match(submitSource, /acceptedQuoteId:\s*null/);
+});
+
+test('cash booking confirmation stays on review when final schedule validation fails', () => {
+  const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const bookingFlowViewModel = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+    ),
+    'utf8',
+  );
+  const confirmStart = appSource.indexOf('async function confirmBookingWithPayment');
+  const confirmEnd = appSource.indexOf('async function submitProviderPayoutRequest', confirmStart);
+  const submitStart = bookingFlowViewModel.indexOf('async function submitBooking');
+  const fetchPricingStart = bookingFlowViewModel.indexOf(
+    'async function fetchPricingQuote',
+    submitStart,
+  );
+  assert.ok(confirmStart > -1);
+  assert.ok(confirmEnd > confirmStart);
+  assert.ok(submitStart > -1);
+  assert.ok(fetchPricingStart > submitStart);
+
+  const confirmSource = appSource.slice(confirmStart, confirmEnd);
+  const submitSource = bookingFlowViewModel.slice(submitStart, fetchPricingStart);
+
+  assert.match(appSource, /bookingSlotError=\{customerBookingFlow\.data\.bookingSlotError\}/);
+  assert.match(confirmSource, /navigateOnScheduleFailure: false/);
+  assert.match(confirmSource, /void refreshPayments\(\)\.catch\(\(\) => undefined\)/);
+  assert.doesNotMatch(confirmSource, /await refreshPayments\(\)\.catch/);
+  assert.match(submitSource, /navigateOnScheduleFailure\?: boolean/);
+  assert.match(
+    submitSource,
+    /if \(options\.navigateOnScheduleFailure \?\? true\) \{[\s\S]*screen: 'customerBookingForm'/,
+  );
 });
 
 test('customer booking map picker keeps map tiles stable while recentering by bridge', () => {

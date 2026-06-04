@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import test from 'node:test';
 import { isPricingQuoteFresh } from '../../../shared/utils/booking';
 import type { PricingQuoteSummary } from '../../../shared/models/types';
@@ -88,4 +90,44 @@ test('contextless pricing quotes are stale when booking context must be checked'
     }),
     false,
   );
+});
+
+test('customer map picker search keeps results pending for confirmation', () => {
+  const source = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+    ),
+    'utf8',
+  );
+  const actionStart = source.indexOf('async function searchServiceLocationPin');
+  const nextActionStart = source.indexOf(
+    'async function useCurrentServiceLocation',
+    actionStart,
+  );
+  assert.ok(actionStart > -1);
+  assert.ok(nextActionStart > actionStart);
+
+  const actionSource = source.slice(actionStart, nextActionStart);
+
+  assert.match(source, /const \[mapSearchQuery, setMapSearchQuery\]/);
+  assert.match(source, /const \[mapSearchError, setMapSearchError\]/);
+  assert.match(source, /mapSearchBusy/);
+  assert.match(actionSource, /const trimmed = mapSearchQuery\.trim\(\)/);
+  assert.match(
+    actionSource,
+    /if \(!trimmed\) \{[\s\S]*setMapSearchError\('Enter an address or place to search\.'\)/,
+  );
+  assert.match(
+    actionSource,
+    /const result = await geocodeAddress\(trimmed,[\s\S]*language: 'en'[\s\S]*region: 'PH'/,
+  );
+  assert.match(
+    actionSource,
+    /startCustomerBookingPendingPin\([\s\S]*result,[\s\S]*'search'/,
+  );
+  assert.match(actionSource, /setLastResolvedPin\(/);
+  assert.match(actionSource, /setMapPickerVisible\(true\)/);
+  assert.match(actionSource, /setMapSearchError\(message\)/);
+  assert.doesNotMatch(actionSource, /confirmCustomerBookingPin/);
 });

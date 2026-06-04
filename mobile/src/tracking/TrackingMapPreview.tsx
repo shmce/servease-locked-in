@@ -75,14 +75,18 @@ export function TrackingMapPreview({
     providerMarkerLabel ?? (navigationOrigin ? 'Your location' : 'Route preview');
   const destination = tracking?.destinationLocation ?? null;
   const routeGeometry = directions?.geometry?.length ? directions.geometry : null;
+  const routeGeometryProvider =
+    mode === 'navigation' ? null : (routeGeometry?.[0] ?? null);
   const actualProvider =
     navigationOrigin ??
-    routeGeometry?.[0] ??
     tracking?.providerLocation ??
+    routeGeometryProvider ??
     null;
   const previewProvider =
-    actualProvider ??
-    derivePreviewProviderLocation(destination, tracking?.distanceKm ?? null);
+    mode === 'tracking'
+      ? actualProvider ??
+        derivePreviewProviderLocation(destination, tracking?.distanceKm ?? null)
+      : null;
   const visibleProvider = actualProvider ?? previewProvider;
   const hasMapLocation = Boolean(destination || visibleProvider);
   const points = projectTrackingPoints(visibleProvider, destination);
@@ -444,14 +448,28 @@ function TrackingMapWebView({
         .join('|') ?? 'no-route',
     [routeGeometry],
   );
+  const destinationKey = destination
+    ? `${destination.latitude},${destination.longitude}`
+    : 'no-destination';
+  const mapDocumentKey = `${mode}|${destinationKey}|${destinationLabel}|${providerLabel}|${routeGeometryKey}`;
+  const initialMapDocumentRef = useRef({
+    key: mapDocumentKey,
+    provider,
+  });
+  if (initialMapDocumentRef.current.key !== mapDocumentKey) {
+    initialMapDocumentRef.current = {
+      key: mapDocumentKey,
+      provider,
+    };
+  }
   const mapHtml = useMemo(
     () =>
-      buildTrackingMapHtml(provider, destination, routeGeometry, {
+      buildTrackingMapHtml(initialMapDocumentRef.current.provider, destination, routeGeometry, {
         destinationMarkerLabel: destinationLabel,
         mode,
         providerMarkerLabel: providerLabel,
       }),
-    [destination, destinationLabel, mode, provider, providerLabel, routeGeometry],
+    [destination, destinationLabel, mode, providerLabel, routeGeometry],
   );
 
   useEffect(() => {
@@ -814,34 +832,66 @@ function buildTrackingMapHtml(
   <style>
     html, body, #map { margin: 0; width: 100%; height: 100%; overflow: hidden; }
     body { background: #E5E7EB; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .provider-marker {
+    .provider-puck {
       align-items: center;
-      background: #2563EB;
-      border: 5px solid #FFFFFF;
-      border-radius: 999px;
-      box-shadow: 0 10px 26px rgba(37,99,235,0.34);
-      color: #FFFFFF;
       display: flex;
-      font-size: 17px;
-      font-weight: 900;
-      height: 34px;
+      height: 44px;
       justify-content: center;
-      line-height: 1;
       position: relative;
-      width: 34px;
+      width: 44px;
     }
-    .provider-marker::before {
-      content: '▲';
-      display: block;
-      transform: translateY(-1px);
-    }
-    .provider-marker::after {
-      border: 2px solid rgba(37,99,235,0.32);
+    .provider-puck-ring {
+      background: rgba(37,99,235,0.18);
+      border: 2px solid rgba(255,255,255,0.94);
       border-radius: 999px;
-      content: '';
-      inset: -11px;
-      pointer-events: none;
+      box-shadow: 0 10px 26px rgba(37,99,235,0.26);
+      height: 44px;
       position: absolute;
+      width: 44px;
+    }
+    .provider-puck-dot {
+      background: #2563EB;
+      border: 4px solid #FFFFFF;
+      border-radius: 999px;
+      box-shadow: 0 6px 18px rgba(37,99,235,0.32);
+      height: 24px;
+      position: absolute;
+      width: 24px;
+      z-index: 1;
+    }
+    .provider-puck-arrow {
+      background: #2563EB;
+      border: 4px solid #FFFFFF;
+      border-radius: 999px 999px 999px 4px;
+      box-shadow: 0 8px 18px rgba(37,99,235,0.34);
+      display: flex;
+      height: 28px;
+      opacity: 0;
+      position: absolute;
+      transform: rotate(var(--provider-bearing, 0deg)) translateY(-3px);
+      transform-origin: center;
+      width: 28px;
+      z-index: 2;
+    }
+    .provider-puck--arrow .provider-puck-dot {
+      opacity: 0;
+    }
+    .provider-puck--arrow .provider-puck-arrow {
+      opacity: 1;
+    }
+    .provider-puck-label {
+      background: rgba(255,255,255,0.96);
+      border: 2px solid #2563EB;
+      border-radius: 999px;
+      box-shadow: 0 8px 18px rgba(17,24,39,0.16);
+      color: #111827;
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1;
+      padding: 7px 10px;
+      position: absolute;
+      top: 46px;
+      white-space: nowrap;
     }
     .destination-marker::after {
       background: rgba(255,255,255,0.96);
@@ -931,22 +981,47 @@ function buildTrackingMapHtml(
     let cameraBearing = ${JSON.stringify(cameraBearing)};
     let providerMarkerLabel = ${JSON.stringify(providerMarkerLabel)};
     let providerHeading = ${JSON.stringify(providerHeading)};
+    let providerHasBearing = ${JSON.stringify(providerHeading !== null || routeBearing !== null)};
     const fallback = document.getElementById('fallback');
     const recenterControl = document.getElementById('recenter-control');
     const orientationControl = document.getElementById('orientation-control');
     const overviewControl = document.getElementById('overview-control');
     let followProvider = true;
     let isProgrammaticCameraMove = false;
-    const marker = (kind) => {
+    const destinationMarkerElement = () => {
       const element = document.createElement('div');
-      element.className = kind === 'provider' ? 'provider-marker' : 'destination-marker';
-      element.dataset.label = kind === 'provider' ? providerMarkerLabel : destinationMarkerLabel;
+      element.className = 'destination-marker';
+      element.dataset.label = destinationMarkerLabel;
       element.setAttribute('aria-label', element.dataset.label);
-      if (kind === 'provider' && providerHeading !== null) {
-        element.style.rotate = providerHeading + 'deg';
-      }
       return element;
     };
+    const createProviderPuckElement = () => {
+      const element = document.createElement('div');
+      const ring = document.createElement('span');
+      const dot = document.createElement('span');
+      const arrow = document.createElement('span');
+      const label = document.createElement('span');
+      element.className = 'provider-puck provider-puck--dot';
+      ring.className = 'provider-puck-ring';
+      dot.className = 'provider-puck-dot';
+      arrow.className = 'provider-puck-arrow';
+      label.className = 'provider-puck-label';
+      element.append(ring, dot, arrow, label);
+      return element;
+    };
+    const updateProviderPuckElement = (element) => {
+      element.dataset.label = providerMarkerLabel;
+      element.setAttribute('aria-label', providerMarkerLabel + ' current location');
+      element.classList.toggle('provider-puck--arrow', Boolean(providerHasBearing));
+      element.classList.toggle('provider-puck--dot', !providerHasBearing);
+      element.style.setProperty('--provider-bearing', cameraBearing + 'deg');
+      const label = element.querySelector('.provider-puck-label');
+      if (label) {
+        label.textContent = providerMarkerLabel;
+      }
+    };
+    let providerMarker = null;
+    let providerPuckElement = null;
     let pendingTrackingUpdate = null;
     window.__serveaseUpdateTracking = (payload) => {
       pendingTrackingUpdate = payload;
@@ -971,84 +1046,33 @@ function buildTrackingMapHtml(
         map.touchPitch?.disable?.();
       }
       let routeSourceReady = false;
-      const providerFeature = () => ({
-        type: 'Feature',
-        properties: { label: providerMarkerLabel },
-        geometry: { type: 'Point', coordinates: provider || destination }
-      });
+      const removeProviderIndicator = () => {
+        providerMarker?.remove();
+        providerMarker = null;
+        providerPuckElement = null;
+      };
       const addOrUpdateProviderIndicator = () => {
         if (!provider) {
+          removeProviderIndicator();
           return;
         }
         if (!map.loaded()) {
           return;
         }
-        if (map.getSource('provider-location')) {
-          map.getSource('provider-location')?.setData(providerFeature());
+        if (!providerMarker || !providerPuckElement) {
+          providerPuckElement = createProviderPuckElement();
+          updateProviderPuckElement(providerPuckElement);
+          providerMarker = new maplibregl.Marker({
+            anchor: 'center',
+            element: providerPuckElement
+          }).setLngLat(provider).addTo(map);
           return;
         }
-        map.addSource('provider-location', {
-          type: 'geojson',
-          data: providerFeature()
-        });
-        map.addLayer({
-          id: 'provider-location-ring',
-          type: 'circle',
-          source: 'provider-location',
-          paint: {
-            'circle-color': 'rgba(37,99,235,0.20)',
-            'circle-radius': 21,
-            'circle-stroke-color': '#FFFFFF',
-            'circle-stroke-width': 2
-          }
-        });
-        map.addLayer({
-          id: 'provider-location-dot',
-          type: 'circle',
-          source: 'provider-location',
-          paint: {
-            'circle-color': '#2563EB',
-            'circle-radius': 10,
-            'circle-stroke-color': '#FFFFFF',
-            'circle-stroke-width': 4
-          }
-        });
-        map.addLayer({
-          id: 'provider-location-arrow',
-          type: 'symbol',
-          source: 'provider-location',
-          layout: {
-            'text-field': '▲',
-            'text-allow-overlap': true,
-            'text-ignore-placement': true,
-            'text-rotate': cameraBearing,
-            'text-size': 15
-          },
-          paint: {
-            'text-color': '#FFFFFF'
-          }
-        });
-        map.addLayer({
-          id: 'provider-location-label',
-          type: 'symbol',
-          source: 'provider-location',
-          layout: {
-            'text-allow-overlap': true,
-            'text-field': ['get', 'label'],
-            'text-ignore-placement': true,
-            'text-offset': [0, 2.2],
-            'text-size': 12
-          },
-          paint: {
-            'text-color': '#111827',
-            'text-halo-blur': 0.4,
-            'text-halo-color': '#FFFFFF',
-            'text-halo-width': 4
-          }
-        });
+        updateProviderPuckElement(providerPuckElement);
+        providerMarker.setLngLat(provider);
       }
       if (destination) {
-        new maplibregl.Marker({ element: marker('destination') }).setLngLat(destination).addTo(map);
+        new maplibregl.Marker({ element: destinationMarkerElement() }).setLngLat(destination).addTo(map);
       }
 
       map.on('load', () => {
@@ -1124,15 +1148,15 @@ function buildTrackingMapHtml(
           });
         };
         const applyTrackingUpdate = (payload) => {
-          if (!payload || !Array.isArray(payload.provider)) {
+          if (!payload) {
             return;
           }
-          provider = payload.provider;
+          provider = Array.isArray(payload.provider) ? payload.provider : null;
           providerMarkerLabel = payload.providerMarkerLabel ?? providerMarkerLabel;
           providerHeading = payload.providerHeading ?? null;
           cameraBearing = payload.cameraBearing ?? cameraBearing;
+          providerHasBearing = Boolean(payload.providerHasBearing);
           addOrUpdateProviderIndicator();
-          map.setLayoutProperty('provider-location-arrow', 'text-rotate', cameraBearing);
           addOrUpdateRouteLine();
           if (isNavigationMode && followProvider) {
             followCurrentProvider();
@@ -1220,18 +1244,17 @@ function buildProviderLocationUpdateScript(
   provider: TrackingMapLocation | null,
   routeGeometry: TrackingMapLocation[] | null,
   providerMarkerLabel: string,
-): string | null {
-  if (!provider) {
-    return null;
-  }
-
-  const providerHeading = normalizeHeading(provider.headingDegrees ?? null);
-  const routeBearing = routeGeometry?.length
+): string {
+  const providerHeading = provider
+    ? normalizeHeading(provider.headingDegrees ?? null)
+    : null;
+  const routeBearing = provider && routeGeometry?.length
     ? deriveRouteBearing(provider, routeGeometry)
     : null;
   const payload = {
     cameraBearing: providerHeading ?? routeBearing ?? 0,
-    provider: [provider.longitude, provider.latitude],
+    provider: provider ? [provider.longitude, provider.latitude] : null,
+    providerHasBearing: providerHeading !== null || routeBearing !== null,
     providerHeading,
     providerMarkerLabel,
   };

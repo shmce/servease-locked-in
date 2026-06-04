@@ -25,6 +25,7 @@ type CustomerBookingReviewScreenProps = {
   selectedService: CatalogServiceItem | null;
   hoursRequired: string;
   scheduledAt: string;
+  bookingSlotError: string;
   address: string;
   serviceLocation: CustomerBookingLocationState;
   notes: string;
@@ -49,6 +50,7 @@ export function CustomerBookingReviewScreen({
   selectedService,
   hoursRequired,
   scheduledAt,
+  bookingSlotError,
   address,
   serviceLocation,
   notes,
@@ -72,6 +74,7 @@ export function CustomerBookingReviewScreen({
     selectedService,
     hoursRequired,
     scheduledAt,
+    bookingSlotError,
     address,
     serviceLocation,
     notes,

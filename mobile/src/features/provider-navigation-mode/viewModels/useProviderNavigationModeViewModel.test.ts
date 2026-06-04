@@ -96,3 +96,100 @@ test('provider navigation keeps legacy address marker copy without stored coordi
 
   assert.equal(model.data.destinationMarkerLabel, 'Service address');
 });
+
+test('provider navigation exposes live fallback loading and unavailable origin states', () => {
+  const liveModel = buildProviderNavigationModeViewModel({
+    booking,
+    directions,
+    fallbackOrigin: { latitude: 14.5, longitude: 121 },
+    liveLocation: {
+      error: null,
+      isPublishing: false,
+      location: {
+        latitude: 14.5794,
+        longitude: 121.0359,
+        accuracyMeters: 12,
+        headingDegrees: 90,
+      },
+    },
+    navigationRouteError: null,
+    navigationRouteLoading: false,
+    sheetLevel: 'half',
+    trackingSnapshot: {
+      ...tracking,
+      providerLocation: {
+        latitude: 14.6,
+        longitude: 121.04,
+      },
+    },
+  });
+
+  assert.equal(liveModel.data.originState, 'live');
+  assert.equal(liveModel.data.originStateLabel, 'Live GPS');
+  assert.deepEqual(liveModel.data.navigationOrigin, {
+    latitude: 14.5794,
+    longitude: 121.0359,
+    accuracyMeters: 12,
+    headingDegrees: 90,
+  });
+
+  const fallbackModel = buildProviderNavigationModeViewModel({
+    booking,
+    directions,
+    fallbackOrigin: { latitude: 14.5794, longitude: 121.0359 },
+    liveLocation: {
+      error: null,
+      isPublishing: false,
+      location: null,
+    },
+    navigationRouteError: null,
+    navigationRouteLoading: false,
+    sheetLevel: 'half',
+    trackingSnapshot: tracking,
+  });
+
+  assert.equal(fallbackModel.data.originState, 'fallback');
+  assert.equal(fallbackModel.data.originStateLabel, 'Last known location');
+
+  const loadingModel = buildProviderNavigationModeViewModel({
+    booking,
+    directions: null,
+    fallbackOrigin: null,
+    liveLocation: {
+      error: null,
+      isPublishing: false,
+      location: null,
+    },
+    navigationRouteError: null,
+    navigationRouteLoading: true,
+    sheetLevel: 'peek',
+    trackingSnapshot: {
+      ...tracking,
+      providerLocation: null,
+    },
+  });
+
+  assert.equal(loadingModel.data.originState, 'loading');
+  assert.equal(loadingModel.data.originStateLabel, 'Finding GPS');
+
+  const unavailableModel = buildProviderNavigationModeViewModel({
+    booking,
+    directions: null,
+    fallbackOrigin: null,
+    liveLocation: {
+      error: 'Location permission denied.',
+      isPublishing: false,
+      location: null,
+    },
+    navigationRouteError: null,
+    navigationRouteLoading: false,
+    sheetLevel: 'peek',
+    trackingSnapshot: {
+      ...tracking,
+      providerLocation: null,
+    },
+  });
+
+  assert.equal(unavailableModel.data.originState, 'unavailable');
+  assert.equal(unavailableModel.data.originStateLabel, 'Location unavailable');
+});
