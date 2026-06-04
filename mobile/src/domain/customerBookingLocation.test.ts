@@ -8,6 +8,7 @@ import {
   customerBookingLocationNotice,
   customerMapPinFallbackCopy,
   customerMapPinRequiredCopy,
+  customerMapSavedPinRequiredCopy,
   failCustomerBookingLocationResolution,
   moveCustomerBookingPendingPin,
   startCustomerBookingPendingPin,
@@ -40,6 +41,32 @@ describe('customerBookingLocation', () => {
       longitude: 121.024445,
       source: 'saved',
     });
+  });
+
+  it('keeps saved addresses without coordinates unconfirmed for one-time verification', () => {
+    const state = customerBookingLocationFromSavedAddress({
+      id: 'address-1',
+      userId: 'customer-1',
+      label: 'Home',
+      address: 'The Beacon, Makati',
+      barangay: null,
+      city: 'Makati',
+      province: null,
+      region: 'NCR',
+      latitude: null,
+      longitude: null,
+      isDefault: true,
+      createdAt: null,
+      updatedAt: null,
+    });
+
+    assert.equal(state.source, 'saved');
+    assert.equal(state.status, 'unconfirmed');
+    assert.equal(customerBookingLocationCanContinue(state), false);
+    assert.equal(
+      customerBookingLocationNotice(state),
+      customerMapSavedPinRequiredCopy,
+    );
   });
 
   it('clears a confirmed pin when address text changes', () => {
@@ -94,6 +121,70 @@ describe('customerBookingLocation', () => {
       latitude: 14.5548,
       longitude: 121.0245,
       source: 'search',
+    });
+  });
+
+  it('does not make a confirmed saved pin pending when the map reports the same center', () => {
+    const confirmed = customerBookingLocationFromSavedAddress({
+      id: 'address-1',
+      userId: 'customer-1',
+      label: 'Home',
+      address: 'The Beacon, Makati',
+      barangay: null,
+      city: 'Makati',
+      province: null,
+      region: 'NCR',
+      latitude: 14.554729,
+      longitude: 121.024445,
+      isDefault: true,
+      createdAt: null,
+      updatedAt: null,
+    });
+
+    const inspected = moveCustomerBookingPendingPin(
+      confirmed,
+      14.554729,
+      121.024445,
+      'The Beacon, Makati',
+    );
+
+    assert.equal(inspected, confirmed);
+    assert.equal(inspected.status, 'confirmed');
+    assert.equal(customerBookingLocationCanContinue(inspected), true);
+  });
+
+  it('makes a verified saved pin pending when the customer moves the map', () => {
+    const confirmed = customerBookingLocationFromSavedAddress({
+      id: 'address-1',
+      userId: 'customer-1',
+      label: 'Home',
+      address: 'The Beacon, Makati',
+      barangay: null,
+      city: 'Makati',
+      province: null,
+      region: 'NCR',
+      latitude: 14.554729,
+      longitude: 121.024445,
+      isDefault: true,
+      createdAt: null,
+      updatedAt: null,
+    });
+
+    const moved = moveCustomerBookingPendingPin(
+      confirmed,
+      14.5548,
+      121.0245,
+      'Gate 2, The Beacon',
+    );
+
+    assert.equal(moved.status, 'pending');
+    assert.equal(moved.source, 'manual');
+    assert.equal(customerBookingLocationCanContinue(moved), false);
+    assert.deepEqual(moved.pendingPin, {
+      formattedAddress: 'Gate 2, The Beacon',
+      latitude: 14.5548,
+      longitude: 121.0245,
+      source: 'manual',
     });
   });
 

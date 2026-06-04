@@ -46,6 +46,7 @@ import {
   createPricingQuote,
   geocodeAddress,
   reverseGeocode,
+  updateCustomerAddress,
   validatePromotion,
 } from '../../../shared/models/apiService';
 
@@ -703,6 +704,7 @@ export function useCustomerBookingFlowViewModel({
         result,
         'current',
       );
+      setSelectedSavedAddressId(null);
       setAddress(result.formattedAddress);
       setAddressGeoResult(result);
       setServiceLocation(nextLocation);
@@ -738,28 +740,30 @@ export function useCustomerBookingFlowViewModel({
       setNotice('Enter a service address before saving it.');
       return;
     }
+    if (!serviceLocation.confirmedPin) {
+      setNotice('Confirm the service pin before saving it as Home.');
+      return;
+    }
 
     setBusyAction('save-address');
     try {
-      const savedAddress = await createCustomerAddress(
-        {
-          label: 'Home',
-          address: trimmed,
-          latitude:
-            serviceLocation.confirmedPin?.latitude ??
-            addressGeoResult?.latitude ??
-            null,
-          longitude:
-            serviceLocation.confirmedPin?.longitude ??
-            addressGeoResult?.longitude ??
-            null,
-          isDefault: true,
-        },
-        apiOptions,
+      const homeAddress = resolveHomeAddressToSave(
+        customerAddresses,
+        selectedSavedAddressId,
       );
+      const addressPayload = {
+        label: 'Home',
+        address: trimmed,
+        latitude: serviceLocation.confirmedPin.latitude,
+        longitude: serviceLocation.confirmedPin.longitude,
+        isDefault: true,
+      };
+      const savedAddress = homeAddress
+        ? await updateCustomerAddress(homeAddress.id, addressPayload, apiOptions)
+        : await createCustomerAddress(addressPayload, apiOptions);
       applySavedAddress(savedAddress);
       onCustomerAddressSaved(savedAddress);
-      setNotice('Home address saved.');
+      setNotice(homeAddress ? 'Home address updated.' : 'Home address saved.');
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -768,20 +772,23 @@ export function useCustomerBookingFlowViewModel({
   }
 
   async function openServiceLocationPicker(): Promise<void> {
-    const existingPin =
-      serviceLocation.pendingPin ?? serviceLocation.confirmedPin ?? null;
+    const existingPendingPin = serviceLocation.pendingPin;
+    const existingConfirmedPin = serviceLocation.confirmedPin;
+    const existingPin = existingPendingPin ?? existingConfirmedPin ?? null;
     if (existingPin) {
       setLastResolvedPin({
         latitude: existingPin.latitude,
         longitude: existingPin.longitude,
       });
       setPinAddressStatus('idle');
-      setServiceLocation((current) => ({
-        ...current,
-        pendingPin: existingPin,
-        status: 'pending',
-        errorMessage: null,
-      }));
+      if (existingPendingPin) {
+        setServiceLocation((current) => ({
+          ...current,
+          pendingPin: existingPendingPin,
+          status: 'pending',
+          errorMessage: null,
+        }));
+      }
       setMapSearchQuery(existingPin.formattedAddress || address);
       setMapSearchError(null);
       setMapPickerVisible(true);
@@ -985,6 +992,28 @@ function mediaAttachmentFromUpload(upload: UploadSummary) {
     fileSize: upload.size,
     caption: null,
   };
+}
+
+function resolveHomeAddressToSave(
+  addresses: CustomerAddressSummary[],
+  selectedSavedAddressId: string | null,
+): CustomerAddressSummary | null {
+  const selectedAddress = addresses.find(
+    (address) => address.id === selectedSavedAddressId,
+  );
+  if (selectedAddress && isHomeAddressCandidate(selectedAddress)) {
+    return selectedAddress;
+  }
+
+  return (
+    addresses.find((address) => address.isDefault) ??
+    addresses.find((address) => isHomeAddressCandidate(address)) ??
+    null
+  );
+}
+
+function isHomeAddressCandidate(address: CustomerAddressSummary): boolean {
+  return address.isDefault || address.label.trim().toLowerCase() === 'home';
 }
 
 function isActivePinCoordinate(

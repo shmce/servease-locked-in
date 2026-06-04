@@ -1024,7 +1024,7 @@ describe('BookingGatewayService', () => {
     expect(booking.status).toBe('completed');
   });
 
-  it('blocks providers from starting a confirmed booking before the start window', async () => {
+  it('allows providers to start a confirmed booking before the start window', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-07-20T07:00:00.000Z'));
     const client = {
       findBooking: jest.fn().mockResolvedValue(
@@ -1033,8 +1033,12 @@ describe('BookingGatewayService', () => {
           scheduledAt: '2026-07-20T08:00:00.000Z',
         }),
       ),
-      listBookings: jest.fn(),
-      transitionStatus: jest.fn(),
+      listBookings: jest.fn().mockResolvedValue([]),
+      transitionStatus: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'in_progress',
+        }),
+      ),
     } as unknown as BookingServiceClient;
     const service = new BookingGatewayService(client, createAuthClient());
 
@@ -1046,10 +1050,20 @@ describe('BookingGatewayService', () => {
         'confirmed',
         'in_progress',
       ),
-    ).rejects.toBeInstanceOf(BookingStartWindowNotOpenError);
+    ).resolves.toMatchObject({ status: 'in_progress' });
 
-    expect(client.listBookings).not.toHaveBeenCalled();
-    expect(client.transitionStatus).not.toHaveBeenCalled();
+    expect(client.listBookings).toHaveBeenCalledWith(
+      null,
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    );
+    expect(client.transitionStatus).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'confirmed',
+      'in_progress',
+      undefined,
+      undefined,
+    );
   });
 
   it('allows providers to start a confirmed booking within the start window', async () => {

@@ -15,6 +15,13 @@ test('booking form chooses service pins through the APICenter geo gateway', () =
     join(process.cwd(), 'src/features/customer-booking/views/CustomerBookingForm.tsx'),
     'utf8',
   );
+  const customerMapPinPickerSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-location/components/CustomerMapPinPickerModal.tsx',
+    ),
+    'utf8',
+  );
   const bookingFormViewModel = readFileSync(
     join(
       process.cwd(),
@@ -36,7 +43,8 @@ test('booking form chooses service pins through the APICenter geo gateway', () =
   assert.match(bookingFlowViewModel, /geocodeAddress/);
   assert.match(bookingFlowViewModel, /verifyServiceAddress/);
   assert.match(bookingFormSource, /verifyAddressLabel/);
-  assert.match(bookingFormSource, /ServiceLocationPickerMap/);
+  assert.match(bookingFormSource, /CustomerMapPinPickerModal/);
+  assert.match(customerMapPinPickerSource, /ServiceLocationPickerMap/);
   assert.match(bookingFormSource, /AddressVerificationPreview/);
   assert.match(bookingFormViewModel, /Choose on map/);
   assert.match(mapSource, /export function ServiceLocationPickerMap/);

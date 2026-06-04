@@ -135,6 +135,11 @@ export function buildCustomerBookingFormViewModel({
   const estimatedTotal =
     provider.pricingMode === 'hourly' ? baseRate * duration : baseRate;
   const displayName = provider.providerBusinessName ?? provider.title;
+  const selectedSavedAddress =
+    savedAddresses.find((item) => item.id === selectedSavedAddressId) ?? null;
+  const selectedSavedAddressLabel = selectedSavedAddress?.isDefault
+    ? 'Home'
+    : (selectedSavedAddress?.label ?? 'Saved address');
   const isPreparingEstimate = busyAction === 'pricing-quote';
   const isResolvingPin =
     busyAction === 'geo-map-search' ||
@@ -147,6 +152,13 @@ export function buildCustomerBookingFormViewModel({
   const locationStatusLabel = resolveCustomerBookingLocationStatusLabel(
     serviceLocation,
     pinAddressStatus,
+    selectedSavedAddressLabel,
+  );
+  const locationStatusConfirmed = customerBookingLocationCanContinue(serviceLocation);
+  const locationCoordinateLabel = resolveCustomerBookingLocationMeta(
+    serviceLocation,
+    locationNotice,
+    selectedSavedAddressLabel,
   );
   const continueNotice = canContinue
     ? null
@@ -172,26 +184,38 @@ export function buildCustomerBookingFormViewModel({
         Boolean(address.trim()) && busyAction !== 'geo-map-search',
       useCurrentLocationDisabled: busyAction === 'geo-current-location',
       verifyAddressDisabled: !address.trim() || busyAction === 'geo-map-search',
-      saveAddressDisabled: !address.trim() || busyAction === 'save-address',
+      saveAddressDisabled:
+        !address.trim() ||
+        !serviceLocation.confirmedPin ||
+        busyAction === 'save-address',
       useCurrentLocationLabel:
         busyAction === 'geo-current-location' ? 'Locating...' : 'Use current',
-      verifyAddressLabel:
-        busyAction === 'geo-map-search' ? 'Searching...' : 'Choose on map',
-      saveAddressLabel:
-        busyAction === 'save-address' ? 'Saving...' : 'Save as home',
+      verifyAddressLabel: resolveMapActionLabel(
+        serviceLocation,
+        busyAction,
+        selectedSavedAddressLabel,
+      ),
+      saveAddressLabel: resolveSaveHomeLabel(
+        serviceLocation,
+        busyAction,
+        selectedSavedAddress,
+      ),
       locationNotice,
       locationStatusLabel,
-      locationCoordinateLabel: serviceLocation.confirmedPin
-        ? `${serviceLocation.confirmedPin.latitude.toFixed(5)}, ${serviceLocation.confirmedPin.longitude.toFixed(5)}`
-        : serviceLocation.pendingPin
-          ? `${serviceLocation.pendingPin.latitude.toFixed(5)}, ${serviceLocation.pendingPin.longitude.toFixed(5)}`
-          : null,
-      savedAddressOptions: savedAddresses.map((item) => ({
-        id: item.id,
-        label: item.isDefault ? `${item.label} (default)` : item.label,
-        address: item.address,
-        isSelected: item.id === selectedSavedAddressId,
-      })),
+      locationStatusActionLabel: locationStatusConfirmed ? 'Change' : 'Verify',
+      locationStatusConfirmed,
+      locationCoordinateLabel,
+      savedAddressOptions: savedAddresses.map((item) => {
+        const hasVerifiedPin = item.latitude !== null && item.longitude !== null;
+        return {
+          id: item.id,
+          label: item.isDefault ? `${item.label} (default)` : item.label,
+          address: item.address,
+          hasVerifiedPin,
+          isSelected: item.id === selectedSavedAddressId,
+          statusLabel: hasVerifiedPin ? 'Verified pin' : 'Verify once',
+        };
+      }),
       footerRateLabel:
         provider.pricingMode === 'hourly'
           ? `${formatMoney(provider.price)} x ${duration}h`
@@ -211,6 +235,7 @@ export function buildCustomerBookingFormViewModel({
 function resolveCustomerBookingLocationStatusLabel(
   serviceLocation: CustomerBookingLocationState,
   pinAddressStatus: PinAddressStatus,
+  selectedSavedAddressLabel: string,
 ): string {
   if (
     serviceLocation.pendingPin &&
@@ -224,7 +249,9 @@ function resolveCustomerBookingLocationStatusLabel(
   }
 
   if (serviceLocation.confirmedPin) {
-    return 'Confirmed service pin';
+    return serviceLocation.source === 'saved'
+      ? `${selectedSavedAddressLabel} pin verified`
+      : 'Service pin confirmed';
   }
 
   if (serviceLocation.pendingPin) {
@@ -235,7 +262,79 @@ function resolveCustomerBookingLocationStatusLabel(
     return 'Manual address fallback';
   }
 
+  if (serviceLocation.source === 'saved') {
+    return `Verify ${selectedSavedAddressLabel} pin once`;
+  }
+
   return 'Service pin required';
+}
+
+function resolveCustomerBookingLocationMeta(
+  serviceLocation: CustomerBookingLocationState,
+  notice: string | null,
+  selectedSavedAddressLabel: string,
+): string | null {
+  if (serviceLocation.confirmedPin) {
+    const coordinates = formatLocationCoordinates(serviceLocation.confirmedPin);
+    return serviceLocation.source === 'saved'
+      ? `${selectedSavedAddressLabel} is ready - ${coordinates}`
+      : coordinates;
+  }
+
+  if (serviceLocation.pendingPin) {
+    return `Review and confirm - ${formatLocationCoordinates(
+      serviceLocation.pendingPin,
+    )}`;
+  }
+
+  return notice;
+}
+
+function resolveMapActionLabel(
+  serviceLocation: CustomerBookingLocationState,
+  busyAction: string | null,
+  selectedSavedAddressLabel: string,
+): string {
+  if (busyAction === 'geo-map-search') {
+    return 'Searching...';
+  }
+  if (serviceLocation.confirmedPin) {
+    return 'Change on map';
+  }
+  if (serviceLocation.source === 'saved') {
+    return `Verify ${selectedSavedAddressLabel}`;
+  }
+  return 'Choose on map';
+}
+
+function resolveSaveHomeLabel(
+  serviceLocation: CustomerBookingLocationState,
+  busyAction: string | null,
+  selectedSavedAddress: CustomerAddressSummary | null,
+): string {
+  if (busyAction === 'save-address') {
+    return 'Saving...';
+  }
+  if (!serviceLocation.confirmedPin) {
+    return 'Confirm pin to save Home';
+  }
+  if (
+    selectedSavedAddress?.isDefault ||
+    selectedSavedAddress?.label.trim().toLowerCase() === 'home'
+  ) {
+    return 'Update Home';
+  }
+  return 'Save as home';
+}
+
+function formatLocationCoordinates({
+  latitude,
+  longitude,
+}: {
+  latitude: number;
+  longitude: number;
+}): string {
+  return `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
 }
 
 function formatMissingFields(missingFields: string[]): string {

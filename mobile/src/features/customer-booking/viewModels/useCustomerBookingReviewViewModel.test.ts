@@ -283,12 +283,17 @@ test('customer booking review shows the confirmed service pin', () => {
     busyAction: null,
     customerPaymentMethods: [cashMethod],
     selectedPaymentMethodId: cashMethod.id,
+    now: new Date('2026-05-31T00:00:00.000Z'),
   });
 
   const pinRow = model.data.serviceRows.find(
     (row) => row.key === 'service-pin',
   );
-  assert.match(pinRow?.value ?? '', /14.55473, 121.02445/);
+  assert.equal(
+    pinRow?.value,
+    'Verified saved pin - 14.55473, 121.02445',
+  );
+  assert.equal(model.data.confirmDisabled, false);
 });
 
 test('customer booking review blocks confirmation when the service pin regresses to pending', () => {

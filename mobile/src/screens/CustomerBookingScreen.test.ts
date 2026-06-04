@@ -18,6 +18,13 @@ test('customer booking flow renders blocked slots as unavailable and refreshes a
     ),
     'utf8',
   );
+  const mapPickerView = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-location/components/CustomerMapPinPickerModal.tsx',
+    ),
+    'utf8',
+  );
   const scheduleView = readFileSync(
     join(
       process.cwd(),
@@ -143,6 +150,13 @@ test('customer booking map picker flow supports search current manual reverse an
     ),
     'utf8',
   );
+  const mapPickerView = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-location/components/CustomerMapPinPickerModal.tsx',
+    ),
+    'utf8',
+  );
   const mapSource = readFileSync(
     join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
     'utf8',
@@ -163,7 +177,7 @@ test('customer booking map picker flow supports search current manual reverse an
   assert.match(mapSource, /map\.on\('moveend', \(\) => postPin\(map\)\)/);
   assert.match(mapSource, /map\.on\('click', \(event\) =>/);
   assert.match(bookingFormView, /onManualDetailsChange/);
-  assert.match(bookingFormView, /Confirm pin/);
+  assert.match(mapPickerView, /Confirm pin/);
 });
 
 test('customer booking map picker uses a full-screen map-first layout', () => {
@@ -174,22 +188,29 @@ test('customer booking map picker uses a full-screen map-first layout', () => {
     ),
     'utf8',
   );
+  const mapPickerView = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-location/components/CustomerMapPinPickerModal.tsx',
+    ),
+    'utf8',
+  );
   const mapSource = readFileSync(
     join(process.cwd(), 'src/tracking/TrackingMapPreview.tsx'),
     'utf8',
   );
 
-  assert.match(bookingFormView, /KeyboardAvoidingView/);
-  assert.match(bookingFormView, /mapPickerTopOverlay/);
-  assert.match(bookingFormView, /mapPickerSearchBar/);
-  assert.match(bookingFormView, /mapPickerFloatingActions/);
-  assert.match(bookingFormView, /mapPickerSheet[\s\S]*position: 'absolute'/);
+  assert.match(mapPickerView, /KeyboardAvoidingView/);
+  assert.match(mapPickerView, /mapPickerTopOverlay/);
+  assert.match(mapPickerView, /mapPickerSearchBar/);
+  assert.match(mapPickerView, /mapPickerFloatingActions/);
+  assert.match(mapPickerView, /mapPickerSheet[\s\S]*position: 'absolute'/);
   assert.match(mapSource, /servicePickerMapFrame[\s\S]*flex: 1/);
   assert.match(mapSource, /maplibregl-ctrl-bottom-right[\s\S]*bottom: 214px/);
   assert.match(mapSource, /servicePickerPinShadow/);
-  assert.doesNotMatch(bookingFormView, /mapPickerHeader/);
-  assert.doesNotMatch(bookingFormView, /nudgePin/);
-  assert.doesNotMatch(bookingFormView, /nudgeButton/);
+  assert.doesNotMatch(mapPickerView, /mapPickerHeader/);
+  assert.doesNotMatch(mapPickerView, /nudgePin/);
+  assert.doesNotMatch(mapPickerView, /nudgeButton/);
   assert.doesNotMatch(mapSource, /picker-hint/);
 });
 
@@ -201,19 +222,26 @@ test('customer booking map picker searches inside the map without replacing curr
     ),
     'utf8',
   );
+  const mapPickerView = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-location/components/CustomerMapPinPickerModal.tsx',
+    ),
+    'utf8',
+  );
   const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
 
   assert.match(bookingFormView, /mapSearchQuery/);
   assert.match(bookingFormView, /mapSearchError/);
   assert.match(bookingFormView, /onMapSearchQueryChange/);
   assert.match(bookingFormView, /onSearchMapPin/);
-  assert.match(bookingFormView, /returnKeyType="search"/);
-  assert.match(bookingFormView, /onSubmitEditing=\{onSearchMapPin\}/);
-  assert.match(bookingFormView, /accessibilityLabel="Search map address"/);
-  assert.match(bookingFormView, /mapPickerSearchSubmit/);
-  assert.match(bookingFormView, /mapPickerFloatingActions/);
-  assert.match(bookingFormView, /accessibilityLabel="Use current location"/);
-  assert.match(bookingFormView, /accessibilityLabel=\{[\s\S]*'Retry pin address'/);
+  assert.match(mapPickerView, /returnKeyType="search"/);
+  assert.match(mapPickerView, /onSubmitEditing=\{onSearchMapPin\}/);
+  assert.match(mapPickerView, /accessibilityLabel="Search map address"/);
+  assert.match(mapPickerView, /mapPickerSearchSubmit/);
+  assert.match(mapPickerView, /mapPickerFloatingActions/);
+  assert.match(mapPickerView, /accessibilityLabel="Use current location"/);
+  assert.match(mapPickerView, /accessibilityLabel=\{[\s\S]*'Retry pin address'/);
   assert.match(appSource, /mapSearchQuery=\{customerBookingFlow\.data\.mapSearchQuery\}/);
   assert.match(appSource, /onSearchMapPin=\{\(\) =>[\s\S]*searchServiceLocationPin\(\)/);
 });
@@ -266,6 +294,13 @@ test('customer booking map picker auto-refreshes the pin address without stale u
     ),
     'utf8',
   );
+  const mapPickerView = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-location/components/CustomerMapPinPickerModal.tsx',
+    ),
+    'utf8',
+  );
 
   assert.match(bookingFlowViewModel, /type PinAddressStatus =/);
   assert.match(
@@ -291,8 +326,8 @@ test('customer booking map picker auto-refreshes the pin address without stale u
   assert.match(bookingFlowViewModel, /pinAddressStatus/);
   assert.match(bookingFormViewModel, /Finding pin address/);
   assert.match(bookingFormView, /pinAddressStatus/);
-  assert.match(bookingFormView, /Finding address\.\.\./);
-  assert.match(bookingFormView, /Retry/);
+  assert.match(mapPickerView, /Finding address\.\.\./);
+  assert.match(mapPickerView, /Retry/);
 });
 
 test('customer booking pin confirmation cancels outstanding auto address lookup', () => {
@@ -418,6 +453,26 @@ test('cash booking confirmation stays on review when final schedule validation f
     submitSource,
     /if \(options\.navigateOnScheduleFailure \?\? true\) \{[\s\S]*screen: 'customerBookingForm'/,
   );
+});
+
+test('cash booking confirmation routes to confirmation after successful submit', () => {
+  const appSource = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8');
+  const confirmStart = appSource.indexOf('async function confirmBookingWithPayment');
+  const confirmEnd = appSource.indexOf(
+    'async function submitProviderPayoutRequest',
+    confirmStart,
+  );
+  assert.ok(confirmStart > -1);
+  assert.ok(confirmEnd > confirmStart);
+
+  const confirmSource = appSource.slice(confirmStart, confirmEnd);
+
+  assert.match(confirmSource, /navigateOnScheduleFailure: false/);
+  assert.match(confirmSource, /navigateOnSuccess: false/);
+  assert.match(confirmSource, /if \(!booking\) \{\s*return;\s*\}/);
+  assert.match(confirmSource, /methodType === 'cash_on_service'/);
+  assert.match(confirmSource, /navigate\('customerBookingConfirmation', 'customer'\)/);
+  assert.doesNotMatch(confirmSource, /customerBookingForm/);
 });
 
 test('customer booking map picker keeps map tiles stable while recentering by bridge', () => {

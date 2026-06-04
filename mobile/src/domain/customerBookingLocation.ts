@@ -36,6 +36,9 @@ export interface CustomerBookingLocationState {
 export const customerMapPinRequiredCopy =
   'Choose or confirm the service location on the map.';
 
+export const customerMapSavedPinRequiredCopy =
+  'Verify this saved address on the map once.';
+
 export const customerMapPinFallbackCopy =
   'Location could not be verified. You can still type the address, but the pin is not confirmed.';
 
@@ -71,7 +74,10 @@ export function customerBookingLocationFromGeoResult(
 export function customerBookingLocationFromSavedAddress(
   address: CustomerAddressSummary,
 ): CustomerBookingLocationState {
-  const state = createCustomerBookingLocationState(address.address);
+  const state = {
+    ...createCustomerBookingLocationState(address.address),
+    source: 'saved' as const,
+  };
   if (address.latitude === null || address.longitude === null) {
     return state;
   }
@@ -118,6 +124,17 @@ export function moveCustomerBookingPendingPin(
     state.pendingPin.latitude === latitude &&
     state.pendingPin.longitude === longitude &&
     state.pendingPin.formattedAddress === formattedAddress
+  ) {
+    return state;
+  }
+  if (
+    !state.pendingPin &&
+    state.confirmedPin &&
+    sameCustomerBookingMapPin(state.confirmedPin, {
+      formattedAddress,
+      latitude,
+      longitude,
+    })
   ) {
     return state;
   }
@@ -200,6 +217,9 @@ export function customerBookingLocationNotice(
   if (state.status === 'error') {
     return customerMapPinFallbackCopy;
   }
+  if (state.status === 'unconfirmed' && state.source === 'saved') {
+    return customerMapSavedPinRequiredCopy;
+  }
   if (state.status === 'stale' || state.status === 'unconfirmed') {
     return customerMapPinRequiredCopy;
   }
@@ -216,4 +236,15 @@ function pinFromGeoResult(
     longitude: result.longitude,
     source,
   };
+}
+
+function sameCustomerBookingMapPin(
+  pin: CustomerBookingMapPin,
+  next: Pick<CustomerBookingMapPin, 'latitude' | 'longitude' | 'formattedAddress'>,
+): boolean {
+  return (
+    Math.abs(pin.latitude - next.latitude) < 0.000001 &&
+    Math.abs(pin.longitude - next.longitude) < 0.000001 &&
+    pin.formattedAddress === next.formattedAddress
+  );
 }

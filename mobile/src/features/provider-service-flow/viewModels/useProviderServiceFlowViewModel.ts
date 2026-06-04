@@ -87,19 +87,14 @@ export function useProviderServiceFlowViewModel({
       return;
     }
 
+    if (!Object.values(providerChecklist).every(Boolean)) {
+      setNotice('Complete all checklist items to begin service.');
+      return;
+    }
+
     setBusyAction('service-start');
     try {
-      const update = await createBookingServiceUpdate(
-        selectedBooking.id,
-        {
-          updateType: 'checklist',
-          message:
-            providerPhotoCaption.trim() || 'Pre-service checklist completed.',
-          checklist: providerChecklist,
-        },
-        apiOptions,
-      );
-      onServiceUpdateCreated(update);
+      let activeBooking = selectedBooking;
       if (selectedBooking.status !== 'in_progress') {
         const updated = await transitionBookingStatus(
           selectedBooking.id,
@@ -112,6 +107,28 @@ export function useProviderServiceFlowViewModel({
         onBookingUpdated(updated);
         onRefreshBookingTracking(updated.id);
         onRefreshBookingTimelineEvents(updated.id);
+        activeBooking = updated;
+      }
+      try {
+        const update = await createBookingServiceUpdate(
+          activeBooking.id,
+          {
+            updateType: 'checklist',
+            message:
+              providerPhotoCaption.trim() || 'Pre-service checklist completed.',
+            checklist: providerChecklist,
+          },
+          apiOptions,
+        );
+        onServiceUpdateCreated(update);
+      } catch (serviceUpdateError) {
+        setNotice(
+          `Service started. Checklist update could not be saved: ${readError(
+            serviceUpdateError,
+          )}`,
+        );
+        setProviderRoute('providerServiceInProgress');
+        return;
       }
       setNotice('Service started.');
       setProviderRoute('providerServiceInProgress');

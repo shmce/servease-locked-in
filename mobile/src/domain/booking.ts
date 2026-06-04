@@ -113,6 +113,21 @@ export function bookingStatusChip(status: BookingStatus): StatusChipModel {
   return { label: status, tone: 'warning' };
 }
 
+export function timelineForStatus(status: BookingStatus) {
+  return [
+    { label: 'Booked', completed: true },
+    {
+      label: 'On the way',
+      completed: ['confirmed', 'in_progress', 'completed'].includes(status),
+    },
+    {
+      label: 'Started',
+      completed: ['in_progress', 'completed'].includes(status),
+    },
+    { label: 'Completed', completed: status === 'completed' },
+  ];
+}
+
 export function nextBookingStatuses(
   status: BookingStatus,
   role: UserRole | 'guest',

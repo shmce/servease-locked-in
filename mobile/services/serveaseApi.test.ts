@@ -56,6 +56,7 @@ import {
   subscribeBookingTrackingSnapshots,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
+  updateCustomerAddress,
   setDefaultCustomerAddress,
   updateBookingLiveLocation,
   updateProviderPortfolioMedia,
@@ -966,8 +967,31 @@ describe('serveaseApi', () => {
             city: null,
             province: null,
             region: null,
-            latitude: null,
-            longitude: null,
+            latitude: 14.554729,
+            longitude: 121.024445,
+            isDefault: false,
+            createdAt: null,
+            updatedAt: null,
+          },
+        });
+      }
+
+      if (
+        url === 'http://gateway.test/v1/me/addresses/address-2' &&
+        init?.method === 'PATCH'
+      ) {
+        return jsonResponse({
+          data: {
+            id: 'address-2',
+            userId: 'user-1',
+            label: 'Work',
+            address: '456 Office Ave - Tower lobby',
+            barangay: null,
+            city: null,
+            province: null,
+            region: null,
+            latitude: 14.5548,
+            longitude: 121.0245,
             isDefault: false,
             createdAt: null,
             updatedAt: null,
@@ -1009,7 +1033,22 @@ describe('serveaseApi', () => {
       fetcher,
     });
     const created = await createCustomerAddress(
-      { label: 'Work', address: '456 Office Ave' },
+      {
+        label: 'Work',
+        address: '456 Office Ave',
+        latitude: 14.554729,
+        longitude: 121.024445,
+      },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
+    const updated = await updateCustomerAddress(
+      'address-2',
+      {
+        label: 'Work',
+        address: '456 Office Ave - Tower lobby',
+        latitude: 14.5548,
+        longitude: 121.0245,
+      },
       { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
     );
     const defaultAddress = await setDefaultCustomerAddress('address-2', {
@@ -1025,14 +1064,30 @@ describe('serveaseApi', () => {
 
     assert.equal(addresses[0]?.label, 'Home');
     assert.equal(created.address, '456 Office Ave');
+    assert.equal(created.latitude, 14.554729);
+    assert.equal(updated.address, '456 Office Ave - Tower lobby');
+    assert.equal(updated.longitude, 121.0245);
     assert.equal(defaultAddress.isDefault, true);
     assert.deepEqual(deleted, { ok: true });
     assert.deepEqual(calls.map((call) => [call.method, call.url]), [
       ['GET', 'http://gateway.test/v1/me/addresses'],
       ['POST', 'http://gateway.test/v1/me/addresses'],
+      ['PATCH', 'http://gateway.test/v1/me/addresses/address-2'],
       ['POST', 'http://gateway.test/v1/me/addresses/address-2/default'],
       ['DELETE', 'http://gateway.test/v1/me/addresses/address-1'],
     ]);
+    assert.deepEqual(calls[1]?.body, {
+      label: 'Work',
+      address: '456 Office Ave',
+      latitude: 14.554729,
+      longitude: 121.024445,
+    });
+    assert.deepEqual(calls[2]?.body, {
+      label: 'Work',
+      address: '456 Office Ave - Tower lobby',
+      latitude: 14.5548,
+      longitude: 121.0245,
+    });
   });
 
   it('updates the current user password through the gateway', async () => {

@@ -113,10 +113,13 @@ export function ProviderStartServiceScreen({
       </ProviderScreen>
       <ProviderStickyFooter>
         <ProviderButton
-          label="Start Service"
+          label={data.startLabel}
           onPress={() => void onStartService()}
           disabled={data.startDisabled}
         />
+        {data.startHelperLabel ? (
+          <Text style={styles.footerHelper}>{data.startHelperLabel}</Text>
+        ) : null}
         <Text style={styles.footerLink} onPress={onBack}>
           Back to booking
         </Text>
@@ -149,6 +152,13 @@ const styles = StyleSheet.create({
     color: palette.mintDeep,
     fontSize: 13,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  footerHelper: {
+    color: '#6D7480',
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
     textAlign: 'center',
   },
   operationalTitle: {

@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
-import { timelineForStatus } from '../../../navigation/routeHelpers';
 import {
   bookingStatusChip,
   formatBookingDuration,
   formatDateTime,
   formatMoney,
   pricingModeLabel,
+  timelineForStatus,
 } from '../../../shared/utils/booking';
 import { BookingSummary, PaymentSummary } from '../../../shared/models/types';
 
@@ -199,9 +199,12 @@ function buildStatusActions(
         },
         {
           action: 'startService',
-          disabled: hasBlockingActiveBooking,
+          disabled:
+            hasBlockingActiveBooking ||
+            busyAction === 'service-start',
           key: 'start-service',
-          label: 'Start Service',
+          label:
+            busyAction === 'service-start' ? 'Starting...' : 'Start Service',
           variant: 'secondary',
         },
         {

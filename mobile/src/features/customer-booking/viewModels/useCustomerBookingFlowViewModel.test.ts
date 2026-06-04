@@ -131,3 +131,94 @@ test('customer map picker search keeps results pending for confirmation', () => 
   assert.match(actionSource, /setMapSearchError\(message\)/);
   assert.doesNotMatch(actionSource, /confirmCustomerBookingPin/);
 });
+
+test('customer map picker inspection preserves confirmed saved pins', () => {
+  const source = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+    ),
+    'utf8',
+  );
+  const actionStart = source.indexOf('async function openServiceLocationPicker');
+  const nextActionStart = source.indexOf(
+    'function closeServiceLocationPicker',
+    actionStart,
+  );
+  assert.ok(actionStart > -1);
+  assert.ok(nextActionStart > actionStart);
+
+  const actionSource = source.slice(actionStart, nextActionStart);
+
+  assert.match(actionSource, /const existingPendingPin = serviceLocation\.pendingPin/);
+  assert.match(
+    actionSource,
+    /const existingConfirmedPin = serviceLocation\.confirmedPin/,
+  );
+  assert.match(
+    actionSource,
+    /const existingPin = existingPendingPin \?\? existingConfirmedPin \?\? null/,
+  );
+  assert.match(actionSource, /if \(existingPendingPin\) \{/);
+  assert.match(actionSource, /setMapPickerVisible\(true\)/);
+  assert.doesNotMatch(actionSource, /pendingPin: existingPin/);
+});
+
+test('customer booking saves Home from confirmed coordinates and reuses the saved result', () => {
+  const source = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+    ),
+    'utf8',
+  );
+  const actionStart = source.indexOf('async function saveCurrentAddressAsHome');
+  const nextActionStart = source.indexOf(
+    'async function openServiceLocationPicker',
+    actionStart,
+  );
+  assert.ok(actionStart > -1);
+  assert.ok(nextActionStart > actionStart);
+
+  const actionSource = source.slice(actionStart, nextActionStart);
+
+  assert.match(source, /updateCustomerAddress,/);
+  assert.match(actionSource, /if \(!serviceLocation\.confirmedPin\)/);
+  assert.match(actionSource, /Confirm the service pin before saving it as Home/);
+  assert.match(actionSource, /resolveHomeAddressToSave/);
+  assert.match(actionSource, /latitude: serviceLocation\.confirmedPin\.latitude/);
+  assert.match(actionSource, /longitude: serviceLocation\.confirmedPin\.longitude/);
+  assert.match(actionSource, /await updateCustomerAddress\(homeAddress\.id/);
+  assert.match(actionSource, /await createCustomerAddress\(addressPayload/);
+  assert.match(actionSource, /applySavedAddress\(savedAddress\)/);
+  assert.match(actionSource, /onCustomerAddressSaved\(savedAddress\)/);
+});
+
+test('customer current location replacement clears saved address selection', () => {
+  const source = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/customer-booking/viewModels/useCustomerBookingFlowViewModel.ts',
+    ),
+    'utf8',
+  );
+  const actionStart = source.indexOf('async function useCurrentServiceLocation');
+  const nextActionStart = source.indexOf(
+    'async function saveCurrentAddressAsHome',
+    actionStart,
+  );
+  assert.ok(actionStart > -1);
+  assert.ok(nextActionStart > actionStart);
+
+  const actionSource = source.slice(actionStart, nextActionStart);
+
+  assert.match(
+    actionSource,
+    /startCustomerBookingPendingPin\([\s\S]*result,[\s\S]*'current'/,
+  );
+  assert.match(actionSource, /setSelectedSavedAddressId\(null\)/);
+  assert.match(
+    actionSource,
+    /Current location found\. Confirm the service pin before review\./,
+  );
+});

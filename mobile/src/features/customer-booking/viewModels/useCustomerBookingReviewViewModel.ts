@@ -208,7 +208,7 @@ export function buildCustomerBookingReviewViewModel({
           value:
             customerBookingLocationCanContinue(serviceLocation) &&
             serviceLocation.confirmedPin
-              ? `Confirmed - ${serviceLocation.confirmedPin.latitude.toFixed(5)}, ${serviceLocation.confirmedPin.longitude.toFixed(5)}`
+              ? `${serviceLocation.source === 'saved' ? 'Verified saved pin' : 'Confirmed'} - ${serviceLocation.confirmedPin.latitude.toFixed(5)}, ${serviceLocation.confirmedPin.longitude.toFixed(5)}`
               : serviceLocation.status === 'error'
                 ? 'Manual address fallback'
                 : 'Pin not confirmed',

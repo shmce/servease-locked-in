@@ -614,7 +614,7 @@ export class BookingGatewayService {
       providerId === null ||
       booking.status === nextStatus ||
       booking.status === 'in_progress' ||
-      !['in_progress', 'completed'].includes(nextStatus)
+      nextStatus !== 'completed'
     ) {
       return;
     }

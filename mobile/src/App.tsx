@@ -57,6 +57,7 @@ import { useStableCallback } from './shared/hooks/useStableCallback';
 import type { CustomerProviderProfileTab } from './features/customer-provider-profile/viewModels/useCustomerProviderProfileViewModel';
 import type { CustomerTrackingSheetLevel } from './features/customer-track-provider/viewModels/useCustomerTrackProviderViewModel';
 import type { ProviderNavigationSheetLevel } from './features/provider-navigation-mode/viewModels/useProviderNavigationModeViewModel';
+import { useCustomerAddressPinFlow } from './features/customer-addresses/viewModels/useCustomerAddressPinFlow';
 import { useCustomerBookingFlowViewModel } from './features/customer-booking/viewModels/useCustomerBookingFlowViewModel';
 import { useMessagesFlowViewModel } from './features/messages/viewModels/useMessagesFlowViewModel';
 import { useNotificationsFlowViewModel } from './features/notifications/viewModels/useNotificationsFlowViewModel';
@@ -103,7 +104,6 @@ import type {
 } from './shared/models/types';
 import {
   addProviderPortfolioMedia,
-  createCustomerAddress,
   createCheckoutSession,
   createPayment,
   createProviderPayoutIdempotencyKey,
@@ -573,8 +573,6 @@ export default function App({ initialRoute = null }: AppProps) {
   const [profileFullName, setProfileFullName] = useState('');
   const [profileContactNumber, setProfileContactNumber] = useState('');
   const [profileAddress, setProfileAddress] = useState('');
-  const [customerAddressLabel, setCustomerAddressLabel] = useState('Home');
-  const [customerAddressDraft, setCustomerAddressDraft] = useState('');
   const [profileBusinessName, setProfileBusinessName] = useState('');
   const [customerAvatarUri, setCustomerAvatarUri] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -757,6 +755,14 @@ export default function App({ initialRoute = null }: AppProps) {
   const handleCustomerAddressSaved = useStableCallback(
     handleCustomerAddressSavedImpl,
   );
+  const customerAddressPinFlow = useCustomerAddressPinFlow({
+    addresses: customerAddresses,
+    apiOptions,
+    hasSession: Boolean(session),
+    onCustomerAddressSaved: handleCustomerAddressSaved,
+    setBusyAction,
+    setNotice,
+  });
   const handleBookingCreated = useStableCallback(handleBookingCreatedImpl);
   const refreshProviderAvailability = useStableCallback(
     refreshSelectedProviderAvailability,
@@ -1583,6 +1589,7 @@ export default function App({ initialRoute = null }: AppProps) {
     supportFlow.actions.clear();
     notificationsFlow.actions.clear();
     providerServiceFlow.actions.clear();
+    customerAddressPinFlow.actions.resetDraft();
     setSelectedBookingServiceUpdates([]);
     setSelectedBookingTimelineEvents([]);
     setSelectedProviderPortfolioMedia([]);
@@ -1651,39 +1658,6 @@ export default function App({ initialRoute = null }: AppProps) {
       );
       setProfile(updatedProfile);
       setNotice('Profile updated.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function saveCustomerAddress() {
-    if (!session) {
-      setNotice('Sign in before saving an address.');
-      return;
-    }
-
-    const address = customerAddressDraft.trim();
-    if (!address) {
-      setNotice('Enter an address to save.');
-      return;
-    }
-
-    setBusyAction('save-customer-address');
-    try {
-      const savedAddress = await createCustomerAddress(
-        {
-          label: customerAddressLabel.trim() || 'Home',
-          address,
-          isDefault: (profile?.customerAddresses ?? []).length === 0,
-        },
-        apiOptions,
-      );
-      setProfile((current) => upsertCustomerAddressInProfile(current, savedAddress));
-      setCustomerAddressLabel('Home');
-      setCustomerAddressDraft('');
-      setNotice('Address saved.');
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -3843,15 +3817,40 @@ export default function App({ initialRoute = null }: AppProps) {
     return (
       <CustomerAddressesScreen
         addresses={profile?.customerAddresses ?? []}
-        draftLabel={customerAddressLabel}
-        draftAddress={customerAddressDraft}
+        draftLabel={customerAddressPinFlow.data.draftLabel}
+        draftAddress={customerAddressPinFlow.data.draftAddress}
+        editTargetId={customerAddressPinFlow.data.editTargetId}
+        mapPickerVisible={customerAddressPinFlow.data.mapPickerVisible}
+        mapSearchBusy={customerAddressPinFlow.data.mapSearchBusy}
+        mapSearchError={customerAddressPinFlow.data.mapSearchError}
+        mapSearchQuery={customerAddressPinFlow.data.mapSearchQuery}
+        pinAddressStatus={customerAddressPinFlow.data.pinAddressStatus}
+        serviceLocation={customerAddressPinFlow.data.serviceLocation}
         busyAction={busyAction}
         onBack={() => goBack({ role: 'customer', screen: 'more' })}
-        onDraftLabelChange={setCustomerAddressLabel}
-        onDraftAddressChange={setCustomerAddressDraft}
-        onSaveAddress={() => void saveCustomerAddress()}
+        onCancelDraft={customerAddressPinFlow.actions.resetDraft}
+        onCloseMapPicker={customerAddressPinFlow.actions.closeMapPicker}
+        onConfirmMapPin={customerAddressPinFlow.actions.confirmPin}
+        onDraftLabelChange={customerAddressPinFlow.actions.setDraftLabel}
+        onEditAddressPin={
+          customerAddressPinFlow.actions.openExistingAddressPinPicker
+        }
+        onMapPinMove={customerAddressPinFlow.actions.movePin}
+        onMapSearchQueryChange={
+          customerAddressPinFlow.actions.setMapSearchQuery
+        }
+        onManualDetailsChange={customerAddressPinFlow.actions.setManualDetails}
+        onOpenMapPicker={customerAddressPinFlow.actions.openNewAddressPinPicker}
+        onRefreshAddress={() =>
+          void customerAddressPinFlow.actions.refreshPinAddress()
+        }
+        onSaveAddress={() => void customerAddressPinFlow.actions.saveAddress()}
+        onSearchMapPin={() => void customerAddressPinFlow.actions.searchMapPin()}
         onSetDefault={(addressId) => void makeDefaultCustomerAddress(addressId)}
         onDeleteAddress={(addressId) => void removeCustomerAddress(addressId)}
+        onUseCurrentLocation={() =>
+          void customerAddressPinFlow.actions.useCurrentLocation()
+        }
       />
     );
   }
