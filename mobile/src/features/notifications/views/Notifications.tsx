@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   Bell,
   Calendar,
@@ -37,7 +37,10 @@ import { useNotificationsViewModel } from '../viewModels/useNotificationsViewMod
 type NotificationsScreenProps = {
   notifications: NotificationSummary[];
   isLoading?: boolean;
+  markAllReadDisabled?: boolean;
+  markAllReadPending?: boolean;
   onBack: () => void;
+  onMarkAllRead?: () => void | Promise<void>;
   openNotification: (notification: NotificationSummary) => Promise<void>;
   role: AppRole;
 };
@@ -67,12 +70,59 @@ function NotificationIcon({
 export function NotificationsScreen({
   notifications,
   isLoading = false,
+  markAllReadDisabled = true,
+  markAllReadPending = false,
   onBack,
+  onMarkAllRead,
   openNotification,
   role,
 }: NotificationsScreenProps) {
   const notificationsView = useNotificationsViewModel({ notifications });
   const isInitialLoading = isLoading && notifications.length === 0;
+  const showMarkAllRead =
+    notificationsView.data.unreadCount > 0 && Boolean(onMarkAllRead);
+  const markAllReadLabel = markAllReadPending ? 'Marking...' : 'Mark all read';
+  const headerActions = showMarkAllRead ? (
+    <View style={styles.headerActions}>
+      <Pressable
+        style={[
+          styles.markAllButton,
+          markAllReadDisabled && styles.markAllButtonDisabled,
+        ]}
+        onPress={() => void onMarkAllRead?.()}
+        disabled={markAllReadDisabled}
+        accessibilityRole="button"
+        accessibilityLabel={markAllReadLabel}
+      >
+        <Text style={styles.markAllButtonText} numberOfLines={1}>
+          {markAllReadLabel}
+        </Text>
+      </Pressable>
+      <CustomerBadge
+        label={`${notificationsView.data.unreadCount} new`}
+        tone="success"
+      />
+    </View>
+  ) : null;
+  const providerHeaderActions = showMarkAllRead ? (
+    <View style={styles.headerActions}>
+      <Pressable
+        style={[
+          styles.markAllButton,
+          markAllReadDisabled && styles.markAllButtonDisabled,
+        ]}
+        onPress={() => void onMarkAllRead?.()}
+        disabled={markAllReadDisabled}
+        accessibilityRole="button"
+        accessibilityLabel={markAllReadLabel}
+      >
+        <Text style={styles.markAllButtonText} numberOfLines={1}>
+          {markAllReadLabel}
+        </Text>
+      </Pressable>
+      <ProviderBadge label={`${notificationsView.data.unreadCount} new`} tone="success" />
+    </View>
+  ) : null;
 
   if (role === 'customer') {
     return (
@@ -82,14 +132,7 @@ export function NotificationsScreen({
             title="Notifications"
             subtitle="Updates about your services and account"
             onBack={onBack}
-            right={
-              notificationsView.data.unreadCount > 0 ? (
-                <CustomerBadge
-                  label={`${notificationsView.data.unreadCount} new`}
-                  tone="success"
-                />
-              ) : null
-            }
+            right={headerActions}
           />
 
           <CustomerSection>
@@ -146,11 +189,7 @@ export function NotificationsScreen({
           title="Notifications"
           subtitle="Updates about your provider workspace"
           onBack={onBack}
-          right={
-            notificationsView.data.unreadCount > 0 ? (
-              <ProviderBadge label={`${notificationsView.data.unreadCount} new`} tone="success" />
-            ) : null
-          }
+          right={providerHeaderActions}
         />
         <ProviderSection>
           {isInitialLoading ? (
@@ -190,6 +229,26 @@ export function NotificationsScreen({
 }
 
 const styles = StyleSheet.create({
+  headerActions: {
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+  },
+  markAllButton: {
+    backgroundColor: '#EAF8F1',
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 7,
+  },
+  markAllButtonDisabled: {
+    opacity: 0.55,
+  },
+  markAllButtonText: {
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 16,
+  },
   customerNotificationList: {
     gap: spacing.md,
   },

@@ -161,6 +161,21 @@ export class SupabaseNotificationRepository {
     return this.mapNotification(data as NotificationRow);
   }
 
+  async markAllRead(userId: string): Promise<NotificationSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_mark_all_notifications_read',
+      {
+        p_user_id: userId,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to mark all notifications read: ${error.message}`);
+    }
+
+    return (data ?? []).map((row) => this.mapNotification(row as NotificationRow));
+  }
+
   async registerPushDevice(
     input: RegisterPushDeviceInput,
   ): Promise<PushDeviceSummary> {

@@ -9,6 +9,8 @@ describe('SupabaseUserRepository', () => {
         password_hash: 'hashed-password',
         full_name: 'Customer Name',
         contact_number: '+639000000000',
+        avatar_url: 'https://storage.test/avatar.jpg',
+        avatar_storage_path: 'avatar/user-1/avatar.jpg',
         role: 'customer',
         status: 'active',
       },
@@ -26,6 +28,8 @@ describe('SupabaseUserRepository', () => {
       passwordHash: 'hashed-password',
       fullName: 'Customer Name',
       contactNumber: '+639000000000',
+      avatarUrl: 'https://storage.test/avatar.jpg',
+      avatarStoragePath: 'avatar/user-1/avatar.jpg',
       role: 'customer',
       status: 'active',
     });
@@ -42,6 +46,8 @@ describe('SupabaseUserRepository', () => {
         password_hash: 'deleted',
         full_name: null,
         contact_number: null,
+        avatar_url: null,
+        avatar_storage_path: null,
         role: 'customer',
         status: 'inactive',
       },
@@ -67,6 +73,8 @@ describe('SupabaseUserRepository', () => {
       passwordHash: 'deleted',
       fullName: null,
       contactNumber: null,
+      avatarUrl: null,
+      avatarStoragePath: null,
       role: 'customer',
       status: 'inactive',
     });
@@ -76,6 +84,46 @@ describe('SupabaseUserRepository', () => {
     expect(deleteUser).toHaveBeenCalledWith(
       '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
     );
+  });
+
+  it('updates avatar metadata through the internal user RPC', async () => {
+    const maybeSingle = jest.fn().mockResolvedValue({
+      data: {
+        id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+        email: 'customer@example.com',
+        password_hash: 'hashed-password',
+        full_name: 'Customer Name',
+        contact_number: '+639000000000',
+        avatar_url: 'https://storage.test/avatar.jpg',
+        avatar_storage_path: 'avatar/user-1/avatar.jpg',
+        role: 'customer',
+        status: 'active',
+      },
+      error: null,
+    });
+    const rpc = jest.fn().mockReturnValue({ maybeSingle });
+
+    const repository = new SupabaseUserRepository({ rpc });
+
+    await expect(
+      repository.update({
+        userId: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+        fullName: 'Customer Name',
+        contactNumber: '+639000000000',
+        avatarUrl: 'https://storage.test/avatar.jpg',
+        avatarStoragePath: 'avatar/user-1/avatar.jpg',
+      }),
+    ).resolves.toMatchObject({
+      avatarUrl: 'https://storage.test/avatar.jpg',
+      avatarStoragePath: 'avatar/user-1/avatar.jpg',
+    });
+    expect(rpc).toHaveBeenCalledWith('servease_update_internal_user', {
+      p_user_id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      p_full_name: 'Customer Name',
+      p_contact_number: '+639000000000',
+      p_avatar_url: 'https://storage.test/avatar.jpg',
+      p_avatar_storage_path: 'avatar/user-1/avatar.jpg',
+    });
   });
 
   it('persists and maps two-factor provisioning state', async () => {

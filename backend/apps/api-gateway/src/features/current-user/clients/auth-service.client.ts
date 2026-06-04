@@ -75,6 +75,8 @@ export class AuthServiceClient {
       email: payload.data.email,
       fullName: payload.data.fullName,
       contactNumber: payload.data.contactNumber,
+      avatarUrl: payload.data.avatarUrl ?? null,
+      avatarStoragePath: payload.data.avatarStoragePath ?? null,
       role: payload.data.role as UserRole,
       status: payload.data.status as UserStatus,
     };
@@ -376,6 +378,8 @@ export class AuthServiceClient {
       body: JSON.stringify({
         fullName: input.fullName,
         contactNumber: input.contactNumber ?? null,
+        avatarUrl: input.avatarUrl ?? null,
+        avatarStoragePath: input.avatarStoragePath ?? null,
       }),
     });
 
@@ -388,7 +392,11 @@ export class AuthServiceClient {
     }
 
     const payload = (await response.json()) as { data: CurrentUserIdentity };
-    return payload.data;
+    return {
+      ...payload.data,
+      avatarUrl: payload.data.avatarUrl ?? null,
+      avatarStoragePath: payload.data.avatarStoragePath ?? null,
+    };
   }
 
   private baseUrl(): string {

@@ -8,6 +8,15 @@ import { formatMoney } from '../../../shared/utils/booking';
 
 const CATEGORY_PAGE_SIZE = 5;
 
+type CategoryRailRow = {
+  id: string;
+  label: string;
+  category: CatalogCategory | null;
+  serviceCount: number;
+  serviceCountLabel: string;
+  isSelected: boolean;
+};
+
 type CustomerCategoryViewModelInput = {
   categories: CatalogCategory[];
   page?: number;
@@ -68,6 +77,8 @@ export function buildCustomerCategoryViewModel({
 }: CustomerCategoryViewModelInput) {
   const categoryName =
     categories.find((category) => category.id === selectedCategoryId)?.name ?? 'Services';
+  const selectedCategory =
+    categories.find((category) => category.id === selectedCategoryId) ?? null;
   const serviceRatings = buildServiceRatings(providers);
   const query = searchQuery.trim().toLowerCase();
 
@@ -90,10 +101,35 @@ export function buildCustomerCategoryViewModel({
   const pageStartLabel = totalItems > 0 ? pageStartIndex + 1 : 0;
   const pageEndLabel = Math.min(pageEndIndex, totalItems);
 
-  const serviceCountLabel =
-    query
-      ? `${filteredServices.length} of ${categoryServices.length} services`
-      : `${categoryServices.length} services available`;
+  const categoryRows: CategoryRailRow[] = [
+    {
+      id: 'all-services',
+      label: 'All',
+      category: null,
+      serviceCount: services.length,
+      serviceCountLabel: formatServiceCount(services.length),
+      isSelected: !selectedCategoryId,
+    },
+    ...categories.map((category) => {
+      const serviceCount = services.filter(
+        (service) => service.categoryId === category.id,
+      ).length;
+      return {
+        id: category.id,
+        label: category.name,
+        category,
+        serviceCount,
+        serviceCountLabel: formatServiceCount(serviceCount),
+        isSelected: category.id === selectedCategoryId,
+      };
+    }),
+  ];
+
+  const serviceCountLabel = query
+    ? `${formatServiceCount(filteredServices.length)} of ${formatServiceCount(
+        categoryServices.length,
+      )}`
+    : `${formatServiceCount(categoryServices.length)} available`;
 
   const serviceRows = pageServices.map((service) => {
     const rating = serviceRatings.get(service.id);
@@ -123,7 +159,15 @@ export function buildCustomerCategoryViewModel({
   return {
     data: {
       categoryName,
+      categoryDescription:
+        selectedCategory?.description ??
+        'Browse verified services and choose the right provider for your home.',
+      categoryRows,
       emptyState,
+      searchPlaceholder:
+        categoryName === 'Services'
+          ? 'Search all services'
+          : `Search ${categoryName.toLowerCase()} services`,
       serviceCountLabel,
       serviceRows,
       hasServices: totalItems > 0,
@@ -144,6 +188,10 @@ export function buildCustomerCategoryViewModel({
     isLoading: false,
     error: null,
   };
+}
+
+function formatServiceCount(count: number): string {
+  return `${count} ${count === 1 ? 'service' : 'services'}`;
 }
 
 function buildServiceRatings(

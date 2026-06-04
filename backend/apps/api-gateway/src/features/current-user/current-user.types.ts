@@ -6,6 +6,8 @@ export interface CurrentUserIdentity {
   email: string;
   fullName: string | null;
   contactNumber: string | null;
+  avatarUrl?: string | null;
+  avatarStoragePath?: string | null;
   role: UserRole;
   status: UserStatus;
 }
@@ -78,6 +80,8 @@ export interface UpdateCurrentUserProfileInput {
   serviceDescription?: string | null;
   serviceArea?: string | null;
   yearsExperience?: number | null;
+  avatarUrl?: string | null;
+  avatarStoragePath?: string | null;
 }
 
 export interface UpdateCurrentUserPasswordInput {

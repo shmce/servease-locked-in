@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppScreen } from '../../../navigation/types';
 import {
   CustomerBadge,
@@ -71,7 +71,15 @@ export function CustomerMoreScreen({
 
         <CustomerCard style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{data.initial}</Text>
+            {data.avatarUri ? (
+              <Image
+                source={{ uri: data.avatarUri }}
+                style={styles.avatarImage}
+                accessibilityLabel="Profile photo"
+              />
+            ) : (
+              <Text style={styles.avatarText}>{data.initial}</Text>
+            )}
           </View>
           <View style={styles.flex}>
             <Text style={styles.profileName}>{data.displayName}</Text>
@@ -153,6 +161,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     height: 50,
     justifyContent: 'center',
+    overflow: 'hidden',
+    width: 50,
+  },
+  avatarImage: {
+    height: 50,
     width: 50,
   },
   avatarText: {

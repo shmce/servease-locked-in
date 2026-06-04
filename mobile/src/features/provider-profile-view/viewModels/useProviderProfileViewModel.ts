@@ -54,6 +54,7 @@ export function buildProviderProfileViewModel({
   return {
     data: {
       businessDisplayName,
+      avatarUri: profile?.user.avatarUrl ?? null,
       avatarInitial,
       profileSummary,
       accountRows: [

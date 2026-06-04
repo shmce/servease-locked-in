@@ -84,6 +84,40 @@ describe('NotificationService', () => {
     expect(device.isActive).toBe(true);
   });
 
+  it('marks all notifications read for a user through the repository', async () => {
+    const notifications = [
+      {
+        id: 'notification-1',
+        userId: 'user-1',
+        type: 'booking_update',
+        title: 'Booking updated',
+        body: 'Your booking changed.',
+        isRead: true,
+        metadata: null,
+        createdAt: '2026-06-04T10:00:00.000Z',
+      },
+    ];
+    const repository = {
+      markAllRead: jest.fn().mockResolvedValue(notifications),
+    } as unknown as SupabaseNotificationRepository;
+    const service = new NotificationService(repository, createPushDeliveryClient());
+
+    await expect(service.markAllRead('user-1')).resolves.toEqual(notifications);
+    expect(repository.markAllRead).toHaveBeenCalledWith('user-1');
+  });
+
+  it('rejects missing users before bulk notification writes', async () => {
+    const repository = {
+      markAllRead: jest.fn(),
+    } as unknown as SupabaseNotificationRepository;
+    const service = new NotificationService(repository, createPushDeliveryClient());
+
+    await expect(service.markAllRead('')).rejects.toBeInstanceOf(
+      InvalidNotificationRequestError,
+    );
+    expect(repository.markAllRead).not.toHaveBeenCalled();
+  });
+
   it('delivers created notifications to active push devices', async () => {
     const notification = {
       id: 'notification-1',

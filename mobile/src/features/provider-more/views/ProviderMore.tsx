@@ -14,7 +14,7 @@ import {
   Wallet,
   Wrench,
 } from 'lucide-react-native';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { CurrentUserProfile } from '../../../shared/models/types';
@@ -85,7 +85,15 @@ export function ProviderMoreScreen({
         />
         <ProviderCard style={styles.profileRow}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{data.initial}</Text>
+            {data.avatarUri ? (
+              <Image
+                source={{ uri: data.avatarUri }}
+                style={styles.avatarImage}
+                accessibilityLabel="Profile photo"
+              />
+            ) : (
+              <Text style={styles.avatarText}>{data.initial}</Text>
+            )}
           </View>
           <View style={styles.flex}>
             <Text style={styles.profileName}>{data.displayName}</Text>
@@ -177,6 +185,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     height: 52,
     justifyContent: 'center',
+    overflow: 'hidden',
+    width: 52,
+  },
+  avatarImage: {
+    height: 52,
     width: 52,
   },
   avatarText: {

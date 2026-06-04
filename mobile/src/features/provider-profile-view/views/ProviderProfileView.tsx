@@ -84,7 +84,15 @@ export function ProviderProfileViewScreen({
 
         <ProviderCard style={styles.heroCard}>
           <View style={styles.heroAvatar}>
-            <Text style={styles.heroAvatarText}>{data.avatarInitial}</Text>
+            {data.avatarUri ? (
+              <Image
+                source={{ uri: data.avatarUri }}
+                style={styles.heroAvatarImage}
+                accessibilityLabel="Profile photo"
+              />
+            ) : (
+              <Text style={styles.heroAvatarText}>{data.avatarInitial}</Text>
+            )}
           </View>
           <Text style={styles.heroName}>{data.businessDisplayName}</Text>
           <Text style={styles.heroSummary}>{data.profileSummary}</Text>
@@ -228,6 +236,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     height: 88,
     justifyContent: 'center',
+    overflow: 'hidden',
+    width: 88,
+  },
+  heroAvatarImage: {
+    height: 88,
     width: 88,
   },
   heroAvatarText: {

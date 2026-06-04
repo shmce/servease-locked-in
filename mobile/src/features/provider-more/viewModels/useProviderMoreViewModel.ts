@@ -57,6 +57,7 @@ export function useProviderMoreViewModel({
 
       return {
         actionRows: rows,
+        avatarUri: profile?.user.avatarUrl ?? null,
         displayEmail,
         displayName,
         initial: displayName.slice(0, 1).toUpperCase(),

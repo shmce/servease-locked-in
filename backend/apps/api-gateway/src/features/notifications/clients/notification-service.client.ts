@@ -35,6 +35,16 @@ export class NotificationServiceClient {
     );
   }
 
+  markAllRead(userId: string): Promise<NotificationSummary[]> {
+    return this.request<NotificationSummary[]>(
+      '/internal/notifications/read-all',
+      'PATCH',
+      {
+        userId,
+      },
+    );
+  }
+
   createNotification(
     input: CreateNotificationRequest,
   ): Promise<NotificationSummary> {

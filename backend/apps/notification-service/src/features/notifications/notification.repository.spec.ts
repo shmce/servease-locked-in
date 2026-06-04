@@ -96,6 +96,53 @@ describe('SupabaseNotificationRepository', () => {
     ]);
   });
 
+  it('marks all current-user notifications read through the bulk service RPC', async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'notification-1',
+          user_id: 'user-1',
+          type: 'booking_update',
+          title: 'Booking updated',
+          body: 'Your booking changed.',
+          is_read: true,
+          metadata: { bookingId: 'booking-1' },
+          created_at: '2026-06-04T10:00:00.000Z',
+        },
+      ],
+      error: null,
+    });
+    const repository = new SupabaseNotificationRepository({ rpc });
+
+    const notifications = await repository.markAllRead('user-1');
+
+    expect(rpc).toHaveBeenCalledWith('servease_mark_all_notifications_read', {
+      p_user_id: 'user-1',
+    });
+    expect(notifications).toEqual([
+      {
+        id: 'notification-1',
+        userId: 'user-1',
+        type: 'booking_update',
+        title: 'Booking updated',
+        body: 'Your booking changed.',
+        isRead: true,
+        metadata: { bookingId: 'booking-1' },
+        createdAt: '2026-06-04T10:00:00.000Z',
+      },
+    ]);
+  });
+
+  it('returns an empty list when bulk read finds no notifications', async () => {
+    const rpc = jest.fn().mockResolvedValue({
+      data: [],
+      error: null,
+    });
+    const repository = new SupabaseNotificationRepository({ rpc });
+
+    await expect(repository.markAllRead('user-1')).resolves.toEqual([]);
+  });
+
   it('deactivates stale push devices through the service RPC', async () => {
     const maybeSingle = jest.fn().mockResolvedValue({
       data: {

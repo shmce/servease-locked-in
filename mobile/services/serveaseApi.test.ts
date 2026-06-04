@@ -42,6 +42,7 @@ import {
   listCustomerBookings,
   listProviderPayoutMethods,
   listProviderPayouts,
+  markAllNotificationsRead,
   markNotificationRead,
   openConversation,
   registerPushDevice,
@@ -531,6 +532,8 @@ describe('serveaseApi', () => {
             email: 'customer@example.com',
             fullName: 'Customer Example',
             contactNumber: '+639000000000',
+            avatarUrl: 'https://storage.test/avatar.jpg',
+            avatarStoragePath: 'avatar/user-1/avatar.jpg',
             role: 'customer',
             status: 'active',
           },
@@ -568,6 +571,7 @@ describe('serveaseApi', () => {
 
     assert.equal(authorization, 'Bearer access-token');
     assert.equal(profile.user.email, 'customer@example.com');
+    assert.equal(profile.user.avatarUrl, 'https://storage.test/avatar.jpg');
     assert.equal(profile.customerProfile?.address, '123 Test St');
     assert.equal(profile.customerAddresses[0]?.label, 'Home');
   });
@@ -837,6 +841,8 @@ describe('serveaseApi', () => {
             email: 'customer@example.com',
             fullName: 'Updated Customer',
             contactNumber: '+639000000001',
+            avatarUrl: 'https://storage.test/avatar.jpg',
+            avatarStoragePath: 'avatar/user-1/avatar.jpg',
             role: 'customer',
             status: 'active',
           },
@@ -855,6 +861,8 @@ describe('serveaseApi', () => {
         fullName: 'Updated Customer',
         contactNumber: '+639000000001',
         address: 'Updated address',
+        avatarUrl: 'https://storage.test/avatar.jpg',
+        avatarStoragePath: 'avatar/user-1/avatar.jpg',
       },
       {
         baseUrl: 'http://gateway.test',
@@ -869,6 +877,8 @@ describe('serveaseApi', () => {
       fullName: 'Updated Customer',
       contactNumber: '+639000000001',
       address: 'Updated address',
+      avatarUrl: 'https://storage.test/avatar.jpg',
+      avatarStoragePath: 'avatar/user-1/avatar.jpg',
     });
   });
 
@@ -1658,6 +1668,42 @@ describe('serveaseApi', () => {
     assert.equal(upload.publicUrl, 'https://storage.test/file.jpg');
   });
 
+  it('uploads avatar media through the authenticated gateway endpoint', async () => {
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/uploads');
+      assert.equal(init?.method, 'POST');
+      assert.equal(init?.body instanceof FormData, true);
+
+      return jsonResponse({
+        data: {
+          bucket: 'servease-uploads',
+          path: 'avatar/user-1/file.jpg',
+          publicUrl: 'https://storage.test/avatar.jpg',
+          kind: 'avatar',
+          contentType: 'image/jpeg',
+          size: 12,
+        },
+      });
+    };
+
+    const upload = await uploadMedia(
+      {
+        kind: 'avatar',
+        uri: 'file:///avatar.jpg',
+        name: 'avatar.jpg',
+        contentType: 'image/jpeg',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.equal(upload.kind, 'avatar');
+    assert.equal(upload.publicUrl, 'https://storage.test/avatar.jpg');
+  });
+
   it('adds and deletes provider portfolio media through the gateway', async () => {
     const calls: Array<{ url: string; method: string; body: unknown }> = [];
     const fetcher = async (url: string, init?: RequestInit) => {
@@ -1938,6 +1984,42 @@ describe('serveaseApi', () => {
     assert.equal(notifications[0]?.isRead, false);
     assert.equal(read.isRead, true);
     assert.deepEqual(methods, ['GET', 'PATCH']);
+  });
+
+  it('marks all notifications read through the gateway', async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: String(init?.method) });
+
+      return jsonResponse({
+        data: [
+          {
+            id: 'notification-1',
+            userId: 'customer-1',
+            type: 'booking',
+            title: 'Booking update',
+            body: 'Your booking changed.',
+            isRead: true,
+            metadata: null,
+            createdAt: '2026-05-20T02:00:00.000Z',
+          },
+        ],
+      });
+    };
+
+    const notifications = await markAllNotificationsRead({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/notifications/read-all',
+        method: 'PATCH',
+      },
+    ]);
+    assert.equal(notifications[0]?.isRead, true);
   });
 
   it('registers and unregisters mobile push devices through the gateway', async () => {

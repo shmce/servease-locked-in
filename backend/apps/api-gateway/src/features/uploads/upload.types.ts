@@ -6,7 +6,8 @@ export type UploadKind =
   | 'message_attachment'
   | 'provider_portfolio'
   | 'provider_progress'
-  | 'provider_document';
+  | 'provider_document'
+  | 'avatar';
 
 export interface ProviderApplicationDocumentUploadSummary {
   id: string;

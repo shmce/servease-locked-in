@@ -87,6 +87,8 @@ export class CurrentUserController {
           body.yearsExperience === undefined || body.yearsExperience === null
             ? null
             : Number(body.yearsExperience),
+        avatarUrl: body.avatarUrl?.trim() || null,
+        avatarStoragePath: body.avatarStoragePath?.trim() || null,
       });
       return { data };
     } catch (error) {

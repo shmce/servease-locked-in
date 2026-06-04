@@ -45,6 +45,8 @@ interface SupabaseUserRow {
   password_hash: string;
   full_name: string | null;
   contact_number: string | null;
+  avatar_url?: string | null;
+  avatar_storage_path?: string | null;
   role: UserRole;
   status: UserStatus;
 }
@@ -80,16 +82,7 @@ export class SupabaseUserRepository implements UserRepository {
       return null;
     }
 
-    const row = data as SupabaseUserRow;
-    return {
-      id: row.id,
-      email: row.email,
-      passwordHash: row.password_hash,
-      fullName: row.full_name,
-      contactNumber: row.contact_number,
-      role: row.role,
-      status: row.status,
-    };
+    return this.mapUser(data as SupabaseUserRow);
   }
 
   async update(input: UpdateInternalUserInput): Promise<StoredUserRecord | null> {
@@ -98,6 +91,8 @@ export class SupabaseUserRepository implements UserRepository {
         p_user_id: input.userId,
         p_full_name: input.fullName,
         p_contact_number: input.contactNumber ?? null,
+        p_avatar_url: input.avatarUrl ?? null,
+        p_avatar_storage_path: input.avatarStoragePath ?? null,
       })
       .maybeSingle();
 
@@ -109,16 +104,7 @@ export class SupabaseUserRepository implements UserRepository {
       return null;
     }
 
-    const row = data as SupabaseUserRow;
-    return {
-      id: row.id,
-      email: row.email,
-      passwordHash: row.password_hash,
-      fullName: row.full_name,
-      contactNumber: row.contact_number,
-      role: row.role,
-      status: row.status,
-    };
+    return this.mapUser(data as SupabaseUserRow);
   }
 
   async anonymizeAccount(userId: string): Promise<StoredUserRecord | null> {
@@ -148,16 +134,7 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error(`Failed to delete auth user: ${authError.message}`);
     }
 
-    const row = data as SupabaseUserRow;
-    return {
-      id: row.id,
-      email: row.email,
-      passwordHash: row.password_hash,
-      fullName: row.full_name,
-      contactNumber: row.contact_number,
-      role: row.role,
-      status: row.status,
-    };
+    return this.mapUser(data as SupabaseUserRow);
   }
 
   async listSessions(userId: string): Promise<UserSessionRecord[]> {
@@ -253,6 +230,20 @@ export class SupabaseUserRepository implements UserRepository {
       secret: row.secret,
       enabled: row.enabled ?? false,
       verifiedAt: row.verified_at,
+    };
+  }
+
+  private mapUser(row: SupabaseUserRow): StoredUserRecord {
+    return {
+      id: row.id,
+      email: row.email,
+      passwordHash: row.password_hash,
+      fullName: row.full_name,
+      contactNumber: row.contact_number,
+      avatarUrl: row.avatar_url ?? null,
+      avatarStoragePath: row.avatar_storage_path ?? null,
+      role: row.role,
+      status: row.status,
     };
   }
 }

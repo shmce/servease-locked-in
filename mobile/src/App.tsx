@@ -575,6 +575,8 @@ export default function App({ initialRoute = null }: AppProps) {
   const [profileAddress, setProfileAddress] = useState('');
   const [profileBusinessName, setProfileBusinessName] = useState('');
   const [customerAvatarUri, setCustomerAvatarUri] = useState<string | null>(null);
+  const [profileAvatarUpload, setProfileAvatarUpload] =
+    useState<UploadSummary | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [session, setSession] = useState<AuthSession | null>(null);
   const [profile, setProfile] = useState<CurrentUserProfile | null>(null);
@@ -938,6 +940,8 @@ export default function App({ initialRoute = null }: AppProps) {
     setProfileContactNumber(profile?.user.contactNumber ?? '');
     setProfileAddress(profile?.customerProfile?.address ?? '');
     setProfileBusinessName(profile?.providerProfile?.businessName ?? '');
+    setCustomerAvatarUri(null);
+    setProfileAvatarUpload(null);
   }, [profile]);
 
   useEffect(() => {
@@ -1653,6 +1657,9 @@ export default function App({ initialRoute = null }: AppProps) {
             appRole === 'provider'
               ? profileBusinessName.trim()
               : null,
+          avatarUrl: profileAvatarUpload?.publicUrl ?? profile?.user.avatarUrl ?? null,
+          avatarStoragePath:
+            profileAvatarUpload?.path ?? profile?.user.avatarStoragePath ?? null,
         },
         apiOptions,
       );
@@ -2085,7 +2092,11 @@ export default function App({ initialRoute = null }: AppProps) {
   async function pickAndUploadImage(
     kind: UploadKind,
     onUploaded: (uri: string, upload: UploadSummary) => void | Promise<void>,
-    options: { documentType?: string | null } = {},
+    options: {
+      aspect?: [number, number];
+      documentType?: string | null;
+      successNotice?: string;
+    } = {},
   ) {
     if (!session) {
       setNotice('Sign in before uploading media.');
@@ -2101,7 +2112,7 @@ export default function App({ initialRoute = null }: AppProps) {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsEditing: true,
-      aspect: [4, 3],
+      aspect: options.aspect ?? (kind === 'avatar' ? [1, 1] : [4, 3]),
       mediaTypes: ['images'],
       quality: 0.8,
     });
@@ -2131,7 +2142,7 @@ export default function App({ initialRoute = null }: AppProps) {
         apiOptions,
       );
       await onUploaded(uri, uploaded);
-      setNotice('Media uploaded.');
+      setNotice(options.successNotice ?? 'Media uploaded.');
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -2171,26 +2182,18 @@ export default function App({ initialRoute = null }: AppProps) {
     );
   }
 
-  async function pickCustomerAvatar() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setNotice('Photo library permission is required to update your avatar.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-
-    if (result.canceled || !result.assets[0]?.uri) {
-      return;
-    }
-
-    setCustomerAvatarUri(result.assets[0].uri);
-    setNotice('Avatar updated on this device only.');
+  async function pickProfileAvatar() {
+    await pickAndUploadImage(
+      'avatar',
+      (uri, uploaded) => {
+        setCustomerAvatarUri(uri);
+        setProfileAvatarUpload(uploaded);
+      },
+      {
+        aspect: [1, 1],
+        successNotice: 'Profile photo uploaded. Save your profile to apply it.',
+      },
+    );
   }
 
   function notifyMissingCustomerPhone() {
@@ -3369,6 +3372,9 @@ export default function App({ initialRoute = null }: AppProps) {
         services={services}
         isLoading={isInitialCatalogLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
+        onOpenCategory={(category) => {
+          setSelectedCategoryId(category?.id ?? null);
+        }}
         onOpenService={(service) => {
           setSelectedServiceId(service.id);
           void loadProviders(service.id);
@@ -3803,7 +3809,7 @@ export default function App({ initialRoute = null }: AppProps) {
         setProfileFullName={setProfileFullName}
         setProfileContactNumber={setProfileContactNumber}
         setProfileAddress={setProfileAddress}
-        pickCustomerAvatar={pickCustomerAvatar}
+        pickCustomerAvatar={pickProfileAvatar}
         saveProfile={saveProfile}
       />
     );
@@ -3982,6 +3988,9 @@ export default function App({ initialRoute = null }: AppProps) {
           goBack({ role, screen: role === 'provider' ? 'home' : 'more' })
         }
         openNotification={notificationsFlow.actions.openNotification}
+        onMarkAllRead={notificationsFlow.actions.markAllRead}
+        markAllReadDisabled={notificationsFlow.data.markAllReadDisabled}
+        markAllReadPending={notificationsFlow.data.markAllReadPending}
       />
     );
   }
@@ -4393,6 +4402,7 @@ export default function App({ initialRoute = null }: AppProps) {
       <ProviderEditProfileScreen
         profile={profile}
         busyAction={busyAction}
+        profileAvatarUri={customerAvatarUri}
         profileFullName={profileFullName}
         profileContactNumber={profileContactNumber}
         profileBusinessName={profileBusinessName}
@@ -4400,6 +4410,7 @@ export default function App({ initialRoute = null }: AppProps) {
         onFullNameChange={setProfileFullName}
         onContactNumberChange={setProfileContactNumber}
         onBusinessNameChange={setProfileBusinessName}
+        onPickAvatar={() => void pickProfileAvatar()}
         onSaveProfile={() => void saveProfile()}
       />
     );

@@ -27,6 +27,34 @@ describe('NotificationController', () => {
     expect(response.data.isRead).toBe(true);
   });
 
+  it('marks all notifications read for the authenticated user', async () => {
+    const authTokenService = {
+      authenticate: jest.fn().mockResolvedValue('user-1'),
+    } as unknown as AuthTokenService;
+    const notificationGatewayService = {
+      markAllRead: jest.fn().mockResolvedValue([
+        {
+          id: 'notification-1',
+          isRead: true,
+        },
+      ]),
+    } as unknown as NotificationGatewayService;
+    const controller = new NotificationController(
+      notificationGatewayService,
+      authTokenService,
+    );
+
+    const response = await controller.markAllRead('Bearer token');
+
+    expect(notificationGatewayService.markAllRead).toHaveBeenCalledWith('user-1');
+    expect(response.data).toEqual([
+      {
+        id: 'notification-1',
+        isRead: true,
+      },
+    ]);
+  });
+
   it('registers a push device for the authenticated user', async () => {
     const authTokenService = {
       authenticate: jest.fn().mockResolvedValue('user-1'),

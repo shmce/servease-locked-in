@@ -106,8 +106,12 @@ export function CustomerProfileScreen({
         <CustomerCard>
           <View style={styles.avatarRow}>
             <Pressable
-              style={styles.avatarCircle}
+              style={[
+                styles.avatarCircle,
+                profileView.data.avatarDisabled && styles.avatarCircleDisabled,
+              ]}
               onPress={() => void pickCustomerAvatar()}
+              disabled={profileView.data.avatarDisabled}
               accessibilityRole="button"
               accessibilityLabel="Update profile photo"
             >
@@ -130,7 +134,7 @@ export function CustomerProfileScreen({
               <Text style={styles.avatarTitle} numberOfLines={1}>
                 {profileFullName || 'Customer profile'}
               </Text>
-              <Text style={styles.avatarHint}>Stored on this device only</Text>
+              <Text style={styles.avatarHint}>{profileView.data.avatarHint}</Text>
             </View>
           </View>
         </CustomerCard>
@@ -215,6 +219,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
     width: 82,
+  },
+  avatarCircleDisabled: {
+    opacity: 0.6,
   },
   avatarImage: {
     borderRadius: radius.pill,

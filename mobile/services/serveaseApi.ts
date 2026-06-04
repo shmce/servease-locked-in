@@ -86,6 +86,8 @@ export interface ProviderProfileSnapshot {
     email: string;
     fullName: string | null;
     contactNumber: string | null;
+    avatarUrl?: string | null;
+    avatarStoragePath?: string | null;
     role: UserRole;
     status: UserStatus;
   };
@@ -561,6 +563,8 @@ export interface CurrentUserProfile {
     email: string;
     fullName: string | null;
     contactNumber: string | null;
+    avatarUrl?: string | null;
+    avatarStoragePath?: string | null;
     role: UserRole;
     status: UserStatus;
   };
@@ -739,6 +743,8 @@ export interface UpdateCurrentUserProfileRequest {
   contactNumber?: string | null;
   address?: string | null;
   businessName?: string | null;
+  avatarUrl?: string | null;
+  avatarStoragePath?: string | null;
 }
 
 export interface UpdateCurrentUserPasswordRequest {
@@ -776,7 +782,8 @@ export type UploadKind =
   | 'message_attachment'
   | 'provider_portfolio'
   | 'provider_progress'
-  | 'provider_document';
+  | 'provider_document'
+  | 'avatar';
 
 export interface UploadSummary {
   bucket: string;
@@ -2181,6 +2188,16 @@ export function markNotificationRead(
       requiresAuth: true,
     },
   );
+}
+
+export function markAllNotificationsRead(
+  options: ApiOptions = {},
+): Promise<NotificationSummary[]> {
+  return request<NotificationSummary[]>('/v1/notifications/read-all', {
+    ...options,
+    method: 'PATCH',
+    requiresAuth: true,
+  });
 }
 
 export function registerPushDevice(

@@ -91,7 +91,13 @@ export class InternalUserController {
   @Patch(':userId')
   async update(
     @Param('userId') userId: string,
-    @Body() body: { fullName: string; contactNumber?: string | null },
+    @Body()
+    body: {
+      fullName: string;
+      contactNumber?: string | null;
+      avatarUrl?: string | null;
+      avatarStoragePath?: string | null;
+    },
   ): Promise<{ data: InternalUserResponse }> {
     try {
       if (!body.fullName?.trim()) {
@@ -111,6 +117,8 @@ export class InternalUserController {
         userId,
         fullName: body.fullName.trim(),
         contactNumber: body.contactNumber?.trim() || null,
+        avatarUrl: body.avatarUrl?.trim() || null,
+        avatarStoragePath: body.avatarStoragePath?.trim() || null,
       });
       return { data };
     } catch (error) {

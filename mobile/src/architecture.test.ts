@@ -379,6 +379,9 @@ test('app shell stabilizes effect callbacks instead of omitting hook dependencie
   );
   assert.match(appSource, /useNotificationsFlowViewModel/);
   assert.match(notificationsFlowSource, /markNotificationRead/);
+  assert.match(notificationsFlowSource, /markAllNotificationsRead/);
+  assert.match(notificationsFlowSource, /markAllReadDisabled/);
+  assert.match(notificationsFlowSource, /markAllReadPending/);
   assert.match(notificationsFlowSource, /useCallback/);
 });
 
@@ -865,8 +868,10 @@ test('customer more follows feature-level MVVM boundaries', () => {
 
   assert.match(screenSource, /features\/customer-more\/views\/CustomerMore/);
   assert.match(viewSource, /useCustomerMoreViewModel/);
+  assert.match(viewSource, /avatarImage/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /displayName/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
   assert.match(viewModelSource, /menuItems/);
 });
 
@@ -1006,11 +1011,15 @@ test('notifications follow feature-level MVVM boundaries', () => {
   assert.match(viewSource, /useNotificationsViewModel/);
   assert.match(viewSource, /role === 'customer'/);
   assert.match(viewSource, /CustomerHeader/);
+  assert.match(viewSource, /Mark all read/);
+  assert.match(viewSource, /markAllReadPending/);
+  assert.match(viewSource, /markAllReadDisabled/);
   assert.doesNotMatch(viewSource, /isInternalTestNotification/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /isInternalTestNotification/);
   assert.match(viewModelSource, /visibleNotifications/);
   assert.match(viewModelSource, /unreadCount/);
+  assert.match(appSource, /onMarkAllRead=\{notificationsFlow\.actions\.markAllRead\}/);
 });
 
 test('customer payment methods follow feature-level MVVM boundaries', () => {
@@ -1231,11 +1240,16 @@ test('customer profile follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /CustomerProfileScreen/);
   assert.match(viewSource, /useCustomerProfileViewModel/);
-  assert.doesNotMatch(viewSource, /profile\\?\\.user\\.fullName/);
+  assert.doesNotMatch(viewSource, /profile\?\.user\.fullName/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.doesNotMatch(viewSource, /Stored on this device only/);
   assert.match(viewModelSource, /avatarInitial/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
+  assert.match(viewModelSource, /upload-avatar/);
   assert.match(viewModelSource, /isSaving/);
   assert.match(viewModelSource, /emailLabel/);
+  assert.match(appSource, /profileAvatarUpload/);
+  assert.match(appSource, /pickAndUploadImage\(\s*'avatar'/);
 });
 
 test('help center follows feature-level MVVM boundaries', () => {
@@ -1507,6 +1521,7 @@ test('provider more follows feature-level MVVM boundaries', () => {
     /unreadNotificationCount=\{notificationsFlow\.data\.unreadCount\}/,
   );
   assert.match(viewSource, /useProviderMoreViewModel/);
+  assert.match(viewSource, /avatarImage/);
   assert.match(viewSource, /styles\.profileRow/);
   assert.match(viewSource, /styles\.logoutButton/);
   assert.match(viewSource, /typeof signOut === 'function'/);
@@ -1518,6 +1533,7 @@ test('provider more follows feature-level MVVM boundaries', () => {
   assert.match(viewModelSource, /providerPayoutManagement/);
   assert.match(viewModelSource, /actionRows/);
   assert.match(viewModelSource, /providerProfile\?\.businessName/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
   assert.match(viewModelSource, /providerNotifications/);
 });
 
@@ -1567,10 +1583,12 @@ test('provider profile view follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /ProviderProfileViewScreen/);
   assert.match(viewSource, /useProviderProfileViewModel/);
+  assert.match(viewSource, /heroAvatarImage/);
   assert.doesNotMatch(viewSource, /profile\\?\\.providerProfile/);
   assert.doesNotMatch(viewSource, /providerPortfolioMedia\.slice/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /businessDisplayName/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
   assert.match(viewModelSource, /portfolioPreview/);
   assert.match(viewModelSource, /reviewCards/);
 });
@@ -1625,9 +1643,13 @@ test('provider edit profile follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /ProviderEditProfileScreen/);
   assert.match(viewSource, /useProviderEditProfileViewModel/);
+  assert.match(viewSource, /onPickAvatar/);
+  assert.match(viewSource, /avatarImage/);
   assert.doesNotMatch(viewSource, /busyAction === 'profile-update'|!profile/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /saveButtonLabel/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
+  assert.match(viewModelSource, /upload-avatar/);
   assert.match(viewModelSource, /canSave/);
 });
 
@@ -1724,8 +1746,27 @@ test('customer category follows feature-level MVVM boundaries', () => {
   assert.match(viewSource, /useCustomerCategoryViewModel/);
   assert.doesNotMatch(viewSource, /categories\.find|services\.length/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(appSource, /onOpenCategory=\{\(category\) =>/);
+  assert.match(appSource, /setSelectedCategoryId\(category\?\.id \?\? null\)/);
+  assert.match(appSource, /onOpenService=\{\(service\) =>/);
+  assert.match(appSource, /navigate\('customerTopProviders', 'customer'\)/);
+  assert.match(viewSource, /categoryHero/);
+  assert.match(viewSource, /data\.searchPlaceholder/);
+  assert.match(viewSource, /data\.categoryRows\.map/);
+  assert.match(viewSource, /onOpenCategory\(row\.category\)/);
+  assert.match(viewSource, /ListSectionSkeleton count=\{5\} label="Loading category services"/);
+  assert.match(viewSource, /CustomerEmptyState/);
+  assert.match(viewSource, /serviceCardHeader/);
+  assert.match(viewSource, /pricePill/);
+  assert.match(viewSource, /onOpenService\(row\.service\)/);
+  assert.match(viewSource, /PaginationControls/);
   assert.match(viewModelSource, /categoryName/);
+  assert.match(viewModelSource, /categoryRows/);
+  assert.match(viewModelSource, /selectedCategoryId\s*\?\s*services\.filter/);
+  assert.match(viewModelSource, /CATEGORY_PAGE_SIZE = 5/);
+  assert.match(viewModelSource, /buildServiceRatings/);
   assert.match(viewModelSource, /serviceCountLabel/);
+  assert.match(viewModelSource, /searchPlaceholder/);
 });
 
 test('customer provider profile follows feature-level MVVM boundaries', () => {

@@ -63,6 +63,60 @@ describe('UploadGatewayService', () => {
     expect(client.storage.getBucket).not.toHaveBeenCalled();
   });
 
+  it('uploads avatar images with the avatar storage prefix', async () => {
+    process.env.SUPABASE_STORAGE_BUCKET = 'test-uploads';
+    const storageObject = {
+      upload: jest.fn().mockResolvedValue({ error: null }),
+      getPublicUrl: jest.fn().mockReturnValue({
+        data: { publicUrl: 'https://storage.test/test-uploads/avatar.jpg' },
+      }),
+    };
+    const client = {
+      storage: {
+        getBucket: jest.fn().mockResolvedValue({ error: null }),
+        createBucket: jest.fn(),
+        from: jest.fn().mockReturnValue(storageObject),
+      },
+    };
+    const service = new UploadGatewayService(client);
+
+    const upload = await service.uploadFile('user-1', 'avatar', {
+      originalname: 'avatar.jpg',
+      mimetype: 'image/jpeg',
+      size: 12,
+      buffer: Buffer.from('image-bytes'),
+    });
+
+    expect(storageObject.upload).toHaveBeenCalledWith(
+      expect.stringMatching(/^avatar\/user-1\/\d{4}-\d{2}-\d{2}\/.+\.jpg$/),
+      Buffer.from('image-bytes'),
+      { contentType: 'image/jpeg', upsert: false },
+    );
+    expect(upload.kind).toBe('avatar');
+    expect(upload.publicUrl).toBe('https://storage.test/test-uploads/avatar.jpg');
+  });
+
+  it('rejects non-image avatar uploads before storage access', async () => {
+    const client = {
+      storage: {
+        getBucket: jest.fn(),
+        createBucket: jest.fn(),
+        from: jest.fn(),
+      },
+    };
+    const service = new UploadGatewayService(client);
+
+    await expect(
+      service.uploadFile('user-1', 'avatar', {
+        originalname: 'avatar.pdf',
+        mimetype: 'application/pdf',
+        size: 10,
+        buffer: Buffer.from('pdf-bytes'),
+      }),
+    ).rejects.toBeInstanceOf(InvalidUploadRequestError);
+    expect(client.storage.getBucket).not.toHaveBeenCalled();
+  });
+
   it('records provider document uploads with the catalog service', async () => {
     process.env.SUPABASE_STORAGE_BUCKET = 'test-uploads';
     const storageObject = {
