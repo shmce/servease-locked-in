@@ -1,7 +1,7 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
-import { StatusTimeline } from '../../../components/DesignKit';
+import { ChevronDown, ChevronRight, ChevronUp } from 'lucide-react-native';
+import { TabBar } from '../../../components/ui';
 import {
   BookingSummary,
   PaymentSummary,
@@ -27,6 +27,7 @@ type CustomerBookingDetailScreenProps = {
   selectedProvider: ProviderListing | null;
   selectedPayment: PaymentSummary | null;
   timelineEvents: ReactNode;
+  hasTimelineEvents?: boolean;
   bookingMedia: ReactNode;
   serviceUpdates: ReactNode;
   selectedReview: ReviewSummary | null;
@@ -49,11 +50,19 @@ type CustomerBookingDetailScreenProps = {
   isReviewSheetVisible: boolean;
 };
 
+const bookingDetailTabs = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'timeline', label: 'Timeline' },
+] as const;
+
+type BookingDetailTab = (typeof bookingDetailTabs)[number]['key'];
+
 export function CustomerBookingDetailScreen({
   booking,
   selectedProvider,
   selectedPayment,
   timelineEvents,
+  hasTimelineEvents = false,
   bookingMedia,
   serviceUpdates,
   selectedReview,
@@ -75,6 +84,10 @@ export function CustomerBookingDetailScreen({
   onCloseReview,
   isReviewSheetVisible,
 }: CustomerBookingDetailScreenProps) {
+  const [activeTab, setActiveTab] = useState<BookingDetailTab>('overview');
+  const [isPriceBreakdownExpanded, setIsPriceBreakdownExpanded] =
+    useState(false);
+
   const bookingDetail = useCustomerBookingDetailViewModel({
     booking,
     selectedProvider,
@@ -83,6 +96,25 @@ export function CustomerBookingDetailScreen({
     selectedReview,
   });
   const { data } = bookingDetail;
+
+  const priceRows = data.priceBreakdownRows;
+  const totalPriceRow = priceRows.at(-1) ?? null;
+  const hasPriceBreakdownDetails = priceRows.length > 1;
+  const visiblePriceRows = isPriceBreakdownExpanded
+    ? priceRows
+    : totalPriceRow
+      ? [totalPriceRow]
+      : [];
+
+  const timelineTabContent = hasTimelineEvents ? (
+    timelineEvents
+  ) : (
+    <CustomerSection title="Booking Timeline">
+      <CustomerCard>
+        <Text style={styles.emptyMetaText}>No timeline updates yet.</Text>
+      </CustomerCard>
+    </CustomerSection>
+  );
 
   return (
     <CustomerScreen>
@@ -97,165 +129,225 @@ export function CustomerBookingDetailScreen({
           <Text style={styles.bookingReference}>{data.bookingReference}</Text>
           <Text style={styles.detailTitle}>{data.serviceTitle}</Text>
           <Text style={styles.scheduleLabel}>{data.scheduleLabel}</Text>
-          <StatusTimeline steps={data.timelineSteps} />
-          <View style={styles.priceRow}>
-            <Text style={styles.priceText}>{data.totalAmountLabel}</Text>
+          <View style={styles.statusSummaryRow}>
+            <Text style={styles.statusSummaryLabel}>Current status</Text>
             <CustomerBadge
               label={data.statusChip.label}
               tone={data.statusChip.tone}
             />
           </View>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceText}>{data.totalAmountLabel}</Text>
+          </View>
         </CustomerCard>
 
-        {timelineEvents}
-
-        <CustomerSection title="Service details">
-          <CustomerCard>
-            {data.serviceDetailRows.map((row, index) => (
-              <DetailRow
-                key={row.key}
-                label={row.label}
-                value={row.value}
-                last={index === data.serviceDetailRows.length - 1}
-              />
-            ))}
-          </CustomerCard>
-        </CustomerSection>
-
-        <CustomerSection title="Price breakdown">
-          <CustomerCard>
-            {data.priceBreakdownRows.map((row, index) => (
-              <DetailRow
-                key={row.key}
-                label={row.label}
-                value={row.value}
-                last={index === data.priceBreakdownRows.length - 1}
-              />
-            ))}
-          </CustomerCard>
-        </CustomerSection>
-
-        <CustomerSection title="Service provider">
-          <CustomerCard>
-            <View style={styles.providerRow}>
-              <View style={styles.providerAvatar}>
-                <Text style={styles.providerInitial}>
-                  {data.providerName.slice(0, 1).toUpperCase()}
-                </Text>
-              </View>
-              <View style={styles.flex}>
-                <Text style={styles.providerName}>{data.providerName}</Text>
-                <Pressable
-                  style={styles.profileLinkRow}
-                  onPress={
-                    data.canViewProviderProfile
-                      ? onViewProviderProfile
-                      : onProviderProfileUnavailable
-                  }
-                  accessibilityRole="button"
-                  accessibilityLabel="View provider profile"
-                >
-                  <Text style={styles.linkText}>View Profile</Text>
-                  <ChevronRight
-                    color={palette.mintDeep}
-                    size={14}
-                    strokeWidth={2.2}
-                  />
-                </Pressable>
-              </View>
-            </View>
-          </CustomerCard>
-        </CustomerSection>
-
-        {data.showTrackProvider ? (
-          <Pressable
-            style={styles.primaryAction}
-            onPress={onTrackProvider}
-            accessibilityRole="button"
-          >
-            <Text style={styles.primaryActionText}>Track provider</Text>
-          </Pressable>
-        ) : null}
-
-        {bookingMedia}
-        {serviceUpdates}
-
-        <View style={styles.actionRow}>
-          <Pressable
-            style={styles.primaryAction}
-            onPress={onManageBooking}
-            accessibilityRole="button"
-          >
-            <Text style={styles.primaryActionText}>Manage booking</Text>
-          </Pressable>
-          <Pressable
-            style={styles.secondaryAction}
-            onPress={onMessage}
-            accessibilityRole="button"
-          >
-            <Text style={styles.secondaryActionText}>Message</Text>
-          </Pressable>
+        <View style={styles.tabContainer}>
+          <TabBar
+            tabs={bookingDetailTabs}
+            activeTab={activeTab}
+            onChange={(tab) => setActiveTab(tab)}
+          />
         </View>
 
-        {data.showReservePayment ? (
-          <Pressable
-            style={[
-              styles.secondaryAction,
-              data.reservePaymentDisabled && styles.actionDisabled,
-            ]}
-            onPress={onReservePayment}
-            disabled={data.reservePaymentDisabled}
-            accessibilityRole="button"
-          >
-            <Text style={styles.secondaryActionText}>
-              {data.reservePaymentLabel}
-            </Text>
-          </Pressable>
-        ) : null}
+        {activeTab === 'overview' ? (
+          <>
+            <CustomerSection title="Service details">
+              <CustomerCard>
+                {data.serviceDetailRows.map((row, index) => (
+                  <DetailRow
+                    key={row.key}
+                    label={row.label}
+                    value={row.value}
+                    last={index === data.serviceDetailRows.length - 1}
+                  />
+                ))}
+              </CustomerCard>
+            </CustomerSection>
 
-        {data.showPaymentSummary && data.paymentSummary ? (
-          <CustomerSection title="Payment">
-            <CustomerCard>
-              <DetailRow
-                label={data.paymentSummary.label}
-                value={data.paymentSummary.value}
-                last
-              />
-            </CustomerCard>
-          </CustomerSection>
-        ) : null}
+            <CustomerSection title="Price breakdown">
+              <CustomerCard>
+                <View style={styles.priceBreakdownHeader}>
+                  <Text style={styles.sectionTitle}>Price breakdown</Text>
+                  <Pressable
+                    style={styles.priceToggleButton}
+                    onPress={() =>
+                      setIsPriceBreakdownExpanded((current) => !current)
+                    }
+                    accessibilityRole="button"
+                    accessibilityLabel="Toggle price breakdown details"
+                    accessibilityState={{
+                      expanded: isPriceBreakdownExpanded,
+                      disabled: !hasPriceBreakdownDetails,
+                    }}
+                    disabled={!hasPriceBreakdownDetails}
+                  >
+                    <Text
+                      style={
+                        hasPriceBreakdownDetails
+                          ? styles.priceToggleActionText
+                          : styles.priceToggleActionTextDisabled
+                      }
+                    >
+                      {hasPriceBreakdownDetails
+                        ? isPriceBreakdownExpanded
+                          ? 'Hide details'
+                          : 'Show details'
+                        : 'No additional details'}
+                    </Text>
+                    {hasPriceBreakdownDetails ? (
+                      isPriceBreakdownExpanded ? (
+                        <ChevronUp
+                          color={palette.mintDeep}
+                          size={15}
+                          strokeWidth={2.4}
+                        />
+                      ) : (
+                        <ChevronDown
+                          color={palette.mintDeep}
+                          size={15}
+                          strokeWidth={2.4}
+                        />
+                      )
+                    ) : null}
+                  </Pressable>
+                </View>
+                {visiblePriceRows.map((row, index) => (
+                  <DetailRow
+                    key={row.key}
+                    label={row.label}
+                    value={row.value}
+                    last={index === visiblePriceRows.length - 1}
+                  />
+                ))}
+              </CustomerCard>
+            </CustomerSection>
 
-        {data.showReviewPanel ? (
-          selectedReview ? (
-            <CustomerBookingReviewPanel
-              selectedReview={selectedReview}
-              rating={rating}
-              reviewText={reviewText}
-              busyAction={busyAction}
-              onRatingChange={onRatingChange}
-              onReviewTextChange={onReviewTextChange}
-              onSubmitReview={onSubmitReview}
-            />
-          ) : (
-            <CustomerSection title="Your review">
+            <CustomerSection title="Service provider">
+              <CustomerCard>
+                <View style={styles.providerRow}>
+                  <View style={styles.providerAvatar}>
+                    <Text style={styles.providerInitial}>
+                      {data.providerName.slice(0, 1).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={styles.providerName}>{data.providerName}</Text>
+                    <Pressable
+                      style={styles.profileLinkRow}
+                      onPress={
+                        data.canViewProviderProfile
+                          ? onViewProviderProfile
+                          : onProviderProfileUnavailable
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel="View provider profile"
+                    >
+                      <Text style={styles.linkText}>View Profile</Text>
+                      <ChevronRight
+                        color={palette.mintDeep}
+                        size={14}
+                        strokeWidth={2.2}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+              </CustomerCard>
+            </CustomerSection>
+
+            {data.showTrackProvider ? (
               <Pressable
-                style={styles.reviewActionCard}
-                onPress={onOpenReview}
+                style={styles.primaryAction}
+                onPress={onTrackProvider}
                 accessibilityRole="button"
-                accessibilityLabel="Open review flow"
               >
-                <Text style={styles.reviewActionTitle}>Rate this booking</Text>
-                <Text style={styles.reviewActionMeta}>
-                  Share your feedback to help improve service quality.
-                </Text>
-                <Text style={styles.reviewActionLink}>
-                  {data.reviewActionLabel}
+                <Text style={styles.primaryActionText}>Track provider</Text>
+              </Pressable>
+            ) : null}
+
+            {bookingMedia}
+            {serviceUpdates}
+
+            <View style={styles.actionRow}>
+              <Pressable
+                style={styles.primaryAction}
+                onPress={onManageBooking}
+                accessibilityRole="button"
+              >
+                <Text style={styles.primaryActionText}>Manage booking</Text>
+              </Pressable>
+              <Pressable
+                style={styles.secondaryAction}
+                onPress={onMessage}
+                accessibilityRole="button"
+              >
+                <Text style={styles.secondaryActionText}>Message</Text>
+              </Pressable>
+            </View>
+
+            {data.showReservePayment ? (
+              <Pressable
+                style={[
+                  styles.secondaryAction,
+                  data.reservePaymentDisabled && styles.actionDisabled,
+                ]}
+                onPress={onReservePayment}
+                disabled={data.reservePaymentDisabled}
+                accessibilityRole="button"
+              >
+                <Text style={styles.secondaryActionText}>
+                  {data.reservePaymentLabel}
                 </Text>
               </Pressable>
-            </CustomerSection>
-          )
-        ) : null}
+            ) : null}
+
+            {data.showPaymentSummary && data.paymentSummary ? (
+              <CustomerSection title="Payment">
+                <CustomerCard>
+                  <DetailRow
+                    label={data.paymentSummary.label}
+                    value={data.paymentSummary.value}
+                    last
+                  />
+                </CustomerCard>
+              </CustomerSection>
+            ) : null}
+
+            {data.showReviewPanel ? (
+              selectedReview ? (
+                <CustomerBookingReviewPanel
+                  selectedReview={selectedReview}
+                  rating={rating}
+                  reviewText={reviewText}
+                  busyAction={busyAction}
+                  onRatingChange={onRatingChange}
+                  onReviewTextChange={onReviewTextChange}
+                  onSubmitReview={onSubmitReview}
+                />
+              ) : (
+                <CustomerSection title="Your review">
+                  <Pressable
+                    style={styles.reviewActionCard}
+                    onPress={onOpenReview}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open review flow"
+                  >
+                    <Text style={styles.reviewActionTitle}>Rate this booking</Text>
+                    <Text style={styles.reviewActionMeta}>
+                      Share your feedback to help improve service quality.
+                    </Text>
+                    <Text style={styles.reviewActionLink}>
+                      {data.reviewActionLabel}
+                    </Text>
+                  </Pressable>
+                </CustomerSection>
+              )
+            ) : null}
+          </>
+        ) : (
+          timelineTabContent
+        )}
       </CustomerContent>
+
       <CustomerBookingReviewSheet
         providerName={data.providerName}
         visible={isReviewSheetVisible}
@@ -314,6 +406,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     marginTop: spacing.xs,
   },
+  statusSummaryRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  statusSummaryLabel: {
+    ...customerText.meta,
+  },
+  tabContainer: {
+    marginBottom: spacing.xs,
+    marginTop: spacing.xs,
+  },
   priceRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -325,6 +429,32 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     letterSpacing: 0,
+  },
+  sectionTitle: {
+    ...customerText.title,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  priceBreakdownHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  priceToggleButton: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 2,
+  },
+  priceToggleActionText: {
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  priceToggleActionTextDisabled: {
+    color: '#7A828D',
+    fontSize: 12,
+    fontWeight: '600',
   },
   detailRow: {
     alignItems: 'flex-start',
@@ -444,5 +574,9 @@ const styles = StyleSheet.create({
   },
   actionDisabled: {
     opacity: 0.55,
+  },
+  emptyMetaText: {
+    ...customerText.meta,
+    textAlign: 'center',
   },
 });

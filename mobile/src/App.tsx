@@ -3760,6 +3760,7 @@ export default function App({ initialRoute = null }: AppProps) {
         timelineEvents={
           <BookingTimelineEventsSection events={selectedBookingTimelineEvents} />
         }
+        hasTimelineEvents={selectedBookingTimelineEvents.length > 0}
         bookingMedia={
           <BookingMediaSection
             booking={selectedBooking}
