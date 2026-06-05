@@ -40,6 +40,12 @@ export class PricingQuoteContextMismatchError extends Error {
   }
 }
 
+export class BookingPriceChangedError extends Error {
+  constructor(public readonly details: unknown) {
+    super('booking_price_changed');
+  }
+}
+
 export class BookingNotFoundError extends Error {
   constructor() {
     super('booking_not_found');

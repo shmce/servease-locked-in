@@ -2,6 +2,7 @@ import { BookingGatewayService } from './booking.service';
 import { BookingServiceClient } from './clients/booking-service.client';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import {
+  BookingPriceChangedError,
   BookingScheduleInPastError,
   BookingStartWindowNotOpenError,
   InvalidBookingScheduleError,
@@ -145,6 +146,158 @@ describe('BookingGatewayService', () => {
         }),
       }),
     );
+  });
+
+  it.each([
+    { pricingMode: 'flat' as const, rate: 1500, hoursRequired: 3 },
+    { pricingMode: 'hourly' as const, rate: 500, hoursRequired: 3 },
+  ])(
+    'uses the same booking price breakdown for $pricingMode preview and creation',
+    async ({ pricingMode, rate, hoursRequired }) => {
+      const client = {
+        createBooking: jest.fn().mockImplementation((_customerId, input) =>
+          Promise.resolve(
+            createBookingSummary({
+              serviceAmount: input.serviceAmount,
+              totalAmount: input.totalAmount,
+              pricingMode: input.pricingMode,
+              priceBreakdown: input.priceBreakdown,
+            }),
+          ),
+        ),
+      } as unknown as BookingServiceClient;
+      const catalogBrowseClient = {
+        listProviderListings: jest.fn().mockResolvedValue([
+          {
+            id: 'listing-1',
+            providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+            providerBusinessName: 'GreenFix Home Services',
+            serviceId: 'service-1',
+            title: 'Deep Clean',
+            description: 'Detailed cleaning',
+            price: rate,
+            pricingMode,
+            averageRating: 5,
+            reviewCount: 10,
+            verificationStatus: 'approved',
+          },
+        ]),
+      };
+      const service = new BookingGatewayService(
+        client,
+        createAuthClient(),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        catalogBrowseClient as unknown as CatalogBrowseServiceClient,
+      );
+      const input = {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        hoursRequired,
+        serviceAmount: 999,
+      };
+
+      const preview = await service.previewBookingPrice(
+        '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        input,
+      );
+      const booking = await service.createBooking(
+        '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        {
+          ...input,
+          previewTotalAmount: preview.totalAmount,
+        },
+      );
+
+      expect(booking.serviceAmount).toBe(preview.serviceAmount);
+      expect(booking.totalAmount).toBe(preview.totalAmount);
+      expect(booking.pricingMode).toBe(preview.pricingMode);
+      expect(booking.priceBreakdown).toEqual(
+        expect.objectContaining({
+          serviceSubtotal: preview.priceBreakdown.serviceSubtotal,
+          travelFee: preview.priceBreakdown.travelFee,
+          serviceFee: preview.priceBreakdown.serviceFee,
+          total: preview.priceBreakdown.total,
+          metadata: expect.objectContaining({
+            pricingMode,
+            hoursRequired,
+            serviceRate: rate,
+          }),
+        }),
+      );
+    },
+  );
+
+  it('rejects booking creation with an updated breakdown when the preview total materially changed', async () => {
+    const client = {
+      createBooking: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const catalogBrowseClient = {
+      listProviderListings: jest.fn().mockResolvedValue([
+        {
+          id: 'listing-1',
+          providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+          providerBusinessName: 'GreenFix Home Services',
+          serviceId: 'service-1',
+          title: 'Deep Clean',
+          description: 'Detailed cleaning',
+          price: 2200,
+          pricingMode: 'flat',
+          averageRating: 5,
+          reviewCount: 10,
+          verificationStatus: 'approved',
+        },
+      ]),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      catalogBrowseClient as unknown as CatalogBrowseServiceClient,
+    );
+
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        serviceAmount: 1500,
+        previewTotalAmount: 1500,
+      }),
+    ).rejects.toMatchObject({
+      details: expect.objectContaining({
+        previousTotalAmount: 1500,
+        updatedTotalAmount: 2436,
+        preview: expect.objectContaining({
+          totalAmount: 2436,
+          priceBreakdown: expect.objectContaining({
+            serviceSubtotal: 2200,
+            travelFee: 120,
+            serviceFee: 116,
+            total: 2436,
+          }),
+        }),
+      }),
+    });
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        serviceAmount: 1500,
+        previewTotalAmount: 1500,
+      }),
+    ).rejects.toBeInstanceOf(BookingPriceChangedError);
+    expect(client.createBooking).not.toHaveBeenCalled();
   });
 
   it('creates a provider notification when a customer books a service', async () => {

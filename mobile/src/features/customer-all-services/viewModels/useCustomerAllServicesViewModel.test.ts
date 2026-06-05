@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { CatalogServiceItem } from '../../../shared/models/types';
+import { CatalogCategory, CatalogServiceItem } from '../../../shared/models/types';
 import { buildCustomerAllServicesViewModel } from './useCustomerAllServicesViewModel';
 
 describe('buildCustomerAllServicesViewModel', () => {
@@ -64,7 +64,111 @@ describe('buildCustomerAllServicesViewModel', () => {
     assert.equal(viewModel.data.emptyState.title, 'No recommendations yet');
   });
 
-  it('resets pagination when mode, query, or service count changes', () => {
+  it('filters services by selected category', () => {
+    const viewModel = buildCustomerAllServicesViewModel({
+      categories: [
+        category('cleaning', 'Cleaning'),
+        category('repairs', 'Repairs'),
+      ],
+      marketplaceSearchQuery: '',
+      selectedCategoryId: 'cleaning',
+      services: [
+        service('cleaning-1', 'Home Cleaning', { categoryId: 'cleaning' }),
+        service('repair-1', 'Minor Repairs', { categoryId: 'repairs' }),
+      ],
+    });
+
+    assert.deepEqual(
+      viewModel.data.visibleServices.map((row) => row.service.id),
+      ['cleaning-1'],
+    );
+    assert.equal(viewModel.data.refinement.categoryLabel, 'Cleaning');
+    assert.equal(viewModel.data.refinement.summary, 'Cleaning');
+    assert.equal(viewModel.data.categoryFilterOptions[1]?.serviceCount, 1);
+  });
+
+  it('sorts services by supported price and name modes', () => {
+    const services = [
+      service('premium', 'Premium Cleaning', { price: 900 }),
+      service('budget', 'Budget Cleaning', { price: 200 }),
+      service('quote', 'Custom Quote', { price: null }),
+    ];
+    const priceAsc = buildCustomerAllServicesViewModel({
+      marketplaceSearchQuery: '',
+      services,
+      sortMode: 'price-asc',
+    });
+    const priceDesc = buildCustomerAllServicesViewModel({
+      marketplaceSearchQuery: '',
+      services,
+      sortMode: 'price-desc',
+    });
+    const nameAsc = buildCustomerAllServicesViewModel({
+      marketplaceSearchQuery: '',
+      services,
+      sortMode: 'name-asc',
+    });
+
+    assert.deepEqual(
+      priceAsc.data.visibleServices.map((row) => row.service.id),
+      ['budget', 'premium', 'quote'],
+    );
+    assert.deepEqual(
+      priceDesc.data.visibleServices.map((row) => row.service.id),
+      ['premium', 'budget', 'quote'],
+    );
+    assert.deepEqual(
+      nameAsc.data.visibleServices.map((row) => row.service.id),
+      ['budget', 'quote', 'premium'],
+    );
+  });
+
+  it('combines text search with category filtering and sorting before pagination', () => {
+    const viewModel = buildCustomerAllServicesViewModel({
+      categories: [category('cleaning', 'Cleaning')],
+      marketplaceSearchQuery: 'clean',
+      selectedCategoryId: 'cleaning',
+      services: [
+        service('cleaning-low', 'Quick Cleaning', {
+          categoryId: 'cleaning',
+          price: 300,
+        }),
+        service('repair-clean', 'Clean Fixture Repair', {
+          categoryId: 'repairs',
+          price: 200,
+        }),
+        service('cleaning-high', 'Deep Cleaning', {
+          categoryId: 'cleaning',
+          price: 800,
+        }),
+      ],
+      sortMode: 'price-desc',
+    });
+
+    assert.deepEqual(
+      viewModel.data.visibleServices.map((row) => row.service.id),
+      ['cleaning-high', 'cleaning-low'],
+    );
+    assert.equal(viewModel.data.pagination.totalItems, 2);
+    assert.equal(viewModel.data.refinement.summary, 'Cleaning - Price: high to low');
+  });
+
+  it('uses refined empty state copy without clearing filters', () => {
+    const viewModel = buildCustomerAllServicesViewModel({
+      categories: [category('repairs', 'Repairs')],
+      marketplaceSearchQuery: '',
+      selectedCategoryId: 'repairs',
+      services: [
+        service('cleaning-1', 'Home Cleaning', { categoryId: 'cleaning' }),
+      ],
+    });
+
+    assert.equal(viewModel.data.hasVisibleServices, false);
+    assert.equal(viewModel.data.emptyState.body, 'Try adjusting your search or filters.');
+    assert.equal(viewModel.data.selectedCategoryId, 'repairs');
+  });
+
+  it('resets pagination when mode, query, service count, category, or sort changes', () => {
     const source = readFileSync(
       join(
         process.cwd(),
@@ -74,7 +178,10 @@ describe('buildCustomerAllServicesViewModel', () => {
     );
 
     assert.match(source, /setCurrentPage\(1\);/);
-    assert.match(source, /\[marketplaceSearchQuery, mode, services\.length\]/);
+    assert.match(
+      source,
+      /\[marketplaceSearchQuery, mode, selectedCategoryId, services\.length, sortMode\]/,
+    );
   });
 
   it('keeps category browse-all on the customer category route', () => {
@@ -94,17 +201,31 @@ describe('buildCustomerAllServicesViewModel', () => {
 
     assert.match(handleSeeAllSource, /props\.onSelectCategory\(sheetCategory\)/);
     assert.doesNotMatch(handleSeeAllSource, /onViewAllServices/);
+    assert.doesNotMatch(exploreSource, /CategoryFilterSheet|setCategoryFilter/);
     assert.match(appSource, /navigate\('customerRecommendedServices', 'customer'\)/);
   });
 });
 
-function service(id: string, name = id): CatalogServiceItem {
+function category(id: string, name: string): CatalogCategory {
   return {
     id,
-    categoryId: 'category-1',
     name,
-    description: `${name} description`,
-    price: 500,
-    pricingMode: 'flat',
+    description: null,
+    icon: null,
+  };
+}
+
+function service(
+  id: string,
+  name = id,
+  overrides: Partial<CatalogServiceItem> = {},
+): CatalogServiceItem {
+  return {
+    id,
+    categoryId: overrides.categoryId ?? 'category-1',
+    name,
+    description: overrides.description ?? `${name} description`,
+    price: 'price' in overrides ? overrides.price ?? null : 500,
+    pricingMode: overrides.pricingMode ?? 'flat',
   };
 }

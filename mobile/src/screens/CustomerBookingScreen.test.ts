@@ -18,13 +18,6 @@ test('customer booking flow renders blocked slots as unavailable and refreshes a
     ),
     'utf8',
   );
-  const mapPickerView = readFileSync(
-    join(
-      process.cwd(),
-      'src/features/customer-location/components/CustomerMapPinPickerModal.tsx',
-    ),
-    'utf8',
-  );
   const scheduleView = readFileSync(
     join(
       process.cwd(),
@@ -181,13 +174,6 @@ test('customer booking map picker flow supports search current manual reverse an
 });
 
 test('customer booking map picker uses a full-screen map-first layout', () => {
-  const bookingFormView = readFileSync(
-    join(
-      process.cwd(),
-      'src/features/customer-booking/views/CustomerBookingForm.tsx',
-    ),
-    'utf8',
-  );
   const mapPickerView = readFileSync(
     join(
       process.cwd(),
@@ -357,7 +343,7 @@ test('customer booking pin confirmation cancels outstanding auto address lookup'
   assert.ok(invalidationIndex < confirmationIndex);
 });
 
-test('cash booking confirmation continues after refreshing a stale quote', () => {
+test('booking confirmation requires a visible booking price preview', () => {
   const bookingFlowViewModel = readFileSync(
     join(
       process.cwd(),
@@ -369,32 +355,30 @@ test('cash booking confirmation continues after refreshing a stale quote', () =>
     'async function submitBooking',
   );
   const submitEnd = bookingFlowViewModel.indexOf(
-    'async function fetchPricingQuote',
+    'async function fetchBookingPricePreview',
     submitStart,
   );
   const submitSource = bookingFlowViewModel.slice(submitStart, submitEnd);
   const refreshIndex = submitSource.indexOf(
-    'quote = await fetchPricingQuote();',
-  );
-  const cashGateIndex = submitSource.indexOf(
-    'canSubmitBookingAfterPricingRefresh(paymentMethod)',
+    'preview = await fetchBookingPricePreview();',
   );
   const staleReturnIndex = submitSource.indexOf('return null;', refreshIndex);
 
   assert.ok(submitStart > -1);
   assert.ok(submitEnd > submitStart);
-  assert.match(bookingFlowViewModel, /canSubmitBookingAfterPricingRefresh,/);
   assert.match(
     submitSource,
     /const paymentMethod =\s*selectedCustomerPaymentMethod\?\.methodType \?\? 'cash_on_service';/,
   );
+  assert.match(submitSource, /let preview = bookingPricePreview;/);
   assert.ok(refreshIndex > -1);
-  assert.ok(cashGateIndex > refreshIndex);
-  assert.ok(staleReturnIndex > cashGateIndex);
-  assert.match(submitSource, /paymentMethod,/);
+  assert.match(submitSource, /setBookingPricePreview\(preview\);/);
+  assert.ok(staleReturnIndex > refreshIndex);
+  assert.match(submitSource, /previewTotalAmount: preview\.totalAmount/);
+  assert.match(submitSource, /priceBreakdown: preview\.priceBreakdown/);
 });
 
-test('cash booking confirmation does not block on pricing quote failures', () => {
+test('booking confirmation handles material backend price changes before creation', () => {
   const bookingFlowViewModel = readFileSync(
     join(
       process.cwd(),
@@ -406,17 +390,16 @@ test('cash booking confirmation does not block on pricing quote failures', () =>
     'async function submitBooking',
   );
   const submitEnd = bookingFlowViewModel.indexOf(
-    'async function fetchPricingQuote',
+    'async function fetchBookingPricePreview',
     submitStart,
   );
   const submitSource = bookingFlowViewModel.slice(submitStart, submitEnd);
 
   assert.ok(submitStart > -1);
   assert.ok(submitEnd > submitStart);
-  assert.match(
-    submitSource,
-    /catch \(error\) \{\s*if \(!canSubmitBookingAfterPricingRefresh\(paymentMethod\)\) \{\s*throw error;\s*\}\s*quote = null;\s*setPricingQuote\(null\);/s,
-  );
+  assert.match(submitSource, /const updatedPreview = bookingPricePreviewFromError\(error\);/);
+  assert.match(submitSource, /setBookingPricePreview\(updatedPreview\);/);
+  assert.match(submitSource, /Booking total changed to/);
   assert.match(submitSource, /acceptedQuoteId:\s*null/);
 });
 
@@ -433,7 +416,7 @@ test('cash booking confirmation stays on review when final schedule validation f
   const confirmEnd = appSource.indexOf('async function submitProviderPayoutRequest', confirmStart);
   const submitStart = bookingFlowViewModel.indexOf('async function submitBooking');
   const fetchPricingStart = bookingFlowViewModel.indexOf(
-    'async function fetchPricingQuote',
+    'async function fetchBookingPricePreview',
     submitStart,
   );
   assert.ok(confirmStart > -1);

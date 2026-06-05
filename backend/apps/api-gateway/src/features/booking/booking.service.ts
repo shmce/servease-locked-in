@@ -27,6 +27,7 @@ import {
   BookingTimelineEventSummary,
   BookingTrackingLocation,
   BookingTrackingSnapshot,
+  BookingPricePreviewSummary,
   BookingPricingMode,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
@@ -34,6 +35,7 @@ import {
   UpdateBookingLiveLocationRequest,
 } from './booking.types';
 import {
+  BookingPriceChangedError,
   BookingScheduleInPastError,
   BookingStartWindowNotOpenError,
   InvalidBookingScheduleError,
@@ -57,6 +59,11 @@ interface BookingPricingSource {
   fallbackReason: string | null;
 }
 
+interface BookingPriceCalculation {
+  bookingInput: CreateBookingRequest;
+  preview: BookingPricePreviewSummary;
+}
+
 @Injectable()
 export class BookingGatewayService {
   private readonly logger = new Logger(BookingGatewayService.name);
@@ -76,7 +83,9 @@ export class BookingGatewayService {
     input: CreateBookingRequest,
   ): Promise<BookingSummary> {
     this.assertBookingScheduleCanBeCreated(input.scheduledAt);
-    const bookingInput = await this.withBookingPriceBreakdown(input);
+    const calculation = await this.calculateBookingPrice(input);
+    this.assertPreviewTotalAccepted(input, calculation.preview);
+    const bookingInput = calculation.bookingInput;
     const booking = await this.enrichBooking(
       await this.bookingServiceClient.createBooking(customerId, bookingInput),
     );
@@ -88,9 +97,17 @@ export class BookingGatewayService {
     return booking;
   }
 
-  private async withBookingPriceBreakdown(
+  async previewBookingPrice(
+    _customerId: string,
     input: CreateBookingRequest,
-  ): Promise<CreateBookingRequest> {
+  ): Promise<BookingPricePreviewSummary> {
+    this.assertBookingScheduleCanBeCreated(input.scheduledAt);
+    return (await this.calculateBookingPrice(input)).preview;
+  }
+
+  private async calculateBookingPrice(
+    input: CreateBookingRequest,
+  ): Promise<BookingPriceCalculation> {
     const pricing = await this.resolveBookingPricingSource(input);
     const priceBreakdown = buildBookingPriceBreakdown({
       serviceRate: pricing.serviceRate,
@@ -98,12 +115,14 @@ export class BookingGatewayService {
       hoursRequired: input.hoursRequired,
       fallbackReason: pricing.fallbackReason,
     });
-    return {
+    const serviceTitle =
+      input.serviceTitle ?? pricing.serviceTitle ?? input.serviceName ?? null;
+    const serviceDescription =
+      input.serviceDescription ?? pricing.serviceDescription ?? null;
+    const bookingInput = {
       ...input,
-      serviceTitle:
-        input.serviceTitle ?? pricing.serviceTitle ?? input.serviceName ?? null,
-      serviceDescription:
-        input.serviceDescription ?? pricing.serviceDescription ?? null,
+      serviceTitle,
+      serviceDescription,
       serviceAmount: priceBreakdown.serviceSubtotal,
       totalAmount: priceBreakdown.total,
       pricingMode: pricing.pricingMode,
@@ -112,6 +131,47 @@ export class BookingGatewayService {
       quoteConfidence: null,
       priceBreakdown,
     };
+    const preview = {
+      currency: priceBreakdown.currency,
+      serviceAmount: priceBreakdown.serviceSubtotal,
+      totalAmount: priceBreakdown.total,
+      pricingMode: pricing.pricingMode,
+      serviceTitle,
+      serviceDescription,
+      priceBreakdown,
+      materialDriftTolerance: this.materialDriftTolerance(
+        priceBreakdown.total,
+      ),
+    };
+
+    return { bookingInput, preview };
+  }
+
+  private assertPreviewTotalAccepted(
+    input: CreateBookingRequest,
+    preview: BookingPricePreviewSummary,
+  ): void {
+    const submittedPreviewTotal = this.positiveAmount(input.previewTotalAmount);
+    if (submittedPreviewTotal === null) {
+      return;
+    }
+
+    const difference = Math.abs(preview.totalAmount - submittedPreviewTotal);
+    if (difference <= this.materialDriftTolerance(submittedPreviewTotal)) {
+      return;
+    }
+
+    throw new BookingPriceChangedError({
+      preview,
+      previousTotalAmount: submittedPreviewTotal,
+      updatedTotalAmount: preview.totalAmount,
+      materialDriftTolerance: preview.materialDriftTolerance,
+    });
+  }
+
+  private materialDriftTolerance(totalAmount: number): number {
+    const percentTolerance = Math.abs(totalAmount) * 0.01;
+    return Math.round(Math.max(10, percentTolerance) * 100) / 100;
   }
 
   private async resolveBookingPricingSource(

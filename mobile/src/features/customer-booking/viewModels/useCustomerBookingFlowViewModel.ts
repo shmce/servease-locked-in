@@ -2,9 +2,7 @@ import * as Location from 'expo-location';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addressVerifiedNotice,
-  canSubmitBookingAfterPricingRefresh,
   canSubmitBookingWithServerScheduleValidation,
-  isPricingQuoteFresh,
   providerUnavailableSlotPickerMessage,
   promotionNotice,
   validateCustomerBookingScheduleSelection,
@@ -26,16 +24,17 @@ import type { CustomerBookingMapPin } from '../../../domain/customerBookingLocat
 import { defaultScheduledAt } from '../../../constants/appContent';
 import { readError } from '../../../navigation/routeHelpers';
 import type { AppRole, AppScreen } from '../../../navigation/types';
+import { formatMoney } from '../../../shared/utils/booking';
 import { runExclusiveNetworkAction } from '../../../shared/utils/networkActions';
 import type {
   ApiOptions,
+  BookingPricePreviewSummary,
   BookingSummary,
   CatalogServiceItem,
   CustomerAddressSummary,
   CreateBookingRequest,
   CustomerPaymentMethodSummary,
   GeoAddressResult,
-  PricingQuoteSummary,
   PromotionValidationSummary,
   ProviderAvailabilitySchedule,
   ProviderListing,
@@ -44,9 +43,10 @@ import type {
 import {
   createCustomerAddress,
   createBooking,
-  createPricingQuote,
   geocodeAddress,
+  previewBookingPrice,
   reverseGeocode,
+  ServeaseApiError,
   updateCustomerAddress,
   validatePromotion,
 } from '../../../shared/models/apiService';
@@ -119,9 +119,8 @@ export function useCustomerBookingFlowViewModel({
   const [promoCode, setPromoCode] = useState('');
   const [promotionValidation, setPromotionValidation] =
     useState<PromotionValidationSummary | null>(null);
-  const [pricingQuote, setPricingQuote] = useState<PricingQuoteSummary | null>(
-    null,
-  );
+  const [bookingPricePreview, setBookingPricePreview] =
+    useState<BookingPricePreviewSummary | null>(null);
   const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<
     string | null
   >(null);
@@ -260,7 +259,7 @@ export function useCustomerBookingFlowViewModel({
   }, [selectedBooking?.id]);
 
   useEffect(() => {
-    setPricingQuote(null);
+    setBookingPricePreview(null);
   }, [
     address,
     hoursRequired,
@@ -289,7 +288,7 @@ export function useCustomerBookingFlowViewModel({
     setAddress(savedAddress.address);
     setMapSearchQuery(savedAddress.address);
     setMapSearchError(null);
-    setPricingQuote(null);
+    setBookingPricePreview(null);
     setServiceLocation(nextLocation);
     setLastResolvedPin(
       nextLocation.confirmedPin
@@ -367,38 +366,14 @@ export function useCustomerBookingFlowViewModel({
           const serviceId = selectedService?.id ?? selectedProvider.serviceId;
           const paymentMethod =
             selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
-          let quote = pricingQuote;
-
-          if (serviceId && selectedProvider.providerId) {
-            if (
-              !isPricingQuoteFresh(quote, Date.now(), {
-                providerId: selectedProvider.providerId,
-                serviceId,
-                serviceAddress: address,
-                scheduledAt: scheduledAtIso,
-                hoursRequired: Number(hoursRequired) || 1,
-                pricingMode: selectedProvider.pricingMode,
-              })
-            ) {
-              try {
-                quote = await fetchPricingQuote();
-                setPricingQuote(quote);
-              } catch (error) {
-                if (!canSubmitBookingAfterPricingRefresh(paymentMethod)) {
-                  throw error;
-                }
-                quote = null;
-                setPricingQuote(null);
-              }
-              if (!canSubmitBookingAfterPricingRefresh(paymentMethod)) {
-                setNotice(
-                  'Pricing estimate refreshed. Review the updated breakdown before confirming.',
-                );
-                return null;
-              }
-            }
-          } else {
-            quote = null;
+          let preview = bookingPricePreview;
+          if (!preview) {
+            preview = await fetchBookingPricePreview();
+            setBookingPricePreview(preview);
+            setNotice(
+              'Price preview updated. Review the full breakdown before confirming.',
+            );
+            return null;
           }
 
           const request: CreateBookingRequest = {
@@ -412,13 +387,12 @@ export function useCustomerBookingFlowViewModel({
             serviceLongitude: confirmedPin?.longitude ?? null,
             scheduledAt: scheduledAtIso,
             hoursRequired: Number(hoursRequired) || 1,
-            serviceAmount:
-              selectedProvider.price ??
-              selectedService?.price ??
-              quote?.estimatedTotal ??
-              0,
-            pricingMode: selectedProvider.pricingMode,
+            serviceAmount: preview.serviceAmount,
+            totalAmount: preview.totalAmount,
+            previewTotalAmount: preview.totalAmount,
+            pricingMode: preview.pricingMode,
             acceptedQuoteId: null,
+            priceBreakdown: preview.priceBreakdown,
             paymentMethod,
             customerNotes: notes.trim() || null,
             attachments: bookingReferenceUpload
@@ -441,6 +415,16 @@ export function useCustomerBookingFlowViewModel({
           }
           return booking;
         } catch (error) {
+          const updatedPreview = bookingPricePreviewFromError(error);
+          if (updatedPreview) {
+            setBookingPricePreview(updatedPreview);
+            setNotice(
+              `Booking total changed to ${formatMoney(
+                updatedPreview.totalAmount,
+              )}. Review the updated breakdown before confirming.`,
+            );
+            return null;
+          }
           const message = readError(error);
           const slotMessage = providerUnavailableSlotPickerMessage(error, message);
           if (slotMessage && selectedProvider) {
@@ -467,7 +451,7 @@ export function useCustomerBookingFlowViewModel({
     );
   }
 
-  async function fetchPricingQuote(): Promise<PricingQuoteSummary> {
+  async function fetchBookingPricePreview(): Promise<BookingPricePreviewSummary> {
     const scheduleValidation = validateSelectedSchedule();
     const serviceId =
       selectedService?.id ?? selectedProvider?.serviceId ?? null;
@@ -487,26 +471,20 @@ export function useCustomerBookingFlowViewModel({
       );
     }
 
-    return createPricingQuote(
+    return previewBookingPrice(
       {
         providerId: selectedProvider.providerId,
         serviceId,
+        serviceTitle: selectedProvider.title,
+        serviceName: selectedService?.name ?? selectedProvider.title,
+        serviceDescription: selectedProvider.description,
         serviceAddress: address.trim(),
+        serviceLatitude: serviceLocation.confirmedPin?.latitude ?? null,
+        serviceLongitude: serviceLocation.confirmedPin?.longitude ?? null,
         scheduledAt: scheduleValidation.scheduledAtIso,
         hoursRequired: Number(hoursRequired) || 1,
-        bookingUrgency: 'standard',
-        region: 'default',
-        destination: serviceLocation.confirmedPin
-          ? {
-              latitude: serviceLocation.confirmedPin.latitude,
-              longitude: serviceLocation.confirmedPin.longitude,
-            }
-          : addressGeoResult
-            ? {
-                latitude: addressGeoResult.latitude,
-                longitude: addressGeoResult.longitude,
-              }
-            : null,
+        serviceAmount: selectedProvider.price ?? selectedService?.price ?? 0,
+        pricingMode: selectedProvider.pricingMode,
       },
       apiOptions,
     );
@@ -514,7 +492,7 @@ export function useCustomerBookingFlowViewModel({
 
   async function prepareBookingReview() {
     if (!hasSession) {
-      setNotice('Sign in before reviewing the price estimate.');
+      setNotice('Sign in before reviewing the price preview.');
       return false;
     }
 
@@ -528,25 +506,23 @@ export function useCustomerBookingFlowViewModel({
       return false;
     }
 
-    setBusyAction('pricing-quote');
+    setBusyAction('booking-price-preview');
     try {
-      const quote = await fetchPricingQuote();
-      setPricingQuote(quote);
+      const preview = await fetchBookingPricePreview();
+      setBookingPricePreview(preview);
       return true;
     } catch (error) {
-      setPricingQuote(null);
-      setNotice(
-        `${readError(error)} Review the fallback breakdown now; final pricing refreshes on confirmation.`,
-      );
-      return true;
+      setBookingPricePreview(null);
+      setNotice(readError(error));
+      return false;
     } finally {
       setBusyAction(null);
     }
   }
 
-  async function previewPricingQuote() {
+  async function refreshBookingPricePreview() {
     if (!hasSession) {
-      setNotice('Sign in before requesting a price estimate.');
+      setNotice('Sign in before requesting a price preview.');
       return null;
     }
 
@@ -556,11 +532,11 @@ export function useCustomerBookingFlowViewModel({
       return null;
     }
 
-    setBusyAction('pricing-quote');
+    setBusyAction('booking-price-preview');
     try {
-      const quote = await fetchPricingQuote();
-      setPricingQuote(quote);
-      return quote;
+      const preview = await fetchBookingPricePreview();
+      setBookingPricePreview(preview);
+      return preview;
     } catch (error) {
       setNotice(readError(error));
       return null;
@@ -900,7 +876,7 @@ export function useCustomerBookingFlowViewModel({
           }
         : null,
     );
-    setPricingQuote(null);
+    setBookingPricePreview(null);
     setMapPickerVisible(false);
     setNotice('Service pin confirmed.');
   }
@@ -964,7 +940,7 @@ export function useCustomerBookingFlowViewModel({
       mapPickerVisible,
       notes,
       pinAddressStatus,
-      pricingQuote,
+      bookingPricePreview,
       promoCode,
       promotionValidation,
       scheduledAt,
@@ -980,7 +956,7 @@ export function useCustomerBookingFlowViewModel({
       moveServiceLocationPin,
       openServiceLocationPicker,
       prepareBookingReview,
-      previewPricingQuote,
+      refreshBookingPricePreview,
       reverseGeocodeServiceLocationPin,
       saveCurrentAddressAsHome,
       searchServiceLocationPin,
@@ -991,7 +967,7 @@ export function useCustomerBookingFlowViewModel({
       setMapSearchQuery,
       setServiceLocationManualDetails,
       setNotes,
-      setPricingQuote,
+      setBookingPricePreview,
       setPromoCode,
       setPromotionValidation,
       setScheduledAt,
@@ -1013,6 +989,45 @@ function mediaAttachmentFromUpload(upload: UploadSummary) {
     fileSize: upload.size,
     caption: null,
   };
+}
+
+function bookingPricePreviewFromError(
+  error: unknown,
+): BookingPricePreviewSummary | null {
+  if (
+    !(error instanceof ServeaseApiError) ||
+    error.code !== 'booking_price_changed'
+  ) {
+    return null;
+  }
+
+  const details =
+    error.details && typeof error.details === 'object'
+      ? (error.details as { preview?: unknown })
+      : null;
+  return isBookingPricePreviewSummary(details?.preview)
+    ? details.preview
+    : null;
+}
+
+function isBookingPricePreviewSummary(
+  value: unknown,
+): value is BookingPricePreviewSummary {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const preview = value as Partial<BookingPricePreviewSummary>;
+  return (
+    preview.currency === 'PHP' &&
+    typeof preview.serviceAmount === 'number' &&
+    Number.isFinite(preview.serviceAmount) &&
+    typeof preview.totalAmount === 'number' &&
+    Number.isFinite(preview.totalAmount) &&
+    Boolean(preview.priceBreakdown) &&
+    typeof preview.priceBreakdown?.total === 'number' &&
+    Number.isFinite(preview.priceBreakdown.total)
+  );
 }
 
 function resolveHomeAddressToSave(

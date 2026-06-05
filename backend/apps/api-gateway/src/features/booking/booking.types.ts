@@ -19,6 +19,7 @@ export interface CreateBookingRequest {
   hoursRequired?: number | null;
   serviceAmount?: number | null;
   totalAmount?: number | null;
+  previewTotalAmount?: number | null;
   pricingMode?: 'flat' | 'hourly' | null;
   acceptedQuoteId?: string | null;
   quoteFairnessStatus?: string | null;
@@ -27,6 +28,17 @@ export interface CreateBookingRequest {
   paymentMethod?: string | null;
   customerNotes?: string | null;
   attachments?: BookingAttachmentInput[];
+}
+
+export interface BookingPricePreviewSummary {
+  currency: 'PHP';
+  serviceAmount: number;
+  totalAmount: number;
+  pricingMode: BookingPricingMode;
+  serviceTitle: string | null;
+  serviceDescription: string | null;
+  priceBreakdown: BookingPriceBreakdown;
+  materialDriftTolerance: number;
 }
 
 export type BookingAttachmentKind = 'booking_reference' | 'provider_progress';

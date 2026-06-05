@@ -109,9 +109,9 @@ export function buildProviderBookingDetailViewModel({
       value: pricingModeLabel(booking.pricingMode),
     },
   ];
-  const estimatedEarningsLabel = formatMoney(
-    selectedPayment?.providerPayout ?? booking.totalAmount,
-  );
+  const providerPayoutLabel = selectedPayment
+    ? formatMoney(selectedPayment.providerPayout)
+    : 'Payout pending';
   const storedPriceBreakdown = booking.priceBreakdown;
   const priceBreakdownRows = storedPriceBreakdown?.lineItems.length
     ? [
@@ -121,8 +121,8 @@ export function buildProviderBookingDetailViewModel({
           value: formatMoney(item.amount),
         })),
         {
-          key: 'total',
-          label: 'Total',
+          key: 'customer-total',
+          label: 'Customer total',
           value: formatMoney(storedPriceBreakdown.total),
         },
       ]
@@ -133,6 +133,26 @@ export function buildProviderBookingDetailViewModel({
           value: formatMoney(booking.totalAmount),
         },
       ];
+  const paymentBreakdownRows = selectedPayment
+    ? [
+        {
+          key: 'payment-platform-fee',
+          label: 'Platform fee',
+          value: formatMoney(selectedPayment.platformFee),
+        },
+        {
+          key: 'provider-payout',
+          label: 'Provider payout',
+          value: formatMoney(selectedPayment.providerPayout),
+        },
+      ]
+    : [
+        {
+          key: 'provider-payout',
+          label: 'Provider payout',
+          value: 'Payout pending',
+        },
+      ];
 
   return {
     data: {
@@ -141,8 +161,8 @@ export function buildProviderBookingDetailViewModel({
       customerName:
         booking.customerFullName ??
         booking.customerId.slice(0, 8).toUpperCase(),
-      estimatedEarningsLabel,
-      priceBreakdownRows,
+      providerPayoutLabel,
+      priceBreakdownRows: [...priceBreakdownRows, ...paymentBreakdownRows],
       serviceDetailRows,
       serviceTitle: booking.serviceTitle ?? 'Service booking',
       statusActions: buildStatusActions(

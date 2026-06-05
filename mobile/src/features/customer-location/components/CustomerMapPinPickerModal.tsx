@@ -2,7 +2,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +15,7 @@ import {
   X,
 } from 'lucide-react-native';
 import type { CustomerBookingLocationState } from '../../../domain/customerBookingLocation';
+import { MotionPressable, MotionView } from '../../../components/Motion';
 import { ServiceLocationPickerMap } from '../../../tracking/TrackingMapPreview';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 
@@ -93,7 +93,7 @@ export function CustomerMapPinPickerModal({
 
   return (
     <Modal
-      animationType="slide"
+      animationType="fade"
       presentationStyle="fullScreen"
       visible={visible}
       onRequestClose={onClose}
@@ -109,15 +109,19 @@ export function CustomerMapPinPickerModal({
           }}
         />
 
-        <View pointerEvents="box-none" style={styles.mapPickerTopOverlay}>
-          <Pressable
-            style={styles.mapPickerCloseButton}
+        <MotionView
+          pointerEvents="box-none"
+          style={styles.mapPickerTopOverlay}
+          variant="content"
+        >
+          <MotionPressable
+            contentStyle={styles.mapPickerCloseButton}
             onPress={onClose}
             accessibilityRole="button"
             accessibilityLabel="Close map picker"
           >
             <X color={palette.ink} size={20} strokeWidth={2.5} />
-          </Pressable>
+          </MotionPressable>
           <View style={styles.mapPickerSearchBar}>
             <Search color={palette.muted} size={18} strokeWidth={2.4} />
             <TextInput
@@ -131,8 +135,8 @@ export function CustomerMapPinPickerModal({
               editable={!mapSearchBusy}
               selectTextOnFocus
             />
-            <Pressable
-              style={[
+            <MotionPressable
+              contentStyle={[
                 styles.mapPickerSearchSubmit,
                 mapSearchBusy && styles.faded,
               ]}
@@ -144,13 +148,17 @@ export function CustomerMapPinPickerModal({
               <Text style={styles.mapPickerSearchSubmitText} numberOfLines={1}>
                 {mapSearchBusy ? 'Searching' : 'Search'}
               </Text>
-            </Pressable>
+            </MotionPressable>
           </View>
-        </View>
+        </MotionView>
 
-        <View pointerEvents="box-none" style={styles.mapPickerFloatingActions}>
-          <Pressable
-            style={[styles.mapPickerAction, currentLocationBusy && styles.faded]}
+        <MotionView
+          pointerEvents="box-none"
+          style={styles.mapPickerFloatingActions}
+          variant="content"
+        >
+          <MotionPressable
+            contentStyle={[styles.mapPickerAction, currentLocationBusy && styles.faded]}
             onPress={onUseCurrentLocation}
             disabled={currentLocationBusy}
             accessibilityRole="button"
@@ -160,9 +168,9 @@ export function CustomerMapPinPickerModal({
             <Text style={styles.smallActionText}>
               {currentLocationBusy ? 'Locating' : 'Current'}
             </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.mapPickerAction, isFindingAddress && styles.faded]}
+          </MotionPressable>
+          <MotionPressable
+            contentStyle={[styles.mapPickerAction, isFindingAddress && styles.faded]}
             onPress={onRefreshAddress}
             disabled={isFindingAddress}
             accessibilityRole="button"
@@ -174,10 +182,10 @@ export function CustomerMapPinPickerModal({
           >
             <RefreshCw color={palette.mintDeep} size={16} strokeWidth={2.4} />
             <Text style={styles.smallActionText}>{refreshLabel}</Text>
-          </Pressable>
-        </View>
+          </MotionPressable>
+        </MotionView>
 
-        <View style={styles.mapPickerSheet}>
+        <MotionView style={styles.mapPickerSheet} variant="sheet">
           <View style={styles.mapPickerAddressRow}>
             <MapPin color={palette.mintDeep} size={20} strokeWidth={2.5} />
             <View style={styles.flex}>
@@ -199,8 +207,8 @@ export function CustomerMapPinPickerModal({
             placeholderTextColor={palette.muted}
           />
 
-          <Pressable
-            style={[
+          <MotionPressable
+            contentStyle={[
               styles.confirmPinButton,
               !pin && styles.confirmPinButtonDisabled,
             ]}
@@ -210,8 +218,8 @@ export function CustomerMapPinPickerModal({
             accessibilityLabel="Confirm map pin"
           >
             <Text style={styles.confirmPinButtonText}>{confirmPinLabel}</Text>
-          </Pressable>
-        </View>
+          </MotionPressable>
+        </MotionView>
       </KeyboardAvoidingView>
     </Modal>
   );

@@ -6,6 +6,7 @@ export type {
   BookingPriceBreakdown,
   BookingPriceBreakdownLineItem,
   BookingPriceBreakdownLineItemCode,
+  BookingPricePreviewSummary,
   BookingPricingMode,
   BookingServiceUpdateSummary,
   BookingStatus,

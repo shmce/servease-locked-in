@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Camera, CheckCircle } from 'lucide-react-native';
+import { MotionPressable } from '../../../components/Motion';
 import { BookingSummary } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { MediaUploadBox } from '../../../shared/components/ScreenLayout';
@@ -138,12 +139,19 @@ function ChecklistRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable style={styles.checklistRow} onPress={onPress} accessibilityRole="button">
+    <MotionPressable
+      contentStyle={styles.checklistRow}
+      onPress={onPress}
+      selected={checked}
+      accessibilityRole="button"
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+    >
       <View style={[styles.checkboxBox, checked && styles.checkboxBoxChecked]}>
         {checked ? <CheckCircle color={palette.white} size={16} strokeWidth={3} /> : null}
       </View>
       <Text style={styles.radioLabel}>{label}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

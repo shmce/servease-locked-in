@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Bell,
   Calendar,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Droplets,
@@ -12,17 +11,14 @@ import {
   MapPin,
   Search,
   ShieldCheck,
-  SlidersHorizontal,
   SprayCan,
   Star,
   Tag,
   Wrench,
-  X,
   Zap,
 } from 'lucide-react-native';
 import {
   Image,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -42,8 +38,12 @@ import {
   InlineRefreshHint,
   ListSectionSkeleton,
 } from '../../../shared/components/LoadingStates';
+import {
+  MotionPressable,
+  MotionView,
+} from '../../../components/Motion';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
-import { CategoryFilter, useCustomerExploreViewModel } from '../viewModels/useCustomerExploreViewModel';
+import { useCustomerExploreViewModel } from '../viewModels/useCustomerExploreViewModel';
 import { CategorySheet } from './CategorySheet';
 
 const exploreImages = {
@@ -87,46 +87,20 @@ type CustomerExploreScreenProps = {
 
 type ExploreData = ReturnType<typeof useCustomerExploreViewModel>['data'];
 type AvatarData = ExploreData['avatar'];
-type CategoryFilterData = ExploreData['categoryFilter'];
 type LocationData = ExploreData['location'];
 type NotificationData = ExploreData['notification'];
 type ReferenceCategoryRow = ExploreData['referenceCategoryRows'][number];
 type RecommendedServiceRow = ExploreData['recommendedServiceRows'][number];
 type TrustRow = ExploreData['referenceTrustRows'][number];
 
-const CATEGORY_FILTER_OPTIONS: {
-  value: CategoryFilter;
-  label: string;
-  description: string;
-}[] = [
-  {
-    value: 'all',
-    label: 'All',
-    description: 'Keep the default Explore order.',
-  },
-  {
-    value: 'popular',
-    label: 'Popular',
-    description: 'Show busier categories first.',
-  },
-  {
-    value: 'top-rated',
-    label: 'Top-rated',
-    description: 'Prioritize stronger customer ratings.',
-  },
-];
-
 export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
   const { width } = useWindowDimensions();
   const [sheetCategory, setSheetCategory] = useState<CatalogCategory | null>(null);
   const [sheetSearchQuery, setSheetSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
-  const [isFilterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const explore = useCustomerExploreViewModel({
     bookings: props.bookings,
     categories: props.categories,
-    categoryFilter,
     customerGuideDismissed: props.customerGuideDismissed,
     customerGuideStep: props.customerGuideStep,
     profile: props.profile,
@@ -221,8 +195,6 @@ export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
           />
 
           <SearchFilterRow
-            categoryFilter={data.categoryFilter}
-            onFilter={() => setFilterSheetOpen(true)}
             onSearch={props.onSearch}
           />
 
@@ -273,16 +245,6 @@ export function CustomerExploreScreen(props: CustomerExploreScreenProps) {
         onSeeAll={handleSeeAllCategory}
         onClose={closeSheet}
       />
-
-      <CategoryFilterSheet
-        selectedFilter={categoryFilter}
-        visible={isFilterSheetOpen}
-        onClose={() => setFilterSheetOpen(false)}
-        onSelectFilter={(filter) => {
-          setCategoryFilter(filter);
-          setFilterSheetOpen(false);
-        }}
-      />
     </View>
   );
 }
@@ -326,8 +288,8 @@ function ExploreHeader({
         <Text style={styles.customerName} numberOfLines={1}>
           {displayName} 👋
         </Text>
-        <Pressable
-          style={[
+        <MotionPressable
+          contentStyle={[
             styles.locationRow,
             location.state === 'needs_verification' && styles.locationRowWarning,
             location.state === 'setup' && styles.locationRowNeutral,
@@ -354,12 +316,12 @@ function ExploreHeader({
             {location.statusLabel}
           </Text>
           <ChevronDown color={locationAccentColor} size={16} strokeWidth={2.4} />
-        </Pressable>
+        </MotionPressable>
       </View>
 
       <View style={styles.headerActions}>
-        <Pressable
-          style={styles.notificationButton}
+        <MotionPressable
+          contentStyle={styles.notificationButton}
           onPress={onNotificationPress}
           accessibilityRole="button"
           accessibilityLabel={notification.accessibilityLabel}
@@ -367,10 +329,10 @@ function ExploreHeader({
         >
           <Bell color={palette.mintDeep} size={20} strokeWidth={2.2} />
           {notification.hasUnread ? <View style={styles.unreadDot} /> : null}
-        </Pressable>
+        </MotionPressable>
 
-        <Pressable
-          style={styles.avatarButton}
+        <MotionPressable
+          contentStyle={styles.avatarButton}
           onPress={onAvatarPress}
           accessibilityRole="button"
           accessibilityLabel={avatar.accessibilityLabel}
@@ -380,7 +342,7 @@ function ExploreHeader({
           ) : (
             <Text style={styles.avatarInitial}>{avatar.initial}</Text>
           )}
-        </Pressable>
+        </MotionPressable>
       </View>
     </View>
   );
@@ -391,15 +353,7 @@ function compactCustomerName(customerName: string): string {
   return firstName || 'You';
 }
 
-function SearchFilterRow({
-  categoryFilter,
-  onFilter,
-  onSearch,
-}: {
-  categoryFilter: CategoryFilterData;
-  onFilter: () => void;
-  onSearch: () => void;
-}) {
+function SearchFilterRow({ onSearch }: { onSearch: () => void }) {
   return (
     <View style={styles.searchRow}>
       <Pressable
@@ -413,110 +367,13 @@ function SearchFilterRow({
           Search for a service or task
         </Text>
       </Pressable>
-
-      <Pressable
-        style={[
-          styles.filterButton,
-          categoryFilter.isActive && styles.filterButtonActive,
-        ]}
-        onPress={onFilter}
-        accessibilityRole="button"
-        accessibilityLabel={categoryFilter.accessibilityLabel}
-      >
-        <SlidersHorizontal color={palette.mintDeep} size={23} strokeWidth={2.2} />
-        {categoryFilter.isActive ? <View style={styles.filterActiveDot} /> : null}
-      </Pressable>
     </View>
-  );
-}
-
-function CategoryFilterSheet({
-  selectedFilter,
-  visible,
-  onClose,
-  onSelectFilter,
-}: {
-  selectedFilter: CategoryFilter;
-  visible: boolean;
-  onClose: () => void;
-  onSelectFilter: (filter: CategoryFilter) => void;
-}) {
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.filterSheetOverlay}>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
-        <View style={styles.filterSheet}>
-          <View style={styles.filterSheetHandle} />
-          <View style={styles.filterSheetHeader}>
-            <View style={styles.filterSheetTitleCopy}>
-              <Text style={styles.filterSheetTitle}>Sort categories</Text>
-              <Text style={styles.filterSheetBody}>
-                Choose how Explore prioritizes category tiles.
-              </Text>
-            </View>
-            <Pressable
-              style={styles.filterCloseButton}
-              onPress={onClose}
-              accessibilityRole="button"
-              accessibilityLabel="Close category filters"
-            >
-              <X color="#69736F" size={18} strokeWidth={2.2} />
-            </Pressable>
-          </View>
-
-          <View style={styles.filterOptions}>
-            {CATEGORY_FILTER_OPTIONS.map((option) => {
-              const isSelected = option.value === selectedFilter;
-              return (
-                <Pressable
-                  key={option.value}
-                  style={[
-                    styles.filterOption,
-                    isSelected && styles.filterOptionSelected,
-                  ]}
-                  onPress={() => onSelectFilter(option.value)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${option.label} category filter`}
-                  accessibilityState={{ selected: isSelected }}
-                >
-                  <View style={styles.filterOptionCopy}>
-                    <Text
-                      style={[
-                        styles.filterOptionTitle,
-                        isSelected && styles.filterOptionTitleSelected,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                    <Text style={styles.filterOptionBody}>
-                      {option.description}
-                    </Text>
-                  </View>
-                  {isSelected ? (
-                    <CheckCircle2
-                      color={palette.mintDeep}
-                      size={20}
-                      strokeWidth={2.3}
-                    />
-                  ) : null}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      </View>
-    </Modal>
   );
 }
 
 function HeroCard({ onBook }: { onBook: () => void }) {
   return (
-    <View style={styles.heroCard}>
+    <MotionView style={styles.heroCard} variant="card">
       <View style={styles.heroCopy}>
         <Text style={styles.heroTitle}>
           Trusted help for{'\n'}
@@ -525,15 +382,15 @@ function HeroCard({ onBook }: { onBook: () => void }) {
         <Text style={styles.heroBody}>
           Verified pros. Clear pricing.{'\n'}Hassle-free booking.
         </Text>
-        <Pressable
-          style={styles.heroButton}
+        <MotionPressable
+          contentStyle={styles.heroButton}
           onPress={onBook}
           accessibilityRole="button"
           accessibilityLabel="Book a service"
         >
           <Text style={styles.heroButtonText}>Book a service</Text>
           <ArrowRight color={palette.white} size={16} strokeWidth={2.5} />
-        </Pressable>
+        </MotionPressable>
       </View>
       <Image
         source={exploreImages.hero}
@@ -541,7 +398,7 @@ function HeroCard({ onBook }: { onBook: () => void }) {
         resizeMode="contain"
         accessible={false}
       />
-    </View>
+    </MotionView>
   );
 }
 
@@ -585,8 +442,8 @@ function CategoryTile({
   const isDisabled = !row.isAvailable;
 
   return (
-    <Pressable
-      style={[
+    <MotionPressable
+      contentStyle={[
         styles.categoryTile,
         { width: tileWidth },
         row.isSelected && styles.categoryTileSelected,
@@ -594,6 +451,7 @@ function CategoryTile({
       ]}
       onPress={onPress}
       disabled={isDisabled}
+      selected={row.isSelected}
       accessibilityRole="button"
       accessibilityLabel={
         isDisabled
@@ -620,7 +478,7 @@ function CategoryTile({
           Soon
         </Text>
       ) : null}
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -639,15 +497,15 @@ function RecommendedSection({
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Recommended for you</Text>
-        <Pressable
-          style={styles.seeAllButton}
+        <MotionPressable
+          contentStyle={styles.seeAllButton}
           onPress={onSeeAll}
           accessibilityRole="button"
           accessibilityLabel="See all recommended services"
         >
           <Text style={styles.seeAllText}>See all</Text>
           <ChevronRight color={palette.mintDeep} size={18} strokeWidth={2.4} />
-        </Pressable>
+        </MotionPressable>
       </View>
       <ScrollView
         horizontal
@@ -681,8 +539,8 @@ function RecommendationCard({
   ] as ImageSourcePropType;
 
   return (
-    <Pressable
-      style={[styles.recommendationCard, { width }]}
+    <MotionPressable
+      contentStyle={[styles.recommendationCard, { width }]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`Book ${row.title}`}
@@ -712,7 +570,7 @@ function RecommendationCard({
           </Text>
         </View>
       </View>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -724,8 +582,8 @@ function UpcomingBookingCard({
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      style={styles.upcomingCard}
+    <MotionPressable
+      contentStyle={styles.upcomingCard}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={card.booking ? `Open ${card.title} booking` : 'Book a service'}
@@ -748,7 +606,7 @@ function UpcomingBookingCard({
         </Text>
       </View>
       <ChevronRight color="#7E8582" size={24} strokeWidth={2.1} />
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -954,8 +812,10 @@ const styles = StyleSheet.create({
   },
   searchRow: {
     alignItems: 'center',
+    alignSelf: 'stretch',
     flexDirection: 'row',
     gap: spacing.sm,
+    width: '100%',
   },
   searchBox: {
     alignItems: 'center',
@@ -968,6 +828,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     height: 58,
     paddingHorizontal: spacing.md,
+    width: '100%',
   },
   searchPlaceholder: {
     color: '#9AA0AA',
@@ -976,127 +837,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     letterSpacing: 0,
     lineHeight: 18,
-  },
-  filterButton: {
-    alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: '#E3E5E8',
-    borderRadius: 16,
-    borderWidth: 1,
-    height: 58,
-    justifyContent: 'center',
-    position: 'relative',
-    width: 58,
-  },
-  filterButtonActive: {
-    backgroundColor: '#EFF9F3',
-    borderColor: '#CDEEDD',
-  },
-  filterActiveDot: {
-    backgroundColor: palette.mintDeep,
-    borderColor: palette.white,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    height: 11,
-    position: 'absolute',
-    right: 9,
-    top: 9,
-    width: 11,
-  },
-  filterSheetOverlay: {
-    backgroundColor: 'rgba(0,0,0,0.34)',
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  filterSheet: {
-    backgroundColor: palette.white,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingBottom: spacing.xl,
-    paddingHorizontal: spacing.base,
-  },
-  filterSheetHandle: {
-    alignSelf: 'center',
-    backgroundColor: '#DDE1E5',
-    borderRadius: radius.pill,
-    height: 4,
-    marginBottom: spacing.md,
-    marginTop: spacing.sm,
-    width: 42,
-  },
-  filterSheetHeader: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-  },
-  filterSheetTitleCopy: {
-    flex: 1,
-  },
-  filterSheetTitle: {
-    color: '#16191E',
-    fontSize: 19,
-    fontWeight: '700',
-    letterSpacing: 0,
-    lineHeight: 25,
-  },
-  filterSheetBody: {
-    color: '#68707D',
-    fontSize: 13,
-    fontWeight: '400',
-    letterSpacing: 0,
-    lineHeight: 18,
-    marginTop: 3,
-  },
-  filterCloseButton: {
-    alignItems: 'center',
-    backgroundColor: '#F5F6F7',
-    borderRadius: radius.pill,
-    height: 34,
-    justifyContent: 'center',
-    width: 34,
-  },
-  filterOptions: {
-    gap: spacing.sm,
-  },
-  filterOption: {
-    alignItems: 'center',
-    backgroundColor: palette.white,
-    borderColor: '#E4E6E8',
-    borderRadius: 16,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.md,
-    minHeight: 72,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  filterOptionSelected: {
-    backgroundColor: '#EFF9F3',
-    borderColor: '#CDEEDD',
-  },
-  filterOptionCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  filterOptionTitle: {
-    color: '#22262C',
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0,
-    lineHeight: 20,
-  },
-  filterOptionTitleSelected: {
-    color: palette.mintDeep,
-  },
-  filterOptionBody: {
-    color: '#68707D',
-    fontSize: 12,
-    fontWeight: '400',
-    letterSpacing: 0,
-    lineHeight: 16,
-    marginTop: 2,
   },
   heroCard: {
     backgroundColor: '#F3F8F5',

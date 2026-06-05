@@ -140,7 +140,7 @@ export function buildCustomerBookingFormViewModel({
   const selectedSavedAddressLabel = selectedSavedAddress?.isDefault
     ? 'Home'
     : (selectedSavedAddress?.label ?? 'Saved address');
-  const isPreparingEstimate = busyAction === 'pricing-quote';
+  const isPreparingEstimate = busyAction === 'booking-price-preview';
   const isResolvingPin =
     busyAction === 'geo-map-search' ||
     busyAction === 'geo-picker-search' ||
@@ -218,9 +218,9 @@ export function buildCustomerBookingFormViewModel({
       }),
       footerRateLabel:
         provider.pricingMode === 'hourly'
-          ? `${formatMoney(provider.price)} x ${duration}h`
-          : 'Service rate',
-      calloutFeeLabel: 'Travel and service fees on review',
+          ? `${formatMoney(provider.price)} hourly base x ${duration}h`
+          : 'Flat base rate',
+      calloutFeeLabel: 'added on review',
       estimatedTotalLabel: formatMoney(estimatedTotal),
       continueNotice,
       referencePhotoLabel: bookingReferencePhotoUrl

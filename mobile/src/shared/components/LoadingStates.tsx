@@ -6,6 +6,7 @@ import {
   SkeletonCircle,
   SkeletonLine,
 } from '../../components/DesignKit';
+import { MotionView, StaggeredMotionView } from '../../components/Motion';
 import { palette, radius, spacing } from '../../theme/serveaseDesign';
 
 type SkeletonGroupProps = {
@@ -19,10 +20,11 @@ export function RouteLoadingSurface({
   label?: string;
 }) {
   return (
-    <View
+    <MotionView
       style={styles.routeSurface}
       accessibilityRole="progressbar"
       accessibilityLabel={label}
+      variant="loading"
     >
       <View style={styles.routeContent}>
         <SkeletonCircle size={54} />
@@ -36,7 +38,7 @@ export function RouteLoadingSurface({
         </SkeletonCard>
         <ListSectionSkeleton count={3} />
       </View>
-    </View>
+    </MotionView>
   );
 }
 
@@ -46,10 +48,11 @@ export function DashboardScreenSkeleton({
   label?: string;
 }) {
   return (
-    <View
+    <MotionView
       style={styles.screenGroup}
       accessibilityRole="progressbar"
       accessibilityLabel={label}
+      variant="loading"
     >
       <View style={styles.headerRow}>
         <View style={styles.headerCopy}>
@@ -65,7 +68,7 @@ export function DashboardScreenSkeleton({
         <SkeletonLine width="52%" height={12} />
       </SkeletonCard>
       <ListSectionSkeleton count={2} />
-    </View>
+    </MotionView>
   );
 }
 
@@ -75,10 +78,11 @@ export function DetailScreenSkeleton({
   label?: string;
 }) {
   return (
-    <View
+    <MotionView
       style={styles.screenGroup}
       accessibilityRole="progressbar"
       accessibilityLabel={label}
+      variant="loading"
     >
       <SkeletonLine width="46%" height={22} />
       <SkeletonLine width="64%" height={12} />
@@ -95,7 +99,7 @@ export function DetailScreenSkeleton({
         </View>
       </SkeletonCard>
       <ListSectionSkeleton count={3} />
-    </View>
+    </MotionView>
   );
 }
 
@@ -113,13 +117,15 @@ export function ListSectionSkeleton({
       accessibilityLabel={label}
     >
       {Array.from({ length: count }).map((_, index) => (
-        <SkeletonCard key={index} style={styles.listCard}>
-          <SkeletonCircle size={40} />
-          <View style={styles.inlineCopy}>
-            <SkeletonLine width="72%" height={13} />
-            <SkeletonLine width="54%" height={10} />
-          </View>
-        </SkeletonCard>
+        <StaggeredMotionView key={index} index={index} variant="loading">
+          <SkeletonCard style={styles.listCard}>
+            <SkeletonCircle size={40} />
+            <View style={styles.inlineCopy}>
+              <SkeletonLine width="72%" height={13} />
+              <SkeletonLine width="54%" height={10} />
+            </View>
+          </SkeletonCard>
+        </StaggeredMotionView>
       ))}
     </View>
   );
@@ -131,26 +137,28 @@ export function InlineRefreshHint({
   label?: string;
 }) {
   return (
-    <View
+    <MotionView
       style={styles.refreshHint}
       accessibilityRole="progressbar"
       accessibilityLabel={label}
+      variant="loading"
     >
       <SkeletonLine width={52} height={8} />
       <Text style={styles.refreshText}>{label}</Text>
-    </View>
+    </MotionView>
   );
 }
 
 export function LoadingGroup({ children, label }: SkeletonGroupProps) {
   return (
-    <View
+    <MotionView
       style={styles.screenGroup}
       accessibilityRole={label ? 'progressbar' : undefined}
       accessibilityLabel={label}
+      variant="loading"
     >
       {children}
-    </View>
+    </MotionView>
   );
 }
 

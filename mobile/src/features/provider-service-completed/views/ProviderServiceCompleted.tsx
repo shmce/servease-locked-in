@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { CheckCircle } from 'lucide-react-native';
+import { SuccessMotion } from '../../../components/Motion';
 import {
   ProviderButton,
   ProviderCard,
@@ -33,7 +34,7 @@ export function ProviderServiceCompletedScreen({
   return (
     <ProviderScreen>
       <ProviderContent>
-        <View style={styles.confirmationContent}>
+        <SuccessMotion style={styles.confirmationContent}>
           <View style={styles.successCircle}>
             <CheckCircle color={palette.white} size={44} strokeWidth={2.8} />
           </View>
@@ -45,8 +46,8 @@ export function ProviderServiceCompletedScreen({
               <Text style={styles.infoValue}>{data.serviceTitle}</Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Earnings</Text>
-              <Text style={styles.infoValue}>{data.earningsLabel}</Text>
+              <Text style={styles.infoLabel}>Provider payout</Text>
+              <Text style={styles.infoValue}>{data.providerPayoutLabel}</Text>
             </View>
           </ProviderCard>
           <ProviderButton label="View Receipt" onPress={onViewReceipt} />
@@ -55,7 +56,7 @@ export function ProviderServiceCompletedScreen({
             variant="secondary"
             onPress={onBackToBookings}
           />
-        </View>
+        </SuccessMotion>
       </ProviderContent>
     </ProviderScreen>
   );

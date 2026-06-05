@@ -1,7 +1,8 @@
 import { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { CheckCircle, ChevronRight } from 'lucide-react-native';
 import { StatusTimeline } from '../../../components/DesignKit';
+import { MotionPressable, SuccessMotion } from '../../../components/Motion';
 import { MissingSelection } from '../../../components/AppDisplay';
 import {
   BookingSummary,
@@ -62,13 +63,13 @@ export function CustomerBookingConfirmationScreen({
           onBack={onBack}
         />
 
-        <View style={styles.hero}>
+        <SuccessMotion style={styles.hero}>
           <View style={styles.successCircle}>
             <CheckCircle color={palette.white} size={38} strokeWidth={2.4} />
           </View>
           <Text style={styles.confirmationTitle}>Your booking is confirmed</Text>
           <Text style={styles.noticeText}>{data.bookedForLabel}</Text>
-        </View>
+        </SuccessMotion>
 
         <CustomerCard>
           <View style={styles.providerRow}>
@@ -78,8 +79,8 @@ export function CustomerBookingConfirmationScreen({
             <View style={styles.flex}>
               <Text style={styles.providerName}>{data.providerName}</Text>
               <Text style={styles.providerRating}>{data.providerRatingLabel}</Text>
-              <Pressable
-                style={styles.profileLinkRow}
+              <MotionPressable
+                contentStyle={styles.profileLinkRow}
                 onPress={() => {
                   if (data.canViewProvider) {
                     navigate('customerProviderProfile', 'customer');
@@ -92,7 +93,7 @@ export function CustomerBookingConfirmationScreen({
               >
                 <Text style={styles.linkText}>View Profile</Text>
                 <ChevronRight color={palette.mintDeep} size={14} strokeWidth={2.2} />
-              </Pressable>
+              </MotionPressable>
             </View>
           </View>
         </CustomerCard>
@@ -114,27 +115,30 @@ export function CustomerBookingConfirmationScreen({
         {timelineEvents}
 
         <View style={styles.actionStack}>
-          <Pressable
-            style={styles.primaryAction}
+          <MotionPressable
+            contentStyle={styles.primaryAction}
             onPress={() => navigate('customerBookingManage', 'customer')}
             accessibilityRole="button"
+            accessibilityLabel="Manage booking"
           >
             <Text style={styles.primaryActionText}>Manage booking</Text>
-          </Pressable>
-          <Pressable
-            style={styles.secondaryAction}
+          </MotionPressable>
+          <MotionPressable
+            contentStyle={styles.secondaryAction}
             onPress={() => void addSelectedBookingToCalendar()}
             accessibilityRole="button"
+            accessibilityLabel="Add to Google Calendar"
           >
             <Text style={styles.secondaryActionText}>Add to Google Calendar</Text>
-          </Pressable>
-          <Pressable
-            style={styles.secondaryAction}
+          </MotionPressable>
+          <MotionPressable
+            contentStyle={styles.secondaryAction}
             onPress={() => navigate('customerReservePayment', 'customer')}
             accessibilityRole="button"
+            accessibilityLabel="View payment"
           >
             <Text style={styles.secondaryActionText}>View payment</Text>
-          </Pressable>
+          </MotionPressable>
         </View>
       </CustomerContent>
     </CustomerScreen>

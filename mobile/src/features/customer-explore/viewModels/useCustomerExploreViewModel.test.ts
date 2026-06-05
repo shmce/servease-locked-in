@@ -44,11 +44,10 @@ const services: CatalogServiceItem[] = [
   service('single-review-service', 'single-review'),
 ];
 
-describe('buildCustomerExploreViewModel ranking', () => {
-  it('sorts popular categories by log-compressed catalog volume', () => {
+describe('buildCustomerExploreViewModel category order', () => {
+  it('keeps category rows in catalog order even when provider activity varies', () => {
     const explore = buildCustomerExploreViewModel({
       ...baseInput(),
-      categoryFilter: 'popular',
       providers: [
         provider('quiet-provider', 'quiet-service', 4.8, 20),
         provider('busy-provider-1', 'busy-service', 4.4, 4),
@@ -58,25 +57,8 @@ describe('buildCustomerExploreViewModel ranking', () => {
     });
 
     assert.deepEqual(
-      explore.data.categoryRows.map((row) => row.id).slice(0, 2),
-      ['busy', 'quiet'],
-    );
-  });
-
-  it('sorts top rated categories by Bayesian rating instead of raw review volume', () => {
-    const explore = buildCustomerExploreViewModel({
-      ...baseInput(),
-      categoryFilter: 'top-rated',
-      providers: [
-        provider('popular-lower-rated', 'busy-service', 4.7, 100),
-        provider('premium-strong-rated', 'premium-service', 4.95, 20),
-        provider('single-five-star', 'single-review-service', 5, 1),
-      ],
-    });
-
-    assert.deepEqual(
-      explore.data.categoryRows.map((row) => row.id).slice(0, 3),
-      ['premium', 'busy', 'single-review'],
+      explore.data.categoryRows.map((row) => row.id),
+      ['quiet', 'busy', 'premium', 'single-review'],
     );
   });
 });
@@ -351,7 +333,7 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
     assert.equal(explore.data.referenceCategoryRows[3]?.isSelected, true);
   });
 
-  it('applies active filters to the visible reference category rail', () => {
+  it('keeps the visible reference category rail in default order', () => {
     const filterCategories: CatalogCategory[] = [
       {
         id: 'cleaning',
@@ -372,47 +354,25 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
         icon: null,
       },
     ];
-    const filterServices = [
-      service('cleaning-service', 'cleaning'),
-      service('plumbing-service', 'plumbing'),
-      service('electrical-service', 'electrical'),
-    ];
-    const popular = buildCustomerExploreViewModel({
+    const explore = buildCustomerExploreViewModel({
       ...baseInput(),
-      categoryFilter: 'popular',
       categories: filterCategories,
-      services: filterServices,
+      services: [
+        service('cleaning-service', 'cleaning'),
+        service('plumbing-service', 'plumbing'),
+        service('electrical-service', 'electrical'),
+      ],
       providers: [
-        provider('cleaning-provider', 'cleaning-service', 4.9, 12),
         provider('plumbing-provider-1', 'plumbing-service', 4.2, 3),
         provider('plumbing-provider-2', 'plumbing-service', 4.1, 4),
-        provider('plumbing-provider-3', 'plumbing-service', 4.0, 5),
+        provider('electrical-provider', 'electrical-service', 4.95, 25),
       ],
-    });
-    const topRated = buildCustomerExploreViewModel({
-      ...baseInput(),
-      categoryFilter: 'top-rated',
-      categories: filterCategories,
-      services: filterServices,
-      providers: [
-        provider('cleaning-provider', 'cleaning-service', 4.95, 25),
-        provider('plumbing-provider', 'plumbing-service', 4.4, 25),
-      ],
-    });
-    const all = buildCustomerExploreViewModel({
-      ...baseInput(),
-      categoryFilter: 'all',
-      categories: filterCategories,
-      services: filterServices,
     });
 
-    assert.equal(popular.data.categoryFilter.label, 'Popular');
-    assert.equal(popular.data.categoryFilter.isActive, true);
-    assert.equal(popular.data.referenceCategoryRows[0]?.label, 'Plumbing');
-    assert.equal(topRated.data.categoryFilter.label, 'Top-rated');
-    assert.equal(topRated.data.referenceCategoryRows[0]?.label, 'Cleaning');
-    assert.equal(all.data.categoryFilter.isActive, false);
-    assert.equal(all.data.referenceCategoryRows[0]?.label, 'Cleaning');
+    assert.deepEqual(
+      explore.data.referenceCategoryRows.map((row) => row.label),
+      ['Cleaning', 'Repairs', 'Plumbing', 'Electrical', 'Home Care'],
+    );
   });
 
   it('builds recommendation card fallbacks that match the reference copy', () => {

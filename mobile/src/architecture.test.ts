@@ -285,6 +285,165 @@ test('legacy route frame fills the native device viewport', () => {
   assert.match(appShellSource, /expo-system-ui/);
 });
 
+test('mobile motion primitives own timing route and reduced-motion behavior', () => {
+  const motionSource = readProjectFile('src/components/Motion.tsx');
+  const packageJson = JSON.parse(readProjectFile('package.json')) as {
+    dependencies: Record<string, string>;
+  };
+
+  assert.match(motionSource, /export const motionTokens/);
+  assert.match(motionSource, /RouteTransitionVariant/);
+  assert.match(motionSource, /resolveRouteTransitionConfig/);
+  assert.match(motionSource, /export function ScreenTransition/);
+  assert.match(motionSource, /export function MotionPressable/);
+  assert.match(motionSource, /export function MotionView/);
+  assert.match(motionSource, /export function StaggeredMotionView/);
+  assert.match(motionSource, /export function SuccessMotion/);
+  assert.match(motionSource, /export function useReducedMotion/);
+  assert.match(motionSource, /AccessibilityInfo\.isReduceMotionEnabled/);
+  assert.match(motionSource, /reduceMotionChanged/);
+  assert.match(motionSource, /useNativeDriver: true/);
+  assert.equal(packageJson.dependencies['react-native-reanimated'], undefined);
+});
+
+test('shared UI surfaces consume centralized motion primitives', () => {
+  const customerUiSource = readProjectFile(
+    'src/shared/components/CustomerUI.tsx',
+  );
+  const providerUiSource = readProjectFile(
+    'src/shared/components/ProviderUI.tsx',
+  );
+  const designKitSource = readProjectFile('src/components/DesignKit.tsx');
+  const loadingStatesSource = readProjectFile(
+    'src/shared/components/LoadingStates.tsx',
+  );
+
+  assert.match(customerUiSource, /MotionPressable/);
+  assert.match(customerUiSource, /MotionView/);
+  assert.match(providerUiSource, /MotionPressable/);
+  assert.match(providerUiSource, /MotionView/);
+  assert.match(designKitSource, /useSkeletonPulseOpacity/);
+  assert.match(designKitSource, /useSelectedMotion/);
+  assert.match(designKitSource, /StaggeredMotionView/);
+  assert.match(loadingStatesSource, /MotionView/);
+  assert.match(loadingStatesSource, /StaggeredMotionView/);
+  assert.doesNotMatch(designKitSource, /AccessibilityInfo\.isReduceMotionEnabled/);
+});
+
+test('feature views avoid bespoke broad animation primitives outside map sheets', () => {
+  const allowedAnimationViews = new Set([
+    'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+    'src/features/provider-navigation-mode/views/ProviderNavigationMode.tsx',
+  ]);
+
+  for (const viewPath of featureViewFiles()) {
+    if (allowedAnimationViews.has(viewPath)) {
+      continue;
+    }
+
+    const source = readProjectFile(viewPath);
+    assert.doesNotMatch(
+      source,
+      /Animated\.(timing|spring|loop|sequence)|\bEasing\./,
+      `${viewPath} should use shared motion primitives instead of local animation drivers`,
+    );
+    assert.doesNotMatch(
+      source,
+      /duration:\s*\d{2,4}|stiffness:\s*\d{2,4}|damping:\s*\d{1,3}/,
+      `${viewPath} should not define local timing or spring constants`,
+    );
+  }
+});
+
+test('app-controlled route transitions are variant-based while native stacks stay neutral', () => {
+  const routerSource = readProjectFile('src/legacy-router/AppRouter.tsx');
+  const rootLayoutSource = readProjectFile('src/app/_layout.tsx');
+  const authLayoutSource = readProjectFile('src/app/(auth)/_layout.tsx');
+
+  assert.match(routerSource, /RouteTransitionVariant/);
+  assert.match(routerSource, /resolveAppRouteTransitionVariant/);
+  assert.match(routerSource, /neutralMotionScreens/);
+  assert.match(routerSource, /modalMotionScreens/);
+  assert.match(routerSource, /variant=\{transitionVariant\}/);
+  assert.match(rootLayoutSource, /animation: 'fade'/);
+  assert.match(authLayoutSource, /animation: 'fade'/);
+  assert.doesNotMatch(rootLayoutSource, /slide_from_right/);
+  assert.doesNotMatch(authLayoutSource, /slide_from_right/);
+});
+
+test('priority booking provider and overlay flows use shared motion surfaces', () => {
+  const bookingFormSource = readProjectFile(
+    'src/features/customer-booking/views/CustomerBookingForm.tsx',
+  );
+  const bookingReviewSource = readProjectFile(
+    'src/features/customer-booking/views/CustomerBookingReview.tsx',
+  );
+  const reservePaymentSource = readProjectFile(
+    'src/features/customer-reserve-payment/views/CustomerReservePayment.tsx',
+  );
+  const confirmationSource = readProjectFile(
+    'src/features/customer-booking-confirmation/views/CustomerBookingConfirmation.tsx',
+  );
+  const categorySheetSource = readProjectFile(
+    'src/features/customer-explore/views/CategorySheet.tsx',
+  );
+  const mapPickerSource = readProjectFile(
+    'src/features/customer-location/components/CustomerMapPinPickerModal.tsx',
+  );
+  const availabilitySource = readProjectFile(
+    'src/features/provider-set-availability/views/ProviderSetAvailability.tsx',
+  );
+  const providerCompletedSource = readProjectFile(
+    'src/features/provider-service-completed/views/ProviderServiceCompleted.tsx',
+  );
+  const providerReceiptSource = readProjectFile(
+    'src/features/provider-service-receipt/views/ProviderServiceReceipt.tsx',
+  );
+  const providerDetailSource = readProjectFile(
+    'src/features/provider-booking-detail/views/ProviderBookingDetail.tsx',
+  );
+  const providerStartSource = readProjectFile(
+    'src/features/provider-start-service/views/ProviderStartService.tsx',
+  );
+
+  assert.match(bookingFormSource, /MotionPressable/);
+  assert.match(bookingFormSource, /variant="sheet"/);
+  assert.match(bookingReviewSource, /MotionPressable/);
+  assert.match(bookingReviewSource, /variant="sheet"/);
+  assert.match(reservePaymentSource, /StaggeredMotionView/);
+  assert.match(reservePaymentSource, /variant="sheet"/);
+  assert.match(confirmationSource, /SuccessMotion/);
+  assert.match(categorySheetSource, /variant="sheet"/);
+  assert.match(mapPickerSource, /ServiceLocationPickerMap/);
+  assert.match(mapPickerSource, /variant="sheet"/);
+  assert.match(availabilitySource, /StaggeredMotionView/);
+  assert.match(availabilitySource, /variant="sheet"/);
+  assert.match(providerCompletedSource, /SuccessMotion/);
+  assert.match(providerReceiptSource, /MotionView/);
+  assert.match(providerDetailSource, /MotionPressable/);
+  assert.match(providerStartSource, /MotionPressable/);
+});
+
+test('map and navigation sheets keep isolated height animation exceptions documented', () => {
+  const motionDocSource = readProjectFile('src/components/Motion.md');
+  const customerTrackingSource = readProjectFile(
+    'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+  );
+  const providerNavigationSource = readProjectFile(
+    'src/features/provider-navigation-mode/views/ProviderNavigationMode.tsx',
+  );
+  const routerSource = readProjectFile('src/legacy-router/AppRouter.tsx');
+
+  assert.match(motionDocSource, /react-native-reanimated` is deferred/);
+  assert.match(motionDocSource, /Map and navigation sheets are the current exception/);
+  assert.match(customerTrackingSource, /useNativeDriver: false/);
+  assert.match(customerTrackingSource, /PanResponder\.create/);
+  assert.match(providerNavigationSource, /useNativeDriver: false/);
+  assert.match(providerNavigationSource, /PanResponder\.create/);
+  assert.match(routerSource, /'customerTrackServiceProvider'/);
+  assert.match(routerSource, /'providerNavigationMode'/);
+});
+
 test('customer UI language primitives remain opt-in and outside provider tracking screens', () => {
   const customerUiSource = readProjectFile(
     'src/shared/components/CustomerUI.tsx',
@@ -743,7 +902,7 @@ test('provider booking detail follows feature-level MVVM boundaries', () => {
   assert.match(viewModelSource, /bookingStatusChip/);
   assert.match(viewModelSource, /timelineForStatus/);
   assert.match(viewModelSource, /statusActions/);
-  assert.match(viewModelSource, /estimatedEarningsLabel/);
+  assert.match(viewModelSource, /providerPayoutLabel/);
 });
 
 test('provider calendar follows feature-level MVVM boundaries', () => {
@@ -962,15 +1121,15 @@ test('customer explore follows feature-level MVVM boundaries', () => {
     viewSource,
     /onNotificationPress=\{props\.onShowNotifications\}/,
   );
-  assert.match(viewSource, /CategoryFilterSheet/);
-  assert.match(viewSource, /setCategoryFilter/);
+  assert.match(viewSource, /SearchFilterRow/);
+  assert.doesNotMatch(viewSource, /CategoryFilterSheet|setCategoryFilter/);
   assert.match(viewSource, /onLocationPress=\{props\.onOpenSavedAddresses\}/);
   assert.match(viewModelSource, /completedRebookOptions/);
   assert.match(viewModelSource, /guideSteps/);
   assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
   assert.match(viewModelSource, /locationStatusLabel/);
   assert.match(viewModelSource, /needs_verification/);
-  assert.match(viewModelSource, /categoryFilterLabel/);
+  assert.doesNotMatch(viewModelSource, /categoryFilterLabel|CategoryFilter/);
   assert.match(viewModelSource, /bookAgainRows/);
   assert.match(viewModelSource, /serviceRows/);
   assert.match(viewModelSource, /providerRows/);
@@ -1418,7 +1577,7 @@ test('provider service completed follows feature-level MVVM boundaries', () => {
     /selectedBooking|selectedPayment|services\/serveaseApi/,
   );
   assert.match(viewModelSource, /formatMoney/);
-  assert.match(viewModelSource, /earningsLabel/);
+  assert.match(viewModelSource, /providerPayoutLabel/);
   assert.match(viewModelSource, /serviceTitle/);
 });
 
@@ -1808,8 +1967,15 @@ test('customer all services follows feature-level MVVM boundaries', () => {
     /services\.filter|marketplaceSearchQuery\.trim|formatMoney/,
   );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(appSource, /categories=\{categories\}/);
+  assert.match(viewSource, /ServiceRefinementSheet/);
+  assert.match(viewSource, /setSelectedCategoryId/);
+  assert.match(viewSource, /setSortMode/);
   assert.match(viewSource, /InlineRefreshHint label="Refreshing services"/);
   assert.match(viewModelSource, /visibleServices/);
+  assert.match(viewModelSource, /selectedCategoryId/);
+  assert.match(viewModelSource, /sortMode/);
+  assert.match(viewModelSource, /categoryFilterOptions/);
   assert.match(viewModelSource, /formatMoney/);
 });
 

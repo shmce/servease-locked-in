@@ -2,7 +2,6 @@ import { ReactNode } from 'react';
 import { ArrowLeft, ChevronRight } from 'lucide-react-native';
 import {
   KeyboardTypeOptions,
-  Pressable,
   ScrollView,
   StyleProp,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
+import { MotionPressable, MotionView } from '../../components/Motion';
 import { palette, radius, spacing } from '../../theme/serveaseDesign';
 
 type ProviderScreenProps = {
@@ -39,7 +39,11 @@ export function ProviderScreen({
 }
 
 export function ProviderContent({ children }: { children: ReactNode }) {
-  return <View style={styles.content}>{children}</View>;
+  return (
+    <MotionView style={styles.content} variant="content">
+      {children}
+    </MotionView>
+  );
 }
 
 export function ProviderHeader({
@@ -56,14 +60,14 @@ export function ProviderHeader({
   return (
     <View style={styles.header}>
       {onBack ? (
-        <Pressable
-          style={styles.backButton}
+        <MotionPressable
+          contentStyle={styles.backButton}
           onPress={onBack}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
           <ArrowLeft color="#4B5563" size={21} strokeWidth={2.2} />
-        </Pressable>
+        </MotionPressable>
       ) : null}
       <View style={styles.headerCopy}>
         <Text style={styles.headerTitle} numberOfLines={2}>
@@ -90,7 +94,7 @@ export function ProviderSection({
   children: ReactNode;
 }) {
   return (
-    <View style={styles.section}>
+    <MotionView style={styles.section} variant="content">
       {title ? (
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle} numberOfLines={2}>
@@ -100,7 +104,7 @@ export function ProviderSection({
         </View>
       ) : null}
       {children}
-    </View>
+    </MotionView>
   );
 }
 
@@ -117,10 +121,11 @@ export function ProviderCard({
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
 }) {
+  const cardStyle = [styles.card, selected && styles.cardSelected, style];
   const content = (
-    <View style={[styles.card, selected && styles.cardSelected, style]}>
+    <MotionView style={cardStyle} variant="card">
       {children}
-    </View>
+    </MotionView>
   );
 
   if (!onPress) {
@@ -128,13 +133,17 @@ export function ProviderCard({
   }
 
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? 'Open details'}
-    >
-      {content}
-    </Pressable>
+    <MotionView variant="card">
+      <MotionPressable
+        contentStyle={cardStyle}
+        onPress={onPress}
+        selected={selected}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? 'Open details'}
+      >
+        {children}
+      </MotionPressable>
+    </MotionView>
   );
 }
 
@@ -160,11 +169,14 @@ export function ProviderBadge({
   tone?: 'danger' | 'neutral' | 'success' | 'warning';
 }) {
   return (
-    <View style={[styles.badge, badgeToneStyles[tone].badge]}>
+    <MotionView
+      style={[styles.badge, badgeToneStyles[tone].badge]}
+      variant="listItem"
+    >
       <Text style={[styles.badgeText, badgeToneStyles[tone].text]} numberOfLines={1}>
         {label}
       </Text>
-    </View>
+    </MotionView>
   );
 }
 
@@ -182,7 +194,7 @@ export function ProviderRow({
   onPress?: () => void;
 }) {
   const content = (
-    <View style={styles.row}>
+    <MotionView style={styles.row} variant="listItem">
       {icon ? <ProviderIconBlock compact>{icon}</ProviderIconBlock> : null}
       <View style={styles.rowCopy}>
         <Text style={styles.rowTitle} numberOfLines={1}>
@@ -196,7 +208,7 @@ export function ProviderRow({
       </View>
       {meta ? <View style={styles.rowMeta}>{meta}</View> : null}
       {onPress ? <ChevronRight color="#32A66F" size={18} strokeWidth={2.2} /> : null}
-    </View>
+    </MotionView>
   );
 
   if (!onPress) {
@@ -204,9 +216,13 @@ export function ProviderRow({
   }
 
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}>
+    <MotionPressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+    >
       {content}
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -218,10 +234,10 @@ export function ProviderEmptyState({
   body: string;
 }) {
   return (
-    <View style={styles.emptyState}>
+    <MotionView style={styles.emptyState} variant="content">
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyBody}>{body}</Text>
-    </View>
+    </MotionView>
   );
 }
 
@@ -237,8 +253,8 @@ export function ProviderButton({
   variant?: 'danger' | 'primary' | 'secondary';
 }) {
   return (
-    <Pressable
-      style={[
+    <MotionPressable
+      contentStyle={[
         styles.button,
         variant === 'secondary' && styles.buttonSecondary,
         variant === 'danger' && styles.buttonDanger,
@@ -258,12 +274,16 @@ export function ProviderButton({
       >
         {label}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
 export function ProviderActionRow({ children }: { children: ReactNode }) {
-  return <View style={styles.actionRow}>{children}</View>;
+  return (
+    <MotionView style={styles.actionRow} variant="content">
+      {children}
+    </MotionView>
+  );
 }
 
 export function ProviderTextField({
@@ -311,17 +331,18 @@ export function ProviderPill({
   onPress?: () => void;
 }) {
   return (
-    <Pressable
-      style={[styles.pill, selected && styles.pillSelected]}
+    <MotionPressable
+      contentStyle={[styles.pill, selected && styles.pillSelected]}
       onPress={onPress}
       disabled={!onPress}
+      selected={selected}
       accessibilityRole={onPress ? 'button' : undefined}
       accessibilityState={onPress ? { selected: Boolean(selected) } : undefined}
     >
       <Text style={[styles.pillText, selected && styles.pillTextSelected]} numberOfLines={1}>
         {label}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -359,10 +380,10 @@ export function ProviderStickyFooter({
   maxWidth?: number;
 }) {
   return (
-    <View style={[styles.stickyFooter, { maxWidth }]}>
+    <MotionView style={[styles.stickyFooter, { maxWidth }]} variant="sheet">
       {children}
       <View style={styles.footerHomeIndicator} />
-    </View>
+    </MotionView>
   );
 }
 

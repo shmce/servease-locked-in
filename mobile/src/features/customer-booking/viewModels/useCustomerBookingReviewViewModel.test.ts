@@ -3,8 +3,8 @@ import test from 'node:test';
 import { buildCustomerBookingReviewViewModel } from './useCustomerBookingReviewViewModel';
 import { customerPastSlotPickerCopy } from '../../../shared/utils/booking';
 import type {
+  BookingPricePreviewSummary,
   CustomerPaymentMethodSummary,
-  PricingQuoteSummary,
   ProviderListing,
 } from '../../../shared/models/types';
 import {
@@ -47,6 +47,54 @@ const gcashMethod: CustomerPaymentMethodSummary = {
   createdAt: null,
 };
 
+const preview: BookingPricePreviewSummary = {
+  currency: 'PHP',
+  serviceAmount: 500,
+  totalAmount: 651,
+  pricingMode: 'flat',
+  serviceTitle: 'Home repair',
+  serviceDescription: 'General repairs',
+  materialDriftTolerance: 10,
+  priceBreakdown: {
+    currency: 'PHP',
+    serviceSubtotal: 500,
+    travelFee: 120,
+    serviceFee: 31,
+    total: 651,
+    fallbackUsed: true,
+    calculationSource: 'fallback',
+    generatedAt: '2026-05-31T00:00:00.000Z',
+    metadata: {
+      pricingMode: 'flat',
+      hoursRequired: 1,
+      serviceRate: 500,
+      distanceKm: null,
+      durationMinutes: null,
+      fallbackReason: 'route_unavailable',
+    },
+    lineItems: [
+      {
+        code: 'service_subtotal',
+        label: 'Service subtotal',
+        amount: 500,
+        source: 'provider_rate',
+      },
+      {
+        code: 'travel_fuel',
+        label: 'Travel and fuel estimate',
+        amount: 120,
+        source: 'fallback',
+      },
+      {
+        code: 'service_fee',
+        label: 'Platform fee',
+        amount: 31,
+        source: 'platform_fee',
+      },
+    ],
+  },
+};
+
 const confirmedServiceLocation = customerBookingLocationFromSavedAddress({
   id: 'address-1',
   userId: 'customer-1',
@@ -73,7 +121,7 @@ test('customer booking review shows payment-first cash confirmation copy', () =>
     serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
-    pricingQuote: null,
+    bookingPricePreview: preview,
     promotionValidation: null,
     promoCode: '',
     busyAction: null,
@@ -97,7 +145,7 @@ test('customer booking review shows secure checkout copy for online methods', ()
     serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
-    pricingQuote: null,
+    bookingPricePreview: preview,
     promotionValidation: null,
     promoCode: '',
     busyAction: null,
@@ -112,28 +160,52 @@ test('customer booking review shows secure checkout copy for online methods', ()
 });
 
 test('customer booking review shows booking-facing price breakdown rows', () => {
-  const quote: PricingQuoteSummary = {
-    quoteId: 'quote-1',
-    expiresAt: '2026-06-01T08:45:00.000Z',
+  const bookingPricePreview: BookingPricePreviewSummary = {
     currency: 'PHP',
-    estimatedTotal: 2144,
-    fairRangeMin: 1822,
-    fairRangeMax: 2466,
-    fairnessStatus: 'within_range',
-    confidence: 'medium',
-    lineItems: [
-      { code: 'labor', label: 'Labor', amount: 2000 },
-      { code: 'travel_fuel', label: 'Travel and fuel estimate', amount: 144 },
-    ],
-    signals: {
-      distanceKm: null,
-      durationMinutes: null,
-      fuelPricePerLiter: 89.84,
-      fuelIndexUpdatedAt: '2026-05-19T00:00:00.000Z',
-      staleFuelIndex: false,
+    serviceAmount: 2000,
+    totalAmount: 2251,
+    pricingMode: 'flat',
+    serviceTitle: 'Home repair',
+    serviceDescription: 'General repairs',
+    materialDriftTolerance: 22.51,
+    priceBreakdown: {
+      currency: 'PHP',
+      serviceSubtotal: 2000,
+      travelFee: 144,
+      serviceFee: 107,
+      total: 2251,
       fallbackUsed: true,
+      calculationSource: 'fallback',
+      generatedAt: '2026-05-31T00:00:00.000Z',
+      metadata: {
+        pricingMode: 'flat',
+        hoursRequired: 1,
+        serviceRate: 2000,
+        distanceKm: null,
+        durationMinutes: null,
+        fallbackReason: 'route_unavailable',
+      },
+      lineItems: [
+        {
+          code: 'service_subtotal',
+          label: 'Service subtotal',
+          amount: 2000,
+          source: 'provider_rate',
+        },
+        {
+          code: 'travel_fuel',
+          label: 'Travel and fuel estimate',
+          amount: 144,
+          source: 'fallback',
+        },
+        {
+          code: 'service_fee',
+          label: 'Platform fee',
+          amount: 107,
+          source: 'platform_fee',
+        },
+      ],
     },
-    explanation: 'Within typical rates.',
   };
   const model = buildCustomerBookingReviewViewModel({
     provider: {
@@ -147,7 +219,7 @@ test('customer booking review shows booking-facing price breakdown rows', () => 
     serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
-    pricingQuote: quote,
+    bookingPricePreview,
     promotionValidation: null,
     promoCode: '',
     busyAction: null,
@@ -156,7 +228,7 @@ test('customer booking review shows booking-facing price breakdown rows', () => 
     now: new Date('2026-05-31T00:00:00.000Z'),
   });
 
-  assert.equal(model.data.totalLabel, 'Booking total estimate');
+  assert.equal(model.data.totalLabel, 'Customer total');
   assert.equal(model.data.displayedTotalLabel, 'PHP 2,251');
   assert.deepEqual(model.data.priceBreakdownRows.slice(0, 3), [
     {
@@ -171,7 +243,7 @@ test('customer booking review shows booking-facing price breakdown rows', () => 
     },
     {
       key: 'service-fee',
-      label: 'Service fee',
+      label: 'Platform fee',
       value: 'PHP 107',
     },
   ]);
@@ -187,7 +259,7 @@ test('customer booking review shows fallback breakdown and allows cash confirmat
     serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
-    pricingQuote: null,
+    bookingPricePreview: null,
     promotionValidation: null,
     promoCode: '',
     busyAction: null,
@@ -196,7 +268,7 @@ test('customer booking review shows fallback breakdown and allows cash confirmat
     now: new Date('2026-05-31T00:00:00.000Z'),
   });
 
-  assert.equal(model.data.confirmDisabled, false);
+  assert.equal(model.data.confirmDisabled, true);
   assert.equal(model.data.displayedTotalLabel, 'PHP 651');
   assert.deepEqual(model.data.priceBreakdownRows, [
     {
@@ -211,7 +283,7 @@ test('customer booking review shows fallback breakdown and allows cash confirmat
     },
     {
       key: 'service-fee',
-      label: 'Service fee',
+      label: 'Platform fee',
       value: 'PHP 31',
     },
   ]);
@@ -227,7 +299,7 @@ test('customer booking review blocks confirmation when the selected schedule has
     serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
-    pricingQuote: null,
+    bookingPricePreview: preview,
     promotionValidation: null,
     promoCode: '',
     busyAction: null,
@@ -237,7 +309,7 @@ test('customer booking review blocks confirmation when the selected schedule has
   });
 
   assert.equal(model.data.confirmDisabled, true);
-  assert.equal(model.data.quoteExplanation, customerPastSlotPickerCopy);
+  assert.equal(model.data.priceNotice, customerPastSlotPickerCopy);
 });
 
 test('customer booking review surfaces final schedule submission failures inline without disabling retry', () => {
@@ -250,7 +322,7 @@ test('customer booking review surfaces final schedule submission failures inline
     serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
-    pricingQuote: null,
+    bookingPricePreview: preview,
     promotionValidation: null,
     promoCode: '',
     busyAction: null,
@@ -262,7 +334,7 @@ test('customer booking review surfaces final schedule submission failures inline
 
   assert.equal(model.data.confirmDisabled, false);
   assert.equal(
-    model.data.quoteExplanation,
+    model.data.priceNotice,
     'This slot was just taken or blocked. Please pick another.',
   );
 });
@@ -277,7 +349,7 @@ test('customer booking review shows the confirmed service pin', () => {
     serviceLocation: confirmedServiceLocation,
     notes: '',
     bookingReferencePhotoUrl: null,
-    pricingQuote: null,
+    bookingPricePreview: preview,
     promotionValidation: null,
     promoCode: '',
     busyAction: null,
@@ -310,7 +382,7 @@ test('customer booking review blocks confirmation when the service pin regresses
     },
     notes: '',
     bookingReferencePhotoUrl: null,
-    pricingQuote: null,
+    bookingPricePreview: preview,
     promotionValidation: null,
     promoCode: '',
     busyAction: null,
@@ -323,6 +395,6 @@ test('customer booking review blocks confirmation when the service pin regresses
     (row) => row.key === 'service-pin',
   );
   assert.equal(model.data.confirmDisabled, true);
-  assert.equal(model.data.quoteExplanation, customerMapPinRequiredCopy);
+  assert.equal(model.data.priceNotice, customerMapPinRequiredCopy);
   assert.equal(pinRow?.value, 'Pin not confirmed');
 });

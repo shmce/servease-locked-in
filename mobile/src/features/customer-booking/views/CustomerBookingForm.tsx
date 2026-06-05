@@ -1,9 +1,4 @@
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import {
   CheckCircle,
   Home,
@@ -12,6 +7,7 @@ import {
   Upload,
 } from 'lucide-react-native';
 import { Field } from '../../../components/DesignKit';
+import { MotionPressable, MotionView } from '../../../components/Motion';
 import { CustomerBookingSchedulePicker } from './CustomerBookingSchedulePicker';
 import {
   CustomerCard,
@@ -186,8 +182,8 @@ export function CustomerBookingFormScreen({
 
           <CustomerSection title="Where do you need it?">
             <View style={styles.addressActionRow}>
-              <Pressable
-                style={[
+              <MotionPressable
+                contentStyle={[
                   styles.addressActionButton,
                   styles.addressCurrentAction,
                   data.useCurrentLocationDisabled && styles.faded,
@@ -205,9 +201,9 @@ export function CustomerBookingFormScreen({
                 <Text style={styles.addressActionText} numberOfLines={1}>
                   {data.useCurrentLocationLabel}
                 </Text>
-              </Pressable>
-              <Pressable
-                style={[
+              </MotionPressable>
+              <MotionPressable
+                contentStyle={[
                   styles.addressActionButton,
                   styles.addressMapAction,
                   data.verifyAddressDisabled && styles.faded,
@@ -221,7 +217,7 @@ export function CustomerBookingFormScreen({
                 <Text style={styles.addressMapActionText} numberOfLines={1}>
                   {data.verifyAddressLabel}
                 </Text>
-              </Pressable>
+              </MotionPressable>
             </View>
             {data.savedAddressOptions.length > 0 ? (
               <View style={styles.savedAddressRail}>
@@ -230,9 +226,9 @@ export function CustomerBookingFormScreen({
                     (item) => item.id === savedAddress.id,
                   );
                   return (
-                    <Pressable
+                    <MotionPressable
                       key={savedAddress.id}
-                      style={[
+                      contentStyle={[
                         styles.savedAddressChip,
                         savedAddress.isSelected &&
                           styles.savedAddressChipSelected,
@@ -242,8 +238,10 @@ export function CustomerBookingFormScreen({
                           onSavedAddressPress(fullAddress);
                         }
                       }}
+                      selected={savedAddress.isSelected}
                       accessibilityRole="button"
                       accessibilityLabel={`Use ${savedAddress.label} address`}
+                      accessibilityState={{ selected: savedAddress.isSelected }}
                     >
                       {savedAddress.isSelected ? (
                         <Home
@@ -288,7 +286,7 @@ export function CustomerBookingFormScreen({
                           {savedAddress.statusLabel}
                         </Text>
                       </View>
-                    </Pressable>
+                    </MotionPressable>
                   );
                 })}
               </View>
@@ -312,8 +310,8 @@ export function CustomerBookingFormScreen({
             {addressGeoResult && !serviceLocation.confirmedPin ? (
               <AddressVerificationPreview result={addressGeoResult} />
             ) : null}
-            <Pressable
-              style={[
+            <MotionPressable
+              contentStyle={[
                 styles.saveHomeButton,
                 data.saveAddressDisabled && styles.faded,
               ]}
@@ -326,7 +324,7 @@ export function CustomerBookingFormScreen({
               <Text style={styles.smallActionText}>
                 {data.saveAddressLabel}
               </Text>
-            </Pressable>
+            </MotionPressable>
           </CustomerSection>
 
           <CustomerSection title="Add details (optional)">
@@ -350,10 +348,10 @@ export function CustomerBookingFormScreen({
         </CustomerContent>
       </CustomerScreen>
 
-      <View style={styles.stickyFooter}>
+      <MotionView style={styles.stickyFooter} variant="sheet">
         <View style={styles.footerTotalRow}>
           <View style={styles.footerTotalCopy}>
-            <Text style={styles.footerTotalLabel}>Service rate estimate</Text>
+            <Text style={styles.footerTotalLabel}>Base service rate</Text>
             <Text style={styles.cardMeta} numberOfLines={2}>
               {data.footerRateLabel} - travel and fuel {data.calloutFeeLabel}
             </Text>
@@ -370,8 +368,8 @@ export function CustomerBookingFormScreen({
         {data.continueNotice ? (
           <Text style={styles.noticeText}>{data.continueNotice}</Text>
         ) : null}
-        <Pressable
-          style={[
+        <MotionPressable
+          contentStyle={[
             styles.footerButton,
             !data.canContinue && styles.footerButtonDisabled,
           ]}
@@ -380,11 +378,11 @@ export function CustomerBookingFormScreen({
           accessibilityRole="button"
         >
           <Text style={styles.footerButtonText}>{data.continueLabel}</Text>
-        </Pressable>
+        </MotionPressable>
         <Text style={styles.footerLink} onPress={onBackToProvider}>
           Back to provider
         </Text>
-      </View>
+      </MotionView>
       <CustomerMapPinPickerModal
         currentLocationBusy={busyAction === 'geo-current-location'}
         mapSearchBusy={mapSearchBusy}
@@ -423,8 +421,8 @@ function LocationStatusCard({
   onEdit: () => void;
 }) {
   return (
-    <Pressable
-      style={[
+    <MotionPressable
+      contentStyle={[
         styles.locationStatusCard,
         isConfirmed && styles.locationStatusCardConfirmed,
       ]}
@@ -446,7 +444,7 @@ function LocationStatusCard({
         </Text>
       </View>
       <Text style={styles.locationStatusAction}>{actionLabel}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

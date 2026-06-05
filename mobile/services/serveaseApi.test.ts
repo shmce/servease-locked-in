@@ -46,6 +46,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   openConversation,
+  previewBookingPrice,
   registerPushDevice,
   registerAccount,
   raiseBookingDispute,
@@ -417,6 +418,90 @@ describe('serveaseApi', () => {
       serviceId: 'service-1',
       serviceAddress: '123 Test St',
       scheduledAt: '2026-06-01T09:00:00.000Z',
+    });
+  });
+
+  it('previews booking prices through the booking gateway', async () => {
+    let requestBody: unknown = null;
+    let authorization: string | null = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/bookings/preview');
+      assert.equal(init?.method, 'POST');
+      authorization = new Headers(init?.headers).get('authorization');
+      requestBody = JSON.parse(String(init?.body));
+      return jsonResponse({
+        data: {
+          currency: 'PHP',
+          serviceAmount: 1500,
+          totalAmount: 1701,
+          pricingMode: 'flat',
+          serviceTitle: 'Deep Clean',
+          serviceDescription: 'Detailed cleaning',
+          materialDriftTolerance: 17.01,
+          priceBreakdown: {
+            currency: 'PHP',
+            serviceSubtotal: 1500,
+            travelFee: 120,
+            serviceFee: 81,
+            total: 1701,
+            fallbackUsed: true,
+            calculationSource: 'fallback',
+            generatedAt: '2026-06-01T08:45:00.000Z',
+            metadata: {
+              pricingMode: 'flat',
+              hoursRequired: 1,
+              serviceRate: 1500,
+              distanceKm: null,
+              durationMinutes: null,
+              fallbackReason: 'route_unavailable',
+            },
+            lineItems: [
+              {
+                code: 'service_subtotal',
+                label: 'Service subtotal',
+                amount: 1500,
+                source: 'provider_rate',
+              },
+              {
+                code: 'travel_fuel',
+                label: 'Travel and fuel estimate',
+                amount: 120,
+                source: 'fallback',
+              },
+              {
+                code: 'service_fee',
+                label: 'Platform fee',
+                amount: 81,
+                source: 'platform_fee',
+              },
+            ],
+          },
+        },
+      });
+    };
+
+    const preview = await previewBookingPrice(
+      {
+        providerId: 'provider-1',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-06-01T09:00:00.000Z',
+        serviceAmount: 1500,
+        pricingMode: 'flat',
+      },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
+
+    assert.equal(authorization, 'Bearer access-token');
+    assert.equal(preview.totalAmount, 1701);
+    assert.equal(preview.priceBreakdown.lineItems[2]?.label, 'Platform fee');
+    assert.deepEqual(requestBody, {
+      providerId: 'provider-1',
+      serviceId: 'service-1',
+      serviceAddress: '123 Test St',
+      scheduledAt: '2026-06-01T09:00:00.000Z',
+      serviceAmount: 1500,
+      pricingMode: 'flat',
     });
   });
 

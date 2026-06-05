@@ -3429,7 +3429,7 @@ export default function App({ initialRoute = null }: AppProps) {
         serviceLocation={customerBookingFlow.data.serviceLocation}
         notes={customerBookingFlow.data.notes}
         bookingReferencePhotoUrl={customerBookingFlow.data.bookingReferencePhotoUrl}
-        pricingQuote={customerBookingFlow.data.pricingQuote}
+        bookingPricePreview={customerBookingFlow.data.bookingPricePreview}
         promotionValidation={customerBookingFlow.data.promotionValidation}
         promoCode={customerBookingFlow.data.promoCode}
         customerPaymentMethods={customerPaymentMethods}
@@ -3440,7 +3440,9 @@ export default function App({ initialRoute = null }: AppProps) {
         onSelectPaymentMethod={setSelectedCustomerPaymentMethodId}
         onSavePaymentMethod={saveCustomerPaymentMethod}
         onConfirm={() => void confirmBookingWithPayment()}
-        onPreviewEstimate={() => void customerBookingFlow.actions.previewPricingQuote()}
+        onRefreshPrice={() =>
+          void customerBookingFlow.actions.refreshBookingPricePreview()
+        }
         onEditBooking={() => navigate('customerBookingForm', 'customer')}
       />
     );
@@ -3475,6 +3477,7 @@ export default function App({ initialRoute = null }: AppProps) {
       <CustomerAllServicesScreen
         title={title}
         mode={mode}
+        categories={categories}
         services={services}
         marketplaceSearchQuery={marketplaceSearchQuery}
         isLoading={isCatalogLoading}

@@ -9,9 +9,9 @@ import {
   toManilaBookingIso,
 } from '../../../shared/utils/booking';
 import {
+  BookingPricePreviewSummary,
   CatalogServiceItem,
   CustomerPaymentMethodSummary,
-  PricingQuoteSummary,
   PromotionValidationSummary,
   ProviderListing,
 } from '../../../shared/models/types';
@@ -33,7 +33,7 @@ type CustomerBookingReviewViewModelInput = {
   serviceLocation: CustomerBookingLocationState;
   notes: string;
   bookingReferencePhotoUrl: string | null;
-  pricingQuote: PricingQuoteSummary | null;
+  bookingPricePreview: BookingPricePreviewSummary | null;
   promotionValidation: PromotionValidationSummary | null;
   promoCode: string;
   customerPaymentMethods: CustomerPaymentMethodSummary[];
@@ -52,7 +52,7 @@ export function useCustomerBookingReviewViewModel({
   serviceLocation,
   notes,
   bookingReferencePhotoUrl,
-  pricingQuote,
+  bookingPricePreview,
   promotionValidation,
   promoCode,
   customerPaymentMethods,
@@ -72,7 +72,7 @@ export function useCustomerBookingReviewViewModel({
         serviceLocation,
         notes,
         bookingReferencePhotoUrl,
-        pricingQuote,
+        bookingPricePreview,
         promotionValidation,
         promoCode,
         customerPaymentMethods,
@@ -88,7 +88,7 @@ export function useCustomerBookingReviewViewModel({
       busyAction,
       hoursRequired,
       notes,
-      pricingQuote,
+      bookingPricePreview,
       promoCode,
       promotionValidation,
       provider,
@@ -111,7 +111,7 @@ export function buildCustomerBookingReviewViewModel({
   serviceLocation,
   notes,
   bookingReferencePhotoUrl,
-  pricingQuote,
+  bookingPricePreview,
   promotionValidation,
   promoCode,
   customerPaymentMethods,
@@ -131,10 +131,10 @@ export function buildCustomerBookingReviewViewModel({
   const scheduleMessage = bookingSlotError || localScheduleMessage;
   const pricingPreview = buildBookingPriceBreakdownPreview({
     subtotal,
-    pricingQuote,
+    bookingPricePreview,
   });
   const displayedTotal = pricingPreview.total;
-  const totalLabel = 'Booking total estimate';
+  const totalLabel = 'Customer total';
   const providerName = provider.providerBusinessName ?? provider.title;
   const selectedPaymentMethod =
     customerPaymentMethods.find(
@@ -232,13 +232,14 @@ export function buildCustomerBookingReviewViewModel({
       paymentNotice: isCashPayment
         ? 'Cash is due directly to the provider after the service is completed.'
         : 'APICenter will collect wallet or card details in secure checkout after you confirm.',
-      quoteExplanation:
+      priceNotice:
         locationBlockingMessage ??
         scheduleMessage ??
-        pricingQuote?.explanation ??
-        (isCashPayment
-          ? 'Travel and fuel is estimated for now. Final pricing is stored when the booking is created.'
-          : 'Review this breakdown first. Secure checkout opens after the booking is created.'),
+        (bookingPricePreview
+          ? isCashPayment
+            ? 'Cash is based on this customer total. Any material final change will be shown before booking.'
+            : 'Secure checkout opens after booking creation using the stored customer total.'
+          : 'Get a price preview before confirming. The preview includes travel, fuel, and platform fee.'),
       confirmLabel:
         busyAction === 'create-booking' || busyAction === 'payment'
           ? isCashPayment
@@ -248,13 +249,16 @@ export function buildCustomerBookingReviewViewModel({
             ? 'Confirm cash booking'
             : 'Pay and confirm booking',
       estimateLabel:
-        busyAction === 'pricing-quote'
-          ? 'Getting price estimate...'
-          : 'Get price estimate',
+        busyAction === 'booking-price-preview'
+          ? 'Refreshing price...'
+          : bookingPricePreview
+            ? 'Refresh price'
+            : 'Get price preview',
       confirmDisabled:
         busyAction === 'create-booking' ||
         busyAction === 'payment' ||
-        busyAction === 'pricing-quote' ||
+        busyAction === 'booking-price-preview' ||
+        !bookingPricePreview ||
         Boolean(locationBlockingMessage) ||
         !address.trim() ||
         !scheduledAtIso ||
@@ -282,26 +286,29 @@ function paymentMethodLabel(
 
 function buildBookingPriceBreakdownPreview({
   subtotal,
-  pricingQuote,
+  bookingPricePreview,
 }: {
   subtotal: number;
-  pricingQuote: PricingQuoteSummary | null;
+  bookingPricePreview: BookingPricePreviewSummary | null;
 }) {
-  const serviceSubtotal =
-    pricingQuote?.lineItems.find((item) => item.code === 'labor')?.amount ??
-    subtotal;
-  const travelFee =
-    pricingQuote?.lineItems.find((item) => item.code === 'travel_fuel')
-      ?.amount ?? 120;
-  const serviceFee = Math.max(
+  if (bookingPricePreview) {
+    return {
+      total: bookingPricePreview.totalAmount,
+      rows: bookingPricePreview.priceBreakdown.lineItems.map((item) => ({
+        key: item.code.replace(/_/g, '-'),
+        label: item.label,
+        amount: item.amount,
+      })),
+    };
+  }
+
+  const serviceSubtotal = subtotal;
+  const travelFee = 120;
+  const platformFee = Math.max(
     25,
     Math.round((serviceSubtotal + travelFee) * 0.05),
   );
-  const total = serviceSubtotal + travelFee + serviceFee;
-  const travelLabel =
-    pricingQuote?.signals.fallbackUsed === false
-      ? 'Travel and fuel'
-      : 'Travel and fuel estimate';
+  const total = serviceSubtotal + travelFee + platformFee;
 
   return {
     total,
@@ -313,13 +320,13 @@ function buildBookingPriceBreakdownPreview({
       },
       {
         key: 'travel-fuel',
-        label: travelLabel,
+        label: 'Travel and fuel estimate',
         amount: travelFee,
       },
       {
         key: 'service-fee',
-        label: 'Service fee',
-        amount: serviceFee,
+        label: 'Platform fee',
+        amount: platformFee,
       },
     ],
   };

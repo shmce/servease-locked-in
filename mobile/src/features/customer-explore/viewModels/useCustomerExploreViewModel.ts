@@ -10,11 +10,8 @@ import {
 } from '../../../shared/models/types';
 import { formatDateTime, formatMoney, statusLabel } from '../../../shared/utils/booking';
 
-export type CategoryFilter = 'all' | 'popular' | 'top-rated';
 type LocationReadinessState = 'loading' | 'verified' | 'needs_verification' | 'setup';
 
-const TOP_RATED_MIN_REVIEWS = 10;
-const DEFAULT_PLATFORM_AVERAGE_RATING = 4.5;
 const PRESENT_BOOKING_STATUS_PRIORITY: Partial<Record<BookingStatus, number>> = {
   in_progress: 0,
   confirmed: 1,
@@ -24,7 +21,6 @@ const PRESENT_BOOKING_STATUS_PRIORITY: Partial<Record<BookingStatus, number>> = 
 type CustomerExploreViewModelInput = {
   bookings: BookingSummary[];
   categories: CatalogCategory[];
-  categoryFilter?: CategoryFilter;
   customerGuideDismissed: boolean;
   customerGuideStep: number;
   profile: CurrentUserProfile | null;
@@ -142,7 +138,6 @@ const guideSteps: {
 export function useCustomerExploreViewModel({
   bookings,
   categories,
-  categoryFilter,
   customerGuideDismissed,
   customerGuideStep,
   profile,
@@ -160,7 +155,6 @@ export function useCustomerExploreViewModel({
   return useMemo(() => buildCustomerExploreViewModel({
     bookings,
     categories,
-    categoryFilter,
     customerGuideDismissed,
     customerGuideStep,
     profile,
@@ -177,7 +171,6 @@ export function useCustomerExploreViewModel({
   }), [
     bookings,
     categories,
-    categoryFilter,
     customerGuideDismissed,
     customerGuideStep,
     profile,
@@ -197,7 +190,6 @@ export function useCustomerExploreViewModel({
 export function buildCustomerExploreViewModel({
   bookings,
   categories,
-  categoryFilter = 'all',
   customerGuideDismissed,
   customerGuideStep,
   profile,
@@ -219,17 +211,6 @@ export function buildCustomerExploreViewModel({
   const { customerName } = customerContext;
   const safeGuideStep = customerGuideStep % guideSteps.length;
   const guideStep = guideSteps[safeGuideStep];
-  const popularityScoresByCategory = buildPopularityScoresByCategory(
-    categories,
-    services,
-    providers,
-  );
-  const ratingScoresByCategory = buildBayesianRatingScoresByCategory(
-    categories,
-    services,
-    providers,
-  );
-  const popularCategoryId = highestScoredKey(popularityScoresByCategory);
   const presentBooking = selectPresentBooking(bookings, now);
   const compactBookAgainRows = completedRebookOptions(bookings)
     .slice(0, 2)
@@ -241,18 +222,12 @@ export function buildCustomerExploreViewModel({
   const baseRows = categories.map((category) => ({
     category,
     id: category.id,
-    isPopular: category.id === popularCategoryId,
     isSelected: category.id === selectedCategoryId,
     subtitle: displayText(category.description, 'Tap to browse services'),
     title: categoryTitle(category),
   }));
 
-  const categoryRows = sortCategoryRows(
-    baseRows,
-    categoryFilter,
-    popularityScoresByCategory,
-    ratingScoresByCategory,
-  );
+  const categoryRows = baseRows;
   const quickCategoryRows = categoryRows.slice(0, 4).map((row) => ({
     category: row.category,
     id: row.id,
@@ -302,12 +277,6 @@ export function buildCustomerExploreViewModel({
         uri: customerContext.avatarUri,
       },
       categoryRows,
-      categoryFilter: {
-        accessibilityLabel: `Category filter, ${categoryFilterLabel(categoryFilter)} selected`,
-        isActive: categoryFilter !== 'all',
-        label: categoryFilterLabel(categoryFilter),
-        value: categoryFilter,
-      },
       compactBookAgainRows,
       customerInitial: customerName.slice(0, 1).toUpperCase(),
       customerName,
@@ -364,10 +333,7 @@ export function buildCustomerExploreViewModel({
         : null,
       quickCategoryRows,
       referenceCategoryRows: buildReferenceCategoryRows({
-        categoryFilter,
         categories,
-        popularityScoresByCategory,
-        ratingScoresByCategory,
         selectedCategoryId,
       }),
       referenceTrustRows: REFERENCE_TRUST_VALUE_ROWS,
@@ -404,16 +370,10 @@ export function buildCustomerExploreViewModel({
 }
 
 function buildReferenceCategoryRows({
-  categoryFilter,
   categories,
-  popularityScoresByCategory,
-  ratingScoresByCategory,
   selectedCategoryId,
 }: {
-  categoryFilter: CategoryFilter;
   categories: CatalogCategory[];
-  popularityScoresByCategory: Map<string, number>;
-  ratingScoresByCategory: Map<string, number>;
   selectedCategoryId: string | null;
 }) {
   const usedCategoryIds = new Set<string>();
@@ -435,20 +395,7 @@ function buildReferenceCategoryRows({
     };
   });
 
-  if (categoryFilter === 'all') {
-    return rows;
-  }
-
-  const scores =
-    categoryFilter === 'popular'
-      ? popularityScoresByCategory
-      : ratingScoresByCategory;
-
-  return [...rows].sort((a, b) => {
-    const aScore = a.category ? scores.get(a.category.id) ?? 0 : -1;
-    const bScore = b.category ? scores.get(b.category.id) ?? 0 : -1;
-    return bScore - aScore || a.sortIndex - b.sortIndex;
-  });
+  return rows;
 }
 
 function buildRecommendedServiceRows({
@@ -831,16 +778,6 @@ function hasVerifiedCoordinates(address: CustomerAddressSummary): boolean {
   return Number.isFinite(address.latitude) && Number.isFinite(address.longitude);
 }
 
-function categoryFilterLabel(filter: CategoryFilter): string {
-  if (filter === 'popular') {
-    return 'Popular';
-  }
-  if (filter === 'top-rated') {
-    return 'Top-rated';
-  }
-  return 'All';
-}
-
 function notificationAccessibilityLabel(unreadCount: number): string {
   return unreadCount > 0
     ? `Notifications, ${unreadCount} unread`
@@ -892,121 +829,6 @@ function titleCase(value: string): string {
   });
 }
 
-function buildServiceCountsByCategory(
-  categories: CatalogCategory[],
-  services: CatalogServiceItem[],
-): Map<string, number> {
-  const categoryIds = new Set(categories.map((c) => c.id));
-  const counts = new Map<string, number>();
-  services.forEach((service) => {
-    if (!service.categoryId || !categoryIds.has(service.categoryId)) return;
-    counts.set(service.categoryId, (counts.get(service.categoryId) ?? 0) + 1);
-  });
-  return counts;
-}
-
-function buildPopularityScoresByCategory(
-  categories: CatalogCategory[],
-  services: CatalogServiceItem[],
-  providers: ProviderListing[],
-): Map<string, number> {
-  const categoryIds = new Set(categories.map((c) => c.id));
-  const serviceCategoryById = new Map<string, string>();
-  const serviceCounts = buildServiceCountsByCategory(categories, services);
-  const providerListingCounts = new Map<string, number>();
-  services.forEach((service) => {
-    if (!service.categoryId || !categoryIds.has(service.categoryId)) return;
-    serviceCategoryById.set(service.id, service.categoryId);
-  });
-
-  providers.forEach((provider) => {
-    if (!provider.serviceId) return;
-    const categoryId = serviceCategoryById.get(provider.serviceId);
-    if (!categoryId) return;
-    providerListingCounts.set(categoryId, (providerListingCounts.get(categoryId) ?? 0) + 1);
-  });
-
-  const scores = new Map<string, number>();
-  categories.forEach((category) => {
-    const serviceVolume = serviceCounts.get(category.id) ?? 0;
-    const providerListingVolume = providerListingCounts.get(category.id) ?? 0;
-    scores.set(category.id, Math.log1p(serviceVolume) + Math.log1p(providerListingVolume));
-  });
-  return scores;
-}
-
-function buildBayesianRatingScoresByCategory(
-  categories: CatalogCategory[],
-  services: CatalogServiceItem[],
-  providers: ProviderListing[],
-): Map<string, number> {
-  const categoryIds = new Set(categories.map((c) => c.id));
-  const serviceCategoryById = new Map<string, string>();
-  services.forEach((service) => {
-    if (!service.categoryId || !categoryIds.has(service.categoryId)) return;
-    serviceCategoryById.set(service.id, service.categoryId);
-  });
-
-  const categoryRatingStats = new Map<string, { totalReviews: number; weightedSum: number }>();
-  let platformReviewCount = 0;
-  let platformWeightedSum = 0;
-  providers.forEach((provider) => {
-    if (!provider.serviceId || provider.reviewCount <= 0) return;
-    const categoryId = serviceCategoryById.get(provider.serviceId);
-    if (!categoryId) return;
-    const entry = categoryRatingStats.get(categoryId) ?? {
-      totalReviews: 0,
-      weightedSum: 0,
-    };
-    categoryRatingStats.set(categoryId, {
-      totalReviews: entry.totalReviews + provider.reviewCount,
-      weightedSum: entry.weightedSum + provider.averageRating * provider.reviewCount,
-    });
-    platformReviewCount += provider.reviewCount;
-    platformWeightedSum += provider.averageRating * provider.reviewCount;
-  });
-
-  const observedPlatformAverage =
-    platformReviewCount > 0
-      ? platformWeightedSum / platformReviewCount
-      : DEFAULT_PLATFORM_AVERAGE_RATING;
-  const platformAverage = Math.min(observedPlatformAverage, DEFAULT_PLATFORM_AVERAGE_RATING);
-  const scores = new Map<string, number>();
-  categories.forEach((category) => {
-    const stats = categoryRatingStats.get(category.id);
-    if (!stats || stats.totalReviews <= 0) {
-      scores.set(category.id, 0);
-      return;
-    }
-    const averageRating = stats.weightedSum / stats.totalReviews;
-    const confidenceWeight = stats.totalReviews / (stats.totalReviews + TOP_RATED_MIN_REVIEWS);
-    const priorWeight = TOP_RATED_MIN_REVIEWS / (stats.totalReviews + TOP_RATED_MIN_REVIEWS);
-    scores.set(category.id, confidenceWeight * averageRating + priorWeight * platformAverage);
-  });
-  return scores;
-}
-
-function sortCategoryRows<T extends { id: string }>(
-  rows: T[],
-  filter: CategoryFilter,
-  serviceCountsByCategory: Map<string, number>,
-  providerScoresByCategory: Map<string, number>,
-): T[] {
-  if (filter === 'popular') {
-    return [...rows].sort(
-      (a, b) =>
-        (serviceCountsByCategory.get(b.id) ?? 0) - (serviceCountsByCategory.get(a.id) ?? 0),
-    );
-  }
-  if (filter === 'top-rated') {
-    return [...rows].sort(
-      (a, b) =>
-        (providerScoresByCategory.get(b.id) ?? 0) - (providerScoresByCategory.get(a.id) ?? 0),
-    );
-  }
-  return rows;
-}
-
 function sortProviderRows(providers: ProviderListing[]): ProviderListing[] {
   return [...providers].sort((a, b) => {
     const verificationDelta =
@@ -1027,18 +849,6 @@ function sortProviderRows(providers: ProviderListing[]): ProviderListing[] {
 
     return a.id.localeCompare(b.id);
   });
-}
-
-function highestScoredKey(scores: Map<string, number>): string | null {
-  let bestKey: string | null = null;
-  let bestScore = 0;
-  scores.forEach((score, key) => {
-    if (score > bestScore) {
-      bestKey = key;
-      bestScore = score;
-    }
-  });
-  return bestKey;
 }
 
 function completedRebookOptions(bookings: BookingSummary[]): BookingSummary[] {

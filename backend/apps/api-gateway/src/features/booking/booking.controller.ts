@@ -22,6 +22,7 @@ import {
 import {
   AttachmentForbiddenError,
   AttachmentNotFoundError,
+  BookingPriceChangedError,
   BookingNotFoundError,
   BookingScheduleInPastError,
   BookingStartWindowNotOpenError,
@@ -49,6 +50,7 @@ import {
   BookingTimelineEventSummary,
   BookingTrackingLocation,
   BookingTrackingSnapshot,
+  BookingPricePreviewSummary,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
   RaiseBookingDisputeRequest,
@@ -93,6 +95,22 @@ export class BookingController {
       const userId = await this.authTokenService.authenticate(authorization);
       return {
         data: await this.bookingGatewayService.createBooking(userId, body),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
+  @Post('preview')
+  async preview(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: CreateBookingRequest,
+  ): Promise<{ data: BookingPricePreviewSummary }> {
+    try {
+      this.validateCreateRequest(body);
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.bookingGatewayService.previewBookingPrice(userId, body),
       };
     } catch (error) {
       throw this.toHttpException(error);
@@ -500,6 +518,15 @@ export class BookingController {
       );
     }
 
+    if (error instanceof BookingPriceChangedError) {
+      return this.error(
+        'booking_price_changed',
+        'Booking total changed. Review the updated price before confirming.',
+        409,
+        error.details,
+      );
+    }
+
     if (error instanceof InvalidBookingTransitionError) {
       return this.error(
         'invalid_booking_transition',
@@ -571,13 +598,18 @@ export class BookingController {
     return this.error('booking_dependency_unavailable', 'Booking failed.', 503);
   }
 
-  private error(code: string, message: string, status: number): HttpException {
+  private error(
+    code: string,
+    message: string,
+    status: number,
+    details: unknown = {},
+  ): HttpException {
     return new HttpException(
       {
         error: {
           code,
           message,
-          details: {},
+          details,
         },
       },
       status,

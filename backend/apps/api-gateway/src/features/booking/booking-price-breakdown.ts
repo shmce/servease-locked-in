@@ -90,7 +90,7 @@ export function buildBookingPriceBreakdown(
       },
       {
         code: 'service_fee',
-        label: 'Service fee',
+        label: 'Platform fee',
         amount: serviceFee,
         source: 'platform_fee',
       },

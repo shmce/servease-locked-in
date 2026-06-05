@@ -9,6 +9,11 @@ import {
 } from 'react-native';
 import { ChevronRight, Clock, X } from 'lucide-react-native';
 import {
+  MotionPressable,
+  MotionView,
+  StaggeredMotionView,
+} from '../../../components/Motion';
+import {
   ApiOptions,
   ProviderAvailabilitySchedule,
 } from '../../../shared/models/types';
@@ -233,42 +238,53 @@ function TimePickerModal({
   onDismiss: () => void;
 }) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onDismiss}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
       <Pressable style={styles.modalBackdrop} onPress={onDismiss}>
-        <Pressable style={styles.modalSheet} onPress={() => undefined}>
-          <View style={styles.modalHandle} />
-          <Text style={styles.modalTitle}>{title}</Text>
-          <ScrollView
-            style={styles.modalList}
-            contentContainerStyle={styles.modalListContent}
-            showsVerticalScrollIndicator={false}
-          >
-            {times.map((time) => {
-              const selected = time === selectedTime;
-              return (
-                <Pressable
-                  key={time}
-                  style={[styles.modalOption, selected && styles.modalOptionSelected]}
-                  onPress={() => onSelect(time)}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={`Set time to ${time}`}
-                >
-                  <Text
-                    style={[
-                      styles.modalOptionText,
-                      selected && styles.modalOptionTextSelected,
-                    ]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.82}
+        <Pressable onPress={() => undefined}>
+          <MotionView style={styles.modalSheet} variant="sheet">
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>{title}</Text>
+            <ScrollView
+              style={styles.modalList}
+              contentContainerStyle={styles.modalListContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {times.map((time, index) => {
+                const selected = time === selectedTime;
+                return (
+                  <StaggeredMotionView
+                    key={time}
+                    index={index}
+                    variant="listItem"
                   >
-                    {time}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+                    <MotionPressable
+                      contentStyle={[
+                        styles.modalOption,
+                        selected && styles.modalOptionSelected,
+                      ]}
+                      onPress={() => onSelect(time)}
+                      selected={selected}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      accessibilityLabel={`Set time to ${time}`}
+                    >
+                      <Text
+                        style={[
+                          styles.modalOptionText,
+                          selected && styles.modalOptionTextSelected,
+                        ]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.82}
+                      >
+                        {time}
+                      </Text>
+                    </MotionPressable>
+                  </StaggeredMotionView>
+                );
+              })}
+            </ScrollView>
+          </MotionView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -292,15 +308,15 @@ function BlockRow({
         <Text style={styles.cardTitle}>{title}</Text>
         <Text style={styles.cardMeta}>{subtitle}</Text>
       </View>
-      <Pressable
-        style={styles.deleteButton}
+      <MotionPressable
+        contentStyle={styles.deleteButton}
         onPress={onDelete}
         disabled={disabled}
         accessibilityRole="button"
         accessibilityLabel={`Delete ${title}`}
       >
         <X color={palette.red} size={18} strokeWidth={2.4} />
-      </Pressable>
+      </MotionPressable>
     </View>
   );
 }

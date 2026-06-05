@@ -1,5 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, CreditCard, Wallet } from 'lucide-react-native';
+import { MotionPressable, MotionView } from '../../../components/Motion';
 import {
   CustomerCard,
   CustomerContent,
@@ -10,10 +11,10 @@ import {
 } from '../../../shared/components/CustomerUI';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
+  BookingPricePreviewSummary,
   CatalogServiceItem,
   CustomerPaymentMethodSummary,
   CustomerPaymentMethodType,
-  PricingQuoteSummary,
   PromotionValidationSummary,
   ProviderListing,
 } from '../../../shared/models/types';
@@ -30,7 +31,7 @@ type CustomerBookingReviewScreenProps = {
   serviceLocation: CustomerBookingLocationState;
   notes: string;
   bookingReferencePhotoUrl: string | null;
-  pricingQuote: PricingQuoteSummary | null;
+  bookingPricePreview: BookingPricePreviewSummary | null;
   promotionValidation: PromotionValidationSummary | null;
   promoCode: string;
   customerPaymentMethods: CustomerPaymentMethodSummary[];
@@ -41,7 +42,7 @@ type CustomerBookingReviewScreenProps = {
   onSelectPaymentMethod: (methodId: string) => void;
   onSavePaymentMethod: (methodType: CustomerPaymentMethodType) => Promise<void>;
   onConfirm: () => void;
-  onPreviewEstimate: () => void;
+  onRefreshPrice: () => void;
   onEditBooking: () => void;
 };
 
@@ -55,7 +56,7 @@ export function CustomerBookingReviewScreen({
   serviceLocation,
   notes,
   bookingReferencePhotoUrl,
-  pricingQuote,
+  bookingPricePreview,
   promotionValidation,
   promoCode,
   customerPaymentMethods,
@@ -66,7 +67,7 @@ export function CustomerBookingReviewScreen({
   onSelectPaymentMethod,
   onSavePaymentMethod,
   onConfirm,
-  onPreviewEstimate,
+  onRefreshPrice,
   onEditBooking,
 }: CustomerBookingReviewScreenProps) {
   const bookingReview = useCustomerBookingReviewViewModel({
@@ -79,7 +80,7 @@ export function CustomerBookingReviewScreen({
     serviceLocation,
     notes,
     bookingReferencePhotoUrl,
-    pricingQuote,
+    bookingPricePreview,
     promotionValidation,
     promoCode,
     customerPaymentMethods,
@@ -106,15 +107,15 @@ export function CustomerBookingReviewScreen({
               <View style={styles.flex}>
                 <Text style={styles.providerName}>{data.providerName}</Text>
                 <Text style={styles.providerRating}>{data.providerRatingLabel}</Text>
-                <Pressable
-                  style={styles.profileLink}
+                <MotionPressable
+                  contentStyle={styles.profileLink}
                   onPress={onViewProvider}
                   accessibilityRole="button"
                   accessibilityLabel="View provider profile"
                 >
                   <Text style={styles.linkText}>View Profile</Text>
                   <ChevronRight color={palette.mintDeep} size={15} strokeWidth={2.2} />
-                </Pressable>
+                </MotionPressable>
               </View>
             </View>
           </CustomerCard>
@@ -142,15 +143,16 @@ export function CustomerBookingReviewScreen({
           <CustomerSection title="Payment method">
             <CustomerCard>
               {data.paymentMethodRows.map((item, index) => (
-                <Pressable
+                <MotionPressable
                   key={item.method.id}
-                  style={[
+                  contentStyle={[
                     styles.paymentMethodRow,
                     index < data.paymentMethodRows.length - 1 &&
                       styles.paymentMethodBorder,
                     item.selected && styles.paymentMethodSelected,
                   ]}
                   onPress={() => onSelectPaymentMethod(item.method.id)}
+                  selected={item.selected}
                   accessibilityRole="button"
                   accessibilityLabel={`Use ${item.label}`}
                   accessibilityState={{ selected: item.selected }}
@@ -175,7 +177,7 @@ export function CustomerBookingReviewScreen({
                     <Text style={styles.paymentMethodTitle}>{item.label}</Text>
                     <Text style={styles.paymentMethodMeta}>{item.meta}</Text>
                   </View>
-                </Pressable>
+                </MotionPressable>
               ))}
               <View style={styles.quickMethodRow}>
                 <QuickMethodButton label="GCash" onPress={() => onSavePaymentMethod('gcash')} />
@@ -208,28 +210,32 @@ export function CustomerBookingReviewScreen({
             </CustomerCard>
           </CustomerSection>
 
-          <View style={styles.noticeBox}>
-            <Text style={styles.noticeText}>{data.quoteExplanation}</Text>
-          </View>
+          <MotionView style={styles.noticeBox} variant="content">
+            <Text style={styles.noticeText}>{data.priceNotice}</Text>
+          </MotionView>
         </CustomerContent>
       </CustomerScreen>
 
-      <View style={styles.stickyFooter}>
-        <Pressable
-          style={[styles.footerButton, data.confirmDisabled && styles.footerButtonDisabled]}
+      <MotionView style={styles.stickyFooter} variant="sheet">
+        <MotionPressable
+          contentStyle={[
+            styles.footerButton,
+            data.confirmDisabled && styles.footerButtonDisabled,
+          ]}
           onPress={onConfirm}
           disabled={data.confirmDisabled}
           accessibilityRole="button"
+          accessibilityLabel={data.confirmLabel}
         >
           <Text style={styles.footerButtonText}>{data.confirmLabel}</Text>
-        </Pressable>
-        <Text style={styles.footerLink} onPress={onPreviewEstimate}>
+        </MotionPressable>
+        <Text style={styles.footerLink} onPress={onRefreshPrice}>
           {data.estimateLabel}
         </Text>
         <Text style={styles.footerLink} onPress={onEditBooking}>
           Edit booking
         </Text>
-      </View>
+      </MotionView>
     </>
   );
 }
@@ -242,13 +248,14 @@ function QuickMethodButton({
   onPress: () => Promise<void>;
 }) {
   return (
-    <Pressable
-      style={styles.quickMethodButton}
+    <MotionPressable
+      contentStyle={styles.quickMethodButton}
       onPress={() => void onPress()}
       accessibilityRole="button"
+      accessibilityLabel={`Add ${label} payment method`}
     >
       <Text style={styles.quickMethodText}>{label}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

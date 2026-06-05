@@ -1,8 +1,9 @@
 import { ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { MessageCircle, Phone, User } from 'lucide-react-native';
 import { InfoRow } from '../../../components/AppDisplay';
 import { StatusTimeline } from '../../../components/DesignKit';
+import { MotionPressable } from '../../../components/Motion';
 import {
   ProviderBadge,
   ProviderButton,
@@ -85,16 +86,16 @@ export function ProviderBookingDetailScreen({
               <Text style={styles.cardTitle}>Customer</Text>
               <Text style={styles.cardMeta}>{data.customerName}</Text>
             </View>
-            <Pressable
-              style={styles.circleButton}
+            <MotionPressable
+              contentStyle={styles.circleButton}
               onPress={() => void onCallCustomer()}
               accessibilityRole="button"
               accessibilityLabel="Call customer"
             >
               <Phone color={palette.mintDeep} size={18} strokeWidth={2.5} />
-            </Pressable>
-            <Pressable
-              style={styles.circleButton}
+            </MotionPressable>
+            <MotionPressable
+              contentStyle={styles.circleButton}
               onPress={() => void onMessage()}
               accessibilityRole="button"
               accessibilityLabel="Message customer"
@@ -104,7 +105,7 @@ export function ProviderBookingDetailScreen({
                 size={18}
                 strokeWidth={2.5}
               />
-            </Pressable>
+            </MotionPressable>
           </View>
         </ProviderCard>
 
@@ -120,8 +121,8 @@ export function ProviderBookingDetailScreen({
             ))}
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Estimated earnings</Text>
-            <Text style={styles.totalValue}>{data.estimatedEarningsLabel}</Text>
+            <Text style={styles.totalLabel}>Provider payout</Text>
+            <Text style={styles.totalValue}>{data.providerPayoutLabel}</Text>
           </View>
         </ProviderCard>
 

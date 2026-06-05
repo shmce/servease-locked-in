@@ -932,12 +932,24 @@ export interface CreateBookingRequest {
   hoursRequired?: number | null;
   serviceAmount?: number | null;
   totalAmount?: number | null;
+  previewTotalAmount?: number | null;
   pricingMode?: 'flat' | 'hourly' | null;
   acceptedQuoteId?: string | null;
   priceBreakdown?: BookingPriceBreakdown | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
   attachments?: BookingAttachmentInput[];
+}
+
+export interface BookingPricePreviewSummary {
+  currency: 'PHP';
+  serviceAmount: number;
+  totalAmount: number;
+  pricingMode: BookingPricingMode;
+  serviceTitle: string | null;
+  serviceDescription: string | null;
+  priceBreakdown: BookingPriceBreakdown;
+  materialDriftTolerance: number;
 }
 
 export type PricingUrgency = 'standard' | 'priority' | 'emergency';
@@ -1007,6 +1019,18 @@ export interface ApiOptions {
 
 export interface IdempotentApiOptions extends ApiOptions {
   idempotencyKey?: string | null;
+}
+
+export class ServeaseApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string | null,
+    public readonly status: number,
+    public readonly details: unknown = null,
+  ) {
+    super(message);
+    this.name = 'ServeaseApiError';
+  }
 }
 
 type ReadCacheGroup =
@@ -1508,6 +1532,18 @@ export function createBooking(
   options: ApiOptions = {},
 ): Promise<BookingSummary> {
   return request<BookingSummary>('/v1/bookings', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function previewBookingPrice(
+  body: CreateBookingRequest,
+  options: ApiOptions = {},
+): Promise<BookingPricePreviewSummary> {
+  return request<BookingPricePreviewSummary>('/v1/bookings/preview', {
     ...options,
     method: 'POST',
     body,
@@ -2588,7 +2624,12 @@ async function request<T>(
       payload.error?.message ??
       payload.error?.code ??
       `Gateway request failed with ${response.status}`;
-    throw new Error(message);
+    throw new ServeaseApiError(
+      message,
+      payload.error?.code ?? null,
+      response.status,
+      payload.error?.details ?? null,
+    );
   }
 
   if (!('data' in payload)) {
@@ -2684,7 +2725,12 @@ async function readGatewayResponse<T>(response: Response): Promise<T> {
       payload.error?.message ??
       payload.error?.code ??
       `Gateway request failed with ${response.status}`;
-    throw new Error(message);
+    throw new ServeaseApiError(
+      message,
+      payload.error?.code ?? null,
+      response.status,
+      payload.error?.details ?? null,
+    );
   }
 
   if (!('data' in payload)) {
@@ -2699,6 +2745,7 @@ async function readGatewayPayload<T>(response: Response): Promise<{
   error?: {
     code?: string;
     message?: string;
+    details?: unknown;
   };
 }> {
   return (await response.json()) as {
@@ -2706,6 +2753,7 @@ async function readGatewayPayload<T>(response: Response): Promise<{
     error?: {
       code?: string;
       message?: string;
+      details?: unknown;
     };
   };
 }

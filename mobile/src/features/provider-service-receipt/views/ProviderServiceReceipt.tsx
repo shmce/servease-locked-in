@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { InfoRow } from '../../../components/AppDisplay';
+import { MotionView } from '../../../components/Motion';
 import {
   ProviderButton,
   ProviderCard,
@@ -42,16 +43,18 @@ export function ProviderServiceReceiptScreen({
           subtitle={data.bookingReference}
           onBack={onBack}
         />
-        <ProviderCard>
-          <Text style={styles.cardTitle}>{data.serviceTitle}</Text>
-          {data.receiptRows.map((row) => (
-            <InfoRow key={row.key} label={row.label} value={row.value} />
-          ))}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Provider payout</Text>
-            <Text style={styles.totalValue}>{data.providerPayoutLabel}</Text>
-          </View>
-        </ProviderCard>
+        <MotionView variant="content">
+          <ProviderCard>
+            <Text style={styles.cardTitle}>{data.serviceTitle}</Text>
+            {data.receiptRows.map((row) => (
+              <InfoRow key={row.key} label={row.label} value={row.value} />
+            ))}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Provider payout</Text>
+              <Text style={styles.totalValue}>{data.providerPayoutLabel}</Text>
+            </View>
+          </ProviderCard>
+        </MotionView>
         <ProviderButton label="Back to Bookings" onPress={onBackToBookings} />
       </ProviderContent>
     </ProviderScreen>

@@ -194,12 +194,17 @@ test('mobile skeleton loading surfaces stay accessible without exposing decorati
     join(process.cwd(), 'src/components/DesignKit.tsx'),
     'utf8',
   );
+  const motionSource = readFileSync(
+    join(process.cwd(), 'src/components/Motion.tsx'),
+    'utf8',
+  );
 
   assert.match(loadingSource, /accessibilityRole="progressbar"/);
   assert.match(loadingSource, /RouteLoadingSurface/);
   assert.match(designKitSource, /accessibilityElementsHidden/);
   assert.match(designKitSource, /importantForAccessibility="no-hide-descendants"/);
-  assert.match(designKitSource, /AccessibilityInfo\.isReduceMotionEnabled/);
+  assert.match(motionSource, /AccessibilityInfo\.isReduceMotionEnabled/);
+  assert.match(designKitSource, /useSkeletonPulseOpacity/);
 });
 
 test('customer catalog bootstrap loads full services and provider listings for browsing', () => {

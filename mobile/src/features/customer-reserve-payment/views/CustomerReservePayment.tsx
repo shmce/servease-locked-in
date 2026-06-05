@@ -1,10 +1,15 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, CreditCard, Plus, Wallet } from 'lucide-react-native';
 import {
   Field,
   SkeletonBlock,
   SkeletonLine,
 } from '../../../components/DesignKit';
+import {
+  MotionPressable,
+  MotionView,
+  StaggeredMotionView,
+} from '../../../components/Motion';
 import {
   CustomerCard,
   CustomerContent,
@@ -90,9 +95,9 @@ export function CustomerReservePaymentScreen({
             onBack={onBack}
           />
 
-          <View style={styles.noticeBox}>
+          <MotionView style={styles.noticeBox} variant="content">
             <Text style={styles.noticeText}>{data.statusNotice}</Text>
-          </View>
+          </MotionView>
 
           <CustomerSection title="Saved payment methods">
             <CustomerCard>
@@ -106,43 +111,51 @@ export function CustomerReservePaymentScreen({
                 </View>
               ) : data.hasPaymentMethods ? (
                 data.paymentMethods.map((item, index) => (
-                  <Pressable
+                  <StaggeredMotionView
                     key={item.method.id}
-                    style={[
-                      styles.methodRow,
-                      index < data.paymentMethods.length - 1 &&
-                        styles.methodRowBorder,
-                      item.selected && styles.methodRowSelected,
-                    ]}
-                    onPress={() => onSelectPaymentMethod(item.method.id)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: item.selected }}
+                    index={index}
+                    variant="listItem"
                   >
-                    <View style={[styles.radio, item.selected && styles.radioSelected]}>
-                      {item.selected ? <View style={styles.radioDot} /> : null}
-                    </View>
-                    <CreditCard
-                      color={item.selected ? palette.mintDeep : palette.muted}
-                      size={20}
-                      strokeWidth={2.2}
-                    />
-                    <View style={styles.flex}>
-                      <Text style={styles.methodName}>{item.method.label}</Text>
-                      <Text style={styles.methodMeta}>{item.meta}</Text>
-                    </View>
-                  </Pressable>
+                    <MotionPressable
+                      contentStyle={[
+                        styles.methodRow,
+                        index < data.paymentMethods.length - 1 &&
+                          styles.methodRowBorder,
+                        item.selected && styles.methodRowSelected,
+                      ]}
+                      onPress={() => onSelectPaymentMethod(item.method.id)}
+                      selected={item.selected}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: item.selected }}
+                      accessibilityLabel={`Use ${item.method.label}`}
+                    >
+                      <View style={[styles.radio, item.selected && styles.radioSelected]}>
+                        {item.selected ? <View style={styles.radioDot} /> : null}
+                      </View>
+                      <CreditCard
+                        color={item.selected ? palette.mintDeep : palette.muted}
+                        size={20}
+                        strokeWidth={2.2}
+                      />
+                      <View style={styles.flex}>
+                        <Text style={styles.methodName}>{item.method.label}</Text>
+                        <Text style={styles.methodMeta}>{item.meta}</Text>
+                      </View>
+                    </MotionPressable>
+                  </StaggeredMotionView>
                 ))
               ) : null}
-              <Pressable
-                style={styles.addCardRow}
+              <MotionPressable
+                contentStyle={styles.addCardRow}
                 onPress={() => void onSavePaymentMethod('card')}
                 accessibilityRole="button"
+                accessibilityLabel="Add new card"
               >
                 <View style={styles.addCardIcon}>
                   <Plus color={palette.mintDeep} size={16} strokeWidth={2.4} />
                 </View>
                 <Text style={styles.addCardText}>Add new card</Text>
-              </Pressable>
+              </MotionPressable>
             </CustomerCard>
           </CustomerSection>
 
@@ -174,14 +187,15 @@ export function CustomerReservePaymentScreen({
                     placeholder="SERVEASE10"
                   />
                 </View>
-                <Pressable
-                  style={[
+                <MotionPressable
+                  contentStyle={[
                     styles.applyButton,
                     data.applyPromoDisabled && styles.applyButtonDisabled,
                   ]}
                   onPress={() => void onApplyPromotionCode()}
                   disabled={data.applyPromoDisabled}
                   accessibilityRole="button"
+                  accessibilityLabel={data.applyPromoLabel}
                 >
                   <Text
                     style={[
@@ -191,15 +205,17 @@ export function CustomerReservePaymentScreen({
                   >
                     {data.applyPromoLabel}
                   </Text>
-                </Pressable>
+                </MotionPressable>
               </View>
               {data.promoResult ? (
-                <View
+                <MotionView
+                  motionKey={`${data.promoResult.tone}-${data.promoResult.title}`}
                   style={
                     data.promoResult.tone === 'success'
                       ? styles.promoSuccess
                       : styles.promoDanger
                   }
+                  variant="content"
                 >
                   <Text
                     style={[
@@ -220,23 +236,27 @@ export function CustomerReservePaymentScreen({
                       last={index === data.promoResult!.rows.length - 1}
                     />
                   ))}
-                </View>
+                </MotionView>
               ) : null}
             </CustomerCard>
           </CustomerSection>
         </CustomerContent>
       </CustomerScreen>
 
-      <View style={styles.stickyFooter}>
-        <Pressable
-          style={[styles.footerButton, data.confirmDisabled && styles.footerButtonDisabled]}
+      <MotionView style={styles.stickyFooter} variant="sheet">
+        <MotionPressable
+          contentStyle={[
+            styles.footerButton,
+            data.confirmDisabled && styles.footerButtonDisabled,
+          ]}
           onPress={handleConfirm}
           disabled={data.confirmDisabled}
           accessibilityRole="button"
+          accessibilityLabel={data.confirmLabel}
         >
           <Text style={styles.footerButtonText}>{data.confirmLabel}</Text>
-        </Pressable>
-      </View>
+        </MotionPressable>
+      </MotionView>
     </>
   );
 }
@@ -251,15 +271,16 @@ function WalletRow({
   showBorder?: boolean;
 }) {
   return (
-    <Pressable
-      style={[styles.walletRow, showBorder && styles.walletRowBorder]}
+    <MotionPressable
+      contentStyle={[styles.walletRow, showBorder && styles.walletRowBorder]}
       onPress={() => void onPress()}
       accessibilityRole="button"
+      accessibilityLabel={`Add ${label} wallet`}
     >
       <Wallet color={palette.mintDeep} size={20} strokeWidth={2.2} />
       <Text style={styles.walletName}>{label}</Text>
       <ChevronRight color={palette.faint} size={18} strokeWidth={2.2} />
-    </Pressable>
+    </MotionPressable>
   );
 }
 
