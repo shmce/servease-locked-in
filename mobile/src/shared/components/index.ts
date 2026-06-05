@@ -3,6 +3,7 @@ export * from '../../components/DesignKit';
 export * from '../../components/MonthCalendar';
 export * from '../../components/Motion';
 export * from './BookingDetailSections';
+export * from './ProviderUI';
 export * from './ScreenLayout';
 export * from './SupportPanel';
 export * from './TwoFactorSettingsCard';

@@ -48,29 +48,18 @@ import {
   updateCurrentUserProfile,
 } from "../../services/serveaseAdminApi";
 
-// Role permissions
 const rolePermissions = {
-  "Super Admin": [
-    "Full system access",
-    "User management",
-    "Role management",
-    "Financial operations",
-    "Platform settings",
-    "Audit logs access",
-  ],
-  "Finance Manager": [
-    "View all transactions",
-    "Process payouts",
-    "Manage refunds",
-    "Export financial reports",
-  ],
-  "Operations Manager": [
-    "View all bookings",
-    "Monitor ongoing services",
-    "Resolve disputes",
-    "Manage service providers",
+  Admin: [
+    "Backend-authorized admin portal access",
+    "Operational access is managed by Admin Roles",
+    "Session and profile data are loaded from account endpoints",
   ],
 };
+
+function formatAdminRole(role: string | undefined) {
+  if (role === "admin") return "Admin";
+  return role || "Admin";
+}
 
 function formatSessionTime(value: string | null) {
   if (!value) return "No sign-in recorded";
@@ -110,7 +99,7 @@ export function Profile() {
     name: admin?.name ?? "Admin User",
     email: admin?.email ?? "",
     phone: "",
-    role: "Super Admin",
+    role: formatAdminRole(admin?.role),
     accountCreated: "January 15, 2025",
     lastLogin: "No sign-in recorded",
   });
@@ -143,7 +132,7 @@ export function Profile() {
           name: nextName,
           email: nextEmail,
           phone: nextPhone,
-          role: profile.user.role === "admin" ? "Super Admin" : current.role,
+          role: formatAdminRole(profile.user.role),
         }));
         setEditFormData((current) => ({
           ...current,

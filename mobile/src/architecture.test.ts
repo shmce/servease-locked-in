@@ -20,7 +20,10 @@ function featureViewFiles(): string[] {
       const fullPath = join(directory, entry);
       if (statSync(fullPath).isDirectory()) {
         walk(fullPath);
-      } else if (toProjectPath(fullPath).includes('/views/') && fullPath.endsWith('.tsx')) {
+      } else if (
+        toProjectPath(fullPath).includes('/views/') &&
+        fullPath.endsWith('.tsx')
+      ) {
         files.push(toProjectPath(fullPath));
       }
     }
@@ -75,8 +78,14 @@ test('mobile app exposes the MVVM entry and shared model structure', () => {
   assert.equal(existsSync(join(process.cwd(), 'src/main.tsx')), true);
   assert.equal(existsSync(join(process.cwd(), 'src/App.tsx')), true);
   assert.equal(existsSync(join(process.cwd(), 'src/index.css')), true);
-  assert.equal(existsSync(join(process.cwd(), 'src/shared/models/types.ts')), true);
-  assert.equal(existsSync(join(process.cwd(), 'src/shared/models/apiService.ts')), true);
+  assert.equal(
+    existsSync(join(process.cwd(), 'src/shared/models/types.ts')),
+    true,
+  );
+  assert.equal(
+    existsSync(join(process.cwd(), 'src/shared/models/apiService.ts')),
+    true,
+  );
   assert.equal(existsSync(join(process.cwd(), 'src/shared/hooks')), true);
   assert.equal(existsSync(join(process.cwd(), 'src/shared/utils')), true);
   assert.equal(existsSync(join(process.cwd(), 'src/shared/components')), true);
@@ -104,12 +113,19 @@ test('mobile app is wired through Expo Router layouts', () => {
   };
   const rootLayoutSource = readProjectFile('src/app/_layout.tsx');
   const appIndexSource = readProjectFile('src/app/index.tsx');
-  const customerLayoutSource = readProjectFile('src/app/(customer)/_layout.tsx');
-  const providerLayoutSource = readProjectFile('src/app/(provider)/_layout.tsx');
+  const customerLayoutSource = readProjectFile(
+    'src/app/(customer)/_layout.tsx',
+  );
+  const providerLayoutSource = readProjectFile(
+    'src/app/(provider)/_layout.tsx',
+  );
 
   assert.equal(packageJson.main, 'expo-router/entry');
   assert.match(packageJson.dependencies['expo-router'], /\d/);
-  assert.match(packageJson.dependencies['react-native-safe-area-context'], /\d/);
+  assert.match(
+    packageJson.dependencies['react-native-safe-area-context'],
+    /\d/,
+  );
   assert.match(packageJson.dependencies['react-native-screens'], /\d/);
   assert.deepEqual(appJson.expo.plugins?.[0], 'expo-router');
   assert.match(rootLayoutSource, /from 'expo-router'/);
@@ -156,7 +172,11 @@ test('feature view models expose the standard MVVM result shape', () => {
     const source = readProjectFile(viewModelPath);
 
     assert.match(source, /\bdata\b/, `${viewModelPath} should expose data`);
-    assert.match(source, /\bisLoading\b/, `${viewModelPath} should expose isLoading`);
+    assert.match(
+      source,
+      /\bisLoading\b/,
+      `${viewModelPath} should expose isLoading`,
+    );
     assert.match(source, /\berror\b/, `${viewModelPath} should expose error`);
   }
 });
@@ -265,6 +285,242 @@ test('legacy route frame fills the native device viewport', () => {
   assert.match(appShellSource, /expo-system-ui/);
 });
 
+test('mobile motion primitives own timing route and reduced-motion behavior', () => {
+  const motionSource = readProjectFile('src/components/Motion.tsx');
+  const packageJson = JSON.parse(readProjectFile('package.json')) as {
+    dependencies: Record<string, string>;
+  };
+
+  assert.match(motionSource, /export const motionTokens/);
+  assert.match(motionSource, /RouteTransitionVariant/);
+  assert.match(motionSource, /resolveRouteTransitionConfig/);
+  assert.match(motionSource, /export function ScreenTransition/);
+  assert.match(motionSource, /export function MotionPressable/);
+  assert.match(motionSource, /export function MotionView/);
+  assert.match(motionSource, /export function StaggeredMotionView/);
+  assert.match(motionSource, /export function SuccessMotion/);
+  assert.match(motionSource, /export function useReducedMotion/);
+  assert.match(motionSource, /AccessibilityInfo\.isReduceMotionEnabled/);
+  assert.match(motionSource, /reduceMotionChanged/);
+  assert.match(motionSource, /useNativeDriver: true/);
+  assert.equal(packageJson.dependencies['react-native-reanimated'], undefined);
+});
+
+test('shared UI surfaces consume centralized motion primitives', () => {
+  const customerUiSource = readProjectFile(
+    'src/shared/components/CustomerUI.tsx',
+  );
+  const providerUiSource = readProjectFile(
+    'src/shared/components/ProviderUI.tsx',
+  );
+  const designKitSource = readProjectFile('src/components/DesignKit.tsx');
+  const loadingStatesSource = readProjectFile(
+    'src/shared/components/LoadingStates.tsx',
+  );
+
+  assert.match(customerUiSource, /MotionPressable/);
+  assert.match(customerUiSource, /MotionView/);
+  assert.match(providerUiSource, /MotionPressable/);
+  assert.match(providerUiSource, /MotionView/);
+  assert.match(designKitSource, /useSkeletonPulseOpacity/);
+  assert.match(designKitSource, /useSelectedMotion/);
+  assert.match(designKitSource, /StaggeredMotionView/);
+  assert.match(loadingStatesSource, /MotionView/);
+  assert.match(loadingStatesSource, /StaggeredMotionView/);
+  assert.doesNotMatch(designKitSource, /AccessibilityInfo\.isReduceMotionEnabled/);
+});
+
+test('feature views avoid bespoke broad animation primitives outside map sheets', () => {
+  const allowedAnimationViews = new Set([
+    'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+    'src/features/provider-navigation-mode/views/ProviderNavigationMode.tsx',
+  ]);
+
+  for (const viewPath of featureViewFiles()) {
+    if (allowedAnimationViews.has(viewPath)) {
+      continue;
+    }
+
+    const source = readProjectFile(viewPath);
+    assert.doesNotMatch(
+      source,
+      /Animated\.(timing|spring|loop|sequence)|\bEasing\./,
+      `${viewPath} should use shared motion primitives instead of local animation drivers`,
+    );
+    assert.doesNotMatch(
+      source,
+      /duration:\s*\d{2,4}|stiffness:\s*\d{2,4}|damping:\s*\d{1,3}/,
+      `${viewPath} should not define local timing or spring constants`,
+    );
+  }
+});
+
+test('app-controlled route transitions are variant-based while native stacks stay neutral', () => {
+  const routerSource = readProjectFile('src/legacy-router/AppRouter.tsx');
+  const rootLayoutSource = readProjectFile('src/app/_layout.tsx');
+  const authLayoutSource = readProjectFile('src/app/(auth)/_layout.tsx');
+
+  assert.match(routerSource, /RouteTransitionVariant/);
+  assert.match(routerSource, /resolveAppRouteTransitionVariant/);
+  assert.match(routerSource, /neutralMotionScreens/);
+  assert.match(routerSource, /modalMotionScreens/);
+  assert.match(routerSource, /variant=\{transitionVariant\}/);
+  assert.match(rootLayoutSource, /animation: 'fade'/);
+  assert.match(authLayoutSource, /animation: 'fade'/);
+  assert.doesNotMatch(rootLayoutSource, /slide_from_right/);
+  assert.doesNotMatch(authLayoutSource, /slide_from_right/);
+});
+
+test('priority booking provider and overlay flows use shared motion surfaces', () => {
+  const bookingFormSource = readProjectFile(
+    'src/features/customer-booking/views/CustomerBookingForm.tsx',
+  );
+  const bookingReviewSource = readProjectFile(
+    'src/features/customer-booking/views/CustomerBookingReview.tsx',
+  );
+  const reservePaymentSource = readProjectFile(
+    'src/features/customer-reserve-payment/views/CustomerReservePayment.tsx',
+  );
+  const confirmationSource = readProjectFile(
+    'src/features/customer-booking-confirmation/views/CustomerBookingConfirmation.tsx',
+  );
+  const categorySheetSource = readProjectFile(
+    'src/features/customer-explore/views/CategorySheet.tsx',
+  );
+  const mapPickerSource = readProjectFile(
+    'src/features/customer-location/components/CustomerMapPinPickerModal.tsx',
+  );
+  const availabilitySource = readProjectFile(
+    'src/features/provider-set-availability/views/ProviderSetAvailability.tsx',
+  );
+  const providerCompletedSource = readProjectFile(
+    'src/features/provider-service-completed/views/ProviderServiceCompleted.tsx',
+  );
+  const providerReceiptSource = readProjectFile(
+    'src/features/provider-service-receipt/views/ProviderServiceReceipt.tsx',
+  );
+  const providerDetailSource = readProjectFile(
+    'src/features/provider-booking-detail/views/ProviderBookingDetail.tsx',
+  );
+  const providerStartSource = readProjectFile(
+    'src/features/provider-start-service/views/ProviderStartService.tsx',
+  );
+
+  assert.match(bookingFormSource, /MotionPressable/);
+  assert.match(bookingFormSource, /variant="sheet"/);
+  assert.match(bookingReviewSource, /MotionPressable/);
+  assert.match(bookingReviewSource, /variant="sheet"/);
+  assert.match(reservePaymentSource, /StaggeredMotionView/);
+  assert.match(reservePaymentSource, /variant="sheet"/);
+  assert.match(confirmationSource, /SuccessMotion/);
+  assert.match(categorySheetSource, /variant="sheet"/);
+  assert.match(mapPickerSource, /ServiceLocationPickerMap/);
+  assert.match(mapPickerSource, /variant="sheet"/);
+  assert.match(availabilitySource, /StaggeredMotionView/);
+  assert.match(availabilitySource, /variant="sheet"/);
+  assert.match(providerCompletedSource, /SuccessMotion/);
+  assert.match(providerReceiptSource, /MotionView/);
+  assert.match(providerDetailSource, /MotionPressable/);
+  assert.match(providerStartSource, /MotionPressable/);
+});
+
+test('map and navigation sheets keep isolated height animation exceptions documented', () => {
+  const motionDocSource = readProjectFile('src/components/Motion.md');
+  const customerTrackingSource = readProjectFile(
+    'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+  );
+  const providerNavigationSource = readProjectFile(
+    'src/features/provider-navigation-mode/views/ProviderNavigationMode.tsx',
+  );
+  const routerSource = readProjectFile('src/legacy-router/AppRouter.tsx');
+
+  assert.match(motionDocSource, /react-native-reanimated` is deferred/);
+  assert.match(motionDocSource, /Map and navigation sheets are the current exception/);
+  assert.match(customerTrackingSource, /useNativeDriver: false/);
+  assert.match(customerTrackingSource, /PanResponder\.create/);
+  assert.match(providerNavigationSource, /useNativeDriver: false/);
+  assert.match(providerNavigationSource, /PanResponder\.create/);
+  assert.match(routerSource, /'customerTrackServiceProvider'/);
+  assert.match(routerSource, /'providerNavigationMode'/);
+});
+
+test('customer UI language primitives remain opt-in and outside provider tracking screens', () => {
+  const customerUiSource = readProjectFile(
+    'src/shared/components/CustomerUI.tsx',
+  );
+  const trackingSource = readProjectFile(
+    'src/features/customer-track-provider/views/CustomerTrackProvider.tsx',
+  );
+  const providerViewPaths = featureViewFiles().filter((viewPath) =>
+    viewPath.includes('/provider-'),
+  );
+
+  assert.match(customerUiSource, /export function CustomerScreen/);
+  assert.match(customerUiSource, /export function CustomerHeader/);
+  assert.match(customerUiSource, /export function CustomerCard/);
+  assert.doesNotMatch(
+    customerUiSource,
+    /services\/serveaseApi|src\/features\/provider-/,
+  );
+  assert.doesNotMatch(
+    trackingSource,
+    /CustomerUI|CustomerScreen|CustomerHeader|CustomerCard/,
+  );
+
+  for (const viewPath of providerViewPaths) {
+    assert.doesNotMatch(
+      readProjectFile(viewPath),
+      /CustomerUI|CustomerScreen|CustomerHeader|CustomerCard/,
+      `${viewPath} should not use customer-only UI language primitives`,
+    );
+  }
+});
+
+test('customer Explore and Provider Home keep role-specific route-state ownership', () => {
+  const exploreSource = readProjectFile(
+    'src/features/customer-explore/views/CustomerExplore.tsx',
+  );
+  const providerHomeSource = readProjectFile(
+    'src/features/provider-home/views/ProviderHome.tsx',
+  );
+
+  assert.match(exploreSource, /Search for a service or task/);
+  assert.match(exploreSource, /Book a service/);
+  assert.match(exploreSource, /InlineRefreshHint/);
+  assert.doesNotMatch(
+    exploreSource,
+    /ProviderHeader|ProviderScreen|Search provider bookings|View earnings/,
+  );
+
+  assert.match(providerHomeSource, /Search bookings/);
+  assert.match(providerHomeSource, /Today's Agenda/);
+  assert.match(providerHomeSource, /View earnings/);
+  assert.match(providerHomeSource, /InlineRefreshHint/);
+  assert.doesNotMatch(
+    providerHomeSource,
+    /CustomerHeader|CustomerScreen|Book a service|Recommended for you/,
+  );
+});
+
+test('customer identity surfaces share account-backed avatar state', () => {
+  const exploreViewModelSource = readProjectFile(
+    'src/features/customer-explore/viewModels/useCustomerExploreViewModel.ts',
+  );
+  const moreViewModelSource = readProjectFile(
+    'src/features/customer-more/viewModels/useCustomerMoreViewModel.ts',
+  );
+  const profileViewModelSource = readProjectFile(
+    'src/features/customer-profile/viewModels/useCustomerProfileViewModel.ts',
+  );
+
+  assert.match(exploreViewModelSource, /profile\?\.user\.avatarUrl \?\? null/);
+  assert.match(moreViewModelSource, /profile\?\.user\.avatarUrl \?\? null/);
+  assert.match(profileViewModelSource, /profile\?\.user\.avatarUrl \?\? null/);
+  assert.match(exploreViewModelSource, /profile\?\.user\.fullName/);
+  assert.match(moreViewModelSource, /profile\?\.user\.fullName/);
+  assert.match(profileViewModelSource, /profile\?\.user\.fullName/);
+});
+
 test('app shell delegates display notice formatting to domain helpers', () => {
   const appSource = readProjectFile('src/App.tsx');
   const bookingFlowSource = readProjectFile(
@@ -285,7 +541,10 @@ test('app shell delegates display notice formatting to domain helpers', () => {
 test('app shell avoids simple lint-warning patterns', () => {
   const appSource = readProjectFile('src/App.tsx');
 
-  assert.doesNotMatch(appSource, /setApiBaseUrl|setSupabaseUrl|setPublishableKey/);
+  assert.doesNotMatch(
+    appSource,
+    /setApiBaseUrl|setSupabaseUrl|setPublishableKey/,
+  );
   assert.doesNotMatch(appSource, /Array<\{ remove: \(\) => void \}>/);
 });
 
@@ -312,10 +571,7 @@ test('app shell stabilizes effect callbacks instead of omitting hook dependencie
       appSource,
       new RegExp(`const ${callbackName} = useStableCallback`),
     );
-    assert.doesNotMatch(
-      appSource,
-      new RegExp(`function ${callbackName}\\b`),
-    );
+    assert.doesNotMatch(appSource, new RegExp(`function ${callbackName}\\b`));
   }
 
   assert.match(hookSource, /useRef/);
@@ -327,6 +583,9 @@ test('app shell stabilizes effect callbacks instead of omitting hook dependencie
   );
   assert.match(appSource, /useNotificationsFlowViewModel/);
   assert.match(notificationsFlowSource, /markNotificationRead/);
+  assert.match(notificationsFlowSource, /markAllNotificationsRead/);
+  assert.match(notificationsFlowSource, /markAllReadDisabled/);
+  assert.match(notificationsFlowSource, /markAllReadPending/);
   assert.match(notificationsFlowSource, /useCallback/);
 });
 
@@ -342,17 +601,27 @@ test('booking process passes stable flow inputs to avoid render loops', () => {
   const providerFlowStart = appSource.indexOf(
     'const providerServiceFlow = useProviderServiceFlowViewModel({',
   );
-  const providerFlowEnd = appSource.indexOf(
-    'useEffect(() => {\n    void loadCatalog();',
-    providerFlowStart,
+  const providerFlowRemainder = appSource.slice(providerFlowStart);
+  const providerFlowEndOffset = providerFlowRemainder.search(
+    /useEffect\(\(\) => \{\r?\n\s+void loadCatalog\(\);/,
   );
+  const providerFlowEnd =
+    providerFlowEndOffset === -1
+      ? -1
+      : providerFlowStart + providerFlowEndOffset;
   assert.notEqual(customerFlowStart, -1);
   assert.notEqual(customerFlowEnd, -1);
   assert.notEqual(providerFlowStart, -1);
   assert.notEqual(providerFlowEnd, -1);
 
-  const customerFlowSource = appSource.slice(customerFlowStart, customerFlowEnd);
-  const providerFlowSource = appSource.slice(providerFlowStart, providerFlowEnd);
+  const customerFlowSource = appSource.slice(
+    customerFlowStart,
+    customerFlowEnd,
+  );
+  const providerFlowSource = appSource.slice(
+    providerFlowStart,
+    providerFlowEnd,
+  );
 
   assert.match(appSource, /emptyCustomerAddresses/);
   assert.match(
@@ -363,28 +632,64 @@ test('booking process passes stable flow inputs to avoid render loops', () => {
     appSource,
     /customerAddresses: profile\?\.customerAddresses \?\? \[\]/,
   );
-  assert.match(appSource, /const handleCustomerAddressSaved = useStableCallback/);
+  assert.match(
+    appSource,
+    /const handleCustomerAddressSaved = useStableCallback/,
+  );
   assert.match(appSource, /const handleBookingCreated = useStableCallback/);
-  assert.match(appSource, /const handleProviderServiceRoute = useStableCallback/);
+  assert.match(
+    appSource,
+    /const handleProviderServiceRoute = useStableCallback/,
+  );
   assert.match(appSource, /const uploadProviderJobPhoto = useStableCallback/);
 
-  assert.match(customerFlowSource, /customerAddresses,\n/);
-  assert.match(customerFlowSource, /onCustomerAddressSaved: handleCustomerAddressSaved/);
+  assert.match(customerFlowSource, /customerAddresses,\r?\n/);
+  assert.match(
+    customerFlowSource,
+    /onCustomerAddressSaved: handleCustomerAddressSaved/,
+  );
   assert.match(customerFlowSource, /onBookingCreated: handleBookingCreated/);
-  assert.match(customerFlowSource, /onRefreshProviderAvailability: refreshProviderAvailability/);
+  assert.match(
+    customerFlowSource,
+    /onRefreshProviderAvailability: refreshProviderAvailability/,
+  );
   assert.doesNotMatch(customerFlowSource, /onCustomerAddressSaved:\s*\(/);
   assert.doesNotMatch(customerFlowSource, /onBookingCreated:\s*\(/);
-  assert.doesNotMatch(customerFlowSource, /onRefreshProviderAvailability:\s*\(/);
+  assert.doesNotMatch(
+    customerFlowSource,
+    /onRefreshProviderAvailability:\s*\(/,
+  );
 
   assert.match(providerFlowSource, /onBookingUpdated: updateSelectedBooking/);
-  assert.match(providerFlowSource, /onPaymentsRefresh: refreshProviderPayments/);
-  assert.match(providerFlowSource, /onRefreshBookingTimelineEvents: refreshProviderBookingTimelineEvents/);
-  assert.match(providerFlowSource, /onRefreshBookingTracking: refreshProviderBookingTracking/);
-  assert.match(providerFlowSource, /onServiceUpdateCreated: addProviderServiceUpdate/);
-  assert.match(providerFlowSource, /setProviderRoute: handleProviderServiceRoute/);
+  assert.match(
+    providerFlowSource,
+    /onPaymentsRefresh: refreshProviderPayments/,
+  );
+  assert.match(
+    providerFlowSource,
+    /onRefreshBookingTimelineEvents: refreshProviderBookingTimelineEvents/,
+  );
+  assert.match(
+    providerFlowSource,
+    /onRefreshBookingTracking: refreshProviderBookingTracking/,
+  );
+  assert.match(
+    providerFlowSource,
+    /onServiceUpdateCreated: addProviderServiceUpdate/,
+  );
+  assert.match(
+    providerFlowSource,
+    /setProviderRoute: handleProviderServiceRoute/,
+  );
   assert.match(providerFlowSource, /uploadProviderJobPhoto,/);
-  assert.doesNotMatch(providerFlowSource, /=>\s*\{\n\s*void refreshBookingTimelineEvents/);
-  assert.doesNotMatch(providerFlowSource, /=>\s*\{\n\s*void refreshBookingTracking/);
+  assert.doesNotMatch(
+    providerFlowSource,
+    /=>\s*\{\r?\n\s*void refreshBookingTimelineEvents/,
+  );
+  assert.doesNotMatch(
+    providerFlowSource,
+    /=>\s*\{\r?\n\s*void refreshBookingTracking/,
+  );
 });
 
 test('tracking map preview keeps webview update callbacks hook-safe', () => {
@@ -403,8 +708,12 @@ test('mobile quality gates enforce the required coverage threshold', () => {
   const packageJson = JSON.parse(readProjectFile('package.json')) as {
     scripts: Record<string, string>;
   };
-  const workflowSource = readProjectFile('../.github/workflows/production-readiness.yml');
-  const preflightSource = readProjectFile('../scripts/production-preflight.mjs');
+  const workflowSource = readProjectFile(
+    '../.github/workflows/production-readiness.yml',
+  );
+  const preflightSource = readProjectFile(
+    '../scripts/production-preflight.mjs',
+  );
   const coverageScriptPath = 'scripts/run-tests-with-coverage.mjs';
   const coverageRunnerSource = readProjectFile(coverageScriptPath);
 
@@ -427,22 +736,38 @@ test('mobile promotion gates declare e2e performance and native artifact checks'
     scripts: Record<string, string>;
     devDependencies?: Record<string, string>;
   };
-  const readinessWorkflow = readProjectFile('../.github/workflows/production-readiness.yml');
-  const releaseWorkflow = readProjectFile('../.github/workflows/production-release.yml');
+  const readinessWorkflow = readProjectFile(
+    '../.github/workflows/production-readiness.yml',
+  );
+  const releaseWorkflow = readProjectFile(
+    '../.github/workflows/production-release.yml',
+  );
   const easJson = JSON.parse(readProjectFile('eas.json')) as {
-    build: Record<string, { android?: { buildType?: string }; ios?: { simulator?: boolean } }>;
+    build: Record<
+      string,
+      { android?: { buildType?: string }; ios?: { simulator?: boolean } }
+    >;
   };
 
-  assert.equal(packageJson.scripts['e2e:ios'], 'detox test --configuration ios.sim.debug');
+  assert.equal(
+    packageJson.scripts['e2e:ios'],
+    'detox test --configuration ios.sim.debug',
+  );
   assert.equal(
     packageJson.scripts['e2e:android'],
     'detox test --configuration android.emu.debug',
   );
-  assert.equal(packageJson.scripts['perf:k6'], 'k6 run tests/performance/mobile-smoke.js');
+  assert.equal(
+    packageJson.scripts['perf:k6'],
+    'k6 run tests/performance/mobile-smoke.js',
+  );
   assert.match(packageJson.devDependencies?.detox ?? '', /\d/);
   assert.equal(existsSync(join(process.cwd(), '.detoxrc.js')), true);
   assert.equal(existsSync(join(process.cwd(), 'e2e/servease.e2e.js')), true);
-  assert.equal(existsSync(join(process.cwd(), 'tests/performance/mobile-smoke.js')), true);
+  assert.equal(
+    existsSync(join(process.cwd(), 'tests/performance/mobile-smoke.js')),
+    true,
+  );
 
   assert.match(readinessWorkflow, /branches: \[test, uat, main\]/);
   assert.match(readinessWorkflow, /mobile-promotion-gates:/);
@@ -492,7 +817,12 @@ test('provider home follows feature-level MVVM boundaries', () => {
   assert.doesNotMatch(screenSource, /renderProviderApplicationBanner/);
   assert.doesNotMatch(viewSource, /buildProviderHomeViewModel/);
   assert.doesNotMatch(viewSource, /formatMoney|toLocaleDateString|toFixed/);
-  assert.doesNotMatch(viewSource, /providerDashboard\?\.summary\.overallRating/);
+  assert.doesNotMatch(
+    viewSource,
+    /providerDashboard\?\.summary\.overallRating/,
+  );
+  assert.doesNotMatch(viewSource, /avatarImage|avatarUri|profile\?\.user\.avatarUrl/);
+  assert.match(viewSource, /notificationButton/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /buildProviderHomeViewModel/);
   assert.match(viewModelSource, /import type \{[\s\S]*ProviderHomeViewModel/);
@@ -505,7 +835,8 @@ test('provider home follows feature-level MVVM boundaries', () => {
 
 test('provider application banner follows provider-home MVVM boundaries', () => {
   const appSource = readProjectFile('src/App.tsx');
-  const viewPath = 'src/features/provider-home/views/ProviderApplicationBanner.tsx';
+  const viewPath =
+    'src/features/provider-home/views/ProviderApplicationBanner.tsx';
   const viewModelPath =
     'src/features/provider-home/viewModels/useProviderApplicationBannerViewModel.ts';
   const viewSource = readProjectFile(viewPath);
@@ -524,20 +855,27 @@ test('provider bookings follows feature-level MVVM boundaries', () => {
   const viewPath = 'src/features/provider-bookings/views/ProviderBookings.tsx';
   const viewModelPath =
     'src/features/provider-bookings/viewModels/useProviderBookingsViewModel.ts';
-  const screenSource = readProjectFile('src/screens/ProviderBookingsScreen.tsx');
+  const screenSource = readProjectFile(
+    'src/screens/ProviderBookingsScreen.tsx',
+  );
   const viewSource = readProjectFile(viewPath);
   const viewModelSource = readProjectFile(viewModelPath);
 
-  assert.match(screenSource, /features\/provider-bookings\/views\/ProviderBookings/);
+  assert.match(
+    screenSource,
+    /features\/provider-bookings\/views\/ProviderBookings/,
+  );
   assert.match(viewSource, /useProviderBookingsViewModel/);
   assert.doesNotMatch(viewSource, /filterProviderBookings/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(viewSource, /InlineRefreshHint label="Refreshing bookings"/);
   assert.match(viewModelSource, /filterProviderBookings/);
   assert.match(viewModelSource, /useMemo/);
 });
 
 test('provider booking detail follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/provider-booking-detail/views/ProviderBookingDetail.tsx';
+  const viewPath =
+    'src/features/provider-booking-detail/views/ProviderBookingDetail.tsx';
   const viewModelPath =
     'src/features/provider-booking-detail/viewModels/useProviderBookingDetailViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -546,32 +884,51 @@ test('provider booking detail follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /ProviderBookingDetailScreen/);
   assert.match(viewSource, /useProviderBookingDetailViewModel/);
-  assert.doesNotMatch(viewSource, /formatDateTime|formatMoney|formatBookingDuration/);
-  assert.doesNotMatch(viewSource, /bookingStatusChip|pricingModeLabel|timelineForStatus/);
-  assert.doesNotMatch(viewSource, /selectedBooking\.status|services\/serveaseApi/);
+  assert.doesNotMatch(
+    viewSource,
+    /formatDateTime|formatMoney|formatBookingDuration/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /bookingStatusChip|pricingModeLabel|timelineForStatus/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /selectedBooking\.status|services\/serveaseApi/,
+  );
   assert.match(viewModelSource, /formatDateTime/);
   assert.match(viewModelSource, /formatMoney/);
   assert.match(viewModelSource, /formatBookingDuration/);
   assert.match(viewModelSource, /bookingStatusChip/);
   assert.match(viewModelSource, /timelineForStatus/);
   assert.match(viewModelSource, /statusActions/);
-  assert.match(viewModelSource, /estimatedEarningsLabel/);
+  assert.match(viewModelSource, /providerPayoutLabel/);
 });
 
 test('provider calendar follows feature-level MVVM boundaries', () => {
   const viewPath = 'src/features/provider-calendar/views/ProviderCalendar.tsx';
   const viewModelPath =
     'src/features/provider-calendar/viewModels/useProviderCalendarViewModel.ts';
-  const screenSource = readProjectFile('src/screens/ProviderCalendarScreen.tsx');
+  const screenSource = readProjectFile(
+    'src/screens/ProviderCalendarScreen.tsx',
+  );
   const viewSource = readProjectFile(viewPath);
   const viewModelSource = readProjectFile(viewModelPath);
 
-  assert.match(screenSource, /features\/provider-calendar\/views\/ProviderCalendar/);
+  assert.match(
+    screenSource,
+    /features\/provider-calendar\/views\/ProviderCalendar/,
+  );
   assert.match(viewSource, /useProviderCalendarViewModel/);
   assert.doesNotMatch(viewSource, /getProviderAvailability/);
   assert.doesNotMatch(viewSource, /formatDateTime|booking\.status\.replace/);
   assert.doesNotMatch(viewSource, /booking\.serviceTitle|booking\.scheduledAt/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(viewSource, /InlineRefreshHint label="Refreshing schedule"/);
+  assert.match(
+    viewSource,
+    /ListSectionSkeleton count=\{3\} label="Loading provider bookings"/,
+  );
   assert.match(viewModelSource, /getProviderAvailability/);
   assert.match(viewModelSource, /useEffect/);
   assert.match(viewModelSource, /calendarMarkers/);
@@ -584,24 +941,36 @@ test('customer calendar follows feature-level MVVM boundaries', () => {
   const viewPath = 'src/features/customer-calendar/views/CustomerCalendar.tsx';
   const viewModelPath =
     'src/features/customer-calendar/viewModels/useCustomerCalendarViewModel.ts';
-  const screenSource = readProjectFile('src/screens/CustomerCalendarScreen.tsx');
+  const screenSource = readProjectFile(
+    'src/screens/CustomerCalendarScreen.tsx',
+  );
   const appSource = readProjectFile('src/App.tsx');
   const routeSource = readProjectFile('src/navigation/types.ts');
   const routeHelpersSource = readProjectFile('src/navigation/routeHelpers.ts');
   const viewSource = readProjectFile(viewPath);
   const viewModelSource = readProjectFile(viewModelPath);
 
-  assert.match(screenSource, /features\/customer-calendar\/views\/CustomerCalendar/);
+  assert.match(
+    screenSource,
+    /features\/customer-calendar\/views\/CustomerCalendar/,
+  );
   assert.match(appSource, /renderCustomerCalendar/);
-  assert.match(routeSource, /CustomerTab = 'explore' \| 'bookings' \| 'calendar'/);
+  assert.match(
+    routeSource,
+    /CustomerTab = 'explore' \| 'bookings' \| 'calendar'/,
+  );
   assert.match(routeHelpersSource, /screen === 'calendar'/);
   assert.match(viewSource, /useCustomerCalendarViewModel/);
-  assert.match(viewSource, /PrimaryButton/);
+  assert.match(viewSource, /CustomerHeader/);
+  assert.match(viewSource, /CustomerScreen/);
   assert.match(viewSource, /MonthCalendar/);
   assert.match(viewSource, /markers=\{calendar\.data\.calendarMarkers\}/);
   assert.match(viewSource, /calendar\.refreshBookings/);
   assert.doesNotMatch(viewSource, /BookingCard/);
-  assert.doesNotMatch(viewSource, /getProviderAvailability|daysOff|timeOffWindows/);
+  assert.doesNotMatch(
+    viewSource,
+    /getProviderAvailability|daysOff|timeOffWindows/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(appSource, /onRefresh=\{refreshWorkspace\}/);
   assert.match(viewModelSource, /activeBookingsByDate/);
@@ -616,7 +985,9 @@ test('provider set availability follows feature-level MVVM boundaries', () => {
     'src/features/provider-set-availability/views/ProviderSetAvailability.tsx';
   const viewModelPath =
     'src/features/provider-set-availability/viewModels/useProviderSetAvailabilityViewModel.ts';
-  const screenSource = readProjectFile('src/screens/ProviderSetAvailabilityScreen.tsx');
+  const screenSource = readProjectFile(
+    'src/screens/ProviderSetAvailabilityScreen.tsx',
+  );
   const viewSource = readProjectFile(viewPath);
   const viewModelSource = readProjectFile(viewModelPath);
 
@@ -634,8 +1005,10 @@ test('provider set availability follows feature-level MVVM boundaries', () => {
 });
 
 test('customer booking schedule follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-booking/views/CustomerBookingSchedulePicker.tsx';
-  const formViewPath = 'src/features/customer-booking/views/CustomerBookingForm.tsx';
+  const viewPath =
+    'src/features/customer-booking/views/CustomerBookingSchedulePicker.tsx';
+  const formViewPath =
+    'src/features/customer-booking/views/CustomerBookingForm.tsx';
   const viewModelPath =
     'src/features/customer-booking/viewModels/useCustomerBookingViewModel.ts';
   const formViewSource = readProjectFile(formViewPath);
@@ -652,7 +1025,8 @@ test('customer booking schedule follows feature-level MVVM boundaries', () => {
 });
 
 test('customer booking form follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-booking/views/CustomerBookingForm.tsx';
+  const viewPath =
+    'src/features/customer-booking/views/CustomerBookingForm.tsx';
   const viewModelPath =
     'src/features/customer-booking/viewModels/useCustomerBookingFormViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -671,7 +1045,8 @@ test('customer booking form follows feature-level MVVM boundaries', () => {
 });
 
 test('customer booking review follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-booking/views/CustomerBookingReview.tsx';
+  const viewPath =
+    'src/features/customer-booking/views/CustomerBookingReview.tsx';
   const viewModelPath =
     'src/features/customer-booking/viewModels/useCustomerBookingReviewViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -680,10 +1055,16 @@ test('customer booking review follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /CustomerBookingReviewScreen/);
   assert.match(viewSource, /useCustomerBookingReviewViewModel/);
-  assert.doesNotMatch(viewSource, /pricingQuote\?\.estimatedTotal|formatMoney|toManilaBookingIso/);
-  assert.doesNotMatch(viewSource, /pricingFairnessLabel|pricingConfidenceLabel/);
+  assert.doesNotMatch(
+    viewSource,
+    /pricingQuote\?\.estimatedTotal|formatMoney|toManilaBookingIso/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /pricingFairnessLabel|pricingConfidenceLabel/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
-  assert.match(viewModelSource, /pricingQuote\?\.estimatedTotal/);
+  assert.match(viewModelSource, /buildBookingPriceBreakdownPreview/);
   assert.match(viewModelSource, /formatMoney/);
   assert.match(viewModelSource, /toManilaBookingIso/);
   assert.match(viewModelSource, /priceBreakdownRows/);
@@ -699,8 +1080,10 @@ test('customer more follows feature-level MVVM boundaries', () => {
 
   assert.match(screenSource, /features\/customer-more\/views\/CustomerMore/);
   assert.match(viewSource, /useCustomerMoreViewModel/);
+  assert.match(viewSource, /avatarImage/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /displayName/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
   assert.match(viewModelSource, /menuItems/);
 });
 
@@ -716,10 +1099,42 @@ test('customer explore follows feature-level MVVM boundaries', () => {
   assert.doesNotMatch(appSource, /function renderExplore/);
   assert.doesNotMatch(appSource, /completedRebookOptions/);
   assert.match(viewSource, /useCustomerExploreViewModel/);
-  assert.doesNotMatch(viewSource, /formatMoney|formatDateTime|completedRebookOptions/);
+  assert.doesNotMatch(
+    viewSource,
+    /formatMoney|formatDateTime|completedRebookOptions/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.doesNotMatch(viewSource, /customer-explore-avatar|exploreImages\.avatar/);
+  assert.match(
+    appSource,
+    /onOpenProfile=\{\(\) => navigate\('customerProfile', 'customer'\)\}/,
+  );
+  assert.match(
+    appSource,
+    /onOpenSavedAddresses=\{\(\) => navigate\('customerAddresses', 'customer'\)\}/,
+  );
+  assert.match(
+    viewSource,
+    /onAvatarPress=\{props\.onOpenProfile\}/,
+  );
+  assert.match(
+    viewSource,
+    /onNotificationPress=\{props\.onShowNotifications\}/,
+  );
+  assert.match(viewSource, /SearchFilterRow/);
+  assert.doesNotMatch(viewSource, /CategoryFilterSheet|setCategoryFilter/);
+  assert.match(viewSource, /sheetCategoryId: sheetCategory\?\.id \?\? null/);
+  assert.match(viewSource, /categoryTileActive/);
+  assert.match(viewSource, /feedback=\{isDisabled \? 'none' : 'compactScale'\}/);
+  assert.doesNotMatch(viewSource, /selected=\{row\.isSelected\}/);
+  assert.match(viewSource, /onLocationPress=\{props\.onOpenSavedAddresses\}/);
   assert.match(viewModelSource, /completedRebookOptions/);
   assert.match(viewModelSource, /guideSteps/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
+  assert.match(viewModelSource, /locationStatusLabel/);
+  assert.match(viewModelSource, /needs_verification/);
+  assert.doesNotMatch(viewModelSource, /categoryFilterLabel|CategoryFilter/);
+  assert.match(viewModelSource, /activeCategoryId: sheetCategoryId \?\? null/);
   assert.match(viewModelSource, /bookAgainRows/);
   assert.match(viewModelSource, /serviceRows/);
   assert.match(viewModelSource, /providerRows/);
@@ -736,7 +1151,10 @@ test('auth screens follow feature-level MVVM boundaries', () => {
   assert.match(viewSource, /useAuthViewModel/);
   assert.match(viewModelSource, /loginMethod/);
   assert.match(viewModelSource, /LoginMethod = 'email' \| 'google'/);
-  assert.doesNotMatch(viewModelSource, /phoneOtpId|requestPhoneOtp|verifyPhoneOtp/);
+  assert.doesNotMatch(
+    viewModelSource,
+    /phoneOtpId|requestPhoneOtp|verifyPhoneOtp/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
 });
 
@@ -778,9 +1196,12 @@ test('customer service history follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /CustomerServiceHistoryScreen/);
   assert.match(viewSource, /useCustomerServiceHistoryViewModel/);
+  assert.match(viewSource, /CustomerHeader/);
+  assert.doesNotMatch(viewSource, /BookingCard/);
   assert.doesNotMatch(viewSource, /booking\.status === 'completed'/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /completedBookings/);
+  assert.match(viewModelSource, /completedRows/);
   assert.match(viewModelSource, /booking\.status === 'completed'/);
 });
 
@@ -829,11 +1250,17 @@ test('notifications follow feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /NotificationsScreen/);
   assert.match(viewSource, /useNotificationsViewModel/);
+  assert.match(viewSource, /role === 'customer'/);
+  assert.match(viewSource, /CustomerHeader/);
+  assert.match(viewSource, /Mark all read/);
+  assert.match(viewSource, /markAllReadPending/);
+  assert.match(viewSource, /markAllReadDisabled/);
   assert.doesNotMatch(viewSource, /isInternalTestNotification/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /isInternalTestNotification/);
   assert.match(viewModelSource, /visibleNotifications/);
   assert.match(viewModelSource, /unreadCount/);
+  assert.match(appSource, /onMarkAllRead=\{notificationsFlow\.actions\.markAllRead\}/);
 });
 
 test('customer payment methods follow feature-level MVVM boundaries', () => {
@@ -855,7 +1282,8 @@ test('customer payment methods follow feature-level MVVM boundaries', () => {
 });
 
 test('customer reserve payment follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-reserve-payment/views/CustomerReservePayment.tsx';
+  const viewPath =
+    'src/features/customer-reserve-payment/views/CustomerReservePayment.tsx';
   const viewModelPath =
     'src/features/customer-reserve-payment/viewModels/useCustomerReservePaymentViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -875,7 +1303,8 @@ test('customer reserve payment follows feature-level MVVM boundaries', () => {
 });
 
 test('customer manage booking follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-manage-booking/views/CustomerManageBooking.tsx';
+  const viewPath =
+    'src/features/customer-manage-booking/views/CustomerManageBooking.tsx';
   const viewModelPath =
     'src/features/customer-manage-booking/viewModels/useCustomerManageBookingViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -892,7 +1321,8 @@ test('customer manage booking follows feature-level MVVM boundaries', () => {
 });
 
 test('customer cancel booking follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-cancel-booking/views/CustomerCancelBooking.tsx';
+  const viewPath =
+    'src/features/customer-cancel-booking/views/CustomerCancelBooking.tsx';
   const viewModelPath =
     'src/features/customer-cancel-booking/viewModels/useCustomerCancelBookingViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -912,7 +1342,8 @@ test('customer cancel booking follows feature-level MVVM boundaries', () => {
 });
 
 test('customer report issue follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-report-issue/views/CustomerReportIssue.tsx';
+  const viewPath =
+    'src/features/customer-report-issue/views/CustomerReportIssue.tsx';
   const viewModelPath =
     'src/features/customer-report-issue/viewModels/useCustomerReportIssueViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -934,7 +1365,8 @@ test('customer report issue follows feature-level MVVM boundaries', () => {
 
 test('messages follows feature-level MVVM boundaries', () => {
   const viewPath = 'src/features/messages/views/Messages.tsx';
-  const viewModelPath = 'src/features/messages/viewModels/useMessagesViewModel.ts';
+  const viewModelPath =
+    'src/features/messages/viewModels/useMessagesViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
   const viewSource = readProjectFile(viewPath);
   const viewModelSource = readProjectFile(viewModelPath);
@@ -942,7 +1374,10 @@ test('messages follows feature-level MVVM boundaries', () => {
   assert.match(appSource, /MessagesScreen/);
   assert.match(viewSource, /useMessagesViewModel/);
   assert.doesNotMatch(viewSource, /listConversationMessages/);
-  assert.doesNotMatch(viewSource, /conversationTitle|messageSenderLabel|formatDateTime/);
+  assert.doesNotMatch(
+    viewSource,
+    /conversationTitle|messageSenderLabel|formatDateTime/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /listConversationMessages/);
   assert.match(viewModelSource, /conversationRows/);
@@ -951,7 +1386,8 @@ test('messages follows feature-level MVVM boundaries', () => {
 });
 
 test('customer booking detail follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-booking-detail/views/CustomerBookingDetail.tsx';
+  const viewPath =
+    'src/features/customer-booking-detail/views/CustomerBookingDetail.tsx';
   const viewModelPath =
     'src/features/customer-booking-detail/viewModels/useCustomerBookingDetailViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -962,9 +1398,18 @@ test('customer booking detail follows feature-level MVVM boundaries', () => {
   assert.doesNotMatch(appSource, /renderReviewPanel/);
   assert.match(viewSource, /useCustomerBookingDetailViewModel/);
   assert.match(viewSource, /CustomerBookingReviewPanel/);
-  assert.doesNotMatch(viewSource, /formatDateTime|formatMoney|formatBookingDuration/);
-  assert.doesNotMatch(viewSource, /bookingStatusChip|pricingModeLabel|timelineForStatus/);
-  assert.doesNotMatch(viewSource, /selectedBooking\.status|services\/serveaseApi/);
+  assert.doesNotMatch(
+    viewSource,
+    /formatDateTime|formatMoney|formatBookingDuration/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /bookingStatusChip|pricingModeLabel|timelineForStatus/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /selectedBooking\.status|services\/serveaseApi/,
+  );
   assert.match(viewModelSource, /formatDateTime/);
   assert.match(viewModelSource, /formatMoney/);
   assert.match(viewModelSource, /formatBookingDuration/);
@@ -984,15 +1429,22 @@ test('customer booking detail review panel follows feature-level MVVM boundaries
 
   assert.doesNotMatch(appSource, /function renderReviewPanel/);
   assert.match(viewSource, /useCustomerBookingReviewPanelViewModel/);
-  assert.doesNotMatch(viewSource, /selectedReview\.rating|selectedReview\.reviewText/);
-  assert.doesNotMatch(viewSource, /busyAction === 'review'|services\/serveaseApi/);
+  assert.doesNotMatch(
+    viewSource,
+    /selectedReview\.rating|selectedReview\.reviewText/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /busyAction === 'review'|services\/serveaseApi/,
+  );
   assert.match(viewModelSource, /selectedReview\?\.rating/);
   assert.match(viewModelSource, /selectedReview\?\.reviewText/);
   assert.match(viewModelSource, /isSubmitDisabled/);
 });
 
 test('customer track provider follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-track-provider/views/CustomerTrackProvider.tsx';
+  const viewPath =
+    'src/features/customer-track-provider/views/CustomerTrackProvider.tsx';
   const viewModelPath =
     'src/features/customer-track-provider/viewModels/useCustomerTrackProviderViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -1000,10 +1452,19 @@ test('customer track provider follows feature-level MVVM boundaries', () => {
   const viewModelSource = readProjectFile(viewModelPath);
 
   assert.match(appSource, /CustomerTrackProviderScreen/);
-  assert.doesNotMatch(appSource, /function trackingPhaseTitle|function trackingRouteLabel/);
+  assert.doesNotMatch(
+    appSource,
+    /function trackingPhaseTitle|function trackingRouteLabel/,
+  );
   assert.match(viewSource, /useCustomerTrackProviderViewModel/);
-  assert.doesNotMatch(viewSource, /formatDateTime|trackingPhaseTitle|trackingRouteLabel/);
-  assert.doesNotMatch(viewSource, /selectedBookingTracking|services\/serveaseApi/);
+  assert.doesNotMatch(
+    viewSource,
+    /formatDateTime|trackingPhaseTitle|trackingRouteLabel/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /selectedBookingTracking|services\/serveaseApi/,
+  );
   assert.match(viewModelSource, /formatDateTime/);
   assert.match(viewModelSource, /trackingPhaseTitle/);
   assert.match(viewModelSource, /trackingRouteLabel/);
@@ -1020,16 +1481,22 @@ test('customer profile follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /CustomerProfileScreen/);
   assert.match(viewSource, /useCustomerProfileViewModel/);
-  assert.doesNotMatch(viewSource, /profile\\?\\.user\\.fullName/);
+  assert.doesNotMatch(viewSource, /profile\?\.user\.fullName/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.doesNotMatch(viewSource, /Stored on this device only/);
   assert.match(viewModelSource, /avatarInitial/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
+  assert.match(viewModelSource, /upload-avatar/);
   assert.match(viewModelSource, /isSaving/);
   assert.match(viewModelSource, /emailLabel/);
+  assert.match(appSource, /profileAvatarUpload/);
+  assert.match(appSource, /pickAndUploadImage\(\s*'avatar'/);
 });
 
 test('help center follows feature-level MVVM boundaries', () => {
   const viewPath = 'src/features/help-center/views/HelpCenter.tsx';
-  const viewModelPath = 'src/features/help-center/viewModels/useHelpCenterViewModel.ts';
+  const viewModelPath =
+    'src/features/help-center/viewModels/useHelpCenterViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
   const viewSource = readProjectFile(viewPath);
   const viewModelSource = readProjectFile(viewModelPath);
@@ -1061,7 +1528,8 @@ test('provider insights follows feature-level MVVM boundaries', () => {
 });
 
 test('provider cancel booking follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/provider-cancel-booking/views/ProviderCancelBooking.tsx';
+  const viewPath =
+    'src/features/provider-cancel-booking/views/ProviderCancelBooking.tsx';
   const viewModelPath =
     'src/features/provider-cancel-booking/viewModels/useProviderCancelBookingViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -1109,9 +1577,12 @@ test('provider service completed follows feature-level MVVM boundaries', () => {
   assert.match(appSource, /ProviderServiceCompletedScreen/);
   assert.match(viewSource, /useProviderServiceCompletedViewModel/);
   assert.doesNotMatch(viewSource, /formatMoney/);
-  assert.doesNotMatch(viewSource, /selectedBooking|selectedPayment|services\/serveaseApi/);
+  assert.doesNotMatch(
+    viewSource,
+    /selectedBooking|selectedPayment|services\/serveaseApi/,
+  );
   assert.match(viewModelSource, /formatMoney/);
-  assert.match(viewModelSource, /earningsLabel/);
+  assert.match(viewModelSource, /providerPayoutLabel/);
   assert.match(viewModelSource, /serviceTitle/);
 });
 
@@ -1127,7 +1598,10 @@ test('provider service receipt follows feature-level MVVM boundaries', () => {
   assert.match(appSource, /ProviderServiceReceiptScreen/);
   assert.match(viewSource, /useProviderServiceReceiptViewModel/);
   assert.doesNotMatch(viewSource, /formatDateTime|formatMoney|statusLabel/);
-  assert.doesNotMatch(viewSource, /selectedPayment|selectedBooking|services\/serveaseApi/);
+  assert.doesNotMatch(
+    viewSource,
+    /selectedPayment|selectedBooking|services\/serveaseApi/,
+  );
   assert.match(viewModelSource, /formatDateTime/);
   assert.match(viewModelSource, /formatMoney/);
   assert.match(viewModelSource, /statusLabel/);
@@ -1147,7 +1621,10 @@ test('provider start service follows feature-level MVVM boundaries', () => {
   assert.match(appSource, /ProviderStartServiceScreen/);
   assert.match(viewSource, /useProviderStartServiceViewModel/);
   assert.doesNotMatch(viewSource, /formatDateTime|Object\.values/);
-  assert.doesNotMatch(viewSource, /providerChecklist|providerBeforePhotoUrl|services\/serveaseApi/);
+  assert.doesNotMatch(
+    viewSource,
+    /providerChecklist|providerBeforePhotoUrl|services\/serveaseApi/,
+  );
   assert.match(viewModelSource, /formatDateTime/);
   assert.match(viewModelSource, /checklistRows/);
   assert.match(viewModelSource, /canStart/);
@@ -1167,7 +1644,10 @@ test('provider complete service follows feature-level MVVM boundaries', () => {
   assert.match(appSource, /ProviderCompleteServiceScreen/);
   assert.match(viewSource, /useProviderCompleteServiceViewModel/);
   assert.doesNotMatch(viewSource, /formatMoney/);
-  assert.doesNotMatch(viewSource, /selectedBooking|selectedPayment|providerCompletionPhotoUrl|services\/serveaseApi/);
+  assert.doesNotMatch(
+    viewSource,
+    /selectedBooking|selectedPayment|providerCompletionPhotoUrl|services\/serveaseApi/,
+  );
   assert.match(viewModelSource, /formatMoney/);
   assert.match(viewModelSource, /summaryRows/);
   assert.match(viewModelSource, /completionPhotoActionLabel/);
@@ -1186,8 +1666,14 @@ test('provider service in progress follows feature-level MVVM boundaries', () =>
 
   assert.match(appSource, /ProviderServiceInProgressScreen/);
   assert.match(viewSource, /useProviderServiceInProgressViewModel/);
-  assert.doesNotMatch(viewSource, /formatDateTime|formatElapsedTime|serviceStartedAt/);
-  assert.doesNotMatch(viewSource, /providerProgressMessage\.trim|providerProgressPhotoUrl/);
+  assert.doesNotMatch(
+    viewSource,
+    /formatDateTime|formatElapsedTime|serviceStartedAt/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /providerProgressMessage\.trim|providerProgressPhotoUrl/,
+  );
   assert.doesNotMatch(viewSource, /selectedBooking|services\/serveaseApi/);
   assert.match(viewModelSource, /formatDateTime/);
   assert.match(viewModelSource, /formatElapsedTime/);
@@ -1212,14 +1698,52 @@ test('provider navigation mode follows feature-level MVVM boundaries', () => {
   assert.doesNotMatch(appSource, /function providerNavigationGuidance/);
   assert.doesNotMatch(appSource, /function providerLiveLocationStatusLabel/);
   assert.match(viewSource, /useProviderNavigationModeViewModel/);
-  assert.doesNotMatch(viewSource, /providerDirectionsLabel|providerNavigationGuidance/);
-  assert.doesNotMatch(viewSource, /providerLiveLocationStatusLabel|selectedBookingDirections/);
-  assert.doesNotMatch(viewSource, /selectedBookingTracking|services\/serveaseApi/);
+  assert.doesNotMatch(
+    viewSource,
+    /providerDirectionsLabel|providerNavigationGuidance/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /providerLiveLocationStatusLabel|selectedBookingDirections/,
+  );
+  assert.doesNotMatch(
+    viewSource,
+    /selectedBookingTracking|services\/serveaseApi/,
+  );
   assert.match(viewModelSource, /providerDirectionsLabel/);
   assert.match(viewModelSource, /providerNavigationGuidance/);
   assert.match(viewModelSource, /providerLiveLocationStatusLabel/);
   assert.match(viewModelSource, /routeInstructionRows/);
   assert.match(viewModelSource, /navigationOrigin/);
+});
+
+test('provider UI language stays provider-scoped and excludes navigation mode', () => {
+  const providerUiSource = readProjectFile(
+    'src/shared/components/ProviderUI.tsx',
+  );
+  const sharedIndexSource = readProjectFile('src/shared/components/index.ts');
+  const navigationModeSource = readProjectFile(
+    'src/features/provider-navigation-mode/views/ProviderNavigationMode.tsx',
+  );
+  const customerViewSources = featureViewFiles()
+    .filter((path) => path.includes('/customer-'))
+    .map(readProjectFile)
+    .join('\n');
+
+  assert.match(sharedIndexSource, /ProviderUI/);
+  assert.match(providerUiSource, /ProviderScreen/);
+  assert.match(providerUiSource, /ProviderHeader/);
+  assert.match(providerUiSource, /ProviderCard/);
+  assert.match(providerUiSource, /ProviderBadge/);
+  assert.doesNotMatch(providerUiSource, /CustomerUI|components\/DesignKit/);
+  assert.doesNotMatch(
+    navigationModeSource,
+    /from ['"][^'"]*ProviderUI['"]|<Provider(?:Screen|Header)\b/,
+  );
+  assert.doesNotMatch(
+    customerViewSources,
+    /from ['"][^'"]*ProviderUI['"]|<Provider(?:Screen|Header)\b/,
+  );
 });
 
 test('provider more follows feature-level MVVM boundaries', () => {
@@ -1233,8 +1757,12 @@ test('provider more follows feature-level MVVM boundaries', () => {
   assert.match(appSource, /ProviderMoreScreen/);
   assert.match(appSource, /profile=\{profile\}/);
   assert.match(appSource, /signOut=\{signOut\}/);
-  assert.match(appSource, /unreadNotificationCount=\{notificationsFlow\.data\.unreadCount\}/);
+  assert.match(
+    appSource,
+    /unreadNotificationCount=\{notificationsFlow\.data\.unreadCount\}/,
+  );
   assert.match(viewSource, /useProviderMoreViewModel/);
+  assert.match(viewSource, /avatarImage/);
   assert.match(viewSource, /styles\.profileRow/);
   assert.match(viewSource, /styles\.logoutButton/);
   assert.match(viewSource, /typeof signOut === 'function'/);
@@ -1246,6 +1774,7 @@ test('provider more follows feature-level MVVM boundaries', () => {
   assert.match(viewModelSource, /providerPayoutManagement/);
   assert.match(viewModelSource, /actionRows/);
   assert.match(viewModelSource, /providerProfile\?\.businessName/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
   assert.match(viewModelSource, /providerNotifications/);
 });
 
@@ -1285,7 +1814,8 @@ test('provider settings follows feature-level MVVM boundaries', () => {
 });
 
 test('provider profile view follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/provider-profile-view/views/ProviderProfileView.tsx';
+  const viewPath =
+    'src/features/provider-profile-view/views/ProviderProfileView.tsx';
   const viewModelPath =
     'src/features/provider-profile-view/viewModels/useProviderProfileViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -1294,10 +1824,12 @@ test('provider profile view follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /ProviderProfileViewScreen/);
   assert.match(viewSource, /useProviderProfileViewModel/);
+  assert.match(viewSource, /heroAvatarImage/);
   assert.doesNotMatch(viewSource, /profile\\?\\.providerProfile/);
   assert.doesNotMatch(viewSource, /providerPortfolioMedia\.slice/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /businessDisplayName/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
   assert.match(viewModelSource, /portfolioPreview/);
   assert.match(viewModelSource, /reviewCards/);
 });
@@ -1313,7 +1845,10 @@ test('provider payout management follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /ProviderPayoutManagementScreen/);
   assert.match(viewSource, /useProviderPayoutManagementViewModel/);
-  assert.doesNotMatch(viewSource, /summarizeMonthlyEarnings|formatMoney|formatDateTime/);
+  assert.doesNotMatch(
+    viewSource,
+    /summarizeMonthlyEarnings|formatMoney|formatDateTime/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /summarizeMonthlyEarnings/);
   assert.match(viewModelSource, /nextPayoutDate/);
@@ -1321,7 +1856,8 @@ test('provider payout management follows feature-level MVVM boundaries', () => {
 });
 
 test('provider request payout follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/provider-request-payout/views/ProviderRequestPayout.tsx';
+  const viewPath =
+    'src/features/provider-request-payout/views/ProviderRequestPayout.tsx';
   const viewModelPath =
     'src/features/provider-request-payout/viewModels/useProviderRequestPayoutViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -1338,7 +1874,8 @@ test('provider request payout follows feature-level MVVM boundaries', () => {
 });
 
 test('provider edit profile follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/provider-edit-profile/views/ProviderEditProfile.tsx';
+  const viewPath =
+    'src/features/provider-edit-profile/views/ProviderEditProfile.tsx';
   const viewModelPath =
     'src/features/provider-edit-profile/viewModels/useProviderEditProfileViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -1347,9 +1884,13 @@ test('provider edit profile follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /ProviderEditProfileScreen/);
   assert.match(viewSource, /useProviderEditProfileViewModel/);
+  assert.match(viewSource, /onPickAvatar/);
+  assert.match(viewSource, /avatarImage/);
   assert.doesNotMatch(viewSource, /busyAction === 'profile-update'|!profile/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /saveButtonLabel/);
+  assert.match(viewModelSource, /profile\?\.user\.avatarUrl/);
+  assert.match(viewModelSource, /upload-avatar/);
   assert.match(viewModelSource, /canSave/);
 });
 
@@ -1363,7 +1904,10 @@ test('provider services follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /ProviderServicesScreen/);
   assert.match(viewSource, /useProviderServicesViewModel/);
-  assert.doesNotMatch(viewSource, /formatMoney|svc\.price|busyAction === `service-toggle/);
+  assert.doesNotMatch(
+    viewSource,
+    /formatMoney|svc\.price|busyAction === `service-toggle/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /formatMoney/);
   assert.match(viewModelSource, /serviceRows/);
@@ -1371,7 +1915,8 @@ test('provider services follows feature-level MVVM boundaries', () => {
 });
 
 test('provider portfolio follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/provider-portfolio/views/ProviderPortfolio.tsx';
+  const viewPath =
+    'src/features/provider-portfolio/views/ProviderPortfolio.tsx';
   const viewModelPath =
     'src/features/provider-portfolio/viewModels/useProviderPortfolioViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -1380,7 +1925,10 @@ test('provider portfolio follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /ProviderPortfolioScreen/);
   assert.match(viewSource, /useProviderPortfolioViewModel/);
-  assert.doesNotMatch(viewSource, /providerPortfolioMedia\.map|providerPortfolioPhotoUrl/);
+  assert.doesNotMatch(
+    viewSource,
+    /providerPortfolioMedia\.map|providerPortfolioPhotoUrl/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /uploadLabel/);
   assert.match(viewModelSource, /portfolioItems/);
@@ -1388,7 +1936,8 @@ test('provider portfolio follows feature-level MVVM boundaries', () => {
 });
 
 test('customer top providers follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-top-providers/views/CustomerTopProviders.tsx';
+  const viewPath =
+    'src/features/customer-top-providers/views/CustomerTopProviders.tsx';
   const viewModelPath =
     'src/features/customer-top-providers/viewModels/useCustomerTopProvidersViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -1397,14 +1946,19 @@ test('customer top providers follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /CustomerTopProvidersScreen/);
   assert.match(viewSource, /useCustomerTopProvidersViewModel/);
-  assert.doesNotMatch(viewSource, /providers\.filter|marketplaceSearchQuery\.trim/);
+  assert.doesNotMatch(
+    viewSource,
+    /providers\.filter|marketplaceSearchQuery\.trim/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(viewSource, /InlineRefreshHint label="Refreshing providers"/);
   assert.match(viewModelSource, /visibleProviders/);
   assert.match(viewModelSource, /providerBusinessName/);
 });
 
 test('customer all services follows feature-level MVVM boundaries', () => {
-  const viewPath = 'src/features/customer-all-services/views/CustomerAllServices.tsx';
+  const viewPath =
+    'src/features/customer-all-services/views/CustomerAllServices.tsx';
   const viewModelPath =
     'src/features/customer-all-services/viewModels/useCustomerAllServicesViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
@@ -1413,9 +1967,20 @@ test('customer all services follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /CustomerAllServicesScreen/);
   assert.match(viewSource, /useCustomerAllServicesViewModel/);
-  assert.doesNotMatch(viewSource, /services\.filter|marketplaceSearchQuery\.trim|formatMoney/);
+  assert.doesNotMatch(
+    viewSource,
+    /services\.filter|marketplaceSearchQuery\.trim|formatMoney/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(appSource, /categories=\{categories\}/);
+  assert.match(viewSource, /ServiceRefinementSheet/);
+  assert.match(viewSource, /setSelectedCategoryId/);
+  assert.match(viewSource, /setSortMode/);
+  assert.match(viewSource, /InlineRefreshHint label="Refreshing services"/);
   assert.match(viewModelSource, /visibleServices/);
+  assert.match(viewModelSource, /selectedCategoryId/);
+  assert.match(viewModelSource, /sortMode/);
+  assert.match(viewModelSource, /categoryFilterOptions/);
   assert.match(viewModelSource, /formatMoney/);
 });
 
@@ -1431,8 +1996,27 @@ test('customer category follows feature-level MVVM boundaries', () => {
   assert.match(viewSource, /useCustomerCategoryViewModel/);
   assert.doesNotMatch(viewSource, /categories\.find|services\.length/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
+  assert.match(appSource, /onOpenCategory=\{\(category\) =>/);
+  assert.match(appSource, /setSelectedCategoryId\(category\?\.id \?\? null\)/);
+  assert.match(appSource, /onOpenService=\{\(service\) =>/);
+  assert.match(appSource, /navigate\('customerTopProviders', 'customer'\)/);
+  assert.match(viewSource, /categoryHero/);
+  assert.match(viewSource, /data\.searchPlaceholder/);
+  assert.match(viewSource, /data\.categoryRows\.map/);
+  assert.match(viewSource, /onOpenCategory\(row\.category\)/);
+  assert.match(viewSource, /ListSectionSkeleton count=\{5\} label="Loading category services"/);
+  assert.match(viewSource, /CustomerEmptyState/);
+  assert.match(viewSource, /serviceCardHeader/);
+  assert.match(viewSource, /pricePill/);
+  assert.match(viewSource, /onOpenService\(row\.service\)/);
+  assert.match(viewSource, /PaginationControls/);
   assert.match(viewModelSource, /categoryName/);
+  assert.match(viewModelSource, /categoryRows/);
+  assert.match(viewModelSource, /selectedCategoryId\s*\?\s*services\.filter/);
+  assert.match(viewModelSource, /CATEGORY_PAGE_SIZE = 5/);
+  assert.match(viewModelSource, /buildServiceRatings/);
   assert.match(viewModelSource, /serviceCountLabel/);
+  assert.match(viewModelSource, /searchPlaceholder/);
 });
 
 test('customer provider profile follows feature-level MVVM boundaries', () => {
@@ -1446,7 +2030,10 @@ test('customer provider profile follows feature-level MVVM boundaries', () => {
 
   assert.match(appSource, /CustomerProviderProfileScreen/);
   assert.match(viewSource, /useCustomerProviderProfileViewModel/);
-  assert.doesNotMatch(viewSource, /selectedProviderPortfolioMedia\.map|selectedProviderAvailability/);
+  assert.doesNotMatch(
+    viewSource,
+    /selectedProviderPortfolioMedia\.map|selectedProviderAvailability/,
+  );
   assert.doesNotMatch(viewSource, /formatMoney|dayLabels/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /formatMoney/);
@@ -1465,7 +2052,10 @@ test('customer booking confirmation follows feature-level MVVM boundaries', () =
 
   assert.match(appSource, /CustomerBookingConfirmationScreen/);
   assert.match(viewSource, /useCustomerBookingConfirmationViewModel/);
-  assert.doesNotMatch(viewSource, /formatDateTime|formatMoney|timelineForStatus/);
+  assert.doesNotMatch(
+    viewSource,
+    /formatDateTime|formatMoney|timelineForStatus/,
+  );
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /formatDateTime/);
   assert.match(viewModelSource, /formatMoney/);
@@ -1474,7 +2064,8 @@ test('customer booking confirmation follows feature-level MVVM boundaries', () =
 
 test('bookings list follows feature-level MVVM boundaries', () => {
   const viewPath = 'src/features/bookings/views/Bookings.tsx';
-  const viewModelPath = 'src/features/bookings/viewModels/useBookingsViewModel.ts';
+  const viewModelPath =
+    'src/features/bookings/viewModels/useBookingsViewModel.ts';
   const appSource = readProjectFile('src/App.tsx');
   const viewSource = readProjectFile(viewPath);
   const viewModelSource = readProjectFile(viewModelPath);
@@ -1484,12 +2075,15 @@ test('bookings list follows feature-level MVVM boundaries', () => {
   assert.doesNotMatch(viewSource, /booking\.status !== 'completed'/);
   assert.doesNotMatch(viewSource, /services\/serveaseApi/);
   assert.match(viewModelSource, /visibleBookings/);
-  assert.match(viewModelSource, /booking\.status !== 'completed'/);
+  assert.match(viewModelSource, /CLOSED_BOOKING_STATUSES/);
+  assert.match(viewModelSource, /cardRows/);
 });
 
 test('shared booking detail sections are outside the app shell', () => {
   const appSource = readProjectFile('src/App.tsx');
-  const sharedSource = readProjectFile('src/shared/components/BookingDetailSections.tsx');
+  const sharedSource = readProjectFile(
+    'src/shared/components/BookingDetailSections.tsx',
+  );
   const sharedIndexSource = readProjectFile('src/shared/components/index.ts');
 
   assert.doesNotMatch(appSource, /function renderBookingMedia/);
@@ -1507,8 +2101,12 @@ test('shared booking detail sections are outside the app shell', () => {
 
 test('shared support panel is outside the app shell', () => {
   const appSource = readProjectFile('src/App.tsx');
-  const sharedSource = readProjectFile('src/shared/components/SupportPanel.tsx');
-  const sharedHookSource = readProjectFile('src/shared/hooks/useSupportPanelViewModel.ts');
+  const sharedSource = readProjectFile(
+    'src/shared/components/SupportPanel.tsx',
+  );
+  const sharedHookSource = readProjectFile(
+    'src/shared/hooks/useSupportPanelViewModel.ts',
+  );
   const sharedIndexSource = readProjectFile('src/shared/components/index.ts');
 
   assert.doesNotMatch(appSource, /function renderSupportPanel/);

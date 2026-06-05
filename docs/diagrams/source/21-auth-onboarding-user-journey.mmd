@@ -1,0 +1,59 @@
+flowchart TD
+  start([User opens ServEase])
+
+  subgraph gate["Auth gate"]
+    preview["View public marketplace preview"]
+    choose["Choose customer or provider path"]
+    authChoice{"Has account?"}
+    login["Sign in with email and password"]
+    register["Create account for selected role"]
+    config{"Public auth config available?"}
+  end
+
+  subgraph profile["Profile resolution"]
+    token["Receive Supabase access token"]
+    me["Load GET /v1/me through API Gateway"]
+    role{"Resolved role?"}
+    customerProfile["Load customer profile"]
+    providerProfile["Load provider profile"]
+  end
+
+  subgraph customer["Customer onboarding"]
+    customerHome["Land on Search tab"]
+    address["Add saved address"]
+    payment["Add payment method when needed"]
+    notifications["Register notification device"]
+  end
+
+  subgraph provider["Provider onboarding"]
+    application["Complete provider application"]
+    docs["Upload required documents"]
+    services["Configure services and portfolio"]
+    availability["Set availability"]
+    providerHome["Land on Jobs tab"]
+  end
+
+  subgraph recovery["Recovery states"]
+    missingConfig["Show missing configuration error"]
+    authError["Show invalid credential or gateway error"]
+    retry["Retry without losing entered form data"]
+  end
+
+  start --> preview --> choose --> authChoice
+  authChoice -->|Yes| login --> config
+  authChoice -->|No| register --> config
+  config -->|No| missingConfig --> retry --> choose
+  config -->|Yes| token --> me --> role
+  login -->|Failure| authError --> retry
+  register -->|Failure| authError
+  role -->|Customer| customerProfile --> customerHome --> address --> payment --> notifications
+  role -->|Provider| providerProfile --> application --> docs --> services --> availability --> providerHome
+
+  classDef action fill:#f5f3ff,stroke:#7c3aed,color:#111827;
+  classDef decision fill:#eff6ff,stroke:#2563eb,color:#111827;
+  classDef recovery fill:#fef2f2,stroke:#dc2626,color:#111827;
+  classDef endpoint fill:#ecfdf5,stroke:#16a34a,color:#111827;
+  class preview,choose,login,register,token,me,customerProfile,providerProfile,customerHome,address,payment,notifications,application,docs,services,availability,providerHome action;
+  class authChoice,config,role decision;
+  class missingConfig,authError,retry recovery;
+  class start endpoint;

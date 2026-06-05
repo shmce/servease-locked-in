@@ -1,36 +1,43 @@
 import type { AppScreen } from '../../../navigation/types';
 import { formatMoney } from '../../../shared/utils/booking';
 import type { BookingSummary, PaymentSummary } from '../../../shared/models/types';
+import { isProviderServiceStartWindowOpen } from '../../../domain/providerStartWindow';
 
 const MANILA_TIME_ZONE = 'Asia/Manila';
-const START_SERVICE_WINDOW_MS = 30 * 60 * 1000;
 const ACTIVE_BOOKING_STATUSES = new Set(['confirmed', 'in_progress']);
 
 export type ProviderHomeHero =
   | {
       kind: 'job';
+      eyebrow: 'Next job';
       title: string;
       subtitle: string;
       meta: string;
+      timeLabel: string;
+      customerLabel: string;
+      statusLabel: 'Confirmed' | 'In progress';
       bookingId: string;
       primaryActionLabel: string;
       primaryActionScreen: AppScreen;
     }
   | {
       kind: 'requests';
+      eyebrow: 'Booking requests';
       title: string;
       subtitle: string;
       meta: string;
+      countLabel: string;
       pendingCount: number;
       primaryActionLabel: 'Review requests';
       primaryActionScreen: AppScreen;
     }
   | {
       kind: 'caught-up';
+      eyebrow: 'Schedule open';
       title: 'All caught up.';
       subtitle: string;
       meta: string;
-      primaryActionLabel: 'Block time off';
+      primaryActionLabel: 'Block time';
       secondaryActionLabel: 'Share profile';
       primaryActionScreen: AppScreen;
       secondaryActionScreen: AppScreen;
@@ -39,15 +46,36 @@ export type ProviderHomeHero =
 export type ProviderHomeActiveBooking = {
   id: string;
   booking: BookingSummary;
+  timeLabel: string;
+  serviceLabel: string;
+  customerLabel: string;
+  metaLabel: string;
   summary: string;
+};
+
+export type ProviderHomeDashboardStatus = {
+  label: 'Available' | 'On a job';
+  helperLabel: string;
+  accessibilityLabel: string;
+};
+
+export type ProviderHomePerformanceCard = {
+  id: 'rating' | 'today' | 'week';
+  label: string;
+  value: string;
+  meta: string;
+  accessibilityLabel: string;
 };
 
 export type ProviderHomeViewModel = {
   hero: ProviderHomeHero;
+  dashboardStatus: ProviderHomeDashboardStatus;
   payoutAction: ReturnType<typeof buildPayoutAction>;
   activeBookings: ProviderHomeActiveBooking[];
   todayEarnings: number;
   weekEarnings: number;
+  todayEarningsLabel: string;
+  weekEarningsLabel: string;
 };
 
 export function nextJobAction(booking: BookingSummary, now: Date): {
@@ -58,12 +86,7 @@ export function nextJobAction(booking: BookingSummary, now: Date): {
     return { label: 'Continue', screen: 'providerServiceInProgress' };
   }
 
-  const scheduledAt = new Date(booking.scheduledAt).getTime();
-  const shouldStart = Number.isFinite(scheduledAt)
-    ? now.getTime() >= scheduledAt - START_SERVICE_WINDOW_MS
-    : false;
-
-  if (shouldStart) {
+  if (isProviderServiceStartWindowOpen(booking.scheduledAt, now)) {
     return { label: 'Start Service', screen: 'providerStartService' };
   }
 
@@ -108,24 +131,35 @@ export function buildProviderHomeViewModel({
     : pendingBookings.length
       ? buildPendingHero(pendingBookings.length)
       : buildCaughtUpHero();
+  const todayEarnings = sumPaymentsForDate(payments, now);
+  const weekEarnings = sumPaymentsForWeek(payments, now);
 
   return {
     hero,
+    dashboardStatus: buildDashboardStatus(hero),
     payoutAction: buildPayoutAction(payoutTotal, minimumPayoutAmount),
     activeBookings: buildActiveBookings(bookings, hero.kind === 'job' ? hero.bookingId : null),
-    todayEarnings: sumPaymentsForDate(payments, now),
-    weekEarnings: sumPaymentsForWeek(payments, now),
+    todayEarnings,
+    weekEarnings,
+    todayEarningsLabel: formatMoney(todayEarnings),
+    weekEarningsLabel: formatMoney(weekEarnings),
   };
 }
 
 function buildJobHero(booking: BookingSummary, now: Date): ProviderHomeHero {
   const action = nextJobAction(booking, now);
+  const timeLabel = formatTime(booking.scheduledAt);
+  const customerLabel = firstName(booking.customerFullName);
 
   return {
     kind: 'job',
+    eyebrow: 'Next job',
     title: booking.serviceTitle ?? 'Service booking',
-    subtitle: `${formatTime(booking.scheduledAt)} · ${firstName(booking.customerFullName)}`,
+    subtitle: `${timeLabel} · ${customerLabel}`,
     meta: booking.serviceAddress ?? 'Address unavailable',
+    timeLabel,
+    customerLabel,
+    statusLabel: booking.status === 'in_progress' ? 'In progress' : 'Confirmed',
     bookingId: booking.id,
     primaryActionLabel: action.label,
     primaryActionScreen: action.screen,
@@ -133,11 +167,15 @@ function buildJobHero(booking: BookingSummary, now: Date): ProviderHomeHero {
 }
 
 function buildPendingHero(pendingCount: number): ProviderHomeHero {
+  const countLabel = `${pendingCount} request${pendingCount === 1 ? '' : 's'}`;
+
   return {
     kind: 'requests',
+    eyebrow: 'Booking requests',
     title: `${pendingCount} new request${pendingCount === 1 ? '' : 's'}`,
     subtitle: 'Review incoming bookings while customers are still deciding.',
     meta: 'Pending requests',
+    countLabel,
     pendingCount,
     primaryActionLabel: 'Review requests',
     primaryActionScreen: 'bookings',
@@ -147,13 +185,30 @@ function buildPendingHero(pendingCount: number): ProviderHomeHero {
 function buildCaughtUpHero(): ProviderHomeHero {
   return {
     kind: 'caught-up',
+    eyebrow: 'Schedule open',
     title: 'All caught up.',
-    subtitle: 'No jobs or booking requests need action right now.',
+    subtitle: 'No jobs need action right now.',
     meta: 'Open schedule',
-    primaryActionLabel: 'Block time off',
+    primaryActionLabel: 'Block time',
     secondaryActionLabel: 'Share profile',
     primaryActionScreen: 'calendar',
     secondaryActionScreen: 'providerProfileView',
+  };
+}
+
+function buildDashboardStatus(hero: ProviderHomeHero): ProviderHomeDashboardStatus {
+  if (hero.kind === 'job' && hero.statusLabel === 'In progress') {
+    return {
+      label: 'On a job',
+      helperLabel: 'Active service in progress',
+      accessibilityLabel: 'Provider status: on a job',
+    };
+  }
+
+  return {
+    label: 'Available',
+    helperLabel: 'Ready for bookings',
+    accessibilityLabel: 'Provider status: available',
   };
 }
 
@@ -181,13 +236,58 @@ function buildActiveBookings(
     .slice()
     .sort(sortByScheduledAt)
     .slice(0, 3)
-    .map((booking) => ({
-      id: booking.id,
-      booking,
-      summary: `${formatTime(booking.scheduledAt)} · ${booking.serviceTitle ?? 'Service'} · ${
-        firstName(booking.customerFullName)
-      }`,
-    }));
+    .map((booking) => {
+      const timeLabel = formatTime(booking.scheduledAt);
+      const serviceLabel = booking.serviceTitle ?? 'Service';
+      const customerLabel = firstName(booking.customerFullName);
+
+      return {
+        id: booking.id,
+        booking,
+        timeLabel,
+        serviceLabel,
+        customerLabel,
+        metaLabel: booking.serviceAddress ?? 'Address unavailable',
+        summary: `${timeLabel} · ${serviceLabel} · ${customerLabel}`,
+      };
+    });
+}
+
+export function buildProviderHomePerformanceCards({
+  todayEarnings,
+  weekEarnings,
+  ratingLabel,
+}: {
+  todayEarnings: number;
+  weekEarnings: number;
+  ratingLabel: string;
+}): ProviderHomePerformanceCard[] {
+  const todayLabel = formatMoney(todayEarnings);
+  const weekLabel = formatMoney(weekEarnings);
+
+  return [
+    {
+      id: 'today',
+      label: 'Today',
+      value: todayLabel,
+      meta: "Today's payout",
+      accessibilityLabel: `Today's earnings ${todayLabel}`,
+    },
+    {
+      id: 'week',
+      label: 'This week',
+      value: weekLabel,
+      meta: 'Paid this week',
+      accessibilityLabel: `This week's earnings ${weekLabel}`,
+    },
+    {
+      id: 'rating',
+      label: 'Rating',
+      value: ratingLabel,
+      meta: 'Customer score',
+      accessibilityLabel: `Provider rating ${ratingLabel}`,
+    },
+  ];
 }
 
 function sumPaymentsForDate(payments: PaymentSummary[], now: Date): number {

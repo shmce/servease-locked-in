@@ -1,10 +1,8 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode } from 'react';
 import { ArrowLeft, Check } from 'lucide-react-native';
 import {
-  AccessibilityInfo,
   Animated,
   KeyboardTypeOptions,
-  Pressable,
   StyleProp,
   StyleSheet,
   Text,
@@ -12,7 +10,13 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import { useEntranceMotion, usePressScale } from './Motion';
+import {
+  MotionPressable,
+  MotionView,
+  StaggeredMotionView,
+  useSelectedMotion,
+  useSkeletonPulseOpacity,
+} from './Motion';
 import { palette, radius, spacing, type } from '../theme/serveaseDesign';
 
 export function PhoneFrame({ children }: { children: ReactNode }) {
@@ -39,14 +43,14 @@ export function TopBar({
   return (
     <View style={[styles.topBar, green && styles.greenTopBar]}>
       {onBack ? (
-        <Pressable
-          style={styles.iconButton}
+        <MotionPressable
+          contentStyle={styles.iconButton}
           onPress={onBack}
           accessibilityRole="button"
           accessibilityLabel="Back"
         >
           <ArrowLeft color={green ? palette.white : palette.ink} size={24} strokeWidth={2.4} />
-        </Pressable>
+        </MotionPressable>
       ) : null}
       <View style={styles.topBarCopy}>
         <Text style={[styles.topTitle, green && styles.lightText]}>{title}</Text>
@@ -71,7 +75,7 @@ export function Section({
   children: ReactNode;
 }) {
   return (
-    <View style={styles.section}>
+    <MotionView style={styles.section} variant="content">
       {title ? (
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{title}</Text>
@@ -79,7 +83,7 @@ export function Section({
         </View>
       ) : null}
       {children}
-    </View>
+    </MotionView>
   );
 }
 
@@ -94,11 +98,11 @@ export function Card({
   onPress?: () => void;
   accessibilityLabel?: string;
 }) {
-  const entranceStyle = useEntranceMotion();
+  const cardStyle = [styles.card, selected && styles.selectedCard];
   const content = (
-    <Animated.View style={[styles.card, selected && styles.selectedCard, entranceStyle]}>
+    <MotionView style={cardStyle} variant="card">
       {children}
-    </Animated.View>
+    </MotionView>
   );
 
   if (!onPress) {
@@ -106,13 +110,17 @@ export function Card({
   }
 
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? 'Open details'}
-    >
-      {content}
-    </Pressable>
+    <MotionView variant="card">
+      <MotionPressable
+        contentStyle={cardStyle}
+        onPress={onPress}
+        selected={selected}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel ?? 'Open details'}
+      >
+        {children}
+      </MotionPressable>
+    </MotionView>
   );
 }
 
@@ -129,7 +137,7 @@ export function SkeletonBlock({
   radius?: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  const opacity = useSkeletonOpacity();
+  const opacity = useSkeletonPulseOpacity();
 
   return (
     <Animated.View
@@ -193,13 +201,14 @@ export function SkeletonCard({
   style?: StyleProp<ViewStyle>;
 }) {
   return (
-    <View
+    <MotionView
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
       style={[styles.card, style]}
+      variant="loading"
     >
       {children}
-    </View>
+    </MotionView>
   );
 }
 
@@ -214,35 +223,28 @@ export function PrimaryButton({
   disabled?: boolean;
   variant?: 'primary' | 'secondary' | 'danger';
 }) {
-  const press = usePressScale(disabled);
-
   return (
-    <Pressable
+    <MotionPressable
       onPress={onPress}
-      onPressIn={press.onPressIn}
-      onPressOut={press.onPressOut}
       disabled={disabled}
       accessibilityRole="button"
+      accessibilityLabel={label}
+      contentStyle={[
+        styles.button,
+        variant === 'secondary' && styles.secondaryButton,
+        variant === 'danger' && styles.dangerButton,
+        disabled && styles.disabled,
+      ]}
     >
-      <Animated.View
+      <Text
         style={[
-          styles.button,
-          variant === 'secondary' && styles.secondaryButton,
-          variant === 'danger' && styles.dangerButton,
-          disabled && styles.disabled,
-          { transform: [{ scale: press.scale }] },
+          styles.buttonText,
+          variant === 'secondary' && styles.secondaryButtonText,
         ]}
       >
-        <Text
-          style={[
-            styles.buttonText,
-            variant === 'secondary' && styles.secondaryButtonText,
-          ]}
-        >
-          {label}
-        </Text>
-      </Animated.View>
-    </Pressable>
+        {label}
+      </Text>
+    </MotionPressable>
   );
 }
 
@@ -291,14 +293,15 @@ export function Pill({
   onPress?: () => void;
 }) {
   return (
-    <Pressable
-      style={[styles.pill, selected && styles.pillSelected]}
+    <MotionPressable
+      contentStyle={[styles.pill, selected && styles.pillSelected]}
       onPress={onPress}
       disabled={!onPress}
+      selected={selected}
       accessibilityRole={onPress ? 'button' : undefined}
     >
       <Text style={[styles.pillText, selected && styles.pillTextSelected]}>{label}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -326,19 +329,22 @@ export function MetricCard({
   featured?: boolean;
 }) {
   return (
-    <View style={[styles.metricCard, featured && styles.featuredMetric]}>
+    <MotionView
+      style={[styles.metricCard, featured && styles.featuredMetric]}
+      variant="card"
+    >
       <Text style={[styles.metricLabel, featured && styles.featuredMetricLabel]}>{label}</Text>
       <Text style={[styles.metricValue, featured && styles.featuredMetricValue]}>{value}</Text>
-    </View>
+    </MotionView>
   );
 }
 
 export function EmptyState({ title, body }: { title: string; body: string }) {
   return (
-    <View style={styles.empty}>
+    <MotionView style={styles.empty} variant="content">
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyBody}>{body}</Text>
-    </View>
+    </MotionView>
   );
 }
 
@@ -390,21 +396,12 @@ function BottomNavigationItem({
   unreadCount: number;
   onPress: () => void;
 }) {
-  const activeScale = useRef(new Animated.Value(isActive ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.spring(activeScale, {
-      toValue: isActive ? 1 : 0,
-      damping: 16,
-      mass: 0.7,
-      stiffness: 240,
-      useNativeDriver: true,
-    }).start();
-  }, [activeScale, isActive]);
+  const selectedMotion = useSelectedMotion(isActive);
 
   return (
-    <Pressable
-      style={styles.navItem}
+    <MotionPressable
+      style={styles.navPressable}
+      contentStyle={styles.navItem}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected: isActive }}
@@ -413,16 +410,7 @@ function BottomNavigationItem({
         style={[
           styles.navIcon,
           isActive && styles.navIconActive,
-          {
-            transform: [
-              {
-                scale: activeScale.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [1, 1.08],
-                }),
-              },
-            ],
-          },
+          selectedMotion.animatedStyle,
         ]}
       >
         {icon ?? (
@@ -437,7 +425,7 @@ function BottomNavigationItem({
       <Text style={[styles.navLabel, isActive && styles.navLabelActive]}>
         {label}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
@@ -456,8 +444,13 @@ export function StatusTimeline({
       <View style={styles.timelineLine} />
       <View style={[styles.timelineProgress, { width: progress }]} />
       <View style={styles.timelineSteps}>
-        {steps.map((step) => (
-          <View key={step.label} style={styles.timelineStep}>
+        {steps.map((step, index) => (
+          <StaggeredMotionView
+            key={step.label}
+            index={index}
+            style={styles.timelineStep}
+            variant="listItem"
+          >
             <View style={[styles.timelineCircle, step.completed && styles.timelineDone]}>
               {step.completed ? (
                 <Check color={palette.white} size={18} strokeWidth={3} />
@@ -468,65 +461,11 @@ export function StatusTimeline({
             <Text style={[styles.timelineLabel, step.completed && styles.timelineLabelDone]}>
               {step.label}
             </Text>
-          </View>
+          </StaggeredMotionView>
         ))}
       </View>
     </View>
   );
-}
-
-function useSkeletonOpacity() {
-  const opacity = useRef(new Animated.Value(0.58)).current;
-  const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => {
-        if (mounted) {
-          setReduceMotion(enabled);
-        }
-      })
-      .catch(() => undefined);
-
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      setReduceMotion,
-    );
-
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (reduceMotion) {
-      opacity.setValue(0.72);
-      return undefined;
-    }
-
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(opacity, {
-          duration: 850,
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          duration: 850,
-          toValue: 0.58,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-
-    animation.start();
-    return () => animation.stop();
-  }, [opacity, reduceMotion]);
-
-  return opacity;
 }
 
 const badgeTone = {
@@ -778,9 +717,11 @@ const styles = StyleSheet.create({
   },
   navItem: {
     alignItems: 'center',
-    flex: 1,
     gap: spacing.xs,
     minHeight: 58,
+  },
+  navPressable: {
+    flex: 1,
   },
   navIcon: {
     alignItems: 'center',

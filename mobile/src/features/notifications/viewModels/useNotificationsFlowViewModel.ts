@@ -3,6 +3,7 @@ import { readError } from '../../../navigation/routeHelpers';
 import type { AppRole } from '../../../navigation/types';
 import {
   listNotifications,
+  markAllNotificationsRead,
   markNotificationRead,
 } from '../../../shared/models/apiService';
 import type {
@@ -35,6 +36,7 @@ export function useNotificationsFlowViewModel({
   setNotice,
 }: NotificationsFlowViewModelInput) {
   const [notifications, setNotifications] = useState<NotificationSummary[]>([]);
+  const [markAllReadPending, setMarkAllReadPending] = useState(false);
   const handledPushNotificationIds = useRef<Set<string>>(new Set());
   const refreshFailureNotified = useRef(false);
 
@@ -48,6 +50,7 @@ export function useNotificationsFlowViewModel({
   const unreadCount = visibleNotifications.filter(
     (notification) => !notification.isRead,
   ).length;
+  const markAllReadDisabled = unreadCount === 0 || markAllReadPending;
 
   const markRead = useCallback(
     async (notificationId: string) => {
@@ -78,6 +81,25 @@ export function useNotificationsFlowViewModel({
       }
     }
   }, [apiOptions, setNotice]);
+
+  const markAllRead = useCallback(async () => {
+    if (markAllReadDisabled) {
+      return;
+    }
+
+    setMarkAllReadPending(true);
+    setBusyAction('notifications-read-all');
+    try {
+      const nextNotifications = await markAllNotificationsRead(apiOptions);
+      setNotifications(nextNotifications);
+      setNotice('All notifications marked read.');
+    } catch (error) {
+      setNotice(`Notifications could not be marked read: ${readError(error)}`);
+    } finally {
+      setMarkAllReadPending(false);
+      setBusyAction(null);
+    }
+  }, [apiOptions, markAllReadDisabled, setBusyAction, setNotice]);
 
   const openNotification = useCallback(
     async (notification: NotificationSummary) => {
@@ -174,11 +196,14 @@ export function useNotificationsFlowViewModel({
   return {
     data: {
       notifications,
+      markAllReadDisabled,
+      markAllReadPending,
       unreadCount,
       visibleNotifications,
     },
     actions: {
       clear: () => setNotifications([]),
+      markAllRead,
       markRead,
       openNotification,
       refreshNotifications,

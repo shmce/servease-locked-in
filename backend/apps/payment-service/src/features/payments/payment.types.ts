@@ -1,5 +1,37 @@
 export type PaymentStatus = 'pending' | 'paid' | 'cancelled' | 'refunded';
 
+export type BookingPriceBreakdownLineItemCode =
+  | 'service_subtotal'
+  | 'travel_fuel'
+  | 'service_fee';
+
+export interface BookingPriceBreakdownLineItem {
+  code: BookingPriceBreakdownLineItemCode;
+  label: string;
+  amount: number;
+  source: 'provider_rate' | 'route' | 'fallback' | 'platform_fee';
+}
+
+export interface BookingPriceBreakdown {
+  currency: 'PHP';
+  lineItems: BookingPriceBreakdownLineItem[];
+  serviceSubtotal: number;
+  travelFee: number;
+  serviceFee: number;
+  total: number;
+  fallbackUsed: boolean;
+  calculationSource: 'route' | 'fallback';
+  generatedAt: string;
+  metadata: {
+    pricingMode: 'flat' | 'hourly';
+    hoursRequired: number;
+    serviceRate: number;
+    distanceKm: number | null;
+    durationMinutes: number | null;
+    fallbackReason: string | null;
+  };
+}
+
 export interface PaymentSummary {
   id: string;
   bookingId: string;

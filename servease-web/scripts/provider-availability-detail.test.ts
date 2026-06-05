@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 process.env.SERVEASE_API_BASE_URL = 'http://gateway.test';
 
@@ -185,6 +187,13 @@ assert.match(
 );
 assert.equal(partialDetail?.loadErrors.availability, null);
 assert.equal(partialDetail?.loadErrors.reviews, null);
+
+const availabilityPageSource = readFileSync(
+  join(process.cwd(), 'src/provider-app/components/SetAvailabilityPage.tsx'),
+  'utf8',
+);
+assert.match(availabilityPageSource, /planning-only/);
+assert.match(availabilityPageSource, /overall start and end time/);
 
 function jsonResponse(status: number, payload: unknown): Response {
   return {

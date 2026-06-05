@@ -1,15 +1,21 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckCircle, DollarSign, Wallet } from 'lucide-react-native';
 import {
-  Badge,
-  Card,
-  EmptyState,
-  Field,
-  Pill,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
-import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+  ProviderBadge,
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderEmptyState,
+  ProviderHeader,
+  ProviderIconBlock,
+  ProviderMetricCard,
+  ProviderPill,
+  ProviderScreen,
+  ProviderSection,
+  ProviderTextField,
+  providerText,
+} from '../../../shared/components/ProviderUI';
+import { palette, spacing } from '../../../theme/serveaseDesign';
 import {
   PaymentSummary,
   PayoutAccountSummary,
@@ -17,10 +23,6 @@ import {
   PayoutMethodType,
   PayoutSummary,
 } from '../../../shared/models/types';
-import {
-  ScreenContent,
-  ScreenScroll,
-} from '../../../shared/components/ScreenLayout';
 import { useProviderPayoutManagementViewModel } from '../viewModels/useProviderPayoutManagementViewModel';
 
 type ProviderPayoutManagementScreenProps = {
@@ -82,340 +84,273 @@ export function ProviderPayoutManagementScreen({
   const { data } = payoutManagement;
 
   return (
-    <>
-      <TopBar
-        title="Payouts"
-        subtitle="Manage earnings and payout methods"
-        onBack={onBack}
-        right={
-          <PrimaryButton
-            label="Refresh"
-            variant="secondary"
-            onPress={onRefresh}
-          />
-        }
-      />
-      <ScreenScroll>
-        <ScreenContent>
-
-          {/* Available balance hero */}
-          <View style={styles.heroCard}>
-            <View style={styles.heroIconBg}>
-              <DollarSign color={palette.white} size={20} strokeWidth={2.5} />
-            </View>
-            <Text style={styles.heroLabel}>Available Payout</Text>
-            <Text style={styles.heroValue}>{data.availablePayoutLabel}</Text>
-            <PrimaryButton
-              label="Request Payout"
-              onPress={onRequestPayout}
-              disabled={!data.canRequestPayout}
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Payouts"
+          subtitle="Manage earnings and payout methods"
+          onBack={onBack}
+          right={
+            <ProviderButton
+              label="Refresh"
+              variant="secondary"
+              onPress={onRefresh}
             />
-          </View>
+          }
+        />
 
-          {/* Summary metrics */}
-          <View style={styles.metricRow}>
-            {data.metricCards.map((metric) => (
-              <View key={metric.label} style={styles.metricCard}>
-                <Text style={styles.metricValue}>{metric.value}</Text>
-                <Text style={styles.metricLabel}>{metric.label}</Text>
-              </View>
-            ))}
+        <ProviderCard style={styles.balanceCard}>
+          <ProviderIconBlock>
+            <DollarSign color={palette.mintDeep} size={24} strokeWidth={2.3} />
+          </ProviderIconBlock>
+          <View style={styles.flex}>
+            <Text style={styles.balanceLabel}>Available Payout</Text>
+            <Text style={styles.balanceValue}>{data.availablePayoutLabel}</Text>
           </View>
+          <ProviderButton
+            label="Request"
+            onPress={onRequestPayout}
+            disabled={!data.canRequestPayout}
+          />
+        </ProviderCard>
 
-          {/* Payout methods */}
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>Payout Methods</Text>
-            {data.hasPayoutMethods ? (
-              <View style={styles.methodList}>
-                {data.payoutMethodRows.map((method) => (
-                  <Pressable
-                    key={method.id}
-                    style={[
-                      styles.methodCard,
-                      method.isSelected && styles.methodCardSelected,
-                    ]}
-                    onPress={() => onSelectPayoutMethod(method.id)}
-                    accessibilityRole="button"
-                  >
-                    <View style={[
-                      styles.methodIcon,
-                      method.isSelected && styles.methodIconSelected,
-                    ]}>
-                      <Wallet
-                        color={method.isSelected ? palette.mint : palette.muted}
-                        size={18}
-                        strokeWidth={2.2}
-                      />
-                    </View>
-                    <View style={styles.flex}>
-                      <Text style={styles.methodName}>{method.accountLabel}</Text>
-                      <Text style={styles.methodType}>{method.methodLabel}</Text>
-                    </View>
-                    {method.isSelected ? (
-                      <CheckCircle color={palette.mint} size={20} strokeWidth={2.2} />
-                    ) : null}
-                  </Pressable>
-                ))}
-              </View>
-            ) : (
-              <EmptyState
-                title="No payout method"
-                body="Add a bank, GCash, or PayMaya account below to receive payouts."
-              />
-            )}
-          </View>
+        <View style={styles.metricGrid}>
+          {data.metricCards.map((metric) => (
+            <ProviderMetricCard
+              key={metric.label}
+              label={metric.label}
+              value={metric.value}
+            />
+          ))}
+        </View>
 
-          {/* Add payout method */}
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>Add Payout Method</Text>
-            <Card>
-              <Text style={styles.formHint}>Account type</Text>
-              <View style={styles.pillRow}>
-                {data.payoutMethodTypeOptions.map((option) => (
-                  <Pill
-                    key={option.type}
-                    label={option.label}
-                    selected={newPayoutMethodType === option.type}
-                    onPress={() => onPayoutMethodTypeChange(option.type)}
-                  />
-                ))}
-              </View>
-              <Field
-                label="Account label"
-                value={newPayoutAccountLabel}
-                onChangeText={onPayoutAccountLabelChange}
-                placeholder={data.accountPlaceholder}
+        <ProviderSection title="Payout Methods">
+          {data.hasPayoutMethods ? (
+            data.payoutMethodRows.map((method) => (
+              <PayoutMethodRow
+                key={method.id}
+                accountLabel={method.accountLabel}
+                methodLabel={method.methodLabel}
+                selected={method.isSelected}
+                onPress={() => onSelectPayoutMethod(method.id)}
               />
-              <Field
-                label="Account holder name"
-                value={newPayoutAccountName}
-                onChangeText={onPayoutAccountNameChange}
-                placeholder="Full name on the account"
-              />
-              <Field
-                label="Last 4 digits"
-                value={newPayoutAccountLast4}
-                onChangeText={onPayoutAccountLast4Change}
-                placeholder="1234"
-                keyboardType="number-pad"
-              />
-              <PrimaryButton
-                label={busyAction === 'save-payout-method' ? 'Saving...' : 'Save Payout Method'}
-                onPress={onSavePayoutMethod}
-                disabled={!data.canSavePayoutMethod}
-              />
-            </Card>
-          </View>
+            ))
+          ) : (
+            <ProviderEmptyState
+              title="No payout method"
+              body="Add a bank, GCash, or PayMaya account below to receive payouts."
+            />
+          )}
+        </ProviderSection>
 
-          {/* Monthly earnings */}
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>Monthly Earnings</Text>
-            {data.hasMonthlyEarnings ? (
-              data.monthlyEarnings.map((month) => (
-                <Card key={month.monthKey}>
-                  <View style={styles.listRow}>
-                    <View style={styles.flex}>
-                      <Text style={styles.listTitle}>{month.monthLabel}</Text>
-                      <Text style={styles.listMeta}>{month.statusLabel}</Text>
-                      <Text style={styles.listFee}>{month.platformFeeLabel}</Text>
-                    </View>
-                    <Text style={styles.listAmount}>{month.payoutLabel}</Text>
+        <ProviderSection title="Add Payout Method">
+          <ProviderCard>
+            <Text style={styles.formHint}>Account type</Text>
+            <View style={styles.pillRow}>
+              {data.payoutMethodTypeOptions.map((option) => (
+                <ProviderPill
+                  key={option.type}
+                  label={option.label}
+                  selected={newPayoutMethodType === option.type}
+                  onPress={() => onPayoutMethodTypeChange(option.type)}
+                />
+              ))}
+            </View>
+            <ProviderTextField
+              label="Account label"
+              value={newPayoutAccountLabel}
+              onChangeText={onPayoutAccountLabelChange}
+              placeholder={data.accountPlaceholder}
+            />
+            <ProviderTextField
+              label="Account holder name"
+              value={newPayoutAccountName}
+              onChangeText={onPayoutAccountNameChange}
+              placeholder="Full name on the account"
+            />
+            <ProviderTextField
+              label="Last 4 digits"
+              value={newPayoutAccountLast4}
+              onChangeText={onPayoutAccountLast4Change}
+              placeholder="1234"
+              keyboardType="number-pad"
+            />
+            <ProviderButton
+              label={
+                busyAction === 'save-payout-method'
+                  ? 'Saving...'
+                  : 'Save Payout Method'
+              }
+              onPress={onSavePayoutMethod}
+              disabled={!data.canSavePayoutMethod}
+            />
+          </ProviderCard>
+        </ProviderSection>
+
+        <ProviderSection title="Monthly Earnings">
+          {data.hasMonthlyEarnings ? (
+            data.monthlyEarnings.map((month) => (
+              <ProviderCard key={month.monthKey}>
+                <View style={styles.listRow}>
+                  <View style={styles.flex}>
+                    <Text style={styles.listTitle}>{month.monthLabel}</Text>
+                    <Text style={styles.listMeta}>{month.statusLabel}</Text>
+                    <Text style={styles.listFee}>{month.platformFeeLabel}</Text>
                   </View>
-                </Card>
-              ))
-            ) : (
-              <EmptyState
-                title="No earnings yet"
-                body="Completed bookings will show up here as monthly earnings."
-              />
-            )}
-          </View>
+                  <Text style={styles.listAmount}>{month.payoutLabel}</Text>
+                </View>
+              </ProviderCard>
+            ))
+          ) : (
+            <ProviderEmptyState
+              title="No earnings yet"
+              body="Completed bookings will show up here as monthly earnings."
+            />
+          )}
+        </ProviderSection>
 
-          {/* Payout requests */}
-          <View style={styles.sectionBlock}>
-            <Text style={styles.sectionLabel}>Payout Requests</Text>
-            {data.hasPayoutRequests ? (
-              data.payoutRequests.map((payout) => (
-                <Card key={payout.id}>
-                  <View style={styles.listRow}>
-                    <View style={styles.flex}>
-                      <Text style={styles.listTitle}>{payout.amountLabel}</Text>
-                      <Text style={styles.listMeta}>{payout.metaLabel}</Text>
-                      <Text style={styles.listFee}>{payout.feeLabel}</Text>
-                    </View>
-                    <Badge label={payout.statusLabel} tone={payout.statusTone} />
+        <ProviderSection title="Payout Requests">
+          {data.hasPayoutRequests ? (
+            data.payoutRequests.map((payout) => (
+              <ProviderCard key={payout.id}>
+                <View style={styles.listRow}>
+                  <View style={styles.flex}>
+                    <Text style={styles.listTitle}>{payout.amountLabel}</Text>
+                    <Text style={styles.listMeta}>{payout.metaLabel}</Text>
+                    <Text style={styles.listFee}>{payout.feeLabel}</Text>
                   </View>
-                </Card>
-              ))
-            ) : (
-              <EmptyState
-                title="No payout requests"
-                body="Requested payouts will appear here."
-              />
-            )}
-          </View>
+                  <ProviderBadge label={payout.statusLabel} tone={payout.statusTone} />
+                </View>
+              </ProviderCard>
+            ))
+          ) : (
+            <ProviderEmptyState
+              title="No payout requests"
+              body="Requested payouts will appear here."
+            />
+          )}
+        </ProviderSection>
+      </ProviderContent>
+    </ProviderScreen>
+  );
+}
 
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+function PayoutMethodRow({
+  accountLabel,
+  methodLabel,
+  selected,
+  onPress,
+}: {
+  accountLabel: string;
+  methodLabel: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={[styles.methodCard, selected && styles.methodCardSelected]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+    >
+      <ProviderIconBlock compact>
+        <Wallet
+          color={selected ? palette.mintDeep : '#7A828D'}
+          size={18}
+          strokeWidth={2.2}
+        />
+      </ProviderIconBlock>
+      <View style={styles.flex}>
+        <Text style={styles.methodName}>{accountLabel}</Text>
+        <Text style={styles.methodType}>{methodLabel}</Text>
+      </View>
+      {selected ? (
+        <CheckCircle color={palette.mintDeep} size={20} strokeWidth={2.2} />
+      ) : null}
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-
-  /* ── Hero ── */
-  heroCard: {
+  balanceCard: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
-    borderRadius: radius.lg,
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.xl,
-  },
-  heroIconBg: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: radius.pill,
-    height: 44,
-    justifyContent: 'center',
-    width: 44,
-  },
-  heroLabel: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  heroValue: {
-    color: palette.white,
-    fontSize: 36,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-    marginBottom: spacing.xs,
-  },
-
-  /* ── Metric strip ── */
-  metricRow: {
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
-    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
     flexDirection: 'row',
+    gap: spacing.base,
   },
-  metricCard: {
-    alignItems: 'center',
-    borderRightColor: palette.lineSoft,
-    borderRightWidth: 1,
-    flex: 1,
-    gap: spacing.xxs,
-    paddingVertical: spacing.base,
+  balanceLabel: {
+    ...providerText.meta,
   },
-  metricValue: {
-    color: palette.ink,
-    fontSize: 15,
-    fontWeight: '800',
+  balanceValue: {
+    color: '#202733',
+    fontSize: 28,
+    fontWeight: '600',
+    lineHeight: 34,
   },
-  metricLabel: {
-    color: palette.muted,
-    fontSize: 11,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-
-  /* ── Section blocks ── */
-  sectionBlock: {
-    gap: spacing.sm,
-  },
-  sectionLabel: {
-    color: palette.faint,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    paddingHorizontal: spacing.xs,
-    textTransform: 'uppercase',
-  },
-
-  /* ── Payout method cards ── */
-  methodList: {
+  metricGrid: {
+    flexDirection: 'row',
     gap: spacing.sm,
   },
   methodCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
+    borderColor: '#EEF0F2',
+    borderRadius: 18,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.base,
-    minHeight: 64,
+    minHeight: 68,
     paddingHorizontal: spacing.base,
     paddingVertical: spacing.sm,
   },
   methodCardSelected: {
     backgroundColor: palette.mintSoft,
-    borderColor: palette.mint,
-  },
-  methodIcon: {
-    alignItems: 'center',
-    backgroundColor: palette.lineSoft,
-    borderRadius: radius.sm,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  methodIconSelected: {
-    backgroundColor: palette.white,
+    borderColor: '#A7E5C2',
   },
   methodName: {
-    color: palette.ink,
-    fontSize: 14,
-    fontWeight: '700',
+    color: '#202733',
+    fontSize: 15,
+    fontWeight: '600',
+    lineHeight: 20,
   },
   methodType: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '700',
+    ...providerText.meta,
     marginTop: 2,
   },
-
-  /* ── Add method form ── */
   formHint: {
-    color: palette.faint,
-    fontSize: 12,
-    fontWeight: '600',
+    ...providerText.meta,
   },
   pillRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-
-  /* ── List rows (earnings + requests) ── */
   listRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.base,
-    justifyContent: 'space-between',
   },
   listTitle: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+    lineHeight: 20,
   },
   listMeta: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '600',
+    ...providerText.meta,
     marginTop: 2,
   },
   listFee: {
-    color: palette.faint,
-    fontSize: 11,
-    fontWeight: '500',
+    color: '#8B949F',
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 17,
     marginTop: 2,
   },
   listAmount: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
+    lineHeight: 24,
   },
 });

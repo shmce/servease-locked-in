@@ -1,11 +1,15 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { FileText } from 'lucide-react-native';
-import { TopBar } from '../../../components/DesignKit';
-import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
-  ScreenContent,
-  ScreenScroll,
-} from '../../../shared/components/ScreenLayout';
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerIconBlock,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerTermsViewModel } from '../viewModels/useCustomerTermsViewModel';
 
 type CustomerTermsScreenProps = {
@@ -16,94 +20,87 @@ export function CustomerTermsScreen({ onBack }: CustomerTermsScreenProps) {
   const terms = useCustomerTermsViewModel();
 
   return (
-    <>
-      <TopBar title="Terms & Privacy" onBack={onBack} />
-      <ScreenScroll>
-        <ScreenContent>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Terms & Privacy"
+          subtitle="Readable policies for using ServEase"
+          onBack={onBack}
+        />
 
-          <View style={styles.heroBanner}>
-            <View style={styles.heroIcon}>
-              <FileText color={palette.white} size={26} strokeWidth={2.2} />
-            </View>
-            <Text style={styles.heroTitle}>Legal Documents</Text>
-            <Text style={styles.heroBody}>
-              Please read our terms and privacy policy carefully before using ServEase.
+        <CustomerCard style={styles.introCard}>
+          <CustomerIconBlock>
+            <FileText color={palette.mintDeep} size={22} strokeWidth={2.1} />
+          </CustomerIconBlock>
+          <View style={styles.flex}>
+            <Text style={styles.introTitle}>Legal Documents</Text>
+            <Text style={styles.introBody}>
+              Please read these documents carefully before using ServEase.
             </Text>
             <View style={styles.updatedPill}>
               <Text style={styles.updatedText}>Last updated: January 2025</Text>
             </View>
           </View>
+        </CustomerCard>
 
-          {terms.data.termsSections.map((section, index) => (
-            <View key={section.title} style={styles.sectionCard}>
-              <View style={styles.sectionHeader}>
-                <View style={styles.sectionNumber}>
-                  <Text style={styles.sectionNumberText}>{index + 1}</Text>
+        <CustomerSection title="Documents">
+          <View style={styles.sectionList}>
+            {terms.data.termsSections.map((section, index) => (
+              <CustomerCard key={section.title}>
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionNumber}>
+                    <Text style={styles.sectionNumberText}>{index + 1}</Text>
+                  </View>
+                  <Text style={styles.sectionTitle} numberOfLines={2}>
+                    {section.title}
+                  </Text>
                 </View>
-                <Text style={styles.sectionTitle}>{section.title}</Text>
-              </View>
-              <View style={styles.divider} />
-              <Text style={styles.sectionBody}>{section.body}</Text>
-            </View>
-          ))}
+                <Text style={styles.sectionBody}>{section.body}</Text>
+              </CustomerCard>
+            ))}
+          </View>
+        </CustomerSection>
 
-          <Text style={styles.footerNote}>
-            For questions about these documents, contact us through Help & Support.
-          </Text>
-
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+        <Text style={styles.footerNote}>
+          For questions about these documents, contact us through Help & Support.
+        </Text>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  heroBanner: {
+  introCard: {
     alignItems: 'center',
-    backgroundColor: palette.ink,
-    borderRadius: radius.lg,
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.lg,
+    flexDirection: 'row',
+    gap: spacing.md,
   },
-  heroIcon: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderRadius: radius.pill,
-    height: 52,
-    justifyContent: 'center',
-    width: 52,
+  introTitle: {
+    ...customerText.title,
+    fontSize: 17,
+    lineHeight: 23,
   },
-  heroTitle: {
-    color: palette.white,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  heroBody: {
-    color: 'rgba(255,255,255,0.65)',
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 19,
-    textAlign: 'center',
+  introBody: {
+    ...customerText.body,
+    marginTop: 2,
   },
   updatedPill: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: radius.pill,
-    marginTop: spacing.xs,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.xxs,
+    alignSelf: 'flex-start',
+    backgroundColor: '#EEF2F6',
+    borderRadius: radius.sm,
+    marginTop: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   updatedText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
+    color: '#68717E',
+    fontSize: 12,
     fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 16,
   },
-
-  sectionCard: {
-    borderTopColor: palette.lineSoft,
-    borderTopWidth: 1,
+  sectionList: {
     gap: spacing.md,
-    paddingVertical: spacing.base,
   },
   sectionHeader: {
     alignItems: 'center',
@@ -112,7 +109,7 @@ const styles = StyleSheet.create({
   },
   sectionNumber: {
     alignItems: 'center',
-    backgroundColor: palette.mintSoft,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
     height: 28,
     justifyContent: 'center',
@@ -121,30 +118,29 @@ const styles = StyleSheet.create({
   sectionNumberText: {
     color: palette.mintDeep,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 16,
   },
   sectionTitle: {
-    color: palette.ink,
+    ...customerText.title,
     flex: 1,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  divider: {
-    backgroundColor: palette.lineSoft,
-    height: 1,
-  },
-  sectionBody: {
-    color: palette.body,
-    fontSize: 13,
-    fontWeight: '400',
+    fontSize: 15,
     lineHeight: 20,
   },
-
+  sectionBody: {
+    ...customerText.body,
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    marginTop: spacing.sm,
+    paddingTop: spacing.md,
+  },
   footerNote: {
-    color: palette.faint,
-    fontSize: 12,
-    fontWeight: '400',
-    lineHeight: 18,
+    ...customerText.meta,
     textAlign: 'center',
+  },
+  flex: {
+    flex: 1,
+    minWidth: 0,
   },
 });

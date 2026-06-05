@@ -13,16 +13,32 @@ export interface CreateBookingRequest {
   serviceName?: string | null;
   serviceDescription?: string | null;
   serviceAddress: string;
+  serviceLatitude?: number | null;
+  serviceLongitude?: number | null;
   scheduledAt: string;
   hoursRequired?: number | null;
   serviceAmount?: number | null;
+  totalAmount?: number | null;
+  previewTotalAmount?: number | null;
   pricingMode?: 'flat' | 'hourly' | null;
   acceptedQuoteId?: string | null;
   quoteFairnessStatus?: string | null;
   quoteConfidence?: string | null;
+  priceBreakdown?: BookingPriceBreakdown | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
   attachments?: BookingAttachmentInput[];
+}
+
+export interface BookingPricePreviewSummary {
+  currency: 'PHP';
+  serviceAmount: number;
+  totalAmount: number;
+  pricingMode: BookingPricingMode;
+  serviceTitle: string | null;
+  serviceDescription: string | null;
+  priceBreakdown: BookingPriceBreakdown;
+  materialDriftTolerance: number;
 }
 
 export type BookingAttachmentKind = 'booking_reference' | 'provider_progress';
@@ -155,6 +171,38 @@ export interface UpdateBookingLiveLocationRequest {
 
 export type BookingPricingMode = 'flat' | 'hourly';
 
+export type BookingPriceBreakdownLineItemCode =
+  | 'service_subtotal'
+  | 'travel_fuel'
+  | 'service_fee';
+
+export interface BookingPriceBreakdownLineItem {
+  code: BookingPriceBreakdownLineItemCode;
+  label: string;
+  amount: number;
+  source: 'provider_rate' | 'route' | 'fallback' | 'platform_fee';
+}
+
+export interface BookingPriceBreakdown {
+  currency: 'PHP';
+  lineItems: BookingPriceBreakdownLineItem[];
+  serviceSubtotal: number;
+  travelFee: number;
+  serviceFee: number;
+  total: number;
+  fallbackUsed: boolean;
+  calculationSource: 'route' | 'fallback';
+  generatedAt: string;
+  metadata: {
+    pricingMode: BookingPricingMode;
+    hoursRequired: number;
+    serviceRate: number;
+    distanceKm: number | null;
+    durationMinutes: number | null;
+    fallbackReason: string | null;
+  };
+}
+
 export interface BookingSummary {
   id: string;
   bookingReference: string;
@@ -167,6 +215,8 @@ export interface BookingSummary {
   serviceTitle: string | null;
   serviceDescription: string | null;
   serviceAddress: string | null;
+  serviceLatitude: number | null;
+  serviceLongitude: number | null;
   scheduledAt: string;
   hoursRequired: number | null;
   serviceAmount: number | null;
@@ -177,5 +227,6 @@ export interface BookingSummary {
   customerNotes: string | null;
   status: BookingStatus;
   totalAmount: number;
+  priceBreakdown?: BookingPriceBreakdown | null;
   attachments: BookingAttachmentSummary[];
 }

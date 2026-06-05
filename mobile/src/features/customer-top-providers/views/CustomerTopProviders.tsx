@@ -1,15 +1,22 @@
-import { CheckCircle, ChevronRight, Search, Star } from 'lucide-react-native';
+import { CheckCircle, ChevronRight, Search, Star, X } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
-  EmptyState,
   SkeletonBlock,
   SkeletonCircle,
   SkeletonLine,
-  TopBar,
 } from '../../../components/DesignKit';
-import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerEmptyState,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
+import { InlineRefreshHint } from '../../../shared/components/LoadingStates';
 import { ProviderListing } from '../../../shared/models/types';
-import { ScreenContent, ScreenScroll } from '../../../shared/components/ScreenLayout';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerTopProvidersViewModel } from '../viewModels/useCustomerTopProvidersViewModel';
 
 type CustomerTopProvidersScreenProps = {
@@ -35,12 +42,18 @@ export function CustomerTopProvidersScreen({
   });
   const { data } = topProviders;
   const showSkeletons = isLoading && providers.length === 0;
+  const isRefreshing = isLoading && providers.length > 0;
 
   return (
-    <>
-      <TopBar title="Choose a Provider" onBack={onBack} />
-      <ScreenScroll>
-        <ScreenContent>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Choose a Provider"
+          subtitle="Compare trusted pros for your service"
+          onBack={onBack}
+        />
+
+        <CustomerSection>
           <View style={styles.searchBar}>
             <Search color={palette.faint} size={16} strokeWidth={2.2} />
             <TextInput
@@ -59,58 +72,73 @@ export function CustomerTopProvidersScreen({
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
               >
-                <Text style={styles.searchClear}>✕</Text>
+                <X color={palette.faint} size={16} strokeWidth={2.2} />
               </Pressable>
             ) : null}
           </View>
+        </CustomerSection>
 
+        <CustomerSection title="Providers">
+          {isRefreshing ? <InlineRefreshHint label="Refreshing providers" /> : null}
           <View style={styles.providerList}>
             {showSkeletons
               ? Array.from({ length: 5 }).map((_, index) => (
                   <ProviderRowSkeleton key={`provider-row-skeleton-${index}`} />
                 ))
               : data.providerRows.map((row) => (
-                  <Pressable
+                  <CustomerCard
                     key={row.id}
-                    style={styles.providerCard}
                     onPress={() => onOpenProvider(row.provider)}
-                    accessibilityRole="button"
                     accessibilityLabel={`Open ${row.name} provider profile`}
                   >
-                    <View style={styles.providerAvatar}>
-                      <Text style={styles.providerInitial}>{row.initial}</Text>
-                    </View>
-                    <View style={styles.providerBody}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.providerName} numberOfLines={1}>{row.name}</Text>
-                        {row.isVerified ? (
-                          <CheckCircle color={palette.mint} size={15} strokeWidth={2.2} />
-                        ) : null}
+                    <View style={styles.providerRow}>
+                      <View style={styles.providerAvatar}>
+                        <Text style={styles.providerInitial}>{row.initial}</Text>
                       </View>
-                      <Text style={styles.serviceTitle} numberOfLines={1}>{row.serviceTitle}</Text>
-                      <View style={styles.providerMeta}>
-                        {row.hasRating ? (
-                          <View style={styles.ratingRow}>
-                            <Star color="#FFC107" fill="#FFC107" size={13} />
-                            <Text style={styles.ratingText}>{row.ratingLabel}</Text>
-                            <Text style={styles.reviewText}>({row.reviewCount})</Text>
-                          </View>
-                        ) : (
-                          <Text style={styles.noRatingText}>No reviews yet</Text>
-                        )}
+                      <View style={styles.providerBody}>
+                        <View style={styles.nameRow}>
+                          <Text style={styles.providerName} numberOfLines={1}>
+                            {row.name}
+                          </Text>
+                          {row.isVerified ? (
+                            <CheckCircle
+                              color={palette.mintDeep}
+                              size={15}
+                              strokeWidth={2.2}
+                            />
+                          ) : null}
+                        </View>
+                        <Text style={styles.serviceTitle} numberOfLines={1}>
+                          {row.serviceTitle}
+                        </Text>
+                        <View style={styles.providerMeta}>
+                          {row.hasRating ? (
+                            <View style={styles.ratingRow}>
+                              <Star color="#FFB020" fill="#FFB020" size={13} />
+                              <Text style={styles.ratingText}>{row.ratingLabel}</Text>
+                              <Text style={styles.reviewText}>({row.reviewCount})</Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.noRatingText}>No reviews yet</Text>
+                          )}
+                          <Text style={styles.priceText}>{row.priceLabel}</Text>
+                        </View>
                       </View>
+                      <ChevronRight color={palette.faint} size={18} />
                     </View>
-                    <ChevronRight color={palette.faint} size={18} />
-                  </Pressable>
+                  </CustomerCard>
                 ))}
           </View>
 
           {!showSkeletons && !data.hasVisibleProviders ? (
-            <EmptyState title="No providers found" body="Try a different search term." />
+            <CustomerEmptyState
+              title="No providers found"
+              body="Try a different search term."
+            />
           ) : null}
-        </ScreenContent>
-      </ScreenScroll>
-    </>
+        </CustomerSection>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
@@ -119,7 +147,7 @@ function ProviderRowSkeleton() {
     <View
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={styles.providerCard}
+      style={styles.providerSkeletonCard}
     >
       <SkeletonCircle size={48} />
       <View style={styles.providerBody}>
@@ -139,56 +167,58 @@ const styles = StyleSheet.create({
   searchBar: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
     borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-    minHeight: 46,
+    minHeight: 48,
     paddingHorizontal: spacing.base,
   },
   searchInput: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1,
     fontSize: 14,
-    fontWeight: '500',
-    minHeight: 46,
-  },
-  searchClear: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '400',
+    letterSpacing: 0,
+    minHeight: 48,
   },
   providerList: {
-    gap: spacing.sm,
+    gap: spacing.md,
   },
-  providerCard: {
+  providerSkeletonCard: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: radius.md,
+    borderColor: '#EEF0F2',
+    borderRadius: 10,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.sm,
-    padding: spacing.sm,
-    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+    gap: spacing.md,
+    padding: 14,
+  },
+  providerRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.md,
   },
   providerAvatar: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
     height: 48,
     justifyContent: 'center',
     width: 48,
   },
   providerInitial: {
-    color: palette.white,
+    color: palette.mintDeep,
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   providerBody: {
     flex: 1,
-    gap: spacing.xs,
+    gap: 4,
+    minWidth: 0,
   },
   nameRow: {
     alignItems: 'center',
@@ -196,21 +226,21 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   providerName: {
-    color: palette.ink,
+    ...customerText.title,
     flex: 1,
     fontSize: 15,
-    fontWeight: '700',
+    lineHeight: 20,
+    minWidth: 0,
   },
   serviceTitle: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
+    ...customerText.meta,
   },
   providerMeta: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: spacing.sm,
     justifyContent: 'space-between',
-    marginTop: spacing.xs,
+    marginTop: 2,
   },
   providerMetaSkeleton: {
     marginTop: spacing.xs,
@@ -221,23 +251,26 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   ratingText: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   reviewText: {
-    color: palette.muted,
+    ...customerText.meta,
     fontSize: 11,
-    fontWeight: '500',
+    lineHeight: 15,
   },
   noRatingText: {
-    color: palette.faint,
+    ...customerText.meta,
     fontSize: 11,
-    fontWeight: '500',
+    lineHeight: 15,
   },
   priceText: {
-    color: palette.mint,
+    color: palette.mintDeep,
+    flexShrink: 0,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 });

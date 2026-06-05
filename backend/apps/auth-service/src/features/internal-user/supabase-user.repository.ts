@@ -42,9 +42,11 @@ interface SupabaseQueryClient {
 interface SupabaseUserRow {
   id: string;
   email: string;
-  password_hash: string;
+  password_hash?: string | null;
   full_name: string | null;
   contact_number: string | null;
+  avatar_url?: string | null;
+  avatar_storage_path?: string | null;
   role: UserRole;
   status: UserStatus;
 }
@@ -66,11 +68,18 @@ export class SupabaseUserRepository implements UserRepository {
   }
 
   async findById(userId: string): Promise<StoredUserRecord | null> {
-    const { data, error } = await this.client
-      .rpc('servease_get_internal_user', {
+    let { data, error } = await this.client
+      .rpc('servease_get_internal_user_summary', {
         p_user_id: userId,
       })
       .maybeSingle();
+    if (this.isMissingRpcError(error, 'servease_get_internal_user_summary')) {
+      ({ data, error } = await this.client
+        .rpc('servease_get_internal_user', {
+          p_user_id: userId,
+        })
+        .maybeSingle());
+    }
 
     if (error) {
       throw new Error(`Failed to load user: ${error.message}`);
@@ -80,16 +89,7 @@ export class SupabaseUserRepository implements UserRepository {
       return null;
     }
 
-    const row = data as SupabaseUserRow;
-    return {
-      id: row.id,
-      email: row.email,
-      passwordHash: row.password_hash,
-      fullName: row.full_name,
-      contactNumber: row.contact_number,
-      role: row.role,
-      status: row.status,
-    };
+    return this.mapUser(data as SupabaseUserRow);
   }
 
   async update(input: UpdateInternalUserInput): Promise<StoredUserRecord | null> {
@@ -98,6 +98,8 @@ export class SupabaseUserRepository implements UserRepository {
         p_user_id: input.userId,
         p_full_name: input.fullName,
         p_contact_number: input.contactNumber ?? null,
+        p_avatar_url: input.avatarUrl ?? null,
+        p_avatar_storage_path: input.avatarStoragePath ?? null,
       })
       .maybeSingle();
 
@@ -109,16 +111,7 @@ export class SupabaseUserRepository implements UserRepository {
       return null;
     }
 
-    const row = data as SupabaseUserRow;
-    return {
-      id: row.id,
-      email: row.email,
-      passwordHash: row.password_hash,
-      fullName: row.full_name,
-      contactNumber: row.contact_number,
-      role: row.role,
-      status: row.status,
-    };
+    return this.mapUser(data as SupabaseUserRow);
   }
 
   async anonymizeAccount(userId: string): Promise<StoredUserRecord | null> {
@@ -148,16 +141,7 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error(`Failed to delete auth user: ${authError.message}`);
     }
 
-    const row = data as SupabaseUserRow;
-    return {
-      id: row.id,
-      email: row.email,
-      passwordHash: row.password_hash,
-      fullName: row.full_name,
-      contactNumber: row.contact_number,
-      role: row.role,
-      status: row.status,
-    };
+    return this.mapUser(data as SupabaseUserRow);
   }
 
   async listSessions(userId: string): Promise<UserSessionRecord[]> {
@@ -254,5 +238,29 @@ export class SupabaseUserRepository implements UserRepository {
       enabled: row.enabled ?? false,
       verifiedAt: row.verified_at,
     };
+  }
+
+  private mapUser(row: SupabaseUserRow): StoredUserRecord {
+    return {
+      id: row.id,
+      email: row.email,
+      passwordHash: row.password_hash ?? '',
+      fullName: row.full_name,
+      contactNumber: row.contact_number,
+      avatarUrl: row.avatar_url ?? null,
+      avatarStoragePath: row.avatar_storage_path ?? null,
+      role: row.role,
+      status: row.status,
+    };
+  }
+
+  private isMissingRpcError(
+    error: { message: string; code?: string } | null,
+    functionName: string,
+  ): boolean {
+    return (
+      error?.code === '42883' ||
+      error?.message.toLowerCase().includes(functionName.toLowerCase()) === true
+    );
   }
 }

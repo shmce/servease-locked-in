@@ -1,12 +1,19 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
-  Badge,
-  Card,
-  EmptyState,
-  PrimaryButton,
-  Section,
-  TopBar,
-} from '../../../components/DesignKit';
+  ProviderBadge,
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderEmptyState,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderSection,
+  providerText,
+} from '../../../shared/components/ProviderUI';
+import {
+  InlineRefreshHint,
+  ListSectionSkeleton,
+} from '../../../shared/components/LoadingStates';
 import { MonthCalendar } from '../../../components/MonthCalendar';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
@@ -39,73 +46,84 @@ export function ProviderCalendarScreen({
     apiOptions,
     onScheduleLoaded,
   });
+  const isInitialScheduleLoading = calendar.isLoading && !availability;
+  const isRefreshingSchedule = calendar.isLoading && Boolean(availability);
 
   return (
-    <>
-      <TopBar
-        title="Calendar"
-        subtitle="Block dates and review active bookings"
-        right={
-          <PrimaryButton
-            label={calendar.isLoading ? 'Loading' : 'Refresh'}
-            variant="secondary"
-            onPress={() => void calendar.loadSchedule()}
-            disabled={calendar.isLoading}
-          />
-        }
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <Section>
-            <MonthCalendar
-              selectedDate={null}
-              onSelectDate={onSelectDate}
-              markers={calendar.data.calendarMarkers}
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Calendar"
+          subtitle="Block dates and review active bookings"
+          right={
+            <ProviderButton
+              label={calendar.isLoading ? 'Loading' : 'Refresh'}
+              variant="secondary"
+              onPress={() => void calendar.loadSchedule()}
+              disabled={calendar.isLoading}
             />
-            <View style={styles.legendRow}>
-              <LegendDot color={palette.red} label="Whole day off" />
-              <LegendDot color={palette.amber} label="Partial block" />
-              <LegendDot color={palette.blue} label="Active booking" />
-            </View>
-          </Section>
-
-          <Section
-            title="Upcoming bookings"
-            action={
-              <Pressable
-                onPress={() => onSelectDate(calendar.data.todayDate)}
-                accessibilityRole="button"
-                accessibilityLabel="Set availability for today"
-              >
-                <Text style={styles.sectionAction}>Set availability</Text>
-              </Pressable>
-            }
-          >
-            {calendar.data.upcomingRows.length ? (
-              calendar.data.upcomingRows.map((item) => (
-                <Card
-                  key={item.booking.id}
-                  onPress={() => openBooking(item.booking)}
-                >
-                  <View style={styles.rowBetween}>
-                    <View style={styles.flex}>
-                      <Text style={styles.cardTitle}>{item.title}</Text>
-                      <Text style={styles.cardMeta}>{item.scheduledAtLabel}</Text>
-                    </View>
-                    <Badge label={item.statusLabel} tone="warning" />
-                  </View>
-                </Card>
-              ))
-            ) : (
-              <EmptyState
-                title="No active bookings"
-                body="Confirmed bookings will show a blue calendar marker."
+          }
+        />
+        <ProviderSection>
+          {isRefreshingSchedule ? (
+            <InlineRefreshHint label="Refreshing schedule" />
+          ) : null}
+          {isInitialScheduleLoading ? (
+            <ListSectionSkeleton count={2} label="Loading provider calendar" />
+          ) : (
+            <>
+              <MonthCalendar
+                selectedDate={null}
+                onSelectDate={onSelectDate}
+                markers={calendar.data.calendarMarkers}
               />
-            )}
-          </Section>
-        </View>
-      </ScrollView>
-    </>
+              <View style={styles.legendRow}>
+                <LegendDot color={palette.alert} label="Whole day off" />
+                <LegendDot color="#C96B00" label="Partial block" />
+                <LegendDot color={palette.mintDeep} label="Active booking" />
+              </View>
+            </>
+          )}
+        </ProviderSection>
+
+        <ProviderSection
+          title="Upcoming bookings"
+          action={
+            <Pressable
+              onPress={() => onSelectDate(calendar.data.todayDate)}
+              accessibilityRole="button"
+              accessibilityLabel="Set availability for today"
+            >
+              <Text style={styles.sectionAction}>Set availability</Text>
+            </Pressable>
+          }
+        >
+          {isInitialScheduleLoading ? (
+            <ListSectionSkeleton count={3} label="Loading provider bookings" />
+          ) : calendar.data.upcomingRows.length ? (
+            calendar.data.upcomingRows.map((item) => (
+              <ProviderCard
+                key={item.booking.id}
+                onPress={() => openBooking(item.booking)}
+              >
+                <View style={styles.rowBetween}>
+                  <View style={styles.flex}>
+                    <Text style={styles.cardTitle}>{item.title}</Text>
+                    <Text style={styles.cardMeta}>{item.scheduledAtLabel}</Text>
+                  </View>
+                  <ProviderBadge label={item.statusLabel} tone="warning" />
+                </View>
+              </ProviderCard>
+            ))
+          ) : (
+            <ProviderEmptyState
+              title="No active bookings"
+              body="Confirmed bookings will show a blue calendar marker."
+            />
+          )}
+        </ProviderSection>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
@@ -119,15 +137,6 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   legendRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -159,19 +168,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '700',
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   cardMeta: {
-    color: palette.faint,
-    fontSize: 13,
-    fontWeight: '500',
+    ...providerText.meta,
     marginTop: spacing.xs,
   },
   sectionAction: {
-    color: palette.mintDeep,
-    fontSize: 13,
-    fontWeight: '700',
+    ...providerText.action,
   },
 });

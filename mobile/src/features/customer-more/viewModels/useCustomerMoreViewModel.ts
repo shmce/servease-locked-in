@@ -46,6 +46,7 @@ export function useCustomerMoreViewModel({
       data: {
         displayName,
         displayEmail,
+        avatarUri: profile?.user.avatarUrl ?? null,
         initial: displayName.slice(0, 1).toUpperCase(),
         actionRows,
         unreadNotificationCount,

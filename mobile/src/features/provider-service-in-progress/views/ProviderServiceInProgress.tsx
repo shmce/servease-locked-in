@@ -1,17 +1,20 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Clock, Image as ImageIcon } from 'lucide-react-native';
-import {
-  Card,
-  Field,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
 import {
   BookingSummary,
   BookingTimelineEventSummary,
 } from '../../../shared/models/types';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, spacing } from '../../../theme/serveaseDesign';
 import { MediaUploadBox } from '../../../shared/components/ScreenLayout';
+import {
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderTextField,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import { useProviderServiceInProgressViewModel } from '../viewModels/useProviderServiceInProgressViewModel';
 
 type ProviderServiceInProgressScreenProps = {
@@ -57,114 +60,96 @@ export function ProviderServiceInProgressScreen({
   const { data } = serviceInProgress;
 
   return (
-    <>
-      <TopBar
-        title="Service in Progress"
-        subtitle={data.bookingReference}
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <View style={styles.timerCard}>
-            <Clock color={palette.mint} size={28} strokeWidth={2.5} />
-            <Text style={styles.timerText}>{data.timerLabel}</Text>
-            <Text style={styles.cardMeta}>{data.startedAtLabel}</Text>
-          </View>
-          <Card>
-            <Text style={styles.cardTitle}>{data.serviceTitle}</Text>
-            <Text style={styles.cardBody}>{data.addressLabel}</Text>
-          </Card>
-          <Card>
-            <Field
-              label="Progress update"
-              value={progressMessage}
-              onChangeText={onProgressMessageChange}
-              placeholder="Share a quick update for the customer"
-              multiline
-            />
-            <PrimaryButton
-              label="Send Update"
-              variant="secondary"
-              onPress={() => void onSendProgressUpdate()}
-              disabled={!data.canSendProgressUpdate}
-            />
-          </Card>
-          <Card>
-            <Text style={styles.cardTitle}>Progress photos</Text>
-            <MediaUploadBox
-              imageUri={progressPhotoUri}
-              icon={<ImageIcon color={palette.mint} size={28} strokeWidth={2.5} />}
-              label={data.progressPhotoActionLabel}
-              onPress={onPickProgressPhoto}
-              minHeight={132}
-            />
-            {data.progressPhotoUploaded ? (
-              <Text style={styles.noticeText}>Progress photo uploaded.</Text>
-            ) : null}
-          </Card>
-          <View style={styles.actions}>
-            <PrimaryButton label="Complete Service" onPress={onCompleteService} />
-            <PrimaryButton
-              label="Report Issue"
-              variant="danger"
-              onPress={onReportIssue}
-            />
-          </View>
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Service in Progress"
+          subtitle={data.bookingReference}
+          onBack={onBack}
+        />
+        <ProviderCard style={styles.timerCard}>
+          <Clock color={palette.mintDeep} size={28} strokeWidth={2.5} />
+          <Text style={styles.timerText}>{data.timerLabel}</Text>
+          <Text style={styles.cardMeta}>{data.startedAtLabel}</Text>
+        </ProviderCard>
+        <ProviderCard>
+          <Text style={styles.cardTitle}>{data.serviceTitle}</Text>
+          <Text style={styles.cardBody}>{data.addressLabel}</Text>
+        </ProviderCard>
+        <ProviderCard>
+          <ProviderTextField
+            label="Progress update"
+            value={progressMessage}
+            onChangeText={onProgressMessageChange}
+            placeholder="Share a quick update for the customer"
+            multiline
+          />
+          <ProviderButton
+            label="Send Update"
+            variant="secondary"
+            onPress={() => void onSendProgressUpdate()}
+            disabled={!data.canSendProgressUpdate}
+          />
+        </ProviderCard>
+        <ProviderCard>
+          <Text style={styles.cardTitle}>Progress photos</Text>
+          <MediaUploadBox
+            imageUri={progressPhotoUri}
+            icon={<ImageIcon color={palette.mintDeep} size={28} strokeWidth={2.5} />}
+            label={data.progressPhotoActionLabel}
+            onPress={onPickProgressPhoto}
+            minHeight={132}
+          />
+          {data.progressPhotoUploaded ? (
+            <Text style={styles.noticeText}>Progress photo uploaded.</Text>
+          ) : null}
+        </ProviderCard>
+        <View style={styles.actions}>
+          <ProviderButton label="Complete Service" onPress={onCompleteService} />
+          <ProviderButton
+            label="Report Issue"
+            variant="danger"
+            onPress={onReportIssue}
+          />
         </View>
-      </ScrollView>
-    </>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   timerCard: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
     gap: spacing.xs,
-    padding: spacing.md,
   },
   timerText: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 36,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: 0,
   },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   cardMeta: {
-    ...type.caption,
-    color: palette.muted,
+    ...providerText.meta,
   },
   cardBody: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    ...providerText.body,
   },
   actions: {
     gap: spacing.sm,
   },
   linkText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
   },
   noticeText: {
-    color: palette.muted,
+    color: '#6D7480',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
   },
 });

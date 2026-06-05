@@ -13,8 +13,10 @@ import {
   AttachmentForbiddenError,
   AttachmentNotFoundError,
   BookingNotFoundError,
+  BookingScheduleInPastError,
   DisputeForbiddenError,
   InvalidBookingRequestError,
+  InvalidBookingScheduleError,
   InvalidBookingTransitionError,
   ProviderUnavailableError,
 } from './booking.errors';
@@ -287,6 +289,32 @@ export class BookingLifecycleController {
           error: {
             code: 'invalid_booking_request',
             message: 'Booking request is invalid.',
+            details: {},
+          },
+        },
+        400,
+      );
+    }
+
+    if (error instanceof InvalidBookingScheduleError) {
+      return new HttpException(
+        {
+          error: {
+            code: 'invalid_booking_schedule',
+            message: 'Choose a valid date and time for this booking.',
+            details: {},
+          },
+        },
+        400,
+      );
+    }
+
+    if (error instanceof BookingScheduleInPastError) {
+      return new HttpException(
+        {
+          error: {
+            code: 'booking_schedule_in_past',
+            message: 'Choose a future time for this booking.',
             details: {},
           },
         },

@@ -144,7 +144,7 @@ export function CustomerTrackProviderScreen({
           title="Track your provider"
           subtitle={data.routeLabel}
           directions={directions}
-          destinationMarkerLabel="Service address"
+          destinationMarkerLabel={data.destinationMarkerLabel}
           navigationOrigin={data.navigationOrigin}
           providerMarkerLabel="Provider"
         />

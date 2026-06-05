@@ -97,6 +97,20 @@ export class NotificationController {
     }
   }
 
+  @Patch('read-all')
+  async markAllRead(
+    @Headers('authorization') authorization: string | undefined,
+  ): Promise<{ data: NotificationSummary[] }> {
+    try {
+      const userId = await this.authTokenService.authenticate(authorization);
+      return {
+        data: await this.notificationGatewayService.markAllRead(userId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private toHttpException(error: unknown): HttpException {
     if (error instanceof AuthRequiredError) {
       return this.error('auth_required', 'Authentication is required.', 401);

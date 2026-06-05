@@ -21,6 +21,10 @@ export class NotificationGatewayService {
     return this.notificationServiceClient.markRead(notificationId, userId);
   }
 
+  markAllRead(userId: string): Promise<NotificationSummary[]> {
+    return this.notificationServiceClient.markAllRead(userId);
+  }
+
   registerPushDevice(
     userId: string,
     input: RegisterPushDeviceRequest,

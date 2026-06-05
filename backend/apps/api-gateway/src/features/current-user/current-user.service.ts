@@ -36,14 +36,13 @@ export class CurrentUserService {
       throw new AccountInactiveError();
     }
 
-    const [customerProfile, customerAddresses] = await Promise.all([
+    const [customerProfile, customerAddresses, providerProfile] = await Promise.all([
       this.userServiceClient.findCustomerProfileByUserId(user.id),
       this.listCustomerAddressesForProfile(user.id, user.role),
-    ]);
-    const providerProfile =
       user.role === 'provider' || user.role === 'admin'
-        ? await this.catalogServiceClient.findProviderProfileByUserId(user.id)
-        : null;
+        ? this.catalogServiceClient.findProviderProfileByUserId(user.id)
+        : Promise.resolve(null),
+    ]);
 
     return {
       user,
@@ -63,15 +62,13 @@ export class CurrentUserService {
       throw new AccountInactiveError();
     }
 
-    const [customerProfile, customerAddresses] = await Promise.all([
+    const [customerProfile, customerAddresses, providerProfile] = await Promise.all([
       user.role === 'customer' || user.role === 'admin'
         ? this.userServiceClient.updateCustomerProfile(user.id, input.address)
         : this.userServiceClient.findCustomerProfileByUserId(user.id),
       this.listCustomerAddressesForProfile(user.id, user.role),
-    ]);
-    const providerProfile =
       user.role === 'provider' || user.role === 'admin'
-        ? await this.catalogServiceClient.updateProviderProfile(
+        ? this.catalogServiceClient.updateProviderProfile(
             user.id,
             {
               businessName: input.businessName ?? user.fullName ?? user.email,
@@ -81,7 +78,8 @@ export class CurrentUserService {
               yearsExperience: input.yearsExperience ?? null,
             },
           )
-        : null;
+        : Promise.resolve(null),
+    ]);
 
     return {
       user,

@@ -4,6 +4,7 @@ import {
   addProviderPortfolioMedia,
   addProviderTimeOffWindow,
   checkGeoFence,
+  clearServeaseApiReadCache,
   createCustomerAddress,
   createBooking,
   createBookingServiceUpdate,
@@ -42,8 +43,10 @@ import {
   listCustomerBookings,
   listProviderPayoutMethods,
   listProviderPayouts,
+  markAllNotificationsRead,
   markNotificationRead,
   openConversation,
+  previewBookingPrice,
   registerPushDevice,
   registerAccount,
   raiseBookingDispute,
@@ -56,6 +59,7 @@ import {
   subscribeBookingTrackingSnapshots,
   updateCurrentUserPassword,
   updateCurrentUserProfile,
+  updateCustomerAddress,
   setDefaultCustomerAddress,
   updateBookingLiveLocation,
   updateProviderPortfolioMedia,
@@ -69,6 +73,223 @@ import {
 } from './serveaseApi';
 
 describe('serveaseApi', () => {
+  it('dedupes concurrent stable catalog reads and reuses fresh cached responses', async () => {
+    clearServeaseApiReadCache();
+    let fetchCount = 0;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      fetchCount += 1;
+      assert.equal(url, 'http://gateway-cache.test/v1/catalog/categories');
+      assert.equal(init?.method, 'GET');
+      return jsonResponse({
+        data: [
+          {
+            id: 'category-cache-1',
+            name: 'Cleaning',
+            description: null,
+            icon: 'spray',
+          },
+        ],
+      });
+    };
+
+    const [first, second] = await Promise.all([
+      listCatalogCategories({
+        baseUrl: 'http://gateway-cache.test',
+        fetcher,
+      }),
+      listCatalogCategories({
+        baseUrl: 'http://gateway-cache.test',
+        fetcher,
+      }),
+    ]);
+    const third = await listCatalogCategories({
+      baseUrl: 'http://gateway-cache.test',
+      fetcher,
+    });
+
+    assert.equal(fetchCount, 1);
+    assert.equal(first[0]?.name, 'Cleaning');
+    assert.equal(second[0]?.name, 'Cleaning');
+    assert.equal(third[0]?.name, 'Cleaning');
+    clearServeaseApiReadCache();
+  });
+
+  it('invalidates stable address reads after address mutations', async () => {
+    clearServeaseApiReadCache();
+    let addressGetCount = 0;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      if (url === 'http://gateway-address-cache.test/v1/me/addresses') {
+        if (init?.method === 'GET') {
+          addressGetCount += 1;
+          return jsonResponse({
+            data: [
+              {
+                id: `address-${addressGetCount}`,
+                label: 'Home',
+                address: `Address version ${addressGetCount}`,
+                isDefault: true,
+                latitude: 14.55,
+                longitude: 121.01,
+                createdAt: '2026-06-04T00:00:00.000Z',
+                updatedAt: '2026-06-04T00:00:00.000Z',
+              },
+            ],
+          });
+        }
+
+        assert.equal(init?.method, 'POST');
+        return jsonResponse({
+          data: {
+            id: 'address-created',
+            label: 'Office',
+            address: 'Office address',
+            isDefault: false,
+            latitude: 14.56,
+            longitude: 121.02,
+            createdAt: '2026-06-04T00:00:00.000Z',
+            updatedAt: '2026-06-04T00:00:00.000Z',
+          },
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const options = {
+      baseUrl: 'http://gateway-address-cache.test',
+      fetcher,
+      token: 'customer-token',
+    };
+    const first = await listCustomerAddresses(options);
+    const cached = await listCustomerAddresses(options);
+    await createCustomerAddress(
+      {
+        label: 'Office',
+        address: 'Office address',
+        isDefault: false,
+        latitude: 14.56,
+        longitude: 121.02,
+      },
+      options,
+    );
+    const refreshed = await listCustomerAddresses(options);
+
+    assert.equal(addressGetCount, 2);
+    assert.equal(first[0]?.address, 'Address version 1');
+    assert.equal(cached[0]?.address, 'Address version 1');
+    assert.equal(refreshed[0]?.address, 'Address version 2');
+    clearServeaseApiReadCache();
+  });
+
+  it('invalidates profile and notification stable reads after mutations', async () => {
+    clearServeaseApiReadCache();
+    let profileGetCount = 0;
+    let notificationGetCount = 0;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      if (url === 'http://gateway-profile-cache.test/v1/me') {
+        if (init?.method === 'GET') {
+          profileGetCount += 1;
+          return jsonResponse({
+            data: {
+              user: {
+                id: 'customer-1',
+                email: 'casey@example.test',
+                fullName: `Casey ${profileGetCount}`,
+                role: 'customer',
+                status: 'active',
+                contactNumber: null,
+                avatarUrl: null,
+                avatarStoragePath: null,
+              },
+              customerAddresses: [],
+              providerProfile: null,
+              providerApplication: null,
+            },
+          });
+        }
+
+        assert.equal(init?.method, 'PATCH');
+        return jsonResponse({
+          data: {
+            user: {
+              id: 'customer-1',
+              email: 'casey@example.test',
+              fullName: 'Casey Updated',
+              role: 'customer',
+              status: 'active',
+              contactNumber: null,
+              avatarUrl: null,
+              avatarStoragePath: null,
+            },
+            customerAddresses: [],
+            providerProfile: null,
+            providerApplication: null,
+          },
+        });
+      }
+
+      if (url === 'http://gateway-profile-cache.test/v1/notifications') {
+        if (init?.method === 'GET') {
+          notificationGetCount += 1;
+          return jsonResponse({
+            data: [
+              {
+                id: `notification-${notificationGetCount}`,
+                userId: 'customer-1',
+                type: 'booking_update',
+                title: 'Booking update',
+                body: 'Your booking changed.',
+                isRead: false,
+                metadata: null,
+                createdAt: '2026-06-04T00:00:00.000Z',
+              },
+            ],
+          });
+        }
+      }
+
+      if (
+        url === 'http://gateway-profile-cache.test/v1/notifications/read-all'
+      ) {
+        assert.equal(init?.method, 'PATCH');
+        return jsonResponse({
+          data: [
+            {
+              id: 'notification-read',
+              userId: 'customer-1',
+              type: 'booking_update',
+              title: 'Booking update',
+              body: 'Your booking changed.',
+              isRead: true,
+              metadata: null,
+              createdAt: '2026-06-04T00:00:00.000Z',
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const options = {
+      baseUrl: 'http://gateway-profile-cache.test',
+      fetcher,
+      token: 'customer-token',
+    };
+    await getCurrentUser(options);
+    await getCurrentUser(options);
+    await updateCurrentUserProfile({ fullName: 'Casey Updated' }, options);
+    await getCurrentUser(options);
+    await listNotifications(options);
+    await listNotifications(options);
+    await markAllNotificationsRead(options);
+    await listNotifications(options);
+
+    assert.equal(profileGetCount, 2);
+    assert.equal(notificationGetCount, 2);
+    clearServeaseApiReadCache();
+  });
+
   it('loads catalog categories from the gateway', async () => {
     const calls: RequestInit[] = [];
     const fetcher = async (url: string, init?: RequestInit) => {
@@ -112,6 +333,8 @@ describe('serveaseApi', () => {
           serviceId: 'service-1',
           serviceTitle: 'Deep Clean',
           serviceAddress: '123 Test St',
+          serviceLatitude: 14.554729,
+          serviceLongitude: 121.024445,
           scheduledAt: '2026-05-20T02:00:00.000Z',
           status: 'pending',
           totalAmount: 1200,
@@ -124,6 +347,8 @@ describe('serveaseApi', () => {
         providerId: 'provider-1',
         serviceId: 'service-1',
         serviceAddress: '123 Test St',
+        serviceLatitude: 14.554729,
+        serviceLongitude: 121.024445,
         scheduledAt: '2026-05-20T02:00:00.000Z',
       },
       {
@@ -138,6 +363,8 @@ describe('serveaseApi', () => {
       providerId: 'provider-1',
       serviceId: 'service-1',
       serviceAddress: '123 Test St',
+      serviceLatitude: 14.554729,
+      serviceLongitude: 121.024445,
       scheduledAt: '2026-05-20T02:00:00.000Z',
     });
   });
@@ -191,6 +418,90 @@ describe('serveaseApi', () => {
       serviceId: 'service-1',
       serviceAddress: '123 Test St',
       scheduledAt: '2026-06-01T09:00:00.000Z',
+    });
+  });
+
+  it('previews booking prices through the booking gateway', async () => {
+    let requestBody: unknown = null;
+    let authorization: string | null = null;
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/bookings/preview');
+      assert.equal(init?.method, 'POST');
+      authorization = new Headers(init?.headers).get('authorization');
+      requestBody = JSON.parse(String(init?.body));
+      return jsonResponse({
+        data: {
+          currency: 'PHP',
+          serviceAmount: 1500,
+          totalAmount: 1701,
+          pricingMode: 'flat',
+          serviceTitle: 'Deep Clean',
+          serviceDescription: 'Detailed cleaning',
+          materialDriftTolerance: 17.01,
+          priceBreakdown: {
+            currency: 'PHP',
+            serviceSubtotal: 1500,
+            travelFee: 120,
+            serviceFee: 81,
+            total: 1701,
+            fallbackUsed: true,
+            calculationSource: 'fallback',
+            generatedAt: '2026-06-01T08:45:00.000Z',
+            metadata: {
+              pricingMode: 'flat',
+              hoursRequired: 1,
+              serviceRate: 1500,
+              distanceKm: null,
+              durationMinutes: null,
+              fallbackReason: 'route_unavailable',
+            },
+            lineItems: [
+              {
+                code: 'service_subtotal',
+                label: 'Service subtotal',
+                amount: 1500,
+                source: 'provider_rate',
+              },
+              {
+                code: 'travel_fuel',
+                label: 'Travel and fuel estimate',
+                amount: 120,
+                source: 'fallback',
+              },
+              {
+                code: 'service_fee',
+                label: 'Platform fee',
+                amount: 81,
+                source: 'platform_fee',
+              },
+            ],
+          },
+        },
+      });
+    };
+
+    const preview = await previewBookingPrice(
+      {
+        providerId: 'provider-1',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-06-01T09:00:00.000Z',
+        serviceAmount: 1500,
+        pricingMode: 'flat',
+      },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
+
+    assert.equal(authorization, 'Bearer access-token');
+    assert.equal(preview.totalAmount, 1701);
+    assert.equal(preview.priceBreakdown.lineItems[2]?.label, 'Platform fee');
+    assert.deepEqual(requestBody, {
+      providerId: 'provider-1',
+      serviceId: 'service-1',
+      serviceAddress: '123 Test St',
+      scheduledAt: '2026-06-01T09:00:00.000Z',
+      serviceAmount: 1500,
+      pricingMode: 'flat',
     });
   });
 
@@ -524,6 +835,8 @@ describe('serveaseApi', () => {
             email: 'customer@example.com',
             fullName: 'Customer Example',
             contactNumber: '+639000000000',
+            avatarUrl: 'https://storage.test/avatar.jpg',
+            avatarStoragePath: 'avatar/user-1/avatar.jpg',
             role: 'customer',
             status: 'active',
           },
@@ -561,6 +874,7 @@ describe('serveaseApi', () => {
 
     assert.equal(authorization, 'Bearer access-token');
     assert.equal(profile.user.email, 'customer@example.com');
+    assert.equal(profile.user.avatarUrl, 'https://storage.test/avatar.jpg');
     assert.equal(profile.customerProfile?.address, '123 Test St');
     assert.equal(profile.customerAddresses[0]?.label, 'Home');
   });
@@ -830,6 +1144,8 @@ describe('serveaseApi', () => {
             email: 'customer@example.com',
             fullName: 'Updated Customer',
             contactNumber: '+639000000001',
+            avatarUrl: 'https://storage.test/avatar.jpg',
+            avatarStoragePath: 'avatar/user-1/avatar.jpg',
             role: 'customer',
             status: 'active',
           },
@@ -848,6 +1164,8 @@ describe('serveaseApi', () => {
         fullName: 'Updated Customer',
         contactNumber: '+639000000001',
         address: 'Updated address',
+        avatarUrl: 'https://storage.test/avatar.jpg',
+        avatarStoragePath: 'avatar/user-1/avatar.jpg',
       },
       {
         baseUrl: 'http://gateway.test',
@@ -862,6 +1180,8 @@ describe('serveaseApi', () => {
       fullName: 'Updated Customer',
       contactNumber: '+639000000001',
       address: 'Updated address',
+      avatarUrl: 'https://storage.test/avatar.jpg',
+      avatarStoragePath: 'avatar/user-1/avatar.jpg',
     });
   });
 
@@ -960,8 +1280,31 @@ describe('serveaseApi', () => {
             city: null,
             province: null,
             region: null,
-            latitude: null,
-            longitude: null,
+            latitude: 14.554729,
+            longitude: 121.024445,
+            isDefault: false,
+            createdAt: null,
+            updatedAt: null,
+          },
+        });
+      }
+
+      if (
+        url === 'http://gateway.test/v1/me/addresses/address-2' &&
+        init?.method === 'PATCH'
+      ) {
+        return jsonResponse({
+          data: {
+            id: 'address-2',
+            userId: 'user-1',
+            label: 'Work',
+            address: '456 Office Ave - Tower lobby',
+            barangay: null,
+            city: null,
+            province: null,
+            region: null,
+            latitude: 14.5548,
+            longitude: 121.0245,
             isDefault: false,
             createdAt: null,
             updatedAt: null,
@@ -1003,7 +1346,22 @@ describe('serveaseApi', () => {
       fetcher,
     });
     const created = await createCustomerAddress(
-      { label: 'Work', address: '456 Office Ave' },
+      {
+        label: 'Work',
+        address: '456 Office Ave',
+        latitude: 14.554729,
+        longitude: 121.024445,
+      },
+      { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
+    );
+    const updated = await updateCustomerAddress(
+      'address-2',
+      {
+        label: 'Work',
+        address: '456 Office Ave - Tower lobby',
+        latitude: 14.5548,
+        longitude: 121.0245,
+      },
       { baseUrl: 'http://gateway.test', token: 'access-token', fetcher },
     );
     const defaultAddress = await setDefaultCustomerAddress('address-2', {
@@ -1019,14 +1377,30 @@ describe('serveaseApi', () => {
 
     assert.equal(addresses[0]?.label, 'Home');
     assert.equal(created.address, '456 Office Ave');
+    assert.equal(created.latitude, 14.554729);
+    assert.equal(updated.address, '456 Office Ave - Tower lobby');
+    assert.equal(updated.longitude, 121.0245);
     assert.equal(defaultAddress.isDefault, true);
     assert.deepEqual(deleted, { ok: true });
     assert.deepEqual(calls.map((call) => [call.method, call.url]), [
       ['GET', 'http://gateway.test/v1/me/addresses'],
       ['POST', 'http://gateway.test/v1/me/addresses'],
+      ['PATCH', 'http://gateway.test/v1/me/addresses/address-2'],
       ['POST', 'http://gateway.test/v1/me/addresses/address-2/default'],
       ['DELETE', 'http://gateway.test/v1/me/addresses/address-1'],
     ]);
+    assert.deepEqual(calls[1]?.body, {
+      label: 'Work',
+      address: '456 Office Ave',
+      latitude: 14.554729,
+      longitude: 121.024445,
+    });
+    assert.deepEqual(calls[2]?.body, {
+      label: 'Work',
+      address: '456 Office Ave - Tower lobby',
+      latitude: 14.5548,
+      longitude: 121.0245,
+    });
   });
 
   it('updates the current user password through the gateway', async () => {
@@ -1597,6 +1971,42 @@ describe('serveaseApi', () => {
     assert.equal(upload.publicUrl, 'https://storage.test/file.jpg');
   });
 
+  it('uploads avatar media through the authenticated gateway endpoint', async () => {
+    const fetcher = async (url: string, init?: RequestInit) => {
+      assert.equal(url, 'http://gateway.test/v1/uploads');
+      assert.equal(init?.method, 'POST');
+      assert.equal(init?.body instanceof FormData, true);
+
+      return jsonResponse({
+        data: {
+          bucket: 'servease-uploads',
+          path: 'avatar/user-1/file.jpg',
+          publicUrl: 'https://storage.test/avatar.jpg',
+          kind: 'avatar',
+          contentType: 'image/jpeg',
+          size: 12,
+        },
+      });
+    };
+
+    const upload = await uploadMedia(
+      {
+        kind: 'avatar',
+        uri: 'file:///avatar.jpg',
+        name: 'avatar.jpg',
+        contentType: 'image/jpeg',
+      },
+      {
+        baseUrl: 'http://gateway.test',
+        token: 'access-token',
+        fetcher,
+      },
+    );
+
+    assert.equal(upload.kind, 'avatar');
+    assert.equal(upload.publicUrl, 'https://storage.test/avatar.jpg');
+  });
+
   it('adds and deletes provider portfolio media through the gateway', async () => {
     const calls: Array<{ url: string; method: string; body: unknown }> = [];
     const fetcher = async (url: string, init?: RequestInit) => {
@@ -1877,6 +2287,42 @@ describe('serveaseApi', () => {
     assert.equal(notifications[0]?.isRead, false);
     assert.equal(read.isRead, true);
     assert.deepEqual(methods, ['GET', 'PATCH']);
+  });
+
+  it('marks all notifications read through the gateway', async () => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const fetcher = async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: String(init?.method) });
+
+      return jsonResponse({
+        data: [
+          {
+            id: 'notification-1',
+            userId: 'customer-1',
+            type: 'booking',
+            title: 'Booking update',
+            body: 'Your booking changed.',
+            isRead: true,
+            metadata: null,
+            createdAt: '2026-05-20T02:00:00.000Z',
+          },
+        ],
+      });
+    };
+
+    const notifications = await markAllNotificationsRead({
+      baseUrl: 'http://gateway.test',
+      token: 'access-token',
+      fetcher,
+    });
+
+    assert.deepEqual(calls, [
+      {
+        url: 'http://gateway.test/v1/notifications/read-all',
+        method: 'PATCH',
+      },
+    ]);
+    assert.equal(notifications[0]?.isRead, true);
   });
 
   it('registers and unregisters mobile push devices through the gateway', async () => {

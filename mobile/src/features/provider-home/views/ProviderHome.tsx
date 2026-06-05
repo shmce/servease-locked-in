@@ -1,21 +1,29 @@
 // Theme discipline: only palette.mint*, palette.alert, and palette.{ink,body,muted,faint,line,lineSoft,input,white,surface,cream} are allowed.
 // Spacing/radius/type must use the exported theme tokens.
+import type { ReactNode } from 'react';
 import {
   Bell,
+  CalendarDays,
+  CheckCircle2,
   ChevronRight,
+  Clock3,
+  MapPin,
   Navigation,
   Play,
   Search,
   Star,
   User,
+  WalletCards,
 } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { AppRole, AppScreen } from '../../../navigation/types';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useProviderHomeViewModel } from '../viewModels/useProviderHomeViewModel';
 import type {
   ProviderHomeActiveBooking,
+  ProviderHomeDashboardStatus,
   ProviderHomeHero,
+  ProviderHomePerformanceCard,
 } from '../viewModels/providerHomeModel';
 import type {
   BookingSummary,
@@ -24,6 +32,18 @@ import type {
   ProviderApplicationStatus,
   ProviderDashboardSummary,
 } from '../../../shared/models/types';
+import {
+  ProviderCard,
+  ProviderContent,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderSection,
+  providerText,
+} from '../../../shared/components/ProviderUI';
+import {
+  DashboardScreenSkeleton,
+  InlineRefreshHint,
+} from '../../../shared/components/LoadingStates';
 import { ProviderApplicationBanner } from './ProviderApplicationBanner';
 
 const EXISTING_MINIMUM_PAYOUT_AMOUNT = 1;
@@ -39,6 +59,7 @@ type ProviderHomeScreenProps = {
   navigate: (screen: AppScreen, role: AppRole) => void;
   openBooking: (booking: BookingSummary, screen: AppScreen) => void;
   busyAction: string | null;
+  isLoading?: boolean;
   onRefreshProviderApplication: () => void | Promise<void>;
   onOpenApplicationDocuments: () => void;
   now?: Date;
@@ -56,11 +77,14 @@ export function ProviderHomeScreen({
   navigate,
   openBooking,
   busyAction,
+  isLoading = false,
   onRefreshProviderApplication,
   onOpenApplicationDocuments,
   now = new Date(),
   minimumPayoutAmount = EXISTING_MINIMUM_PAYOUT_AMOUNT,
 }: ProviderHomeScreenProps) {
+  const isInitialLoading =
+    isLoading && !profile && bookings.length === 0 && payments.length === 0;
   const model = useProviderHomeViewModel({
     bookings,
     payments,
@@ -70,6 +94,14 @@ export function ProviderHomeScreen({
     profile,
     providerDashboard,
   }).data;
+
+  if (isInitialLoading) {
+    return (
+      <ProviderScreen>
+        <DashboardScreenSkeleton label="Loading provider home" />
+      </ProviderScreen>
+    );
+  }
 
   function openHeroAction(hero: ProviderHomeHero, screen: AppScreen) {
     if (hero.kind === 'job') {
@@ -83,114 +115,89 @@ export function ProviderHomeScreen({
     navigate(screen, 'provider');
   }
 
-  const agendaItems = model.hero.kind === 'job'
-    ? [
-        { type: 'next' as const, hero: model.hero },
-        ...model.activeBookings.map((item) => ({ type: 'booking' as const, item })),
-      ]
-    : model.activeBookings.map((item) => ({ type: 'booking' as const, item }));
-
   return (
-    <ScrollView contentContainerStyle={styles.screen}>
-      <View style={styles.providerHero}>
-        <View style={styles.heroRow}>
-          <View style={styles.heroIdentity}>
-            <View style={styles.heroAvatar}>
-              <User color={palette.white} size={20} strokeWidth={2.4} />
-            </View>
-            <View style={styles.flex}>
-              <Text style={styles.heroMuted}>Today, {model.todayLabel}</Text>
-              <Text style={styles.heroName} numberOfLines={1}>
-                Hi, {model.businessName}
-              </Text>
-            </View>
-          </View>
-          <Pressable
-            style={styles.notificationButton}
-            onPress={() => navigate('providerNotifications', 'provider')}
-            accessibilityRole="button"
-            accessibilityLabel={
-              unreadCount > 0
-                ? `Notifications, ${unreadCount} unread`
-                : 'Notifications'
-            }
-          >
-            <Bell color={palette.white} size={20} strokeWidth={2.2} />
-            {unreadCount > 0 ? <View style={styles.heroUnreadDot} /> : null}
-          </Pressable>
-        </View>
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title={`Hi, ${model.greetingName}`}
+          subtitle={`Today, ${model.todayLabel}`}
+          right={
+            <Pressable
+              style={styles.notificationButton}
+              onPress={() => navigate('providerNotifications', 'provider')}
+              accessibilityRole="button"
+              accessibilityLabel={
+                unreadCount > 0
+                  ? `Notifications, ${unreadCount} unread`
+                  : 'Notifications'
+              }
+            >
+              <Bell color={palette.body} size={21} strokeWidth={2.2} />
+              {unreadCount > 0 ? <View style={styles.heroUnreadDot} /> : null}
+            </Pressable>
+          }
+        />
+        {isLoading ? <InlineRefreshHint label="Refreshing dashboard" /> : null}
+        <ProviderStatusPill status={model.dashboardStatus} />
         <Pressable
           style={styles.searchBar}
           onPress={() => navigate('bookings', 'provider')}
           accessibilityRole="button"
-          accessibilityLabel="Search provider bookings"
+          accessibilityLabel="Search provider bookings and requests"
         >
-          <Search color={palette.faint} size={18} strokeWidth={2.2} />
-          <Text style={styles.searchText}>Search bookings, requests...</Text>
+          <Search color={palette.faint} size={20} strokeWidth={2.1} />
+          <Text style={styles.searchText}>Search bookings</Text>
         </Pressable>
-      </View>
 
-      <View style={styles.content}>
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{"Today's Agenda"}</Text>
-            <Text style={styles.linkText} onPress={() => navigate('bookings', 'provider')}>
-              View all
-            </Text>
-          </View>
-          {agendaItems.map((item, index) =>
-            item.type === 'next' ? (
-              <NextAgendaRow
-                key={item.hero.bookingId}
-                hero={item.hero}
-                onOpen={openHeroAction}
-              />
-            ) : (
-              <AgendaBookingRow
-                key={item.item.id}
-                item={item.item}
-                isFirst={index === 0}
-                onPress={() => openBooking(item.item.booking, 'providerBookingDetail')}
-              />
-            ),
-          )}
-          {model.hero.kind === 'requests' ? (
-            <PendingRequestsRow hero={model.hero} onOpen={openHeroAction} />
-          ) : null}
-          {!agendaItems.length && model.hero.kind !== 'requests' ? (
-            <View style={styles.emptyBlock}>
-              <Text style={styles.emptyTitle}>No appointments today</Text>
-              <Text style={styles.emptyCopy}>
-                Confirmed and in-progress jobs appear here.
-              </Text>
-            </View>
-          ) : null}
-        </View>
+        <DashboardActionCard hero={model.hero} onOpen={openHeroAction} />
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Performance</Text>
-            <Text style={styles.linkText} onPress={() => navigate('providerEarnings', 'provider')}>
-              View earnings
-            </Text>
-          </View>
+        <ProviderSection
+          title="Today's Agenda"
+          action={
+            <Pressable
+              onPress={() => navigate('bookings', 'provider')}
+              accessibilityRole="button"
+              accessibilityLabel="View all provider bookings"
+            >
+              <Text style={styles.linkText}>View all</Text>
+            </Pressable>
+          }
+        >
+          {model.activeBookings.map((item) => (
+            <AgendaBookingRow
+              key={item.id}
+              item={item}
+              onPress={() => openBooking(item.booking, 'providerBookingDetail')}
+            />
+          ))}
+          {!model.activeBookings.length ? (
+            <AgendaEmptyState />
+          ) : null}
+        </ProviderSection>
+
+        <ProviderSection
+          title="Performance"
+          action={
+            <Pressable
+              onPress={() => navigate('providerEarnings', 'provider')}
+              accessibilityRole="button"
+              accessibilityLabel="View provider earnings"
+            >
+              <Text style={styles.linkText}>View earnings</Text>
+            </Pressable>
+          }
+        >
           <Pressable
-            style={styles.earningsStrip}
+            style={styles.metricGrid}
             onPress={() => navigate('providerEarnings', 'provider')}
             accessibilityRole="button"
             accessibilityLabel="Open provider earnings"
           >
-            <StatItem label="Today" value={model.todayEarningsLabel} />
-            <StatItem label="This week" value={model.weekEarningsLabel} />
-            <View style={styles.statItem}>
-              <Text style={styles.statLabel}>Rating</Text>
-              <View style={styles.ratingRow}>
-                <Star color={palette.mint} fill={palette.mint} size={spacing.base} />
-                <Text style={styles.statValue}>{model.ratingLabel}</Text>
-              </View>
-            </View>
+            {model.performanceCards.map((card) => (
+              <PerformanceMetricCard key={card.id} card={card} />
+            ))}
           </Pressable>
-        </View>
+        </ProviderSection>
 
         <ProviderApplicationBanner
           profile={profile}
@@ -199,357 +206,706 @@ export function ProviderHomeScreen({
           onRefreshStatus={onRefreshProviderApplication}
           onOpenApplicationDocuments={onOpenApplicationDocuments}
         />
-      </View>
-    </ScrollView>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
-function NextAgendaRow({
+function ProviderStatusPill({ status }: { status: ProviderHomeDashboardStatus }) {
+  return (
+    <View
+      style={styles.statusPill}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={status.accessibilityLabel}
+    >
+      <View style={styles.statusIcon}>
+        <CheckCircle2 color={palette.mintDeep} size={16} strokeWidth={2.3} />
+      </View>
+      <View style={styles.statusCopy}>
+        <Text style={styles.statusLine} numberOfLines={1}>
+          <Text style={styles.statusLabel}>{status.label}</Text>
+          <Text style={styles.statusHelper}> · {status.helperLabel}</Text>
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function DashboardActionCard({
   hero,
   onOpen,
 }: {
-  hero: Extract<ProviderHomeHero, { kind: 'job' }>;
+  hero: ProviderHomeHero;
   onOpen: (hero: ProviderHomeHero, screen: AppScreen) => void;
 }) {
-  const icon = hero.primaryActionLabel === 'Start Service' ? (
-    <Play color={palette.white} fill={palette.white} size={spacing.lg} />
-  ) : (
-    <Navigation color={palette.white} size={spacing.lg} />
-  );
+  if (hero.kind === 'job') {
+    const icon = hero.primaryActionLabel === 'Navigate' ? (
+      <Navigation color={palette.white} size={spacing.lg} />
+    ) : (
+      <Play color={palette.white} fill={palette.white} size={spacing.lg} />
+    );
+
+    return (
+      <DashboardActionFrame>
+        <View style={styles.dashboardTopLine}>
+          <View style={styles.eyebrowRow}>
+            <View style={styles.eyebrowIcon}>
+              <Clock3 color={palette.mintDeep} size={16} strokeWidth={2.3} />
+            </View>
+            <Text style={styles.eyebrowText} numberOfLines={1}>
+              {hero.eyebrow}
+            </Text>
+          </View>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText} numberOfLines={1}>
+              {hero.statusLabel}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.dashboardDivider} />
+
+        <View style={styles.dashboardCopy}>
+          <Text style={styles.jobTime} numberOfLines={1}>
+            {hero.timeLabel}
+          </Text>
+          <Text style={styles.dashboardTitle} numberOfLines={2}>
+            {hero.title}
+          </Text>
+        </View>
+
+        <View style={styles.detailStack}>
+          <View style={styles.detailRow}>
+            <View style={styles.detailIcon}>
+              <User color={palette.muted} size={16} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.detailText} numberOfLines={1}>
+              {hero.customerLabel}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <View style={styles.detailIcon}>
+              <MapPin color={palette.muted} size={16} strokeWidth={2.2} />
+            </View>
+            <Text style={styles.detailText} numberOfLines={1}>
+              {hero.meta}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.dashboardDivider} />
+
+        <Pressable
+          style={styles.primaryAction}
+          onPress={() => onOpen(hero, hero.primaryActionScreen)}
+          accessibilityRole="button"
+          accessibilityLabel={`${hero.primaryActionLabel} for ${hero.title}`}
+        >
+          {icon}
+          <Text style={styles.primaryActionText} numberOfLines={1}>
+            {hero.primaryActionLabel}
+          </Text>
+        </Pressable>
+      </DashboardActionFrame>
+    );
+  }
+
+  if (hero.kind === 'requests') {
+    return (
+      <DashboardActionFrame>
+        <View style={styles.dashboardTopLine}>
+          <View style={styles.eyebrowRow}>
+            <View style={styles.eyebrowIcon}>
+              <User color={palette.mintDeep} size={16} strokeWidth={2.3} />
+            </View>
+            <Text style={styles.eyebrowText} numberOfLines={1}>
+              {hero.eyebrow}
+            </Text>
+          </View>
+          <View style={styles.statusBadge}>
+            <Text style={styles.statusBadgeText} numberOfLines={1}>
+              {hero.countLabel}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.dashboardDivider} />
+
+        <View style={styles.dashboardCopy}>
+          <Text style={styles.dashboardTitle} numberOfLines={2}>
+            {hero.title}
+          </Text>
+          <Text style={styles.dashboardSubtitle} numberOfLines={2}>
+            {hero.subtitle}
+          </Text>
+        </View>
+
+        <View style={styles.dashboardDivider} />
+
+        <Pressable
+          style={styles.primaryAction}
+          onPress={() => onOpen(hero, hero.primaryActionScreen)}
+          accessibilityRole="button"
+          accessibilityLabel="Review provider booking requests"
+        >
+          <User color={palette.white} size={spacing.lg} strokeWidth={2.2} />
+          <Text style={styles.primaryActionText} numberOfLines={1}>
+            {hero.primaryActionLabel}
+          </Text>
+        </Pressable>
+      </DashboardActionFrame>
+    );
+  }
 
   return (
-    <View style={styles.nextAgendaRow}>
-      <View style={styles.agendaTopLine}>
-        <View style={styles.nowDot} />
-        <Text style={styles.agendaLabel}>Next appointment</Text>
+    <DashboardActionFrame>
+      <View style={styles.dashboardTopLine}>
+        <View style={styles.eyebrowRow}>
+          <View style={styles.eyebrowIcon}>
+            <CalendarDays color={palette.mintDeep} size={16} strokeWidth={2.3} />
+          </View>
+          <Text style={styles.eyebrowText} numberOfLines={1}>
+            {hero.eyebrow}
+          </Text>
+        </View>
       </View>
-      <View style={styles.agendaCopy}>
-        <Text style={styles.agendaMeta} numberOfLines={1}>
-          {hero.meta}
-        </Text>
-        <Text style={styles.agendaTitle} numberOfLines={2}>
+
+      <View style={styles.dashboardDivider} />
+
+      <View style={styles.dashboardCopy}>
+        <Text style={styles.dashboardTitle} numberOfLines={2}>
           {hero.title}
         </Text>
-        <Text style={styles.agendaSubtitle} numberOfLines={1}>
+        <Text style={styles.dashboardSubtitle} numberOfLines={2}>
           {hero.subtitle}
         </Text>
       </View>
-      <Pressable
-        style={styles.primaryAction}
-        onPress={() => onOpen(hero, hero.primaryActionScreen)}
-        accessibilityRole="button"
-      >
-        {icon}
-        <Text style={styles.primaryActionText}>{hero.primaryActionLabel}</Text>
-      </Pressable>
-    </View>
+
+      <View style={styles.dashboardDivider} />
+
+      <View style={styles.actionRow}>
+        <Pressable
+          style={[styles.primaryAction, styles.actionRowButton]}
+          onPress={() => onOpen(hero, hero.primaryActionScreen)}
+          accessibilityRole="button"
+          accessibilityLabel={hero.primaryActionLabel}
+        >
+          <CalendarDays color={palette.white} size={spacing.lg} strokeWidth={2.2} />
+          <Text style={styles.primaryActionText} numberOfLines={1}>
+            {hero.primaryActionLabel}
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.secondaryAction, styles.actionRowButton]}
+          onPress={() => onOpen(hero, hero.secondaryActionScreen)}
+          accessibilityRole="button"
+          accessibilityLabel={hero.secondaryActionLabel}
+        >
+          <Text style={styles.secondaryActionText} numberOfLines={1}>
+            {hero.secondaryActionLabel}
+          </Text>
+        </Pressable>
+      </View>
+    </DashboardActionFrame>
   );
 }
 
-function StatItem({ label, value }: { label: string; value: string }) {
+function DashboardActionFrame({ children }: { children: ReactNode }) {
   return (
-    <View style={styles.statItem}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue} numberOfLines={1}>
-        {value}
-      </Text>
-    </View>
+    <ProviderCard style={styles.dashboardCard}>
+      <View pointerEvents="none" style={styles.dashboardAccent}>
+        <View style={styles.dashboardAccentEdge} />
+      </View>
+      <View style={styles.dashboardContent}>{children}</View>
+    </ProviderCard>
   );
 }
 
 function AgendaBookingRow({
   item,
-  isFirst,
   onPress,
 }: {
   item: ProviderHomeActiveBooking;
-  isFirst: boolean;
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      style={[styles.agendaRow, !isFirst && styles.agendaRowWithDivider]}
+    <ProviderCard
+      style={styles.agendaRow}
       onPress={onPress}
-      accessibilityRole="button"
       accessibilityLabel={`Open ${item.summary}`}
     >
-      <View style={styles.agendaBullet} />
-      <Text style={styles.agendaText} numberOfLines={2}>
-        {item.summary}
-      </Text>
-      <ChevronRight color={palette.faint} size={18} />
-    </Pressable>
+      <View style={styles.timePill}>
+        <Text style={styles.timePillText} numberOfLines={1}>
+          {item.timeLabel}
+        </Text>
+      </View>
+      <View style={styles.agendaCopy}>
+        <Text style={styles.agendaTitle} numberOfLines={1}>
+          {item.serviceLabel}
+        </Text>
+        <Text style={styles.agendaSubtitle} numberOfLines={1}>
+          {item.customerLabel}
+        </Text>
+      </View>
+      <ChevronRight color={palette.mintDeep} size={18} />
+    </ProviderCard>
   );
 }
 
-function PendingRequestsRow({
-  hero,
-  onOpen,
-}: {
-  hero: Extract<ProviderHomeHero, { kind: 'requests' }>;
-  onOpen: (hero: ProviderHomeHero, screen: AppScreen) => void;
-}) {
+function AgendaEmptyState() {
   return (
-    <Pressable
-      style={styles.pendingRow}
-      onPress={() => onOpen(hero, hero.primaryActionScreen)}
-      accessibilityRole="button"
-    >
-      <View style={styles.agendaBullet} />
-      <View style={styles.flex}>
-        <Text style={styles.agendaTitle} numberOfLines={1}>
-          {hero.title}
-        </Text>
-        <Text style={styles.agendaSubtitle} numberOfLines={2}>
-          {hero.subtitle}
+    <View style={styles.agendaEmpty}>
+      <Text style={styles.agendaEmptyTitle} numberOfLines={1}>
+        No appointments today
+      </Text>
+      <Text style={styles.agendaEmptyBody} numberOfLines={2}>
+        Confirmed jobs will appear here.
+      </Text>
+    </View>
+  );
+}
+
+function PerformanceMetricCard({ card }: { card: ProviderHomePerformanceCard }) {
+  const isRating = card.id === 'rating';
+  const icon = card.id === 'rating' ? (
+    <Star color={palette.mintDeep} fill={palette.mintDeep} size={16} />
+  ) : (
+    <WalletCards color={palette.mintDeep} size={16} strokeWidth={2.2} />
+  );
+
+  if (isRating) {
+    return (
+      <ProviderCard
+        style={[styles.metricCard, styles.ratingMetricCard]}
+        accessibilityLabel={card.accessibilityLabel}
+      >
+        <View style={styles.ratingMetricRow}>
+          <View style={styles.metricHeader}>
+            {icon}
+            <View style={styles.ratingCopy}>
+              <Text style={styles.metricLabel} numberOfLines={1}>
+                {card.label}
+              </Text>
+              <Text style={styles.metricMeta} numberOfLines={1}>
+                {card.meta}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.ratingMetricValue} numberOfLines={1}>
+            {card.value}
+          </Text>
+        </View>
+      </ProviderCard>
+    );
+  }
+
+  return (
+    <ProviderCard style={styles.metricCard} accessibilityLabel={card.accessibilityLabel}>
+      <View style={styles.metricHeader}>
+        {icon}
+        <Text style={styles.metricLabel} numberOfLines={1}>
+          {card.label}
         </Text>
       </View>
-      <ChevronRight color={palette.mint} size={18} />
-    </Pressable>
+      <Text
+        style={styles.metricValue}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+      >
+        {card.value}
+      </Text>
+      <Text style={styles.metricMeta} numberOfLines={1}>
+        {card.meta}
+      </Text>
+    </ProviderCard>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 96,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.base,
-    paddingTop: spacing.lg,
-  },
   flex: {
     flex: 1,
   },
-  providerHero: {
-    backgroundColor: palette.mint,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    gap: spacing.base,
-    paddingBottom: spacing.lg,
-    paddingHorizontal: spacing.base,
-    paddingTop: spacing.base,
-  },
-  heroRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  heroIdentity: {
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  heroAvatar: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: radius.lg,
-    height: 40,
-    justifyContent: 'center',
-    width: 40,
-  },
-  heroMuted: {
-    color: 'rgba(255,255,255,0.82)',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  heroName: {
-    color: palette.white,
-    fontSize: 20,
-    fontWeight: '700',
-  },
   notificationButton: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.20)',
-    borderColor: 'rgba(255,255,255,0.28)',
+    backgroundColor: palette.white,
+    borderColor: palette.lineSoft,
     borderRadius: radius.md,
     borderWidth: 1,
-    height: 40,
+    height: 46,
     justifyContent: 'center',
     position: 'relative',
-    width: 40,
+    width: 46,
   },
   heroUnreadDot: {
     backgroundColor: palette.alert,
-    borderColor: 'rgba(86,196,144,0.8)',
+    borderColor: palette.white,
     borderRadius: radius.pill,
     borderWidth: 1.5,
-    height: 8,
+    height: 10,
     position: 'absolute',
-    right: 8,
-    top: 7,
-    width: 8,
+    right: 10,
+    top: 9,
+    width: 10,
   },
   searchBar: {
     alignItems: 'center',
     backgroundColor: palette.white,
+    borderColor: palette.lineSoft,
     borderRadius: radius.md,
+    borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: 48,
-    paddingHorizontal: spacing.base,
-    boxShadow: '0 4px 14px rgba(44,90,60,0.12)',
+    gap: spacing.md,
+    minHeight: 50,
+    paddingHorizontal: spacing.md,
   },
   searchText: {
     color: palette.faint,
     flex: 1,
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 20,
   },
-  nextAgendaRow: {
+  statusPill: {
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: palette.mintSoft,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
     gap: spacing.sm,
-    paddingBottom: spacing.md,
+    minHeight: 42,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
   },
-  agendaTopLine: {
+  statusIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.white,
+    borderRadius: radius.pill,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
+  },
+  statusCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  statusLine: {
+    color: palette.body,
+    fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
+  statusLabel: {
+    color: palette.mintDeep,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
+  statusHelper: {
+    color: palette.body,
+    fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 19,
+  },
+  dashboardCard: {
+    borderRadius: radius.md,
+    gap: 0,
+    overflow: 'hidden',
+    padding: 0,
+    position: 'relative',
+  },
+  dashboardContent: {
+    gap: spacing.sm,
+    paddingLeft: spacing.xl,
+    paddingRight: spacing.md,
+    paddingVertical: spacing.md,
+  },
+  dashboardAccent: {
+    backgroundColor: palette.mintSoft,
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    top: 0,
+    width: spacing.base,
+  },
+  dashboardAccentEdge: {
+    backgroundColor: palette.mintDeep,
+    bottom: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    width: spacing.xs,
+  },
+  dashboardDivider: {
+    backgroundColor: palette.lineSoft,
+    height: StyleSheet.hairlineWidth,
+  },
+  dashboardTopLine: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+    minHeight: 28,
+  },
+  eyebrowIcon: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    height: 26,
+    justifyContent: 'center',
+    width: 26,
+  },
+  eyebrowRow: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    minWidth: 0,
+  },
+  eyebrowText: {
+    color: palette.mintDeep,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
+  },
+  statusBadge: {
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    flexShrink: 0,
+    minHeight: 28,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+  },
+  statusBadgeText: {
+    color: palette.mintDeep,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 16,
+  },
+  dashboardCopy: {
+    gap: spacing.xs,
+  },
+  jobTime: {
+    color: palette.ink,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: 0,
+    lineHeight: 33,
+  },
+  dashboardTitle: {
+    color: palette.ink,
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0,
+    lineHeight: 23,
+  },
+  dashboardSubtitle: {
+    ...providerText.body,
+  },
+  detailStack: {
+    gap: spacing.xs,
+  },
+  detailRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.xs,
+    minWidth: 0,
   },
-  nowDot: {
-    backgroundColor: palette.mint,
-    borderRadius: radius.pill,
-    height: 8,
-    width: 8,
+  detailIcon: {
+    alignItems: 'center',
+    height: 22,
+    justifyContent: 'center',
+    width: 22,
   },
-  agendaLabel: {
-    ...type.caption,
-    color: palette.mintDeep,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  agendaCopy: {
-    gap: spacing.xs,
-  },
-  agendaMeta: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 17,
-  },
-  agendaTitle: {
-    color: palette.ink,
-    fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 23,
-  },
-  agendaSubtitle: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+  detailText: {
+    ...providerText.meta,
+    flex: 1,
+    minWidth: 0,
   },
   primaryAction: {
     alignItems: 'center',
     alignSelf: 'stretch',
-    backgroundColor: palette.mint,
-    borderRadius: radius.md,
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: 44,
+    minWidth: 0,
     paddingHorizontal: spacing.base,
   },
   primaryActionText: {
     color: palette.white,
+    flexShrink: 1,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
     lineHeight: 20,
   },
-  earningsStrip: {
+  secondaryAction: {
     alignItems: 'center',
+    alignSelf: 'stretch',
+    backgroundColor: palette.white,
+    borderColor: palette.line,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    justifyContent: 'center',
+    minHeight: 46,
+    minWidth: 0,
+    paddingHorizontal: spacing.base,
+  },
+  secondaryActionText: {
+    color: palette.ink,
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 20,
+  },
+  actionRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-    justifyContent: 'space-between',
-    paddingVertical: spacing.xs,
+    minWidth: 0,
   },
-  statItem: {
+  actionRowButton: {
     flex: 1,
-    gap: spacing.xxs,
-  },
-  statLabel: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 17,
-  },
-  statValue: {
-    color: palette.ink,
-    fontSize: 16,
-    fontWeight: '700',
-    lineHeight: 22,
-  },
-  ratingRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.xs,
-  },
-  section: {
-    gap: spacing.md,
-  },
-  sectionHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    ...type.section,
-    color: palette.ink,
-    fontWeight: '700',
   },
   linkText: {
-    ...type.caption,
-    color: palette.mintDark,
-    fontWeight: '700',
+    ...providerText.action,
   },
   agendaRow: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: spacing.md,
+    minHeight: 62,
+  },
+  timePill: {
+    alignItems: 'center',
+    backgroundColor: palette.mintSoft,
+    borderRadius: radius.pill,
+    flexShrink: 0,
+    justifyContent: 'center',
+    minHeight: 34,
+    minWidth: 74,
+    paddingHorizontal: spacing.sm,
+  },
+  timePillText: {
+    color: palette.mintDeep,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
+  },
+  agendaCopy: {
+    flex: 1,
+    gap: spacing.xs,
+    minWidth: 0,
+  },
+  agendaTitle: {
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
+  },
+  agendaSubtitle: {
+    ...providerText.meta,
+  },
+  agendaEmpty: {
+    backgroundColor: palette.surface,
+    borderColor: palette.lineSoft,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    minHeight: 86,
+    padding: spacing.base,
+  },
+  agendaEmptyTitle: {
+    color: palette.ink,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0,
+    lineHeight: 21,
+    textAlign: 'center',
+  },
+  agendaEmptyBody: {
+    color: palette.muted,
+    fontSize: 14,
+    fontWeight: '400',
+    letterSpacing: 0,
+    lineHeight: 19,
+    textAlign: 'center',
+  },
+  metricGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.sm,
-    minHeight: 50,
-    paddingVertical: spacing.sm,
   },
-  agendaRowWithDivider: {
-    borderTopColor: palette.lineSoft,
-    borderTopWidth: 1,
+  metricCard: {
+    borderRadius: radius.sm,
+    flexBasis: '47%',
+    flexGrow: 1,
+    minHeight: 98,
+    minWidth: 148,
+    padding: spacing.md,
   },
-  pendingRow: {
+  ratingMetricCard: {
+    flexBasis: '100%',
+    minHeight: 64,
+  },
+  metricHeader: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: spacing.xs,
+    minWidth: 0,
+  },
+  metricValue: {
+    color: palette.ink,
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 23,
+    minWidth: 0,
+  },
+  metricLabel: {
+    color: palette.body,
+    flexShrink: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
+  },
+  metricMeta: {
+    ...providerText.meta,
+    minWidth: 0,
+  },
+  ratingMetricRow: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: 58,
-    paddingVertical: spacing.sm,
+    gap: spacing.md,
+    justifyContent: 'space-between',
+    minWidth: 0,
   },
-  agendaBullet: {
-    backgroundColor: palette.mintSoft,
-    borderColor: palette.mint,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    height: 12,
-    width: 12,
-  },
-  agendaText: {
-    color: palette.body,
+  ratingCopy: {
     flex: 1,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    gap: spacing.xxs,
+    minWidth: 0,
   },
-  emptyBlock: {
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-  },
-  emptyTitle: {
-    ...type.section,
+  ratingMetricValue: {
     color: palette.ink,
+    flexShrink: 0,
+    fontSize: 22,
     fontWeight: '700',
-  },
-  emptyCopy: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    letterSpacing: 0,
+    lineHeight: 28,
   },
 });

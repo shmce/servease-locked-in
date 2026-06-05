@@ -105,6 +105,19 @@ export class NotificationController {
     }
   }
 
+  @Patch('read-all')
+  async markAllRead(
+    @Body() body: { userId: string },
+  ): Promise<{ data: NotificationSummary[] }> {
+    try {
+      return {
+        data: await this.notificationService.markAllRead(body.userId),
+      };
+    } catch (error) {
+      throw this.toHttpException(error);
+    }
+  }
+
   private toHttpException(error: unknown): HttpException {
     if (error instanceof InvalidNotificationRequestError) {
       return this.error(

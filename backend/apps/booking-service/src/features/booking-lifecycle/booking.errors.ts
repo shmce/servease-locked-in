@@ -10,6 +10,18 @@ export class InvalidBookingRequestError extends Error {
   }
 }
 
+export class InvalidBookingScheduleError extends Error {
+  constructor() {
+    super('invalid_booking_schedule');
+  }
+}
+
+export class BookingScheduleInPastError extends Error {
+  constructor() {
+    super('booking_schedule_in_past');
+  }
+}
+
 export class BookingNotFoundError extends Error {
   constructor() {
     super('booking_not_found');

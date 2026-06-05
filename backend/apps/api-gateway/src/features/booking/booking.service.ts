@@ -4,12 +4,19 @@ import { exhaustMap, map } from 'rxjs/operators';
 import { BookingServiceClient } from './clients/booking-service.client';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
 import { CurrentUserIdentity } from '../current-user/current-user.types';
+import { CatalogServiceClient as CatalogBrowseServiceClient } from '../catalog/clients/catalog-service.client';
+import { ProviderServiceListing } from '../catalog/catalog.types';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
 import { GeoServiceClient } from '../geo/clients/geo-service.client';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { PaymentGatewayService } from '../payments/payment.service';
 import { PaymentSummary } from '../payments/payment.types';
-import { PricingGatewayService } from '../pricing/pricing.service';
+import { buildBookingPriceBreakdown } from './booking-price-breakdown';
+import {
+  isFutureBookingSchedule,
+  isProviderServiceStartWindowOpen,
+  parseBookingScheduleInstant,
+} from '../../../../../libs/common/src';
 import {
   AddBookingAttachmentRequest,
   BookingAttachmentSummary,
@@ -20,13 +27,18 @@ import {
   BookingTimelineEventSummary,
   BookingTrackingLocation,
   BookingTrackingSnapshot,
+  BookingPricePreviewSummary,
+  BookingPricingMode,
   CreateBookingServiceUpdateRequest,
   CreateBookingRequest,
   RaiseBookingDisputeRequest,
   UpdateBookingLiveLocationRequest,
 } from './booking.types';
 import {
-  InvalidBookingRequestError,
+  BookingPriceChangedError,
+  BookingScheduleInPastError,
+  BookingStartWindowNotOpenError,
+  InvalidBookingScheduleError,
   InvalidBookingTransitionError,
 } from './booking.errors';
 
@@ -39,6 +51,19 @@ const PROVIDER_OPERATIONAL_TRANSITIONS = new Set<BookingStatus>([
   'cancelled',
 ]);
 
+interface BookingPricingSource {
+  serviceRate: number;
+  pricingMode: BookingPricingMode;
+  serviceTitle?: string | null;
+  serviceDescription?: string | null;
+  fallbackReason: string | null;
+}
+
+interface BookingPriceCalculation {
+  bookingInput: CreateBookingRequest;
+  preview: BookingPricePreviewSummary;
+}
+
 @Injectable()
 export class BookingGatewayService {
   private readonly logger = new Logger(BookingGatewayService.name);
@@ -49,15 +74,18 @@ export class BookingGatewayService {
     private readonly notificationServiceClient?: NotificationServiceClient,
     private readonly catalogServiceClient?: CatalogServiceClient,
     private readonly geoServiceClient?: GeoServiceClient,
-    private readonly pricingGatewayService?: PricingGatewayService,
     private readonly paymentGatewayService?: PaymentGatewayService,
+    private readonly catalogBrowseServiceClient?: CatalogBrowseServiceClient,
   ) {}
 
   async createBooking(
     customerId: string,
     input: CreateBookingRequest,
   ): Promise<BookingSummary> {
-    const bookingInput = await this.applyAcceptedQuote(customerId, input);
+    this.assertBookingScheduleCanBeCreated(input.scheduledAt);
+    const calculation = await this.calculateBookingPrice(input);
+    this.assertPreviewTotalAccepted(input, calculation.preview);
+    const bookingInput = calculation.bookingInput;
     const booking = await this.enrichBooking(
       await this.bookingServiceClient.createBooking(customerId, bookingInput),
     );
@@ -69,38 +97,148 @@ export class BookingGatewayService {
     return booking;
   }
 
-  private async applyAcceptedQuote(
-    customerId: string,
+  async previewBookingPrice(
+    _customerId: string,
     input: CreateBookingRequest,
-  ): Promise<CreateBookingRequest> {
-    const acceptedQuoteId = input.acceptedQuoteId?.trim();
-    if (!acceptedQuoteId) {
-      return input;
-    }
+  ): Promise<BookingPricePreviewSummary> {
+    this.assertBookingScheduleCanBeCreated(input.scheduledAt);
+    return (await this.calculateBookingPrice(input)).preview;
+  }
 
-    if (!this.pricingGatewayService) {
-      return input;
-    }
-
-    const quote = await this.pricingGatewayService.validateQuote(acceptedQuoteId);
-    if (
-      quote.customerId !== customerId ||
-      quote.providerId !== input.providerId ||
-      quote.serviceId !== input.serviceId ||
-      !Number.isFinite(quote.amount) ||
-      quote.amount <= 0
-    ) {
-      throw new InvalidBookingRequestError();
-    }
-
-    return {
+  private async calculateBookingPrice(
+    input: CreateBookingRequest,
+  ): Promise<BookingPriceCalculation> {
+    const pricing = await this.resolveBookingPricingSource(input);
+    const priceBreakdown = buildBookingPriceBreakdown({
+      serviceRate: pricing.serviceRate,
+      pricingMode: pricing.pricingMode,
+      hoursRequired: input.hoursRequired,
+      fallbackReason: pricing.fallbackReason,
+    });
+    const serviceTitle =
+      input.serviceTitle ?? pricing.serviceTitle ?? input.serviceName ?? null;
+    const serviceDescription =
+      input.serviceDescription ?? pricing.serviceDescription ?? null;
+    const bookingInput = {
       ...input,
-      acceptedQuoteId,
-      serviceAmount: quote.amount,
-      pricingMode: quote.pricingMode,
-      quoteFairnessStatus: quote.fairnessStatus,
-      quoteConfidence: quote.confidence,
+      serviceTitle,
+      serviceDescription,
+      serviceAmount: priceBreakdown.serviceSubtotal,
+      totalAmount: priceBreakdown.total,
+      pricingMode: pricing.pricingMode,
+      acceptedQuoteId: null,
+      quoteFairnessStatus: null,
+      quoteConfidence: null,
+      priceBreakdown,
     };
+    const preview = {
+      currency: priceBreakdown.currency,
+      serviceAmount: priceBreakdown.serviceSubtotal,
+      totalAmount: priceBreakdown.total,
+      pricingMode: pricing.pricingMode,
+      serviceTitle,
+      serviceDescription,
+      priceBreakdown,
+      materialDriftTolerance: this.materialDriftTolerance(
+        priceBreakdown.total,
+      ),
+    };
+
+    return { bookingInput, preview };
+  }
+
+  private assertPreviewTotalAccepted(
+    input: CreateBookingRequest,
+    preview: BookingPricePreviewSummary,
+  ): void {
+    const submittedPreviewTotal = this.positiveAmount(input.previewTotalAmount);
+    if (submittedPreviewTotal === null) {
+      return;
+    }
+
+    const difference = Math.abs(preview.totalAmount - submittedPreviewTotal);
+    if (difference <= this.materialDriftTolerance(submittedPreviewTotal)) {
+      return;
+    }
+
+    throw new BookingPriceChangedError({
+      preview,
+      previousTotalAmount: submittedPreviewTotal,
+      updatedTotalAmount: preview.totalAmount,
+      materialDriftTolerance: preview.materialDriftTolerance,
+    });
+  }
+
+  private materialDriftTolerance(totalAmount: number): number {
+    const percentTolerance = Math.abs(totalAmount) * 0.01;
+    return Math.round(Math.max(10, percentTolerance) * 100) / 100;
+  }
+
+  private async resolveBookingPricingSource(
+    input: CreateBookingRequest,
+  ): Promise<BookingPricingSource> {
+    const fallbackSource: BookingPricingSource = {
+      serviceRate: this.positiveAmount(input.serviceAmount) ?? 0,
+      pricingMode: input.pricingMode === 'hourly' ? 'hourly' : 'flat',
+      serviceTitle: input.serviceTitle ?? input.serviceName ?? null,
+      serviceDescription: input.serviceDescription ?? null,
+      fallbackReason: 'provider_rate_unavailable',
+    };
+
+    if (!this.catalogBrowseServiceClient) {
+      return fallbackSource;
+    }
+
+    try {
+      const listings =
+        await this.catalogBrowseServiceClient.listProviderListings(
+          input.serviceId ?? undefined,
+          input.providerId,
+        );
+      const listing = this.findBestProviderListing(input, listings);
+      const listingRate = this.positiveAmount(listing?.price);
+      if (!listing || listingRate === null) {
+        return fallbackSource;
+      }
+
+      return {
+        serviceRate: listingRate,
+        pricingMode: listing.pricingMode,
+        serviceTitle: input.serviceTitle ?? listing.title,
+        serviceDescription: input.serviceDescription ?? listing.description,
+        fallbackReason: null,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Could not resolve provider rate for booking price breakdown: ${this.errorMessage(error)}`,
+      );
+      return fallbackSource;
+    }
+  }
+
+  private findBestProviderListing(
+    input: CreateBookingRequest,
+    listings: ProviderServiceListing[],
+  ): ProviderServiceListing | null {
+    return (
+      listings.find(
+        (listing) =>
+          listing.providerId === input.providerId &&
+          listing.verificationStatus === 'approved' &&
+          (!input.serviceId || listing.serviceId === input.serviceId),
+      ) ??
+      listings.find(
+        (listing) =>
+          listing.providerId === input.providerId &&
+          (!input.serviceId || listing.serviceId === input.serviceId),
+      ) ??
+      null
+    );
+  }
+
+  private positiveAmount(value: number | null | undefined): number | null {
+    const amount = Number(value);
+    return Number.isFinite(amount) && amount > 0 ? amount : null;
   }
 
   async listBookings(
@@ -131,11 +269,13 @@ export class BookingGatewayService {
     customerId: string | null,
     providerId: string | null,
   ): Promise<BookingTrackingSnapshot> {
-    return this.enrichTrackingSnapshot(await this.bookingServiceClient.getTrackingSnapshot(
-      bookingId,
-      customerId,
-      providerId,
-    ));
+    return this.enrichTrackingSnapshot(
+      await this.bookingServiceClient.getTrackingSnapshot(
+        bookingId,
+        customerId,
+        providerId,
+      ),
+    );
   }
 
   streamTrackingSnapshots(
@@ -190,7 +330,17 @@ export class BookingGatewayService {
       actorId,
       providerId,
     );
-    this.assertActorCanTransition(visibleBooking, actorId, providerId, nextStatus);
+    this.assertActorCanTransition(
+      visibleBooking,
+      actorId,
+      providerId,
+      nextStatus,
+    );
+    this.assertProviderStartWindowAllowsTransition(
+      visibleBooking,
+      providerId,
+      nextStatus,
+    );
     await this.assertProviderOperationalLockAllowsTransition(
       visibleBooking,
       providerId,
@@ -262,6 +412,16 @@ export class BookingGatewayService {
     );
   }
 
+  private assertBookingScheduleCanBeCreated(scheduledAt: string): void {
+    if (!parseBookingScheduleInstant(scheduledAt)) {
+      throw new InvalidBookingScheduleError();
+    }
+
+    if (!isFutureBookingSchedule(scheduledAt)) {
+      throw new BookingScheduleInPastError();
+    }
+  }
+
   private async ensureCashPaymentReserved(
     booking: BookingSummary,
     paymentMethod: string | null | undefined,
@@ -331,7 +491,9 @@ export class BookingGatewayService {
       providerId: booking.providerId,
     });
 
-    return payments?.find((payment) => payment.bookingId === booking.id) ?? null;
+    return (
+      payments?.find((payment) => payment.bookingId === booking.id) ?? null
+    );
   }
 
   private async dispatchPaymentSideEffect(
@@ -463,7 +625,10 @@ export class BookingGatewayService {
     const isAssignedProvider =
       providerId !== null && booking.providerId === providerId;
 
-    if (nextStatus === 'cancelled' && (isBookingCustomer || isAssignedProvider)) {
+    if (
+      nextStatus === 'cancelled' &&
+      (isBookingCustomer || isAssignedProvider)
+    ) {
       return;
     }
 
@@ -497,6 +662,29 @@ export class BookingGatewayService {
 
     if (activeBooking && activeBooking.id !== booking.id) {
       throw new InvalidBookingTransitionError();
+    }
+  }
+
+  private assertProviderStartWindowAllowsTransition(
+    booking: BookingSummary,
+    providerId: string | null,
+    nextStatus: BookingStatus,
+  ): void {
+    if (
+      providerId === null ||
+      booking.status === nextStatus ||
+      booking.status === 'in_progress' ||
+      nextStatus !== 'completed'
+    ) {
+      return;
+    }
+
+    if (booking.status !== 'confirmed') {
+      return;
+    }
+
+    if (!isProviderServiceStartWindowOpen(booking.scheduledAt)) {
+      throw new BookingStartWindowNotOpenError();
     }
   }
 
@@ -629,7 +817,9 @@ export class BookingGatewayService {
             `Could not resolve provider business name for ${providerId}: ${this.errorMessage(error)}`,
           );
           return Promise.resolve(
-            this.catalogServiceClient?.findProviderOwnerByProviderId(providerId),
+            this.catalogServiceClient?.findProviderOwnerByProviderId(
+              providerId,
+            ),
           ).then((owner) => owner?.businessName ?? null);
         })
         .catch((error: unknown) => {

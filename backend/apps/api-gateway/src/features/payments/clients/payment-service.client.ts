@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timedGatewayFetch } from '../../observability/downstream-timing';
 import {
   PaymentDependencyUnavailableError,
   PaymentNotFoundError,
@@ -194,16 +195,25 @@ export class PaymentServiceClient {
       'PAYMENT_SERVICE_URL',
       'http://localhost:8507',
     );
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        'content-type': 'application/json',
-        ...(idempotencyKey?.trim()
-          ? { 'idempotency-key': idempotencyKey.trim() }
-          : {}),
+    const url = `${baseUrl}${path}`;
+    const response = await timedGatewayFetch(
+      {
+        method,
+        operation: path,
+        service: 'payment-service',
+        url,
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+      {
+        method,
+        headers: {
+          'content-type': 'application/json',
+          ...(idempotencyKey?.trim()
+            ? { 'idempotency-key': idempotencyKey.trim() }
+            : {}),
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+    );
 
     if (!response.ok) {
       const code = await this.readErrorCode(response);

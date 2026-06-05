@@ -15,12 +15,12 @@ import {
   Platform,
   StyleSheet,
 } from 'react-native';
-import { TopBar } from './components/DesignKit';
 import { AppRouter, type AppRouterRenderers } from './legacy-router/AppRouter';
 import { AppShell } from './legacy-router/AppShell';
 import {
   MissingSelection,
 } from './components/AppDisplay';
+import { resolveSelectedEntityState } from './domain/mobileLoading';
 import {
   buildCalendarExportUrl,
   buildBookingTransitionRequest,
@@ -52,10 +52,13 @@ import {
   BookingTimelineEventsSection,
 } from './shared/components/BookingDetailSections';
 import { SupportPanel } from './shared/components/SupportPanel';
+import { DetailScreenSkeleton } from './shared/components/LoadingStates';
 import { useStableCallback } from './shared/hooks/useStableCallback';
+import { runExclusiveNetworkAction } from './shared/utils/networkActions';
 import type { CustomerProviderProfileTab } from './features/customer-provider-profile/viewModels/useCustomerProviderProfileViewModel';
 import type { CustomerTrackingSheetLevel } from './features/customer-track-provider/viewModels/useCustomerTrackProviderViewModel';
 import type { ProviderNavigationSheetLevel } from './features/provider-navigation-mode/viewModels/useProviderNavigationModeViewModel';
+import { useCustomerAddressPinFlow } from './features/customer-addresses/viewModels/useCustomerAddressPinFlow';
 import { useCustomerBookingFlowViewModel } from './features/customer-booking/viewModels/useCustomerBookingFlowViewModel';
 import { useMessagesFlowViewModel } from './features/messages/viewModels/useMessagesFlowViewModel';
 import { useNotificationsFlowViewModel } from './features/notifications/viewModels/useNotificationsFlowViewModel';
@@ -102,7 +105,6 @@ import type {
 } from './shared/models/types';
 import {
   addProviderPortfolioMedia,
-  createCustomerAddress,
   createCheckoutSession,
   createPayment,
   createProviderPayoutIdempotencyKey,
@@ -441,6 +443,11 @@ const ProviderProfileViewScreen = lazy(() =>
     default: module.ProviderProfileViewScreen,
   })),
 );
+const ProviderReviewsScreen = lazy(() =>
+  import('./features/provider-reviews/views/ProviderReviews').then((module) => ({
+    default: module.ProviderReviewsScreen,
+  })),
+);
 const ProviderReportIssueScreen = lazy(() =>
   import('./features/provider-report-issue/views/ProviderReportIssue').then((module) => ({
     default: module.ProviderReportIssueScreen,
@@ -524,8 +531,15 @@ type NavigationOptions = {
   clearNotice?: boolean;
 };
 
-export default function App() {
-  const [route, setRoute] = useState<RouteState>({ role: null, screen: 'authGate' });
+type AppProps = {
+  initialRoute?: RouteState | null;
+};
+
+export default function App({ initialRoute = null }: AppProps) {
+  const initialRouteRef = useRef<RouteState>(
+    initialRoute ?? { role: null, screen: 'authGate' },
+  );
+  const [route, setRoute] = useState<RouteState>(initialRouteRef.current);
   const routeRef = useRef<RouteState>(route);
   const routeHistoryRef = useRef<RouteState[]>([]);
   const goBackRef = useRef<() => void>(() => undefined);
@@ -560,10 +574,10 @@ export default function App() {
   const [profileFullName, setProfileFullName] = useState('');
   const [profileContactNumber, setProfileContactNumber] = useState('');
   const [profileAddress, setProfileAddress] = useState('');
-  const [customerAddressLabel, setCustomerAddressLabel] = useState('Home');
-  const [customerAddressDraft, setCustomerAddressDraft] = useState('');
   const [profileBusinessName, setProfileBusinessName] = useState('');
   const [customerAvatarUri, setCustomerAvatarUri] = useState<string | null>(null);
+  const [profileAvatarUpload, setProfileAvatarUpload] =
+    useState<UploadSummary | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [session, setSession] = useState<AuthSession | null>(null);
   const [profile, setProfile] = useState<CurrentUserProfile | null>(null);
@@ -648,6 +662,7 @@ export default function App() {
   const checkoutReconcileRetryRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const catalogLoadPromiseRef = useRef<Promise<void> | null>(null);
   const payoutIdempotencyKeyRef = useRef<string | null>(null);
   const [providerPortfolioPhotoUri, setProviderPortfolioPhotoUri] = useState<string | null>(null);
   const [providerPortfolioPhotoUrl, setProviderPortfolioPhotoUrl] = useState<string | null>(null);
@@ -721,7 +736,17 @@ export default function App() {
     Boolean(profile?.user.email) && deleteConfirmText.trim() === profile?.user.email;
   const isInitialWorkspaceLoading =
     Boolean(session?.accessToken) && busyAction === 'refresh' && !hasWorkspaceLoaded;
-  const isInitialCatalogLoading = busyAction === 'catalog' && !hasCatalogLoaded;
+  const isCatalogLoading = busyAction === 'catalog';
+  const selectedProviderLoadState = resolveSelectedEntityState({
+    entity: selectedProvider,
+    hasLoaded: hasCatalogLoaded && !providerResultsLoading,
+    selectedId: selectedProviderId,
+  });
+  const selectedBookingLoadState = resolveSelectedEntityState({
+    entity: selectedBooking,
+    hasLoaded: hasWorkspaceLoaded && !isInitialWorkspaceLoading,
+    selectedId: selectedBookingId,
+  });
   const apiOptions = useMemo(
     () => ({
       baseUrl: apiBaseUrl,
@@ -733,6 +758,14 @@ export default function App() {
   const handleCustomerAddressSaved = useStableCallback(
     handleCustomerAddressSavedImpl,
   );
+  const customerAddressPinFlow = useCustomerAddressPinFlow({
+    addresses: customerAddresses,
+    apiOptions,
+    hasSession: Boolean(session),
+    onCustomerAddressSaved: handleCustomerAddressSaved,
+    setBusyAction,
+    setNotice,
+  });
   const handleBookingCreated = useStableCallback(handleBookingCreatedImpl);
   const refreshProviderAvailability = useStableCallback(
     refreshSelectedProviderAvailability,
@@ -812,6 +845,7 @@ export default function App() {
     onCustomerAddressSaved: handleCustomerAddressSaved,
     onBookingCreated: handleBookingCreated,
     onRefreshProviderAvailability: refreshProviderAvailability,
+    providerAvailability: selectedProviderAvailability,
     selectedBooking: selectedBooking ?? null,
     selectedCustomerPaymentMethod,
     selectedProvider: selectedProvider ?? null,
@@ -819,6 +853,7 @@ export default function App() {
     setBusyAction,
     setNotice,
     setRoute: navigateRoute,
+    timeSlots: bookingTimeSlots,
   });
   const messagesFlow = useMessagesFlowViewModel({
     apiOptions,
@@ -906,6 +941,8 @@ export default function App() {
     setProfileContactNumber(profile?.user.contactNumber ?? '');
     setProfileAddress(profile?.customerProfile?.address ?? '');
     setProfileBusinessName(profile?.providerProfile?.businessName ?? '');
+    setCustomerAvatarUri(null);
+    setProfileAvatarUpload(null);
   }, [profile]);
 
   useEffect(() => {
@@ -1137,42 +1174,66 @@ export default function App() {
   ]);
 
   async function loadCatalogImpl() {
-    setBusyAction('catalog');
-    try {
-      const nextCategories = await listCatalogCategories({ baseUrl: apiBaseUrl });
-      const [nextServices, nextCatalogProviders] = await Promise.all([
-        listCatalogServices(null, { baseUrl: apiBaseUrl }),
-        listProviderListings(null, { baseUrl: apiBaseUrl }),
-      ]);
-      const firstCategoryId = nextCategories[0]?.id ?? null;
-      const firstServiceId =
-        nextServices.find((service) => service.categoryId === firstCategoryId)?.id ??
-        nextServices[0]?.id ??
-        null;
-      const firstProviders = firstServiceId
-        ? nextCatalogProviders.filter((provider) => provider.serviceId === firstServiceId)
-        : nextCatalogProviders;
-      setCategories(nextCategories);
-      setServices(nextServices);
-      setCatalogProviders(nextCatalogProviders);
-      setSelectedCategoryId(firstCategoryId);
-      setSelectedServiceId(firstServiceId);
-      setProviders(firstProviders);
-      setSelectedProviderId(firstProviders[0]?.providerId ?? null);
-      if (firstProviders[0]?.providerId) {
-        await refreshProviderReviews(firstProviders[0].providerId);
-        await refreshSelectedProviderAvailability(firstProviders[0].providerId);
-        await refreshSelectedProviderPortfolio(firstProviders[0].providerId);
-      } else {
-        setSelectedProviderAvailability(null);
-        setSelectedProviderPortfolioMedia([]);
-      }
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setHasCatalogLoaded(true);
-      setBusyAction(null);
+    if (catalogLoadPromiseRef.current) {
+      await catalogLoadPromiseRef.current;
+      return;
     }
+
+    const loadPromise = (async () => {
+      setBusyAction('catalog');
+      try {
+        const nextCategories = await listCatalogCategories({ baseUrl: apiBaseUrl });
+        const [nextServices, nextCatalogProviders] = await Promise.all([
+          listCatalogServices(null, { baseUrl: apiBaseUrl }),
+          listProviderListings(null, { baseUrl: apiBaseUrl }),
+        ]);
+        const firstCategoryId = nextCategories[0]?.id ?? null;
+        const firstServiceId =
+          nextServices.find((service) => service.categoryId === firstCategoryId)?.id ??
+          nextServices[0]?.id ??
+          null;
+        const firstProviders = firstServiceId
+          ? nextCatalogProviders.filter((provider) => provider.serviceId === firstServiceId)
+          : nextCatalogProviders;
+        setCategories(nextCategories);
+        setServices(nextServices);
+        setCatalogProviders(nextCatalogProviders);
+        setSelectedCategoryId(null);
+        setSelectedServiceId(firstServiceId);
+        setProviders(firstProviders);
+        setSelectedProviderId(firstProviders[0]?.providerId ?? null);
+        if (firstProviders[0]?.providerId) {
+          await refreshProviderReviews(firstProviders[0].providerId);
+          await refreshSelectedProviderAvailability(firstProviders[0].providerId);
+          await refreshSelectedProviderPortfolio(firstProviders[0].providerId);
+        } else {
+          setSelectedProviderAvailability(null);
+          setSelectedProviderPortfolioMedia([]);
+        }
+      } catch (error) {
+        setNotice(readError(error));
+      } finally {
+        setHasCatalogLoaded(true);
+        setBusyAction(null);
+      }
+    })();
+
+    catalogLoadPromiseRef.current = loadPromise;
+    try {
+      await loadPromise;
+    } finally {
+      if (catalogLoadPromiseRef.current === loadPromise) {
+        catalogLoadPromiseRef.current = null;
+      }
+    }
+  }
+
+  async function ensureCustomerExploreCatalog() {
+    if (categories.length > 0 && services.length > 0) {
+      return;
+    }
+
+    await loadCatalogImpl();
   }
 
   async function loadServices(categoryId: string | null) {
@@ -1311,6 +1372,14 @@ export default function App() {
       setSession(nextSession);
       setProfile(nextProfile);
       setPassword('');
+      await refreshWorkspace(
+        nextSession.accessToken,
+        nextRole,
+        nextProfile.providerProfile?.id ?? null,
+      );
+      if (nextRole === 'customer') {
+        await ensureCustomerExploreCatalog();
+      }
       resetRoute({
         role: nextRole,
         screen: nextRole === 'provider' ? 'home' : 'explore',
@@ -1319,11 +1388,6 @@ export default function App() {
         intendedRole !== nextRole
           ? `Signed in as ${roleLabel(nextRole)}.`
           : `Welcome back, ${nextProfile.user.fullName ?? nextProfile.user.email}.`,
-      );
-      await refreshWorkspace(
-        nextSession.accessToken,
-        nextRole,
-        nextProfile.providerProfile?.id ?? null,
       );
     } catch (error) {
       setNotice(readError(error));
@@ -1415,16 +1479,19 @@ export default function App() {
       setSignupServiceArea('');
       setSignupServiceDescription('');
       setSignupExperienceYears('');
-      resetRoute({
-        role: nextRole,
-        screen: nextRole === 'provider' ? 'home' : 'explore',
-      });
-      setNotice(`Welcome to ServEase, ${nextProfile.user.fullName ?? nextProfile.user.email}.`);
       await refreshWorkspace(
         nextSession.accessToken,
         nextRole,
         nextProfile.providerProfile?.id ?? null,
       );
+      if (nextRole === 'customer') {
+        await ensureCustomerExploreCatalog();
+      }
+      resetRoute({
+        role: nextRole,
+        screen: nextRole === 'provider' ? 'home' : 'explore',
+      });
+      setNotice(`Welcome to ServEase, ${nextProfile.user.fullName ?? nextProfile.user.email}.`);
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -1527,6 +1594,7 @@ export default function App() {
     supportFlow.actions.clear();
     notificationsFlow.actions.clear();
     providerServiceFlow.actions.clear();
+    customerAddressPinFlow.actions.resetDraft();
     setSelectedBookingServiceUpdates([]);
     setSelectedBookingTimelineEvents([]);
     setSelectedProviderPortfolioMedia([]);
@@ -1590,44 +1658,14 @@ export default function App() {
             appRole === 'provider'
               ? profileBusinessName.trim()
               : null,
+          avatarUrl: profileAvatarUpload?.publicUrl ?? profile?.user.avatarUrl ?? null,
+          avatarStoragePath:
+            profileAvatarUpload?.path ?? profile?.user.avatarStoragePath ?? null,
         },
         apiOptions,
       );
       setProfile(updatedProfile);
       setNotice('Profile updated.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function saveCustomerAddress() {
-    if (!session) {
-      setNotice('Sign in before saving an address.');
-      return;
-    }
-
-    const address = customerAddressDraft.trim();
-    if (!address) {
-      setNotice('Enter an address to save.');
-      return;
-    }
-
-    setBusyAction('save-customer-address');
-    try {
-      const savedAddress = await createCustomerAddress(
-        {
-          label: customerAddressLabel.trim() || 'Home',
-          address,
-          isDefault: (profile?.customerAddresses ?? []).length === 0,
-        },
-        apiOptions,
-      );
-      setProfile((current) => upsertCustomerAddressInProfile(current, savedAddress));
-      setCustomerAddressLabel('Home');
-      setCustomerAddressDraft('');
-      setNotice('Address saved.');
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -1641,16 +1679,26 @@ export default function App() {
       return;
     }
 
-    setBusyAction(`default-address-${addressId}`);
-    try {
-      const savedAddress = await setDefaultCustomerAddress(addressId, apiOptions);
-      setProfile((current) => upsertCustomerAddressInProfile(current, savedAddress));
-      setNotice(`${savedAddress.label} is now your home address.`);
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+    return runExclusiveNetworkAction(
+      `customer:default-address:${addressId}`,
+      async () => {
+        setBusyAction(`default-address-${addressId}`);
+        try {
+          const savedAddress = await setDefaultCustomerAddress(addressId, apiOptions);
+          setProfile((current) => upsertCustomerAddressInProfile(current, savedAddress));
+          setNotice(`${savedAddress.label} is now your home address.`);
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Address update is already in progress.');
+        },
+      },
+    );
   }
 
   async function removeCustomerAddress(addressId: string) {
@@ -1659,17 +1707,27 @@ export default function App() {
       return;
     }
 
-    setBusyAction(`delete-address-${addressId}`);
-    try {
-      await deleteCustomerAddress(addressId, apiOptions);
-      const nextProfile = await getCurrentUser(apiOptions);
-      setProfile(nextProfile);
-      setNotice('Address deleted.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+    return runExclusiveNetworkAction(
+      `customer:delete-address:${addressId}`,
+      async () => {
+        setBusyAction(`delete-address-${addressId}`);
+        try {
+          await deleteCustomerAddress(addressId, apiOptions);
+          const nextProfile = await getCurrentUser(apiOptions);
+          setProfile(nextProfile);
+          setNotice('Address deleted.');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Address delete is already in progress.');
+        },
+      },
+    );
   }
 
   async function savePassword() {
@@ -2010,24 +2068,40 @@ export default function App() {
       return false;
     }
 
-    setBusyAction(`booking-${nextStatus}`);
-    try {
-      const updated = await transitionBookingStatus(
-        selectedBooking.id,
-        buildBookingTransitionRequest(selectedBooking.status, nextStatus, reason),
-        apiOptions,
-      );
-      replaceBooking(updated);
-      void refreshBookingTimelineEvents(updated.id);
-      void refreshBookingTracking(updated.id);
-      setNotice(`Booking moved to ${statusLabel(updated.status)}.`);
-      return true;
-    } catch (error) {
-      setNotice(readError(error));
-      return false;
-    } finally {
-      setBusyAction(null);
-    }
+    const actionKey = `booking:${selectedBooking.id}:${nextStatus}`;
+    return runExclusiveNetworkAction(
+      actionKey,
+      async () => {
+        setBusyAction(`booking-${nextStatus}`);
+        try {
+          const updated = await transitionBookingStatus(
+            selectedBooking.id,
+            buildBookingTransitionRequest(
+              selectedBooking.status,
+              nextStatus,
+              reason,
+            ),
+            apiOptions,
+          );
+          replaceBooking(updated);
+          void refreshBookingTimelineEvents(updated.id);
+          void refreshBookingTracking(updated.id);
+          setNotice(`Booking moved to ${statusLabel(updated.status)}.`);
+          return true;
+        } catch (error) {
+          setNotice(readError(error));
+          return false;
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Booking update is already in progress.');
+          return false;
+        },
+      },
+    );
   }
 
   async function cancelSelectedProviderBooking() {
@@ -2055,7 +2129,11 @@ export default function App() {
   async function pickAndUploadImage(
     kind: UploadKind,
     onUploaded: (uri: string, upload: UploadSummary) => void | Promise<void>,
-    options: { documentType?: string | null } = {},
+    options: {
+      aspect?: [number, number];
+      documentType?: string | null;
+      successNotice?: string;
+    } = {},
   ) {
     if (!session) {
       setNotice('Sign in before uploading media.');
@@ -2071,7 +2149,7 @@ export default function App() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       allowsEditing: true,
-      aspect: [4, 3],
+      aspect: options.aspect ?? (kind === 'avatar' ? [1, 1] : [4, 3]),
       mediaTypes: ['images'],
       quality: 0.8,
     });
@@ -2101,7 +2179,7 @@ export default function App() {
         apiOptions,
       );
       await onUploaded(uri, uploaded);
-      setNotice('Media uploaded.');
+      setNotice(options.successNotice ?? 'Media uploaded.');
     } catch (error) {
       setNotice(readError(error));
     } finally {
@@ -2141,26 +2219,18 @@ export default function App() {
     );
   }
 
-  async function pickCustomerAvatar() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setNotice('Photo library permission is required to update your avatar.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
-
-    if (result.canceled || !result.assets[0]?.uri) {
-      return;
-    }
-
-    setCustomerAvatarUri(result.assets[0].uri);
-    setNotice('Avatar updated on this device.');
+  async function pickProfileAvatar() {
+    await pickAndUploadImage(
+      'avatar',
+      (uri, uploaded) => {
+        setCustomerAvatarUri(uri);
+        setProfileAvatarUpload(uploaded);
+      },
+      {
+        aspect: [1, 1],
+        successNotice: 'Profile photo uploaded. Save your profile to apply it.',
+      },
+    );
   }
 
   function notifyMissingCustomerPhone() {
@@ -2344,78 +2414,90 @@ export default function App() {
       return false;
     }
 
-    setBusyAction('payment');
-    try {
-      const code = customerBookingFlow.data.promoCode.trim();
-      let promoCodeForPayment: string | null = null;
+    return runExclusiveNetworkAction(
+      `customer:collect-payment:${bookingForPayment.id}`,
+      async () => {
+        setBusyAction('payment');
+        try {
+          const code = customerBookingFlow.data.promoCode.trim();
+          let promoCodeForPayment: string | null = null;
 
-      if (code) {
-        const promotion = await validatePromotion(
-          bookingForPayment.id,
-          code,
-          apiOptions,
-        );
-        customerBookingFlow.actions.setPromotionValidation(promotion);
+          if (code) {
+            const promotion = await validatePromotion(
+              bookingForPayment.id,
+              code,
+              apiOptions,
+            );
+            customerBookingFlow.actions.setPromotionValidation(promotion);
 
-        if (!promotion.valid) {
-          setNotice(promotion.message);
+            if (!promotion.valid) {
+              setNotice(promotion.message);
+              return false;
+            }
+
+            promoCodeForPayment = promotion.code;
+          }
+
+          const methodType =
+            methodTypeOverride ??
+            selectedCustomerPaymentMethod?.methodType ??
+            'cash_on_service';
+          if (methodType !== 'cash_on_service') {
+            const checkout = await createCheckoutSession(
+              {
+                bookingId: bookingForPayment.id,
+                successUrl: 'servease://payment/success',
+                cancelUrl: 'servease://payment/cancel',
+                promoCode: promoCodeForPayment,
+                paymentMethods: [toSharedPaymentMethod(methodType)],
+              },
+              apiOptions,
+            );
+            setPendingCheckout({
+              checkoutId: checkout.checkoutId,
+              bookingId: bookingForPayment.id,
+            });
+            const nextPayments = await listPayments(apiOptions).catch(() => payments);
+            setPayments(nextPayments);
+            await Linking.openURL(checkout.redirectUrl);
+            setNotice('Secure checkout opened. Return after completing payment.');
+          } else {
+            const payment = await createPayment(
+              {
+                bookingId: bookingForPayment.id,
+                paymentMethod: methodType,
+                promoCode: promoCodeForPayment,
+              },
+              apiOptions,
+            );
+            setPayments((current) => [
+              payment,
+              ...current.filter((item) => item.id !== payment.id),
+            ]);
+            setNotice(paymentNotice(payment));
+          }
+          return true;
+        } catch (error) {
+          setNotice(readError(error));
           return false;
+        } finally {
+          setBusyAction(null);
         }
-
-        promoCodeForPayment = promotion.code;
-      }
-
-      const methodType =
-        methodTypeOverride ??
-        selectedCustomerPaymentMethod?.methodType ??
-        'cash_on_service';
-      if (methodType !== 'cash_on_service') {
-        const checkout = await createCheckoutSession(
-          {
-            bookingId: bookingForPayment.id,
-            successUrl: 'servease://payment/success',
-            cancelUrl: 'servease://payment/cancel',
-            promoCode: promoCodeForPayment,
-            paymentMethods: [toSharedPaymentMethod(methodType)],
-          },
-          apiOptions,
-        );
-        setPendingCheckout({
-          checkoutId: checkout.checkoutId,
-          bookingId: bookingForPayment.id,
-        });
-        const nextPayments = await listPayments(apiOptions).catch(() => payments);
-        setPayments(nextPayments);
-        await Linking.openURL(checkout.redirectUrl);
-        setNotice('Secure checkout opened. Return after completing payment.');
-      } else {
-        const payment = await createPayment(
-          {
-            bookingId: bookingForPayment.id,
-            paymentMethod: methodType,
-            promoCode: promoCodeForPayment,
-          },
-          apiOptions,
-        );
-        setPayments((current) => [
-          payment,
-          ...current.filter((item) => item.id !== payment.id),
-        ]);
-        setNotice(paymentNotice(payment));
-      }
-      return true;
-    } catch (error) {
-      setNotice(readError(error));
-      return false;
-    } finally {
-      setBusyAction(null);
-    }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Payment confirmation is already in progress.');
+          return false;
+        },
+      },
+    );
   }
 
   async function confirmBookingWithPayment() {
     const methodType =
       selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
     const booking = await customerBookingFlow.actions.submitBooking({
+      navigateOnScheduleFailure: false,
       navigateOnSuccess: false,
       showSuccessNotice: false,
     });
@@ -2425,7 +2507,7 @@ export default function App() {
 
     setHideSelectedBookingReservePayment(true);
     if (methodType === 'cash_on_service') {
-      await refreshPayments().catch(() => undefined);
+      void refreshPayments().catch(() => undefined);
       navigate('customerBookingConfirmation', 'customer');
       setNotice(
         `Booking ${booking.bookingReference} confirmed. Cash is due after service.`,
@@ -2695,45 +2777,65 @@ export default function App() {
       },
     };
 
-    setBusyAction(`customer-payment-${methodType}`);
-    try {
-      const method = await upsertCustomerPaymentMethod(
-        {
-          methodId: existing?.id ?? null,
-          methodType,
-          ...defaults[methodType],
-          isDefault: true,
+    return runExclusiveNetworkAction(
+      `customer:payment-method:${methodType}`,
+      async () => {
+        setBusyAction(`customer-payment-${methodType}`);
+        try {
+          const method = await upsertCustomerPaymentMethod(
+            {
+              methodId: existing?.id ?? null,
+              methodType,
+              ...defaults[methodType],
+              isDefault: true,
+            },
+            apiOptions,
+          );
+          const methods = await listCustomerPaymentMethods(apiOptions).catch(() => [
+            method,
+          ]);
+          setCustomerPaymentMethods(methods);
+          setSelectedCustomerPaymentMethodId(method.id);
+          setNotice(`${method.label} selected for checkout.`);
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Payment method update is already in progress.');
         },
-        apiOptions,
-      );
-      const methods = await listCustomerPaymentMethods(apiOptions).catch(() => [
-        method,
-      ]);
-      setCustomerPaymentMethods(methods);
-      setSelectedCustomerPaymentMethodId(method.id);
-      setNotice(`${method.label} selected for checkout.`);
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+      },
+    );
   }
 
   async function removeCustomerPaymentMethod(methodId: string) {
-    setBusyAction(`delete-customer-payment-${methodId}`);
-    try {
-      await deleteCustomerPaymentMethod(methodId, apiOptions);
-      const methods = await listCustomerPaymentMethods(apiOptions);
-      setCustomerPaymentMethods(methods);
-      setSelectedCustomerPaymentMethodId(
-        methods.find((method) => method.isDefault)?.id ?? methods[0]?.id ?? null,
-      );
-      setNotice('Payment method removed.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+    return runExclusiveNetworkAction(
+      `customer:delete-payment-method:${methodId}`,
+      async () => {
+        setBusyAction(`delete-customer-payment-${methodId}`);
+        try {
+          await deleteCustomerPaymentMethod(methodId, apiOptions);
+          const methods = await listCustomerPaymentMethods(apiOptions);
+          setCustomerPaymentMethods(methods);
+          setSelectedCustomerPaymentMethodId(
+            methods.find((method) => method.isDefault)?.id ?? methods[0]?.id ?? null,
+          );
+          setNotice('Payment method removed.');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Payment method removal is already in progress.');
+        },
+      },
+    );
   }
 
   function toSharedPaymentMethod(
@@ -2754,25 +2856,38 @@ export default function App() {
       return;
     }
 
-    setBusyAction('review');
-    try {
-      const normalizedRating = Math.min(5, Math.max(1, Number(rating) || 5));
-      const review = await createReview(
-        {
-          bookingId: selectedBooking.id,
-          rating: normalizedRating,
-          reviewText: reviewText.trim() || null,
+    return runExclusiveNetworkAction(
+      `customer:review:${selectedBooking.id}`,
+      async () => {
+        setBusyAction('review');
+        try {
+          const normalizedRating = Math.min(5, Math.max(1, Number(rating) || 5));
+          const review = await createReview(
+            {
+              bookingId: selectedBooking.id,
+              rating: normalizedRating,
+              reviewText: reviewText.trim() || null,
+            },
+            apiOptions,
+          );
+          setReviews((current) => [
+            review,
+            ...current.filter((item) => item.id !== review.id),
+          ]);
+          setReviewText('');
+          setNotice('Review submitted.');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Review submission is already in progress.');
         },
-        apiOptions,
-      );
-      setReviews((current) => [review, ...current.filter((item) => item.id !== review.id)]);
-      setReviewText('');
-      setNotice('Review submitted.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
-    }
+      },
+    );
   }
 
   async function submitReviewReply() {
@@ -3230,6 +3345,22 @@ export default function App() {
     );
   }
 
+  function renderMissingProviderSelection(onBack: () => void) {
+    if (selectedProviderLoadState === 'loading') {
+      return <DetailScreenSkeleton label="Loading provider details" />;
+    }
+
+    return <MissingSelection onBack={onBack} />;
+  }
+
+  function renderMissingBookingSelection(onBack: () => void) {
+    if (selectedBookingLoadState === 'loading') {
+      return <DetailScreenSkeleton label="Loading booking details" />;
+    }
+
+    return <MissingSelection onBack={onBack} />;
+  }
+
   function renderCustomerExplore() {
     return (
       <CustomerExploreScreen
@@ -3249,7 +3380,11 @@ export default function App() {
           setCustomerGuideStep((current) => (current + 1) % 3)
         }
         onOpenBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
+        onOpenProfile={() => navigate('customerProfile', 'customer')}
+        onOpenSavedAddresses={() => navigate('customerAddresses', 'customer')}
         onSearch={() => navigate('customerSearchResults', 'customer')}
+        isCatalogLoading={isCatalogLoading}
+        isProfileLoading={isInitialWorkspaceLoading}
         onSelectCategory={(category) => {
           setSelectedCategoryId(category.id);
           void loadServices(category.id);
@@ -3269,7 +3404,8 @@ export default function App() {
           setBookingFilter('completed');
           navigate('bookings', 'customer');
         }}
-        onViewAllServices={() => navigate('customerAllServices', 'customer')}
+        onTrackBooking={(booking) => openBooking(booking, 'customerTrackServiceProvider')}
+        onViewAllServices={() => navigate('customerRecommendedServices', 'customer')}
         onViewTopProviders={() => navigate('customerTopProviders', 'customer')}
       />
     );
@@ -3277,7 +3413,9 @@ export default function App() {
 
   function renderBookingReview() {
     if (!selectedProvider) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'customerTopProviders' })} />;
+      return renderMissingProviderSelection(() =>
+        goBack({ role: 'customer', screen: 'customerTopProviders' }),
+      );
     }
 
     return (
@@ -3286,10 +3424,12 @@ export default function App() {
         selectedService={selectedService ?? null}
         hoursRequired={customerBookingFlow.data.hoursRequired}
         scheduledAt={customerBookingFlow.data.scheduledAt}
+        bookingSlotError={customerBookingFlow.data.bookingSlotError}
         address={customerBookingFlow.data.address}
+        serviceLocation={customerBookingFlow.data.serviceLocation}
         notes={customerBookingFlow.data.notes}
         bookingReferencePhotoUrl={customerBookingFlow.data.bookingReferencePhotoUrl}
-        pricingQuote={customerBookingFlow.data.pricingQuote}
+        bookingPricePreview={customerBookingFlow.data.bookingPricePreview}
         promotionValidation={customerBookingFlow.data.promotionValidation}
         promoCode={customerBookingFlow.data.promoCode}
         customerPaymentMethods={customerPaymentMethods}
@@ -3300,7 +3440,9 @@ export default function App() {
         onSelectPaymentMethod={setSelectedCustomerPaymentMethodId}
         onSavePaymentMethod={saveCustomerPaymentMethod}
         onConfirm={() => void confirmBookingWithPayment()}
-        onPreviewEstimate={() => void customerBookingFlow.actions.previewPricingQuote()}
+        onRefreshPrice={() =>
+          void customerBookingFlow.actions.refreshBookingPricePreview()
+        }
         onEditBooking={() => navigate('customerBookingForm', 'customer')}
       />
     );
@@ -3313,7 +3455,11 @@ export default function App() {
         providers={catalogProviders}
         selectedCategoryId={selectedCategoryId}
         services={services}
+        isLoading={isCatalogLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
+        onOpenCategory={(category) => {
+          setSelectedCategoryId(category?.id ?? null);
+        }}
         onOpenService={(service) => {
           setSelectedServiceId(service.id);
           void loadProviders(service.id);
@@ -3323,13 +3469,18 @@ export default function App() {
     );
   }
 
-  function renderCustomerAllServices(title: string) {
+  function renderCustomerAllServices(
+    title: string,
+    mode: 'all' | 'recommended' | 'search' = 'all',
+  ) {
     return (
       <CustomerAllServicesScreen
         title={title}
+        mode={mode}
+        categories={categories}
         services={services}
         marketplaceSearchQuery={marketplaceSearchQuery}
-        isLoading={isInitialCatalogLoading}
+        isLoading={isCatalogLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
         onSearchQueryChange={setMarketplaceSearchQuery}
         onOpenService={(service) => {
@@ -3346,7 +3497,7 @@ export default function App() {
       <CustomerTopProvidersScreen
         providers={providers}
         marketplaceSearchQuery={marketplaceSearchQuery}
-        isLoading={isInitialCatalogLoading || providerResultsLoading}
+        isLoading={isCatalogLoading || providerResultsLoading}
         onBack={() => goBack({ role: 'customer', screen: 'explore' })}
         onSearchQueryChange={setMarketplaceSearchQuery}
         onOpenProvider={(provider) => {
@@ -3359,7 +3510,9 @@ export default function App() {
 
   function renderCustomerProviderProfile() {
     if (!selectedProvider) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'customerTopProviders' })} />;
+      return renderMissingProviderSelection(() =>
+        goBack({ role: 'customer', screen: 'customerTopProviders' }),
+      );
     }
 
     return (
@@ -3382,7 +3535,9 @@ export default function App() {
 
   function renderCustomerBookingForm() {
     if (!selectedProvider) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'customerTopProviders' })} />;
+      return renderMissingProviderSelection(() =>
+        goBack({ role: 'customer', screen: 'customerTopProviders' }),
+      );
     }
 
     return (
@@ -3398,6 +3553,12 @@ export default function App() {
         savedAddresses={customerBookingFlow.data.savedAddresses}
         selectedSavedAddressId={customerBookingFlow.data.selectedSavedAddressId}
         addressGeoResult={customerBookingFlow.data.addressGeoResult}
+        serviceLocation={customerBookingFlow.data.serviceLocation}
+        mapPickerVisible={customerBookingFlow.data.mapPickerVisible}
+        mapSearchBusy={customerBookingFlow.data.mapSearchBusy}
+        mapSearchError={customerBookingFlow.data.mapSearchError}
+        mapSearchQuery={customerBookingFlow.data.mapSearchQuery}
+        pinAddressStatus={customerBookingFlow.data.pinAddressStatus}
         notes={customerBookingFlow.data.notes}
         bookingReferencePhotoUri={customerBookingFlow.data.bookingReferencePhotoUri}
         bookingReferencePhotoUrl={customerBookingFlow.data.bookingReferencePhotoUrl}
@@ -3428,7 +3589,22 @@ export default function App() {
         onUseCurrentLocation={() =>
           void customerBookingFlow.actions.useCurrentServiceLocation()
         }
-        onVerifyAddress={() => void customerBookingFlow.actions.verifyServiceAddress()}
+        onOpenMapPicker={() =>
+          void customerBookingFlow.actions.openServiceLocationPicker()
+        }
+        onCloseMapPicker={customerBookingFlow.actions.closeServiceLocationPicker}
+        onMapSearchQueryChange={customerBookingFlow.actions.setMapSearchQuery}
+        onSearchMapPin={() =>
+          void customerBookingFlow.actions.searchServiceLocationPin()
+        }
+        onMapPinMove={customerBookingFlow.actions.moveServiceLocationPin}
+        onReverseGeocodePin={() =>
+          void customerBookingFlow.actions.reverseGeocodeServiceLocationPin()
+        }
+        onConfirmMapPin={customerBookingFlow.actions.confirmServiceLocationPin}
+        onManualDetailsChange={
+          customerBookingFlow.actions.setServiceLocationManualDetails
+        }
         onUploadReferencePhoto={() =>
           void pickAndUploadImage('booking_reference', (uri, uploaded) => {
             customerBookingFlow.actions.setBookingReferenceUploadResult(
@@ -3443,7 +3619,9 @@ export default function App() {
 
   function renderReservePayment() {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'customer', screen: 'bookings' }),
+      );
     }
 
     return (
@@ -3470,6 +3648,10 @@ export default function App() {
   }
 
   function renderBookingConfirmation() {
+    if (!selectedBooking && selectedBookingLoadState === 'loading') {
+      return <DetailScreenSkeleton label="Loading booking confirmation" />;
+    }
+
     return (
       <CustomerBookingConfirmationScreen
         selectedBooking={selectedBooking ?? null}
@@ -3494,9 +3676,11 @@ export default function App() {
         role={appRole}
         busyAction={busyAction}
         isLoading={isInitialWorkspaceLoading}
+        unreadNotificationCount={notificationsFlow.data.unreadCount}
         setBookingFilter={setBookingFilter}
         refreshWorkspace={refreshWorkspace}
         openBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
+        onOpenNotifications={() => navigate('customerNotifications', 'customer')}
       />
     );
   }
@@ -3505,6 +3689,7 @@ export default function App() {
     return (
       <CustomerCalendarScreen
         bookings={bookings}
+        isLoading={isInitialWorkspaceLoading}
         onRefresh={refreshWorkspace}
         openBooking={(booking) =>
           openBooking(booking, 'customerBookingDetail', {
@@ -3521,7 +3706,9 @@ export default function App() {
 
   function renderCustomerBookingDetail() {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'customer', screen: 'bookings' }),
+      );
     }
     return (
       <CustomerBookingDetailScreen
@@ -3575,7 +3762,9 @@ export default function App() {
 
   function renderCustomerTrackServiceProvider(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'customer', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'customer', screen: 'bookings' }),
+      );
     }
 
     return (
@@ -3665,6 +3854,7 @@ export default function App() {
         apiOptions={apiOptions}
         messageDraft={messagesFlow.data.messageDraft}
         busyAction={busyAction}
+        isLoading={isInitialWorkspaceLoading}
         hasSession={Boolean(session)}
         onMessageDraftChange={messagesFlow.actions.setMessageDraft}
         onAttachImage={messagesFlow.actions.attachAndSendMessageImage}
@@ -3679,19 +3869,20 @@ export default function App() {
 
   function renderMore() {
     return (
-      <>
-        <TopBar title="More" />
-        <CustomerMoreScreen
-          profile={profile}
-          navigate={navigate}
-          signOut={signOut}
-          unreadNotificationCount={notificationsFlow.data.unreadCount}
-        />
-      </>
+      <CustomerMoreScreen
+        profile={profile}
+        navigate={navigate}
+        signOut={signOut}
+        unreadNotificationCount={notificationsFlow.data.unreadCount}
+      />
     );
   }
 
   function renderCustomerProfile() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading customer profile" />;
+    }
+
     return (
       <CustomerProfileScreen
         profile={profile}
@@ -3704,25 +3895,54 @@ export default function App() {
         setProfileFullName={setProfileFullName}
         setProfileContactNumber={setProfileContactNumber}
         setProfileAddress={setProfileAddress}
-        pickCustomerAvatar={pickCustomerAvatar}
+        pickCustomerAvatar={pickProfileAvatar}
         saveProfile={saveProfile}
       />
     );
   }
 
   function renderCustomerAddresses() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading saved addresses" />;
+    }
+
     return (
       <CustomerAddressesScreen
         addresses={profile?.customerAddresses ?? []}
-        draftLabel={customerAddressLabel}
-        draftAddress={customerAddressDraft}
+        draftLabel={customerAddressPinFlow.data.draftLabel}
+        draftAddress={customerAddressPinFlow.data.draftAddress}
+        editTargetId={customerAddressPinFlow.data.editTargetId}
+        mapPickerVisible={customerAddressPinFlow.data.mapPickerVisible}
+        mapSearchBusy={customerAddressPinFlow.data.mapSearchBusy}
+        mapSearchError={customerAddressPinFlow.data.mapSearchError}
+        mapSearchQuery={customerAddressPinFlow.data.mapSearchQuery}
+        pinAddressStatus={customerAddressPinFlow.data.pinAddressStatus}
+        serviceLocation={customerAddressPinFlow.data.serviceLocation}
         busyAction={busyAction}
         onBack={() => goBack({ role: 'customer', screen: 'more' })}
-        onDraftLabelChange={setCustomerAddressLabel}
-        onDraftAddressChange={setCustomerAddressDraft}
-        onSaveAddress={() => void saveCustomerAddress()}
+        onCancelDraft={customerAddressPinFlow.actions.resetDraft}
+        onCloseMapPicker={customerAddressPinFlow.actions.closeMapPicker}
+        onConfirmMapPin={customerAddressPinFlow.actions.confirmPin}
+        onDraftLabelChange={customerAddressPinFlow.actions.setDraftLabel}
+        onEditAddressPin={
+          customerAddressPinFlow.actions.openExistingAddressPinPicker
+        }
+        onMapPinMove={customerAddressPinFlow.actions.movePin}
+        onMapSearchQueryChange={
+          customerAddressPinFlow.actions.setMapSearchQuery
+        }
+        onManualDetailsChange={customerAddressPinFlow.actions.setManualDetails}
+        onOpenMapPicker={customerAddressPinFlow.actions.openNewAddressPinPicker}
+        onRefreshAddress={() =>
+          void customerAddressPinFlow.actions.refreshPinAddress()
+        }
+        onSaveAddress={() => void customerAddressPinFlow.actions.saveAddress()}
+        onSearchMapPin={() => void customerAddressPinFlow.actions.searchMapPin()}
         onSetDefault={(addressId) => void makeDefaultCustomerAddress(addressId)}
         onDeleteAddress={(addressId) => void removeCustomerAddress(addressId)}
+        onUseCurrentLocation={() =>
+          void customerAddressPinFlow.actions.useCurrentLocation()
+        }
       />
     );
   }
@@ -3743,6 +3963,10 @@ export default function App() {
   }
 
   function renderCustomerSettings() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading customer settings" />;
+    }
+
     return (
       <CustomerSettingsScreen
         userPreferences={userPreferences}
@@ -3767,6 +3991,10 @@ export default function App() {
   }
 
   function renderCustomerSecurity() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading security settings" />;
+    }
+
     return (
       <CustomerSecurityScreen
         busyAction={busyAction}
@@ -3787,7 +4015,7 @@ export default function App() {
       <HelpCenterScreen
         role="customer"
         onBack={() => goBack({ role: 'customer', screen: 'more' })}
-        supportPanel={supportPanel}
+        supportPanel={customerSupportPanel}
       />
     );
   }
@@ -3796,6 +4024,7 @@ export default function App() {
     return (
       <CustomerServiceHistoryScreen
         bookings={bookings}
+        isLoading={isInitialWorkspaceLoading}
         onBack={() => goBack({ role: 'customer', screen: 'more' })}
         openBooking={(booking) => openBooking(booking, 'customerBookingDetail')}
       />
@@ -3817,6 +4046,10 @@ export default function App() {
   }
 
   function renderProviderInsights() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider insights" />;
+    }
+
     return (
       <ProviderInsightsScreen
         providerDashboard={providerDashboard}
@@ -3835,10 +4068,15 @@ export default function App() {
     return (
       <NotificationsScreen
         notifications={notificationsFlow.data.notifications}
+        isLoading={isInitialWorkspaceLoading}
+        role={role}
         onBack={() =>
           goBack({ role, screen: role === 'provider' ? 'home' : 'more' })
         }
         openNotification={notificationsFlow.actions.openNotification}
+        onMarkAllRead={notificationsFlow.actions.markAllRead}
+        markAllReadDisabled={notificationsFlow.data.markAllReadDisabled}
+        markAllReadPending={notificationsFlow.data.markAllReadPending}
       />
     );
   }
@@ -3877,6 +4115,7 @@ export default function App() {
         navigate={navigate}
         openBooking={openBooking}
         busyAction={busyAction}
+        isLoading={isInitialWorkspaceLoading}
         onRefreshProviderApplication={async () => {
           setBusyAction('provider-application');
           try {
@@ -3914,7 +4153,9 @@ export default function App() {
 
   function renderProviderBookingDetail(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
 
     return (
@@ -3980,7 +4221,9 @@ export default function App() {
 
   function renderProviderNavigationMode(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderNavigationModeScreen
@@ -4004,7 +4247,9 @@ export default function App() {
 
   function renderProviderStartService(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderStartServiceScreen
@@ -4027,7 +4272,9 @@ export default function App() {
 
   function renderProviderServiceInProgress(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderServiceInProgressScreen
@@ -4052,7 +4299,9 @@ export default function App() {
 
   function renderProviderCompleteService(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderCompleteServiceScreen
@@ -4074,7 +4323,9 @@ export default function App() {
 
   function renderProviderServiceCompleted(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderServiceCompletedScreen
@@ -4088,7 +4339,9 @@ export default function App() {
 
   function renderProviderCancelBooking(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
 
     return (
@@ -4106,7 +4359,9 @@ export default function App() {
 
   function renderProviderReportIssue(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderReportIssueScreen
@@ -4131,7 +4386,9 @@ export default function App() {
 
   function renderProviderServiceReceipt(): ReactNode {
     if (!selectedBooking) {
-      return <MissingSelection onBack={() => goBack({ role: 'provider', screen: 'bookings' })} />;
+      return renderMissingBookingSelection(() =>
+        goBack({ role: 'provider', screen: 'bookings' }),
+      );
     }
     return (
       <ProviderServiceReceiptScreen
@@ -4144,6 +4401,10 @@ export default function App() {
   }
 
   function renderProviderCalendar() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider calendar" />;
+    }
+
     return (
       <ProviderCalendarScreen
         availability={availability}
@@ -4172,6 +4433,10 @@ export default function App() {
   }
 
   function renderProviderProfileView() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider profile" />;
+    }
+
     return (
       <ProviderProfileViewScreen
         profile={profile}
@@ -4183,6 +4448,30 @@ export default function App() {
         onBack={() => goBack({ role: 'provider', screen: 'more' })}
         onEditProfile={() => navigate('providerEditProfile', 'provider')}
         onManagePortfolio={() => navigate('providerPortfolio', 'provider')}
+        onViewAllReviews={() => navigate('providerReviews', 'provider')}
+        onStartReviewReply={setReplyingToReviewId}
+        onReviewReplyTextChange={setReviewReplyText}
+        onCancelReviewReply={() => {
+          setReplyingToReviewId(null);
+          setReviewReplyText('');
+        }}
+        onSubmitReviewReply={() => void submitReviewReply()}
+      />
+    );
+  }
+
+  function renderProviderReviews() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider reviews" />;
+    }
+
+    return (
+      <ProviderReviewsScreen
+        ownReviews={ownReviews}
+        replyingToReviewId={replyingToReviewId}
+        reviewReplyText={reviewReplyText}
+        busyAction={busyAction}
+        onBack={() => goBack({ role: 'provider', screen: 'providerProfileView' })}
         onStartReviewReply={setReplyingToReviewId}
         onReviewReplyTextChange={setReviewReplyText}
         onCancelReviewReply={() => {
@@ -4199,6 +4488,7 @@ export default function App() {
       <ProviderEditProfileScreen
         profile={profile}
         busyAction={busyAction}
+        profileAvatarUri={customerAvatarUri}
         profileFullName={profileFullName}
         profileContactNumber={profileContactNumber}
         profileBusinessName={profileBusinessName}
@@ -4206,12 +4496,17 @@ export default function App() {
         onFullNameChange={setProfileFullName}
         onContactNumberChange={setProfileContactNumber}
         onBusinessNameChange={setProfileBusinessName}
+        onPickAvatar={() => void pickProfileAvatar()}
         onSaveProfile={() => void saveProfile()}
       />
     );
   }
 
   function renderProviderPortfolio() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider portfolio" />;
+    }
+
     return (
       <ProviderPortfolioScreen
         providerPortfolioMedia={providerPortfolioMedia}
@@ -4242,6 +4537,10 @@ export default function App() {
   }
 
   function renderProviderPayoutManagement() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading payout details" />;
+    }
+
     return (
       <ProviderPayoutManagementScreen
         payoutAccount={payoutAccount}
@@ -4269,6 +4568,10 @@ export default function App() {
   }
 
   function renderProviderRequestPayout() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading payout request" />;
+    }
+
     return (
       <ProviderRequestPayoutScreen
         payoutAccount={payoutAccount}
@@ -4296,6 +4599,10 @@ export default function App() {
   }
 
   function renderProviderApplicationDocuments() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading application documents" />;
+    }
+
     return (
       <ProviderApplicationDocumentsScreen
         providerApplication={providerApplication}
@@ -4311,6 +4618,10 @@ export default function App() {
   }
 
   function renderProviderServices() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider services" />;
+    }
+
     return (
       <ProviderServicesScreen
         ownedServices={ownedServices}
@@ -4380,6 +4691,10 @@ export default function App() {
   }
 
   function renderProviderSecurity() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading security settings" />;
+    }
+
     return (
       <ProviderSecurityScreen
         busyAction={busyAction}
@@ -4396,6 +4711,10 @@ export default function App() {
   }
 
   function renderProviderSettings() {
+    if (isInitialWorkspaceLoading) {
+      return <DetailScreenSkeleton label="Loading provider settings" />;
+    }
+
     return (
       <ProviderSettingsScreen
         profile={profile}
@@ -4411,24 +4730,28 @@ export default function App() {
     );
   }
 
-  const supportPanel = (
-    <SupportPanel
-      busyAction={busyAction}
-      currentUserId={profile?.user.id ?? null}
-      expandedTicketId={supportFlow.data.expandedSupportTicketId}
-      isSignedIn={Boolean(session)}
-      supportMessage={supportFlow.data.supportMessage}
-      supportReplies={supportFlow.data.supportReplies}
-      supportReplyDraft={supportFlow.data.supportReplyDraft}
-      supportSubject={supportFlow.data.supportSubject}
-      supportTickets={supportFlow.data.supportTickets}
-      onMessageChange={supportFlow.actions.setSupportMessage}
-      onOpenTicket={() => void supportFlow.actions.submitSupportTicket()}
-      onReplyDraftChange={supportFlow.actions.setSupportReplyDraft}
-      onSubmitReply={(ticketId) => void supportFlow.actions.submitSupportReply(ticketId)}
-      onSubjectChange={supportFlow.actions.setSupportSubject}
-      onToggleTicket={supportFlow.actions.toggleSupportTicket}
-    />
+  const supportPanelProps = {
+    busyAction,
+    currentUserId: profile?.user.id ?? null,
+    expandedTicketId: supportFlow.data.expandedSupportTicketId,
+    isSignedIn: Boolean(session),
+    supportMessage: supportFlow.data.supportMessage,
+    supportReplies: supportFlow.data.supportReplies,
+    supportReplyDraft: supportFlow.data.supportReplyDraft,
+    supportSubject: supportFlow.data.supportSubject,
+    supportTickets: supportFlow.data.supportTickets,
+    onMessageChange: supportFlow.actions.setSupportMessage,
+    onOpenTicket: () => void supportFlow.actions.submitSupportTicket(),
+    onReplyDraftChange: supportFlow.actions.setSupportReplyDraft,
+    onSubmitReply: (ticketId: string) =>
+      void supportFlow.actions.submitSupportReply(ticketId),
+    onSubjectChange: supportFlow.actions.setSupportSubject,
+    onToggleTicket: supportFlow.actions.toggleSupportTicket,
+  };
+
+  const supportPanel = <SupportPanel {...supportPanelProps} />;
+  const customerSupportPanel = (
+    <SupportPanel {...supportPanelProps} variant="customer" />
   );
 
   const routeRenderers: AppRouterRenderers = {
@@ -4442,7 +4765,7 @@ export default function App() {
       calendar: renderCustomerCalendar,
       cancelBooking: renderCancelBooking,
       category: renderCustomerCategory,
-      customerAllServices: () => renderCustomerAllServices('All Services'),
+      customerAllServices: () => renderCustomerAllServices('All Services', 'all'),
       customerExplore: renderCustomerExplore,
       customerProviderProfile: renderCustomerProviderProfile,
       customerTopProviders: renderCustomerTopProviders,
@@ -4484,6 +4807,7 @@ export default function App() {
       profileView: renderProviderProfileView,
       reportIssue: renderProviderReportIssue,
       requestPayout: renderProviderRequestPayout,
+      reviews: renderProviderReviews,
       security: renderProviderSecurity,
       serviceCompleted: renderProviderServiceCompleted,
       serviceInProgress: renderProviderServiceInProgress,
@@ -4494,11 +4818,18 @@ export default function App() {
       startService: renderProviderStartService,
     },
   };
+  const isAuthReferenceScreen =
+    route.screen === 'authGate' ||
+    route.screen === 'signupRole' ||
+    route.screen === 'loginRole' ||
+    route.screen === 'customerLogin' ||
+    route.screen === 'providerLogin';
 
   return (
     <AppShell
       busyAction={busyAction}
-      backgroundColor={route.screen === 'authGate' ? palette.mint : undefined}
+      backgroundColor={isAuthReferenceScreen ? '#F2FBF6' : undefined}
+      statusBarStyle={isAuthReferenceScreen ? 'dark' : undefined}
     >
       <AppRouter
         appRole={appRole}

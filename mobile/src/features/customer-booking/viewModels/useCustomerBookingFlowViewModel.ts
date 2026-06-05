@@ -1,35 +1,61 @@
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   addressVerifiedNotice,
+  canSubmitBookingWithServerScheduleValidation,
   providerUnavailableSlotPickerMessage,
   promotionNotice,
-  toManilaBookingIso,
+  validateCustomerBookingScheduleSelection,
 } from '../../../domain/booking';
+import {
+  confirmCustomerBookingPin,
+  createCustomerBookingLocationState,
+  customerBookingLocationCanContinue,
+  customerBookingLocationFromSavedAddress,
+  customerBookingLocationNotice,
+  customerMapPinFallbackCopy,
+  customerMapPinRequiredCopy,
+  failCustomerBookingLocationResolution,
+  moveCustomerBookingPendingPin,
+  startCustomerBookingPendingPin,
+  updateCustomerBookingLocationAddress,
+} from '../../../domain/customerBookingLocation';
+import type { CustomerBookingMapPin } from '../../../domain/customerBookingLocation';
 import { defaultScheduledAt } from '../../../constants/appContent';
 import { readError } from '../../../navigation/routeHelpers';
 import type { AppRole, AppScreen } from '../../../navigation/types';
+import { formatMoney } from '../../../shared/utils/booking';
+import { runExclusiveNetworkAction } from '../../../shared/utils/networkActions';
 import type {
   ApiOptions,
+  BookingPricePreviewSummary,
   BookingSummary,
   CatalogServiceItem,
   CustomerAddressSummary,
   CreateBookingRequest,
   CustomerPaymentMethodSummary,
   GeoAddressResult,
-  PricingQuoteSummary,
   PromotionValidationSummary,
+  ProviderAvailabilitySchedule,
   ProviderListing,
   UploadSummary,
 } from '../../../shared/models/types';
 import {
   createCustomerAddress,
   createBooking,
-  createPricingQuote,
   geocodeAddress,
+  previewBookingPrice,
   reverseGeocode,
+  ServeaseApiError,
+  updateCustomerAddress,
   validatePromotion,
 } from '../../../shared/models/apiService';
+
+const initialServiceAddress = 'Unit 12B Greenfield Residences';
+const autoReverseGeocodeDebounceMs = 750;
+const autoReverseGeocodeDistanceThresholdMeters = 20;
+
+type PinAddressStatus = 'idle' | 'scheduled' | 'resolving' | 'failed';
 
 type CustomerBookingFlowViewModelInput = {
   apiOptions: ApiOptions;
@@ -38,6 +64,7 @@ type CustomerBookingFlowViewModelInput = {
   onCustomerAddressSaved: (address: CustomerAddressSummary) => void;
   onBookingCreated: (booking: BookingSummary) => void;
   onRefreshProviderAvailability: (providerId: string) => void;
+  providerAvailability: ProviderAvailabilitySchedule | null;
   selectedBooking: BookingSummary | null;
   selectedCustomerPaymentMethod: CustomerPaymentMethodSummary | null;
   selectedProvider: ProviderListing | null;
@@ -45,6 +72,8 @@ type CustomerBookingFlowViewModelInput = {
   setBusyAction: (busyAction: string | null) => void;
   setNotice: (notice: string) => void;
   setRoute: (route: { role: AppRole | null; screen: AppScreen }) => void;
+  timeSlots: string[];
+  now?: () => Date;
 };
 
 export function useCustomerBookingFlowViewModel({
@@ -54,6 +83,7 @@ export function useCustomerBookingFlowViewModel({
   onCustomerAddressSaved,
   onBookingCreated,
   onRefreshProviderAvailability,
+  providerAvailability,
   selectedBooking,
   selectedCustomerPaymentMethod,
   selectedProvider,
@@ -61,16 +91,27 @@ export function useCustomerBookingFlowViewModel({
   setBusyAction,
   setNotice,
   setRoute,
+  timeSlots,
+  now,
 }: CustomerBookingFlowViewModelInput) {
   const [bookingSlotError, setBookingSlotError] = useState('');
-  const [address, setAddress] = useState('Unit 12B Greenfield Residences');
+  const [address, setAddress] = useState(initialServiceAddress);
+  const [serviceLocation, setServiceLocation] = useState(() =>
+    createCustomerBookingLocationState(initialServiceAddress),
+  );
+  const [mapPickerVisible, setMapPickerVisible] = useState(false);
+  const [mapSearchQuery, setMapSearchQuery] = useState(initialServiceAddress);
+  const [mapSearchError, setMapSearchError] = useState<string | null>(null);
+  const [mapSearchBusy, setMapSearchBusy] = useState(false);
   const [scheduledAt, setScheduledAt] = useState(defaultScheduledAt);
   const [hoursRequired, setHoursRequired] = useState('2');
   const [notes, setNotes] = useState('');
-  const [bookingReferencePhotoUri, setBookingReferencePhotoUri] =
-    useState<string | null>(null);
-  const [bookingReferencePhotoUrl, setBookingReferencePhotoUrl] =
-    useState<string | null>(null);
+  const [bookingReferencePhotoUri, setBookingReferencePhotoUri] = useState<
+    string | null
+  >(null);
+  const [bookingReferencePhotoUrl, setBookingReferencePhotoUrl] = useState<
+    string | null
+  >(null);
   const [bookingReferenceUpload, setBookingReferenceUpload] =
     useState<UploadSummary | null>(null);
   const [addressGeoResult, setAddressGeoResult] =
@@ -78,14 +119,129 @@ export function useCustomerBookingFlowViewModel({
   const [promoCode, setPromoCode] = useState('');
   const [promotionValidation, setPromotionValidation] =
     useState<PromotionValidationSummary | null>(null);
-  const [pricingQuote, setPricingQuote] = useState<PricingQuoteSummary | null>(null);
-  const [selectedSavedAddressId, setSelectedSavedAddressId] =
-    useState<string | null>(null);
+  const [bookingPricePreview, setBookingPricePreview] =
+    useState<BookingPricePreviewSummary | null>(null);
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<
+    string | null
+  >(null);
+  const [pinAddressStatus, setPinAddressStatus] =
+    useState<PinAddressStatus>('idle');
+  const [lastResolvedPin, setLastResolvedPin] = useState<Pick<
+    CustomerBookingMapPin,
+    'latitude' | 'longitude'
+  > | null>(null);
+  const reverseGeocodeRequestRef = useRef(0);
+  const latestServiceLocationRef = useRef(serviceLocation);
+
+  const resolveServiceLocationPinAddress = useCallback(
+    async (
+      pin: CustomerBookingMapPin,
+      mode: 'auto' | 'manual',
+    ): Promise<void> => {
+      const requestId = reverseGeocodeRequestRef.current + 1;
+      reverseGeocodeRequestRef.current = requestId;
+      setPinAddressStatus('resolving');
+      if (mode === 'manual') {
+        setBusyAction('geo-reverse-pin');
+      }
+
+      try {
+        const result = await reverseGeocode(pin.latitude, pin.longitude, {
+          ...apiOptions,
+          language: 'en',
+        });
+        if (requestId !== reverseGeocodeRequestRef.current) {
+          return;
+        }
+
+        const activePin =
+          latestServiceLocationRef.current.pendingPin ??
+          latestServiceLocationRef.current.confirmedPin;
+        if (!isActivePinCoordinate(pin, activePin)) {
+          return;
+        }
+
+        setServiceLocation((current) =>
+          moveCustomerBookingPendingPin(
+            current,
+            result.latitude,
+            result.longitude,
+            result.formattedAddress,
+          ),
+        );
+        setLastResolvedPin({
+          latitude: result.latitude,
+          longitude: result.longitude,
+        });
+        setMapSearchQuery(result.formattedAddress);
+        setMapSearchError(null);
+        setPinAddressStatus('idle');
+        if (mode === 'manual') {
+          setNotice('Pin address refreshed.');
+        }
+      } catch (error) {
+        if (requestId !== reverseGeocodeRequestRef.current) {
+          return;
+        }
+        const message = readError(error);
+        setServiceLocation((current) => ({
+          ...current,
+          errorMessage: message,
+        }));
+        setPinAddressStatus('failed');
+        if (mode === 'manual') {
+          setNotice(message);
+        }
+      } finally {
+        if (mode === 'manual') {
+          setBusyAction(null);
+        }
+      }
+    },
+    [apiOptions, setBusyAction, setNotice],
+  );
+
+  useEffect(() => {
+    latestServiceLocationRef.current = serviceLocation;
+  }, [serviceLocation]);
+
+  const pendingServicePin = serviceLocation.pendingPin;
+
+  useEffect(() => {
+    const pin = pendingServicePin;
+    if (!mapPickerVisible || !pin) {
+      setPinAddressStatus('idle');
+      return undefined;
+    }
+
+    if (
+      lastResolvedPin &&
+      distanceBetweenCoordinatesMeters(pin, lastResolvedPin) <
+        autoReverseGeocodeDistanceThresholdMeters
+    ) {
+      setPinAddressStatus('idle');
+      return undefined;
+    }
+
+    setPinAddressStatus('scheduled');
+    const timeout = setTimeout(() => {
+      void resolveServiceLocationPinAddress(pin, 'auto');
+    }, autoReverseGeocodeDebounceMs);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [
+    lastResolvedPin,
+    mapPickerVisible,
+    pendingServicePin,
+    resolveServiceLocationPinAddress,
+  ]);
 
   useEffect(() => {
     if (
       selectedSavedAddressId ||
-      (address.trim() && address.trim() !== 'Unit 12B Greenfield Residences')
+      (address.trim() && address.trim() !== initialServiceAddress)
     ) {
       return;
     }
@@ -103,7 +259,7 @@ export function useCustomerBookingFlowViewModel({
   }, [selectedBooking?.id]);
 
   useEffect(() => {
-    setPricingQuote(null);
+    setBookingPricePreview(null);
   }, [
     address,
     hoursRequired,
@@ -116,18 +272,39 @@ export function useCustomerBookingFlowViewModel({
     setAddress(value);
     setAddressGeoResult(null);
     setSelectedSavedAddressId(null);
+    setLastResolvedPin(null);
+    setMapSearchQuery(value);
+    setMapSearchError(null);
+    setPinAddressStatus('idle');
+    reverseGeocodeRequestRef.current += 1;
+    setServiceLocation((current) =>
+      updateCustomerBookingLocationAddress(current, value),
+    );
   }
 
   function applySavedAddress(savedAddress: CustomerAddressSummary) {
+    const nextLocation = customerBookingLocationFromSavedAddress(savedAddress);
     setSelectedSavedAddressId(savedAddress.id);
     setAddress(savedAddress.address);
-    setPricingQuote(null);
-    setAddressGeoResult(
-      savedAddress.latitude !== null && savedAddress.longitude !== null
+    setMapSearchQuery(savedAddress.address);
+    setMapSearchError(null);
+    setBookingPricePreview(null);
+    setServiceLocation(nextLocation);
+    setLastResolvedPin(
+      nextLocation.confirmedPin
         ? {
-            formattedAddress: savedAddress.address,
-            latitude: savedAddress.latitude,
-            longitude: savedAddress.longitude,
+            latitude: nextLocation.confirmedPin.latitude,
+            longitude: nextLocation.confirmedPin.longitude,
+          }
+        : null,
+    );
+    setPinAddressStatus('idle');
+    setAddressGeoResult(
+      nextLocation.confirmedPin
+        ? {
+            formattedAddress: nextLocation.confirmedPin.formattedAddress,
+            latitude: nextLocation.confirmedPin.latitude,
+            longitude: nextLocation.confirmedPin.longitude,
             provider: 'mock',
           }
         : null,
@@ -147,7 +324,11 @@ export function useCustomerBookingFlowViewModel({
   }
 
   async function submitBooking(
-    options: { navigateOnSuccess?: boolean; showSuccessNotice?: boolean } = {},
+    options: {
+      navigateOnScheduleFailure?: boolean;
+      navigateOnSuccess?: boolean;
+      showSuccessNotice?: boolean;
+    } = {},
   ): Promise<BookingSummary | null> {
     if (!hasSession) {
       setNotice('Sign in before creating a booking.');
@@ -155,102 +336,155 @@ export function useCustomerBookingFlowViewModel({
       return null;
     }
 
-    const scheduledAtIso = toManilaBookingIso(scheduledAt);
+    const scheduleValidation = validateSelectedSchedule();
 
+    const scheduledAtIso = scheduleValidation.scheduledAtIso;
     if (!selectedProvider || !address.trim() || !scheduledAtIso) {
       setNotice('Choose a service provider, address, and schedule.');
       return null;
     }
 
-    setBusyAction('create-booking');
-    try {
-      const serviceId = selectedService?.id ?? selectedProvider.serviceId;
-      let quote = pricingQuote;
+    if (!canSubmitBookingWithServerScheduleValidation(scheduleValidation)) {
+      handleScheduleValidationFailure(
+        scheduleValidation.message,
+        options.navigateOnScheduleFailure ?? true,
+      );
+      return null;
+    }
 
-      if (serviceId && selectedProvider.providerId) {
-        if (!isPricingQuoteFresh(quote)) {
-          quote = await fetchPricingQuote();
-          setPricingQuote(quote);
-          setNotice('Pricing estimate refreshed. Review the updated total before confirming.');
+    if (!validateServiceLocationForReview()) {
+      return null;
+    }
+    const confirmedPin = serviceLocation.confirmedPin;
+
+    return runExclusiveNetworkAction(
+      'customer:create-booking',
+      async () => {
+        setBookingSlotError('');
+        setBusyAction('create-booking');
+        try {
+          const serviceId = selectedService?.id ?? selectedProvider.serviceId;
+          const paymentMethod =
+            selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service';
+          let preview = bookingPricePreview;
+          if (!preview) {
+            preview = await fetchBookingPricePreview();
+            setBookingPricePreview(preview);
+            setNotice(
+              'Price preview updated. Review the full breakdown before confirming.',
+            );
+            return null;
+          }
+
+          const request: CreateBookingRequest = {
+            providerId: selectedProvider.providerId,
+            serviceId,
+            serviceTitle: selectedProvider.title,
+            serviceName: selectedService?.name ?? selectedProvider.title,
+            serviceDescription: selectedProvider.description,
+            serviceAddress: address.trim(),
+            serviceLatitude: confirmedPin?.latitude ?? null,
+            serviceLongitude: confirmedPin?.longitude ?? null,
+            scheduledAt: scheduledAtIso,
+            hoursRequired: Number(hoursRequired) || 1,
+            serviceAmount: preview.serviceAmount,
+            totalAmount: preview.totalAmount,
+            previewTotalAmount: preview.totalAmount,
+            pricingMode: preview.pricingMode,
+            acceptedQuoteId: null,
+            priceBreakdown: preview.priceBreakdown,
+            paymentMethod,
+            customerNotes: notes.trim() || null,
+            attachments: bookingReferenceUpload
+              ? [
+                  {
+                    ...mediaAttachmentFromUpload(bookingReferenceUpload),
+                    mediaKind: 'booking_reference',
+                  },
+                ]
+              : [],
+          };
+          const booking = await createBooking(request, apiOptions);
+          onBookingCreated(booking);
+          resetBookingReferenceUpload();
+          if (options.navigateOnSuccess ?? true) {
+            setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
+          }
+          if (options.showSuccessNotice ?? true) {
+            setNotice(`Booking ${booking.bookingReference} created.`);
+          }
+          return booking;
+        } catch (error) {
+          const updatedPreview = bookingPricePreviewFromError(error);
+          if (updatedPreview) {
+            setBookingPricePreview(updatedPreview);
+            setNotice(
+              `Booking total changed to ${formatMoney(
+                updatedPreview.totalAmount,
+              )}. Review the updated breakdown before confirming.`,
+            );
+            return null;
+          }
+          const message = readError(error);
+          const slotMessage = providerUnavailableSlotPickerMessage(error, message);
+          if (slotMessage && selectedProvider) {
+            setBookingSlotError(slotMessage);
+            setNotice(slotMessage);
+            onRefreshProviderAvailability(selectedProvider.providerId);
+            if (options.navigateOnScheduleFailure ?? true) {
+              setRoute({ role: 'customer', screen: 'customerBookingForm' });
+            }
+          } else {
+            setNotice(message);
+          }
           return null;
+        } finally {
+          setBusyAction(null);
         }
-      } else {
-        quote = null;
-      }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Booking confirmation is already in progress.');
+          return null;
+        },
+      },
+    );
+  }
 
-      const request: CreateBookingRequest = {
+  async function fetchBookingPricePreview(): Promise<BookingPricePreviewSummary> {
+    const scheduleValidation = validateSelectedSchedule();
+    const serviceId =
+      selectedService?.id ?? selectedProvider?.serviceId ?? null;
+    if (
+      !selectedProvider ||
+      !serviceId ||
+      !address.trim() ||
+      !scheduleValidation.scheduledAtIso
+    ) {
+      throw new Error(
+        'Choose a service provider, address, and schedule first.',
+      );
+    }
+    if (!scheduleValidation.isValid) {
+      throw new Error(
+        scheduleValidation.message ?? 'Choose an available future schedule.',
+      );
+    }
+
+    return previewBookingPrice(
+      {
         providerId: selectedProvider.providerId,
         serviceId,
         serviceTitle: selectedProvider.title,
         serviceName: selectedService?.name ?? selectedProvider.title,
         serviceDescription: selectedProvider.description,
         serviceAddress: address.trim(),
-        scheduledAt: scheduledAtIso,
+        serviceLatitude: serviceLocation.confirmedPin?.latitude ?? null,
+        serviceLongitude: serviceLocation.confirmedPin?.longitude ?? null,
+        scheduledAt: scheduleValidation.scheduledAtIso,
         hoursRequired: Number(hoursRequired) || 1,
-        serviceAmount:
-          quote?.estimatedTotal ?? selectedProvider.price ?? selectedService?.price ?? 0,
+        serviceAmount: selectedProvider.price ?? selectedService?.price ?? 0,
         pricingMode: selectedProvider.pricingMode,
-        acceptedQuoteId: quote?.quoteId ?? null,
-        paymentMethod: selectedCustomerPaymentMethod?.methodType ?? 'cash_on_service',
-        customerNotes: notes.trim() || null,
-        attachments: bookingReferenceUpload
-          ? [
-              {
-                ...mediaAttachmentFromUpload(bookingReferenceUpload),
-                mediaKind: 'booking_reference',
-              },
-            ]
-          : [],
-      };
-      const booking = await createBooking(request, apiOptions);
-      onBookingCreated(booking);
-      resetBookingReferenceUpload();
-      if (options.navigateOnSuccess ?? true) {
-        setRoute({ role: 'customer', screen: 'customerBookingConfirmation' });
-      }
-      if (options.showSuccessNotice ?? true) {
-        setNotice(`Booking ${booking.bookingReference} created.`);
-      }
-      return booking;
-    } catch (error) {
-      const message = readError(error);
-      const slotMessage = providerUnavailableSlotPickerMessage(error, message);
-      if (slotMessage && selectedProvider) {
-        setBookingSlotError(slotMessage);
-        setNotice(slotMessage);
-        onRefreshProviderAvailability(selectedProvider.providerId);
-        setRoute({ role: 'customer', screen: 'customerBookingForm' });
-      } else {
-        setNotice(message);
-      }
-      return null;
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function fetchPricingQuote(): Promise<PricingQuoteSummary> {
-    const scheduledAtIso = toManilaBookingIso(scheduledAt);
-    const serviceId = selectedService?.id ?? selectedProvider?.serviceId ?? null;
-    if (!selectedProvider || !serviceId || !address.trim() || !scheduledAtIso) {
-      throw new Error('Choose a service provider, address, and schedule first.');
-    }
-
-    return createPricingQuote(
-      {
-        providerId: selectedProvider.providerId,
-        serviceId,
-        serviceAddress: address.trim(),
-        scheduledAt: scheduledAtIso,
-        hoursRequired: Number(hoursRequired) || 1,
-        bookingUrgency: 'standard',
-        region: 'default',
-        destination: addressGeoResult
-          ? {
-              latitude: addressGeoResult.latitude,
-              longitude: addressGeoResult.longitude,
-            }
-          : null,
       },
       apiOptions,
     );
@@ -258,37 +492,51 @@ export function useCustomerBookingFlowViewModel({
 
   async function prepareBookingReview() {
     if (!hasSession) {
-      setNotice('Sign in before requesting a fair estimate.');
+      setNotice('Sign in before reviewing the price preview.');
       return false;
     }
 
-    setBusyAction('pricing-quote');
+    const scheduleValidation = validateSelectedSchedule();
+    if (!scheduleValidation.isValid) {
+      handleScheduleValidationFailure(scheduleValidation.message);
+      return false;
+    }
+
+    if (!validateServiceLocationForReview()) {
+      return false;
+    }
+
+    setBusyAction('booking-price-preview');
     try {
-      const quote = await fetchPricingQuote();
-      setPricingQuote(quote);
+      const preview = await fetchBookingPricePreview();
+      setBookingPricePreview(preview);
       return true;
     } catch (error) {
-      setPricingQuote(null);
-      setNotice(
-        `${readError(error)} Review the provider rate now; confirmation will need a fresh pricing estimate.`,
-      );
-      return true;
+      setBookingPricePreview(null);
+      setNotice(readError(error));
+      return false;
     } finally {
       setBusyAction(null);
     }
   }
 
-  async function previewPricingQuote() {
+  async function refreshBookingPricePreview() {
     if (!hasSession) {
-      setNotice('Sign in before requesting a fair estimate.');
+      setNotice('Sign in before requesting a price preview.');
       return null;
     }
 
-    setBusyAction('pricing-quote');
+    const scheduleValidation = validateSelectedSchedule();
+    if (!scheduleValidation.isValid) {
+      handleScheduleValidationFailure(scheduleValidation.message);
+      return null;
+    }
+
+    setBusyAction('booking-price-preview');
     try {
-      const quote = await fetchPricingQuote();
-      setPricingQuote(quote);
-      return quote;
+      const preview = await fetchBookingPricePreview();
+      setBookingPricePreview(preview);
+      return preview;
     } catch (error) {
       setNotice(readError(error));
       return null;
@@ -312,7 +560,11 @@ export function useCustomerBookingFlowViewModel({
 
     setBusyAction('promo');
     try {
-      const promotion = await validatePromotion(selectedBooking.id, code, apiOptions);
+      const promotion = await validatePromotion(
+        selectedBooking.id,
+        code,
+        apiOptions,
+      );
       setPromotionValidation(promotion);
       setNotice(promotionNotice(promotion));
       return promotion.valid;
@@ -331,20 +583,81 @@ export function useCustomerBookingFlowViewModel({
       return;
     }
 
-    setBusyAction('geo-address');
+    setBusyAction('geo-map-search');
     try {
       const result = await geocodeAddress(trimmed, {
         ...apiOptions,
         language: 'en',
         region: 'PH',
       });
+      const nextLocation = startCustomerBookingPendingPin(
+        serviceLocation,
+        result,
+        'search',
+      );
       setAddress(result.formattedAddress);
       setAddressGeoResult(result);
+      setServiceLocation(nextLocation);
+      setMapSearchQuery(result.formattedAddress);
+      setMapSearchError(null);
+      setLastResolvedPin({
+        latitude: result.latitude,
+        longitude: result.longitude,
+      });
+      setPinAddressStatus('idle');
+      setMapPickerVisible(true);
       setNotice(addressVerifiedNotice(result));
     } catch (error) {
       setAddressGeoResult(null);
-      setNotice(readError(error));
+      setServiceLocation((current) =>
+        failCustomerBookingLocationResolution(current, readError(error)),
+      );
+      setNotice(`${readError(error)} ${customerMapPinFallbackCopy}`);
     } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function searchServiceLocationPin(): Promise<void> {
+    const trimmed = mapSearchQuery.trim();
+    if (!trimmed) {
+      setMapSearchError('Enter an address or place to search.');
+      return;
+    }
+
+    setMapSearchBusy(true);
+    setBusyAction('geo-picker-search');
+    setMapSearchError(null);
+    try {
+      const result = await geocodeAddress(trimmed, {
+        ...apiOptions,
+        language: 'en',
+        region: 'PH',
+      });
+      reverseGeocodeRequestRef.current += 1;
+      const nextLocation = startCustomerBookingPendingPin(
+        latestServiceLocationRef.current,
+        result,
+        'search',
+      );
+      setSelectedSavedAddressId(null);
+      setAddress(result.formattedAddress);
+      setAddressGeoResult(result);
+      setServiceLocation(nextLocation);
+      setMapSearchQuery(result.formattedAddress);
+      setLastResolvedPin({
+        latitude: result.latitude,
+        longitude: result.longitude,
+      });
+      setPinAddressStatus('idle');
+      setMapPickerVisible(true);
+      setNotice('Search result pinned. Confirm the service pin before review.');
+    } catch (error) {
+      const message = readError(error);
+      setMapSearchError(message);
+      setNotice(message);
+    } finally {
+      setMapSearchBusy(false);
       setBusyAction(null);
     }
   }
@@ -354,7 +667,9 @@ export function useCustomerBookingFlowViewModel({
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== Location.PermissionStatus.GRANTED) {
-        setNotice('Location permission is required to use your current address.');
+        setNotice(
+          'Location permission is required to use your current address.',
+        );
         return;
       }
 
@@ -370,12 +685,32 @@ export function useCustomerBookingFlowViewModel({
         },
       );
 
+      const nextLocation = startCustomerBookingPendingPin(
+        serviceLocation,
+        result,
+        'current',
+      );
+      setSelectedSavedAddressId(null);
       setAddress(result.formattedAddress);
       setAddressGeoResult(result);
-      setNotice('Current location added as your service address.');
+      setServiceLocation(nextLocation);
+      setMapSearchQuery(result.formattedAddress);
+      setMapSearchError(null);
+      setLastResolvedPin({
+        latitude: result.latitude,
+        longitude: result.longitude,
+      });
+      setPinAddressStatus('idle');
+      setMapPickerVisible(true);
+      setNotice(
+        'Current location found. Confirm the service pin before review.',
+      );
     } catch (error) {
       setAddressGeoResult(null);
-      setNotice(readError(error));
+      setServiceLocation((current) =>
+        failCustomerBookingLocationResolution(current, readError(error)),
+      );
+      setNotice(`${readError(error)} ${customerMapPinFallbackCopy}`);
     } finally {
       setBusyAction(null);
     }
@@ -391,26 +726,203 @@ export function useCustomerBookingFlowViewModel({
       setNotice('Enter a service address before saving it.');
       return;
     }
+    if (!serviceLocation.confirmedPin) {
+      setNotice('Confirm the service pin before saving it as Home.');
+      return;
+    }
+    const confirmedPin = serviceLocation.confirmedPin;
 
-    setBusyAction('save-address');
-    try {
-      const savedAddress = await createCustomerAddress(
-        {
-          label: 'Home',
-          address: trimmed,
-          latitude: addressGeoResult?.latitude ?? null,
-          longitude: addressGeoResult?.longitude ?? null,
-          isDefault: true,
+    return runExclusiveNetworkAction(
+      'customer:save-home-address',
+      async () => {
+        setBusyAction('save-address');
+        try {
+          const homeAddress = resolveHomeAddressToSave(
+            customerAddresses,
+            selectedSavedAddressId,
+          );
+          const addressPayload = {
+            label: 'Home',
+            address: trimmed,
+            latitude: confirmedPin.latitude,
+            longitude: confirmedPin.longitude,
+            isDefault: true,
+          };
+          const savedAddress = homeAddress
+            ? await updateCustomerAddress(homeAddress.id, addressPayload, apiOptions)
+            : await createCustomerAddress(addressPayload, apiOptions);
+          applySavedAddress(savedAddress);
+          onCustomerAddressSaved(savedAddress);
+          setNotice(homeAddress ? 'Home address updated.' : 'Home address saved.');
+        } catch (error) {
+          setNotice(readError(error));
+        } finally {
+          setBusyAction(null);
+        }
+      },
+      {
+        onDuplicate: () => {
+          setNotice('Home address save is already in progress.');
         },
-        apiOptions,
+      },
+    );
+  }
+
+  async function openServiceLocationPicker(): Promise<void> {
+    const existingPendingPin = serviceLocation.pendingPin;
+    const existingConfirmedPin = serviceLocation.confirmedPin;
+    const existingPin = existingPendingPin ?? existingConfirmedPin ?? null;
+    if (existingPin) {
+      setLastResolvedPin({
+        latitude: existingPin.latitude,
+        longitude: existingPin.longitude,
+      });
+      setPinAddressStatus('idle');
+      if (existingPendingPin) {
+        setServiceLocation((current) => ({
+          ...current,
+          pendingPin: existingPendingPin,
+          status: 'pending',
+          errorMessage: null,
+        }));
+      }
+      setMapSearchQuery(existingPin.formattedAddress || address);
+      setMapSearchError(null);
+      setMapPickerVisible(true);
+      return;
+    }
+
+    await verifyServiceAddress();
+  }
+
+  function closeServiceLocationPicker() {
+    reverseGeocodeRequestRef.current += 1;
+    setPinAddressStatus('idle');
+    setMapSearchError(null);
+    setMapPickerVisible(false);
+  }
+
+  function setServiceLocationManualDetails(value: string) {
+    setServiceLocation((current) => ({
+      ...current,
+      manualDetails: value,
+    }));
+  }
+
+  function moveServiceLocationPin(
+    latitude: number,
+    longitude: number,
+    formattedAddress?: string,
+  ) {
+    setMapSearchError(null);
+    setServiceLocation((current) =>
+      moveCustomerBookingPendingPin(
+        current,
+        latitude,
+        longitude,
+        formattedAddress,
+      ),
+    );
+  }
+
+  async function reverseGeocodeServiceLocationPin(): Promise<void> {
+    const pin = serviceLocation.pendingPin ?? serviceLocation.confirmedPin;
+    if (!pin) {
+      setNotice('Choose a map pin first.');
+      return;
+    }
+
+    await resolveServiceLocationPinAddress(pin, 'manual');
+  }
+
+  function confirmServiceLocationPin() {
+    const pin = serviceLocation.pendingPin ?? serviceLocation.confirmedPin;
+    if (!pin) {
+      setNotice(customerMapPinRequiredCopy);
+      return;
+    }
+
+    reverseGeocodeRequestRef.current += 1;
+    const detail = serviceLocation.manualDetails.trim();
+    const confirmedAddress = detail
+      ? `${pin.formattedAddress} - ${detail}`
+      : pin.formattedAddress;
+    const nextLocation = confirmCustomerBookingPin(
+      {
+        ...serviceLocation,
+        pendingPin: pin,
+      },
+      confirmedAddress,
+    );
+
+    setServiceLocation(nextLocation);
+    setAddress(nextLocation.addressText);
+    setLastResolvedPin(
+      nextLocation.confirmedPin
+        ? {
+            latitude: nextLocation.confirmedPin.latitude,
+            longitude: nextLocation.confirmedPin.longitude,
+          }
+        : null,
+    );
+    setPinAddressStatus('idle');
+    setAddressGeoResult(
+      nextLocation.confirmedPin
+        ? {
+            formattedAddress: nextLocation.confirmedPin.formattedAddress,
+            latitude: nextLocation.confirmedPin.latitude,
+            longitude: nextLocation.confirmedPin.longitude,
+            provider: 'mock',
+          }
+        : null,
+    );
+    setBookingPricePreview(null);
+    setMapPickerVisible(false);
+    setNotice('Service pin confirmed.');
+  }
+
+  function validateServiceLocationForReview(): boolean {
+    if (customerBookingLocationCanContinue(serviceLocation)) {
+      return true;
+    }
+
+    if (serviceLocation.status === 'error') {
+      setNotice(
+        customerBookingLocationNotice(serviceLocation) ??
+          customerMapPinFallbackCopy,
       );
-      applySavedAddress(savedAddress);
-      onCustomerAddressSaved(savedAddress);
-      setNotice('Home address saved.');
-    } catch (error) {
-      setNotice(readError(error));
-    } finally {
-      setBusyAction(null);
+      return true;
+    }
+
+    setNotice(
+      customerBookingLocationNotice(serviceLocation) ??
+        customerMapPinRequiredCopy,
+    );
+    return false;
+  }
+
+  function validateSelectedSchedule() {
+    return validateCustomerBookingScheduleSelection({
+      providerAvailability,
+      scheduledAt,
+      durationHours: Number(hoursRequired) || 1,
+      timeSlots,
+      now: now?.() ?? new Date(),
+    });
+  }
+
+  function handleScheduleValidationFailure(
+    message: string | null,
+    navigateOnScheduleFailure = true,
+  ) {
+    const scheduleMessage = message ?? 'Choose an available future schedule.';
+    setBookingSlotError(scheduleMessage);
+    setNotice(scheduleMessage);
+    if (selectedProvider) {
+      onRefreshProviderAvailability(selectedProvider.providerId);
+    }
+    if (navigateOnScheduleFailure) {
+      setRoute({ role: 'customer', screen: 'customerBookingForm' });
     }
   }
 
@@ -422,26 +934,40 @@ export function useCustomerBookingFlowViewModel({
       bookingReferencePhotoUrl,
       bookingSlotError,
       hoursRequired,
+      mapSearchBusy,
+      mapSearchError,
+      mapSearchQuery,
+      mapPickerVisible,
       notes,
-      pricingQuote,
+      pinAddressStatus,
+      bookingPricePreview,
       promoCode,
       promotionValidation,
       scheduledAt,
       savedAddresses: customerAddresses,
       selectedSavedAddressId,
+      serviceLocation,
     },
     actions: {
       applySavedAddress,
       applyPromotionCode,
+      closeServiceLocationPicker,
+      confirmServiceLocationPin,
+      moveServiceLocationPin,
+      openServiceLocationPicker,
       prepareBookingReview,
-      previewPricingQuote,
+      refreshBookingPricePreview,
+      reverseGeocodeServiceLocationPin,
       saveCurrentAddressAsHome,
+      searchServiceLocationPin,
       setAddress: setServiceAddress,
       setBookingReferenceUploadResult,
       setBookingSlotError,
       setHoursRequired,
+      setMapSearchQuery,
+      setServiceLocationManualDetails,
       setNotes,
-      setPricingQuote,
+      setBookingPricePreview,
       setPromoCode,
       setPromotionValidation,
       setScheduledAt,
@@ -465,14 +991,104 @@ function mediaAttachmentFromUpload(upload: UploadSummary) {
   };
 }
 
-export function isPricingQuoteFresh(
-  quote: PricingQuoteSummary | null,
-  now: number = Date.now(),
-): quote is PricingQuoteSummary {
-  if (!quote) {
+function bookingPricePreviewFromError(
+  error: unknown,
+): BookingPricePreviewSummary | null {
+  if (
+    !(error instanceof ServeaseApiError) ||
+    error.code !== 'booking_price_changed'
+  ) {
+    return null;
+  }
+
+  const details =
+    error.details && typeof error.details === 'object'
+      ? (error.details as { preview?: unknown })
+      : null;
+  return isBookingPricePreviewSummary(details?.preview)
+    ? details.preview
+    : null;
+}
+
+function isBookingPricePreviewSummary(
+  value: unknown,
+): value is BookingPricePreviewSummary {
+  if (!value || typeof value !== 'object') {
     return false;
   }
 
-  const expiresAt = new Date(quote.expiresAt).getTime();
-  return Number.isFinite(expiresAt) && expiresAt > now;
+  const preview = value as Partial<BookingPricePreviewSummary>;
+  return (
+    preview.currency === 'PHP' &&
+    typeof preview.serviceAmount === 'number' &&
+    Number.isFinite(preview.serviceAmount) &&
+    typeof preview.totalAmount === 'number' &&
+    Number.isFinite(preview.totalAmount) &&
+    Boolean(preview.priceBreakdown) &&
+    typeof preview.priceBreakdown?.total === 'number' &&
+    Number.isFinite(preview.priceBreakdown.total)
+  );
+}
+
+function resolveHomeAddressToSave(
+  addresses: CustomerAddressSummary[],
+  selectedSavedAddressId: string | null,
+): CustomerAddressSummary | null {
+  const selectedAddress = addresses.find(
+    (address) => address.id === selectedSavedAddressId,
+  );
+  if (selectedAddress && isHomeAddressCandidate(selectedAddress)) {
+    return selectedAddress;
+  }
+
+  return (
+    addresses.find((address) => address.isDefault) ??
+    addresses.find((address) => isHomeAddressCandidate(address)) ??
+    null
+  );
+}
+
+function isHomeAddressCandidate(address: CustomerAddressSummary): boolean {
+  return address.isDefault || address.label.trim().toLowerCase() === 'home';
+}
+
+function isActivePinCoordinate(
+  requestedPin: Pick<CustomerBookingMapPin, 'latitude' | 'longitude'>,
+  activePin: Pick<CustomerBookingMapPin, 'latitude' | 'longitude'> | null,
+): boolean {
+  if (!activePin) {
+    return false;
+  }
+
+  return (
+    Math.abs(requestedPin.latitude - activePin.latitude) < 0.000001 &&
+    Math.abs(requestedPin.longitude - activePin.longitude) < 0.000001
+  );
+}
+
+function distanceBetweenCoordinatesMeters(
+  first: Pick<CustomerBookingMapPin, 'latitude' | 'longitude'>,
+  second: Pick<CustomerBookingMapPin, 'latitude' | 'longitude'>,
+): number {
+  const earthRadiusMeters = 6371000;
+  const firstLatitude = toRadians(first.latitude);
+  const secondLatitude = toRadians(second.latitude);
+  const latitudeDelta = toRadians(second.latitude - first.latitude);
+  const longitudeDelta = toRadians(second.longitude - first.longitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2) +
+    Math.cos(firstLatitude) *
+      Math.cos(secondLatitude) *
+      Math.sin(longitudeDelta / 2) *
+      Math.sin(longitudeDelta / 2);
+
+  return (
+    2 *
+    earthRadiusMeters *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
+}
+
+function toRadians(value: number): number {
+  return (value * Math.PI) / 180;
 }

@@ -24,6 +24,8 @@ describe('InternalUserService', () => {
       email: 'customer@example.com',
       fullName: 'Customer Name',
       contactNumber: '+639000000000',
+      avatarUrl: null,
+      avatarStoragePath: null,
       role: 'customer',
       status: 'active',
     });

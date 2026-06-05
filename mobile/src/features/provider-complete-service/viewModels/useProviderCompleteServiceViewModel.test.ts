@@ -51,6 +51,16 @@ test('provider completion blocks unpaid online payments', () => {
   assert.equal(model.data.submitDisabled, true);
   assert.equal(model.data.submitLabel, 'Awaiting payment');
   assert.match(model.data.paymentNotice, /pending/);
+  assert.ok(
+    model.data.summaryRows.some(
+      (row) => row.label === 'Provider payout' && row.value === 'PHP 850',
+    ),
+  );
+  assert.ok(
+    model.data.summaryRows.some(
+      (row) => row.label === 'Platform fee' && row.value === 'PHP 150',
+    ),
+  );
 });
 
 test('provider completion allows pending cash collection', () => {
@@ -68,6 +78,11 @@ test('provider completion allows pending cash collection', () => {
   assert.equal(model.data.submitDisabled, false);
   assert.equal(model.data.submitLabel, 'Mark as Completed');
   assert.equal(model.data.paymentStatusLabel, 'Cash due on service');
+  assert.ok(
+    model.data.summaryRows.some(
+      (row) => row.label === 'Provider payout' && row.value === 'PHP 850',
+    ),
+  );
 });
 
 test('provider completion does not dead-end when payment state is still loading', () => {
@@ -82,4 +97,14 @@ test('provider completion does not dead-end when payment state is still loading'
   assert.equal(model.data.submitDisabled, false);
   assert.equal(model.data.submitLabel, 'Mark as Completed');
   assert.match(model.data.paymentNotice, /backend/);
+  assert.ok(
+    model.data.summaryRows.some(
+      (row) => row.label === 'Provider payout' && row.value === 'Payout pending',
+    ),
+  );
+  assert.ok(
+    model.data.summaryRows.some(
+      (row) => row.label === 'Platform fee' && row.value === 'Pending',
+    ),
+  );
 });

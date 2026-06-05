@@ -39,6 +39,7 @@ const allowedKinds: UploadKind[] = [
   'provider_portfolio',
   'provider_progress',
   'provider_document',
+  'avatar',
 ];
 
 const allowedMimeTypes = [
@@ -49,6 +50,8 @@ const allowedMimeTypes = [
   'video/mp4',
   'video/quicktime',
 ];
+
+const imageMimeTypes = ['image/jpeg', 'image/png', 'image/webp'];
 
 const mimeExtensions: Record<string, string> = {
   'image/jpeg': '.jpg',
@@ -87,7 +90,10 @@ export class UploadGatewayService {
       throw new InvalidUploadRequestError();
     }
 
-    if (file.size > maxUploadBytes || !allowedMimeTypes.includes(file.mimetype)) {
+    if (
+      file.size > maxUploadBytes ||
+      !this.allowedMimeTypesForKind(kind).includes(file.mimetype)
+    ) {
       throw new InvalidUploadRequestError();
     }
 
@@ -140,6 +146,14 @@ export class UploadGatewayService {
 
   private isUploadKind(kind: string | undefined): kind is UploadKind {
     return Boolean(kind && allowedKinds.includes(kind as UploadKind));
+  }
+
+  private allowedMimeTypesForKind(kind: UploadKind): string[] {
+    if (kind === 'avatar') {
+      return imageMimeTypes;
+    }
+
+    return allowedMimeTypes;
   }
 
   private async ensureBucket(client: SupabaseStorageClient): Promise<void> {

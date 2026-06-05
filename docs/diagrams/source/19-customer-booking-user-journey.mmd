@@ -1,0 +1,62 @@
+flowchart TD
+  start([Customer needs service])
+
+  subgraph discover["Discover and compare"]
+    browse["Open Search tab"]
+    categories["Browse categories and services"]
+    providers["Compare provider cards"]
+    profile["Open provider profile"]
+    trust["Check rating, verification, price, and availability"]
+  end
+
+  subgraph plan["Plan request"]
+    booking["Start booking"]
+    address["Choose saved address or enter service address"]
+    schedule["Pick date, time, and duration"]
+    notes["Add job notes and access instructions"]
+    available{"Provider available?"}
+  end
+
+  subgraph confirm["Confirm and pay"]
+    review["Review service, schedule, address, and amount"]
+    create["Submit booking request"]
+    pending["Booking created as pending"]
+    payment{"Payment needed now?"}
+    reserve["Reserve payment or save method"]
+  end
+
+  subgraph service["Manage service"]
+    messages["Message provider from booking"]
+    notifications["Receive status notifications"]
+    track["Track provider when in progress"]
+    support{"Problem or change?"}
+    help["Cancel, report issue, or open support ticket"]
+  end
+
+  subgraph closeout["Close out"]
+    completed{"Booking completed?"}
+    receipt["View payment and receipt"]
+    reviewProvider["Rate and review provider"]
+    history["Booking moves to service history"]
+  end
+
+  start --> browse --> categories --> providers --> profile --> trust --> booking
+  booking --> address --> schedule --> notes --> available
+  available -->|No| schedule
+  available -->|Yes| review --> create --> pending --> payment
+  payment -->|Yes| reserve --> messages
+  payment -->|No| messages
+  pending --> notifications
+  messages --> track --> support
+  support -->|Yes| help --> notifications
+  support -->|No| completed
+  notifications --> completed
+  completed -->|No| messages
+  completed -->|Yes| receipt --> reviewProvider --> history
+
+  classDef action fill:#fff7ed,stroke:#f97316,color:#111827;
+  classDef decision fill:#eff6ff,stroke:#2563eb,color:#111827;
+  classDef endpoint fill:#ecfdf5,stroke:#16a34a,color:#111827;
+  class browse,categories,providers,profile,trust,booking,address,schedule,notes,review,create,pending,reserve,messages,notifications,track,help,receipt,reviewProvider,history action;
+  class available,payment,support,completed decision;
+  class start endpoint;

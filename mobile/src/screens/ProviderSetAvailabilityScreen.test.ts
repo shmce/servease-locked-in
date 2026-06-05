@@ -38,3 +38,22 @@ test('provider set availability screen enforces lead time and maps API errors', 
   assert.match(viewModelSource, /removeProviderTimeOffWindow/);
   assert.match(viewModelSource, /bookingTimeSlots/);
 });
+
+test('provider set availability uses modal time rows for specific-time blocks', () => {
+  const viewSource = readFileSync(
+    join(
+      process.cwd(),
+      'src/features/provider-set-availability/views/ProviderSetAvailability.tsx',
+    ),
+    'utf8',
+  );
+
+  assert.match(viewSource, /TimeRow/);
+  assert.match(viewSource, /TimePickerModal/);
+  assert.match(viewSource, /activeTimePicker/);
+  assert.match(viewSource, /data\.endOptions/);
+  assert.match(viewSource, /Modal visible=\{visible\}/);
+  assert.match(viewSource, /adjustsFontSizeToFit/);
+  assert.doesNotMatch(viewSource, /slotGrid/);
+  assert.doesNotMatch(viewSource, /SlotButton/);
+});

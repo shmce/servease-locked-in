@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useRef } from 'react';
 import {
   Calendar,
   Clock,
@@ -13,7 +13,7 @@ import {
   PhoneFrame,
   StatusStrip,
 } from '../components/DesignKit';
-import { ScreenTransition } from '../components/Motion';
+import { ScreenTransition, RouteTransitionVariant } from '../components/Motion';
 import { hiddenProviderBottomNavScreens } from '../constants/appContent';
 import {
   getCustomerTab,
@@ -74,6 +74,7 @@ type ProviderRendererName =
   | 'profileView'
   | 'reportIssue'
   | 'requestPayout'
+  | 'reviews'
   | 'security'
   | 'serviceCompleted'
   | 'serviceInProgress'
@@ -86,7 +87,10 @@ type ProviderRendererName =
 export type AppRouterRenderers = {
   auth: () => ReactNode;
   customer: Record<CustomerRendererName, () => ReactNode>;
-  customerAllServices: (title: string) => ReactNode;
+  customerAllServices: (
+    title: string,
+    mode?: 'all' | 'recommended' | 'search',
+  ) => ReactNode;
   provider: Record<ProviderRendererName, () => ReactNode>;
 };
 
@@ -107,6 +111,34 @@ const authScreens = new Set<AppScreen>([
   'signupRole',
   'customerRegistration',
   'providerRegistration',
+]);
+
+const customerTabScreens = new Set<AppScreen>([
+  'explore',
+  'bookings',
+  'calendar',
+  'messages',
+  'more',
+]);
+
+const providerTabScreens = new Set<AppScreen>([
+  'home',
+  'bookings',
+  'calendar',
+  'messages',
+  'more',
+]);
+
+const neutralMotionScreens = new Set<AppScreen>([
+  'customerTrackServiceProvider',
+  'providerNavigationMode',
+]);
+
+const modalMotionScreens = new Set<AppScreen>([
+  'customerBookingCancel',
+  'customerBookingReport',
+  'providerCancelBooking',
+  'providerReportIssue',
 ]);
 
 export function AppRouter({
@@ -155,11 +187,17 @@ function CustomerRouteFrame({
 }) {
   const activeTab = getCustomerTab(route.screen);
   const routeKey = `${route.role ?? 'customer'}-${route.screen}`;
+  const previousRoute = usePreviousRoute(route);
+  const transitionVariant = resolveAppRouteTransitionVariant(
+    route,
+    previousRoute,
+    'customer',
+  );
 
   return (
     <PhoneFrame>
       <StatusStrip />
-      <ScreenTransition routeKey={routeKey}>
+      <ScreenTransition routeKey={routeKey} variant={transitionVariant}>
         <RouteSuspense>{renderCustomerRoute(route.screen, activeTab, renderers)}</RouteSuspense>
       </ScreenTransition>
       <BottomNavigation
@@ -212,11 +250,17 @@ function ProviderRouteFrame({
   const activeTab = getProviderTab(route.screen);
   const hideBottomNav = hiddenProviderBottomNavScreens.includes(route.screen);
   const routeKey = `${route.role ?? 'provider'}-${route.screen}`;
+  const previousRoute = usePreviousRoute(route);
+  const transitionVariant = resolveAppRouteTransitionVariant(
+    route,
+    previousRoute,
+    'provider',
+  );
 
   return (
     <PhoneFrame>
       <StatusStrip />
-      <ScreenTransition routeKey={routeKey}>
+      <ScreenTransition routeKey={routeKey} variant={transitionVariant}>
         <RouteSuspense>{renderProviderRoute(route.screen, activeTab, renderers)}</RouteSuspense>
       </ScreenTransition>
       {hideBottomNav ? null : (
@@ -257,6 +301,58 @@ function ProviderRouteFrame({
   );
 }
 
+function usePreviousRoute(route: RouteState) {
+  const previousRouteRef = useRef<RouteState | null>(null);
+  const previousRoute = previousRouteRef.current;
+
+  useEffect(() => {
+    previousRouteRef.current = route;
+  }, [route]);
+
+  return previousRoute;
+}
+
+function resolveAppRouteTransitionVariant(
+  route: RouteState,
+  previousRoute: RouteState | null,
+  frameRole: AppRole,
+): RouteTransitionVariant {
+  if (neutralMotionScreens.has(route.screen)) {
+    return 'neutral';
+  }
+
+  if (modalMotionScreens.has(route.screen)) {
+    return 'modal';
+  }
+
+  if (!previousRoute || previousRoute.role !== route.role) {
+    return 'neutral';
+  }
+
+  const fromTab = isRoleTabScreen(previousRoute.screen, frameRole);
+  const toTab = isRoleTabScreen(route.screen, frameRole);
+
+  if (fromTab && toTab) {
+    return 'tab';
+  }
+
+  if (fromTab && !toTab) {
+    return 'forward';
+  }
+
+  if (!fromTab && toTab) {
+    return 'backward';
+  }
+
+  return 'forward';
+}
+
+function isRoleTabScreen(screen: AppScreen, role: AppRole) {
+  return role === 'provider'
+    ? providerTabScreens.has(screen)
+    : customerTabScreens.has(screen);
+}
+
 function renderCustomerRoute(
   screen: AppScreen,
   activeTab: string,
@@ -282,9 +378,9 @@ function renderCustomerRoute(
     case 'customerCategory':
       return renderers.customer.category();
     case 'customerAllServices':
-      return renderers.customerAllServices('All Services');
+      return renderers.customerAllServices('All Services', 'all');
     case 'customerRecommendedServices':
-      return renderers.customerAllServices('Recommended Services');
+      return renderers.customerAllServices('Recommended Services', 'recommended');
     case 'customerTopProviders':
       return renderers.customer.customerTopProviders();
     case 'customerProviderProfile':
@@ -292,7 +388,7 @@ function renderCustomerRoute(
     case 'customerBookingForm':
       return renderers.customer.bookingForm();
     case 'customerSearchResults':
-      return renderers.customerAllServices('Search Results');
+      return renderers.customerAllServices('Search Results', 'search');
     case 'customerProfile':
       return renderers.customer.profile();
     case 'customerSettings':
@@ -364,6 +460,8 @@ function renderProviderRoute(
       return renderers.provider.payoutManagement();
     case 'providerRequestPayout':
       return renderers.provider.requestPayout();
+    case 'providerReviews':
+      return renderers.provider.reviews();
     case 'providerNotifications':
       return renderers.provider.notifications();
     case 'providerInsights':

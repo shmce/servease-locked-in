@@ -35,7 +35,9 @@ export function buildProviderServiceReceiptViewModel({
   return {
     data: {
       bookingReference: booking.bookingReference,
-      providerPayoutLabel: formatMoney(payment?.providerPayout ?? booking.totalAmount),
+      providerPayoutLabel: payment
+        ? formatMoney(payment.providerPayout)
+        : 'Payout pending',
       receiptRows: [
         {
           key: 'schedule',
@@ -55,7 +57,12 @@ export function buildProviderServiceReceiptViewModel({
         {
           key: 'platformFee',
           label: 'Platform fee',
-          value: formatMoney(payment?.platformFee ?? 0),
+          value: payment ? formatMoney(payment.platformFee) : 'Pending',
+        },
+        {
+          key: 'providerPayout',
+          label: 'Provider payout',
+          value: payment ? formatMoney(payment.providerPayout) : 'Payout pending',
         },
       ],
       serviceTitle: booking.serviceTitle ?? 'Service booking',

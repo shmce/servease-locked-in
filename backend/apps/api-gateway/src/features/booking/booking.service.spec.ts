@@ -1,14 +1,25 @@
 import { BookingGatewayService } from './booking.service';
 import { BookingServiceClient } from './clients/booking-service.client';
 import { AuthServiceClient } from '../current-user/clients/auth-service.client';
-import { InvalidBookingTransitionError } from './booking.errors';
+import {
+  BookingPriceChangedError,
+  BookingScheduleInPastError,
+  BookingStartWindowNotOpenError,
+  InvalidBookingScheduleError,
+  InvalidBookingTransitionError,
+} from './booking.errors';
 import { NotificationServiceClient } from '../notifications/clients/notification-service.client';
 import { CatalogServiceClient } from '../current-user/clients/catalog-service.client';
+import { CatalogServiceClient as CatalogBrowseServiceClient } from '../catalog/clients/catalog-service.client';
 import { GeoServiceClient } from '../geo/clients/geo-service.client';
 import { PaymentGatewayService } from '../payments/payment.service';
 import { firstValueFrom } from 'rxjs';
 
 describe('BookingGatewayService', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('forwards booking creation with the authenticated user id', async () => {
     const client = {
       createBooking: jest.fn().mockResolvedValue({
@@ -19,9 +30,9 @@ describe('BookingGatewayService', () => {
     } as unknown as BookingServiceClient;
     const authClient = createAuthClient();
     const catalogClient = {
-      findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
-        'GreenFix Home Services',
-      ),
+      findProviderBusinessNameByProviderId: jest
+        .fn()
+        .mockResolvedValue('GreenFix Home Services'),
       findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
         userId: 'provider-user-1',
         businessName: 'GreenFix Home Services',
@@ -34,23 +45,259 @@ describe('BookingGatewayService', () => {
       catalogClient as unknown as CatalogServiceClient,
     );
 
-    const booking = await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
-      providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
-      serviceAddress: '123 Test St',
-      scheduledAt: '2026-05-20T08:00:00.000Z',
-    });
-
-    expect(client.createBooking).toHaveBeenCalledWith(
+    const booking = await service.createBooking(
       '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
       {
         providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
         serviceAddress: '123 Test St',
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        serviceLatitude: 14.554729,
+        serviceLongitude: 121.024445,
+        scheduledAt: '2026-07-20T08:00:00.000Z',
       },
+    );
+
+    expect(client.createBooking).toHaveBeenCalledWith(
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      expect.objectContaining({
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceAddress: '123 Test St',
+        serviceLatitude: 14.554729,
+        serviceLongitude: 121.024445,
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        serviceAmount: 0,
+        totalAmount: 145,
+        acceptedQuoteId: null,
+        priceBreakdown: expect.objectContaining({
+          serviceSubtotal: 0,
+          travelFee: 120,
+          serviceFee: 25,
+          total: 145,
+          fallbackUsed: true,
+        }),
+      }),
     );
     expect(booking.customerFullName).toBe('Casey Customer');
     expect(booking.customerContactNumber).toBe('+639170001001');
     expect(booking.providerBusinessName).toBe('GreenFix Home Services');
+  });
+
+  it('calculates the authoritative booking total from the provider listing rate', async () => {
+    const client = {
+      createBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          serviceAmount: 1500,
+          totalAmount: 1701,
+        }),
+      ),
+    } as unknown as BookingServiceClient;
+    const catalogBrowseClient = {
+      listProviderListings: jest.fn().mockResolvedValue([
+        {
+          id: 'listing-1',
+          providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+          providerBusinessName: 'GreenFix Home Services',
+          serviceId: 'service-1',
+          title: 'Deep Clean',
+          description: 'Detailed cleaning',
+          price: 1500,
+          pricingMode: 'flat',
+          averageRating: 5,
+          reviewCount: 10,
+          verificationStatus: 'approved',
+        },
+      ]),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      catalogBrowseClient as unknown as CatalogBrowseServiceClient,
+    );
+
+    await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+      providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      serviceId: 'service-1',
+      serviceAddress: '123 Test St',
+      scheduledAt: '2026-07-20T08:00:00.000Z',
+      serviceAmount: 999,
+    });
+
+    expect(catalogBrowseClient.listProviderListings).toHaveBeenCalledWith(
+      'service-1',
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    );
+    expect(client.createBooking).toHaveBeenCalledWith(
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      expect.objectContaining({
+        serviceTitle: 'Deep Clean',
+        serviceDescription: 'Detailed cleaning',
+        serviceAmount: 1500,
+        totalAmount: 1701,
+        pricingMode: 'flat',
+        priceBreakdown: expect.objectContaining({
+          serviceSubtotal: 1500,
+          travelFee: 120,
+          serviceFee: 81,
+          total: 1701,
+          fallbackUsed: true,
+        }),
+      }),
+    );
+  });
+
+  it.each([
+    { pricingMode: 'flat' as const, rate: 1500, hoursRequired: 3 },
+    { pricingMode: 'hourly' as const, rate: 500, hoursRequired: 3 },
+  ])(
+    'uses the same booking price breakdown for $pricingMode preview and creation',
+    async ({ pricingMode, rate, hoursRequired }) => {
+      const client = {
+        createBooking: jest.fn().mockImplementation((_customerId, input) =>
+          Promise.resolve(
+            createBookingSummary({
+              serviceAmount: input.serviceAmount,
+              totalAmount: input.totalAmount,
+              pricingMode: input.pricingMode,
+              priceBreakdown: input.priceBreakdown,
+            }),
+          ),
+        ),
+      } as unknown as BookingServiceClient;
+      const catalogBrowseClient = {
+        listProviderListings: jest.fn().mockResolvedValue([
+          {
+            id: 'listing-1',
+            providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+            providerBusinessName: 'GreenFix Home Services',
+            serviceId: 'service-1',
+            title: 'Deep Clean',
+            description: 'Detailed cleaning',
+            price: rate,
+            pricingMode,
+            averageRating: 5,
+            reviewCount: 10,
+            verificationStatus: 'approved',
+          },
+        ]),
+      };
+      const service = new BookingGatewayService(
+        client,
+        createAuthClient(),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        catalogBrowseClient as unknown as CatalogBrowseServiceClient,
+      );
+      const input = {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        hoursRequired,
+        serviceAmount: 999,
+      };
+
+      const preview = await service.previewBookingPrice(
+        '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        input,
+      );
+      const booking = await service.createBooking(
+        '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+        {
+          ...input,
+          previewTotalAmount: preview.totalAmount,
+        },
+      );
+
+      expect(booking.serviceAmount).toBe(preview.serviceAmount);
+      expect(booking.totalAmount).toBe(preview.totalAmount);
+      expect(booking.pricingMode).toBe(preview.pricingMode);
+      expect(booking.priceBreakdown).toEqual(
+        expect.objectContaining({
+          serviceSubtotal: preview.priceBreakdown.serviceSubtotal,
+          travelFee: preview.priceBreakdown.travelFee,
+          serviceFee: preview.priceBreakdown.serviceFee,
+          total: preview.priceBreakdown.total,
+          metadata: expect.objectContaining({
+            pricingMode,
+            hoursRequired,
+            serviceRate: rate,
+          }),
+        }),
+      );
+    },
+  );
+
+  it('rejects booking creation with an updated breakdown when the preview total materially changed', async () => {
+    const client = {
+      createBooking: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const catalogBrowseClient = {
+      listProviderListings: jest.fn().mockResolvedValue([
+        {
+          id: 'listing-1',
+          providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+          providerBusinessName: 'GreenFix Home Services',
+          serviceId: 'service-1',
+          title: 'Deep Clean',
+          description: 'Detailed cleaning',
+          price: 2200,
+          pricingMode: 'flat',
+          averageRating: 5,
+          reviewCount: 10,
+          verificationStatus: 'approved',
+        },
+      ]),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      catalogBrowseClient as unknown as CatalogBrowseServiceClient,
+    );
+
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        serviceAmount: 1500,
+        previewTotalAmount: 1500,
+      }),
+    ).rejects.toMatchObject({
+      details: expect.objectContaining({
+        previousTotalAmount: 1500,
+        updatedTotalAmount: 2436,
+        preview: expect.objectContaining({
+          totalAmount: 2436,
+          priceBreakdown: expect.objectContaining({
+            serviceSubtotal: 2200,
+            travelFee: 120,
+            serviceFee: 116,
+            total: 2436,
+          }),
+        }),
+      }),
+    });
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        serviceAmount: 1500,
+        previewTotalAmount: 1500,
+      }),
+    ).rejects.toBeInstanceOf(BookingPriceChangedError);
+    expect(client.createBooking).not.toHaveBeenCalled();
   });
 
   it('creates a provider notification when a customer books a service', async () => {
@@ -61,9 +308,9 @@ describe('BookingGatewayService', () => {
       createNotification: jest.fn().mockResolvedValue({ id: 'notification-1' }),
     };
     const catalogClient = {
-      findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
-        'GreenFix Home Services',
-      ),
+      findProviderBusinessNameByProviderId: jest
+        .fn()
+        .mockResolvedValue('GreenFix Home Services'),
       findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
         userId: 'provider-user-1',
         businessName: 'GreenFix Home Services',
@@ -79,7 +326,7 @@ describe('BookingGatewayService', () => {
     await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
       providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
       serviceAddress: '123 Test St',
-      scheduledAt: '2026-05-20T08:00:00.000Z',
+      scheduledAt: '2026-07-20T08:00:00.000Z',
     });
 
     expect(catalogClient.findProviderOwnerByProviderId).toHaveBeenCalledWith(
@@ -103,12 +350,14 @@ describe('BookingGatewayService', () => {
       createBooking: jest.fn().mockResolvedValue(createBookingSummary()),
     } as unknown as BookingServiceClient;
     const notificationClient = {
-      createNotification: jest.fn().mockRejectedValue(new Error('notification down')),
+      createNotification: jest
+        .fn()
+        .mockRejectedValue(new Error('notification down')),
     };
     const catalogClient = {
-      findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
-        'GreenFix Home Services',
-      ),
+      findProviderBusinessNameByProviderId: jest
+        .fn()
+        .mockResolvedValue('GreenFix Home Services'),
       findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
         userId: 'provider-user-1',
         businessName: 'GreenFix Home Services',
@@ -125,7 +374,7 @@ describe('BookingGatewayService', () => {
       service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
         providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
         serviceAddress: '123 Test St',
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
       }),
     ).resolves.toMatchObject({
       id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
@@ -135,9 +384,11 @@ describe('BookingGatewayService', () => {
 
   it('reserves a pending cash payment when a cash booking is created', async () => {
     const client = {
-      createBooking: jest.fn().mockResolvedValue(createBookingSummary({
-        totalAmount: 1200,
-      })),
+      createBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          totalAmount: 1200,
+        }),
+      ),
     } as unknown as BookingServiceClient;
     const paymentGatewayService = {
       createPayment: jest.fn().mockResolvedValue({ id: 'payment-1' }),
@@ -148,14 +399,13 @@ describe('BookingGatewayService', () => {
       undefined,
       undefined,
       undefined,
-      undefined,
       paymentGatewayService,
     );
 
     await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
       providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
       serviceAddress: '123 Test St',
-      scheduledAt: '2026-05-20T08:00:00.000Z',
+      scheduledAt: '2026-07-20T08:00:00.000Z',
       paymentMethod: 'cash_on_service',
     });
 
@@ -166,6 +416,127 @@ describe('BookingGatewayService', () => {
       amount: 1200,
       paymentMethod: 'cash_on_service',
     });
+  });
+
+  it('rejects past schedules before booking creation and payment side effects', async () => {
+    const client = {
+      createBooking: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const paymentGatewayService = {
+      createPayment: jest.fn(),
+    } as unknown as PaymentGatewayService;
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      undefined,
+      paymentGatewayService,
+    );
+
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceAddress: '123 Test St',
+        scheduledAt: '2026-01-01T00:00:00.000Z',
+        paymentMethod: 'cash_on_service',
+      }),
+    ).rejects.toBeInstanceOf(BookingScheduleInPastError);
+
+    expect(client.createBooking).not.toHaveBeenCalled();
+    expect(paymentGatewayService.createPayment).not.toHaveBeenCalled();
+  });
+
+  it('rejects unparsable booking schedules before booking creation', async () => {
+    const client = {
+      createBooking: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceAddress: '123 Test St',
+        scheduledAt: 'not-a-date',
+      }),
+    ).rejects.toBeInstanceOf(InvalidBookingScheduleError);
+
+    expect(client.createBooking).not.toHaveBeenCalled();
+  });
+
+  it('creates a final breakdown and ignores accepted quote tokens', async () => {
+    const client = {
+      createBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          totalAmount: 1386,
+        }),
+      ),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+      providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      serviceId: 'service-1',
+      serviceAddress: ' 123   Test St ',
+      scheduledAt: '2026-07-20T08:00:00.000Z',
+      hoursRequired: 2,
+      serviceAmount: 1200,
+      pricingMode: 'flat',
+      acceptedQuoteId: 'quote-1',
+    });
+
+    expect(client.createBooking).toHaveBeenCalledWith(
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      expect.objectContaining({
+        serviceAmount: 1200,
+        totalAmount: 1386,
+        acceptedQuoteId: null,
+        quoteFairnessStatus: null,
+        quoteConfidence: null,
+        priceBreakdown: expect.objectContaining({
+          serviceSubtotal: 1200,
+          travelFee: 120,
+          serviceFee: 66,
+          total: 1386,
+        }),
+      }),
+    );
+  });
+
+  it('keeps cash booking creation resilient when a stale quote token is sent', async () => {
+    const client = {
+      createBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          totalAmount: 1386,
+        }),
+      ),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.createBooking('8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1', {
+        providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        serviceId: 'service-1',
+        serviceAddress: '456 Other St',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        hoursRequired: 2,
+        serviceAmount: 1200,
+        pricingMode: 'flat',
+        acceptedQuoteId: 'quote-1',
+        paymentMethod: 'cash_on_service',
+      }),
+    ).resolves.toMatchObject({ id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc' });
+
+    expect(client.createBooking).toHaveBeenCalledWith(
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      expect.objectContaining({
+        acceptedQuoteId: null,
+        priceBreakdown: expect.objectContaining({
+          calculationSource: 'fallback',
+          fallbackUsed: true,
+        }),
+      }),
+    );
   });
 
   it('forwards booking list visibility ids and enriches customer contact once per customer', async () => {
@@ -183,9 +554,9 @@ describe('BookingGatewayService', () => {
     } as unknown as BookingServiceClient;
     const authClient = createAuthClient();
     const catalogClient = {
-      findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
-        'GreenFix Home Services',
-      ),
+      findProviderBusinessNameByProviderId: jest
+        .fn()
+        .mockResolvedValue('GreenFix Home Services'),
       findProviderOwnerByProviderId: jest.fn().mockResolvedValue({
         userId: 'provider-user-1',
         businessName: 'GreenFix Home Services',
@@ -208,7 +579,9 @@ describe('BookingGatewayService', () => {
       'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
     );
     expect(authClient.findUserById).toHaveBeenCalledTimes(1);
-    expect(catalogClient.findProviderBusinessNameByProviderId).toHaveBeenCalledTimes(1);
+    expect(
+      catalogClient.findProviderBusinessNameByProviderId,
+    ).toHaveBeenCalledTimes(1);
     expect(catalogClient.findProviderOwnerByProviderId).not.toHaveBeenCalled();
     expect(bookings).toEqual([
       expect.objectContaining({
@@ -362,7 +735,7 @@ describe('BookingGatewayService', () => {
         destinationAddress: '123 Test St',
         destinationLocation: null,
         providerLocation: null,
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
         lastUpdatedAt: '2026-05-16T00:00:00.000Z',
       }),
     } as unknown as BookingServiceClient;
@@ -403,7 +776,54 @@ describe('BookingGatewayService', () => {
       latitude: 14.5995,
       longitude: 120.9842,
     });
-    expect(snapshot.destinationAddress).toBe('123 Test St, Manila, Philippines');
+    expect(snapshot.destinationAddress).toBe(
+      '123 Test St, Manila, Philippines',
+    );
+  });
+
+  it('uses stored tracking destination coordinates before address geocoding', async () => {
+    const client = {
+      getTrackingSnapshot: jest.fn().mockResolvedValue({
+        bookingId: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        bookingReference: 'SE-ABC123',
+        status: 'in_progress',
+        phase: 'on_the_way',
+        etaMinutes: 18,
+        distanceKm: 5.2,
+        trafficLevel: 'moderate',
+        destinationAddress: '123 Test St',
+        destinationLocation: {
+          latitude: 14.554729,
+          longitude: 121.024445,
+        },
+        providerLocation: null,
+        scheduledAt: '2026-07-20T08:00:00.000Z',
+        lastUpdatedAt: '2026-05-16T00:00:00.000Z',
+      }),
+    } as unknown as BookingServiceClient;
+    const geoClient = {
+      geocodeAddress: jest.fn(),
+    };
+    const service = new BookingGatewayService(
+      client,
+      createAuthClient(),
+      undefined,
+      undefined,
+      geoClient as unknown as GeoServiceClient,
+    );
+
+    const snapshot = await service.getTrackingSnapshot(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
+      null,
+    );
+
+    expect(geoClient.geocodeAddress).not.toHaveBeenCalled();
+    expect(snapshot.destinationLocation).toEqual({
+      latitude: 14.554729,
+      longitude: 121.024445,
+    });
+    expect(snapshot.destinationAddress).toBe('123 Test St');
   });
 
   it('streams booking tracking snapshots over the gateway cadence', async () => {
@@ -426,7 +846,7 @@ describe('BookingGatewayService', () => {
           longitude: 120.99,
           updatedAt: '2026-05-16T00:00:05.000Z',
         },
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
         lastUpdatedAt: '2026-05-16T00:00:05.000Z',
       }),
     } as unknown as BookingServiceClient;
@@ -517,9 +937,11 @@ describe('BookingGatewayService', () => {
     const client = {
       findBooking: jest.fn().mockResolvedValue(createBookingSummary()),
       listBookings: jest.fn().mockResolvedValue([]),
-      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'confirmed',
-      })),
+      transitionStatus: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'confirmed',
+        }),
+      ),
     } as unknown as BookingServiceClient;
     const service = new BookingGatewayService(client, createAuthClient());
 
@@ -544,10 +966,12 @@ describe('BookingGatewayService', () => {
 
   it('blocks providers from accepting another booking while on the way', async () => {
     const client = {
-      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
-        id: 'pending-booking-1',
-        status: 'pending',
-      })),
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          id: 'pending-booking-1',
+          status: 'pending',
+        }),
+      ),
       listBookings: jest.fn().mockResolvedValue([
         createBookingSummary({
           id: 'active-booking-1',
@@ -577,15 +1001,19 @@ describe('BookingGatewayService', () => {
 
   it('allows providers to complete the booking that is already on the way', async () => {
     const client = {
-      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
-        id: 'active-booking-1',
-        status: 'in_progress',
-      })),
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          id: 'active-booking-1',
+          status: 'in_progress',
+        }),
+      ),
       listBookings: jest.fn(),
-      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
-        id: 'active-booking-1',
-        status: 'completed',
-      })),
+      transitionStatus: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          id: 'active-booking-1',
+          status: 'completed',
+        }),
+      ),
     } as unknown as BookingServiceClient;
     const service = new BookingGatewayService(client, createAuthClient());
 
@@ -611,12 +1039,16 @@ describe('BookingGatewayService', () => {
 
   it('marks cash-on-service payment paid when the provider completes the booking', async () => {
     const client = {
-      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'in_progress',
-      })),
-      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'completed',
-      })),
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'in_progress',
+        }),
+      ),
+      transitionStatus: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'completed',
+        }),
+      ),
     } as unknown as BookingServiceClient;
     const paymentGatewayService = {
       listPayments: jest.fn().mockResolvedValue([
@@ -638,7 +1070,6 @@ describe('BookingGatewayService', () => {
       undefined,
       undefined,
       undefined,
-      undefined,
       paymentGatewayService,
     );
 
@@ -650,7 +1081,9 @@ describe('BookingGatewayService', () => {
       'completed',
     );
 
-    expect(paymentGatewayService.confirmCashOnServicePayment).toHaveBeenCalledWith(
+    expect(
+      paymentGatewayService.confirmCashOnServicePayment,
+    ).toHaveBeenCalledWith(
       '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
       'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
     );
@@ -659,12 +1092,16 @@ describe('BookingGatewayService', () => {
 
   it('uses the authoritative booking status when a stale client completes a started booking', async () => {
     const client = {
-      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'in_progress',
-      })),
-      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'completed',
-      })),
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'in_progress',
+        }),
+      ),
+      transitionStatus: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'completed',
+        }),
+      ),
     } as unknown as BookingServiceClient;
     const service = new BookingGatewayService(client, createAuthClient());
 
@@ -688,19 +1125,26 @@ describe('BookingGatewayService', () => {
   });
 
   it('starts a confirmed booking before completing it from the provider completion action', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-20T07:31:00.000Z'));
     const client = {
-      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'confirmed',
-      })),
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'confirmed',
+        }),
+      ),
       listBookings: jest.fn().mockResolvedValue([]),
       transitionStatus: jest
         .fn()
-        .mockResolvedValueOnce(createBookingSummary({
-          status: 'in_progress',
-        }))
-        .mockResolvedValueOnce(createBookingSummary({
-          status: 'completed',
-        })),
+        .mockResolvedValueOnce(
+          createBookingSummary({
+            status: 'in_progress',
+          }),
+        )
+        .mockResolvedValueOnce(
+          createBookingSummary({
+            status: 'completed',
+          }),
+        ),
     } as unknown as BookingServiceClient;
     const service = new BookingGatewayService(client, createAuthClient());
 
@@ -733,11 +1177,120 @@ describe('BookingGatewayService', () => {
     expect(booking.status).toBe('completed');
   });
 
+  it('allows providers to start a confirmed booking before the start window', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-20T07:00:00.000Z'));
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'confirmed',
+          scheduledAt: '2026-07-20T08:00:00.000Z',
+        }),
+      ),
+      listBookings: jest.fn().mockResolvedValue([]),
+      transitionStatus: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'in_progress',
+        }),
+      ),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.transitionStatus(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        'provider-user-1',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        'confirmed',
+        'in_progress',
+      ),
+    ).resolves.toMatchObject({ status: 'in_progress' });
+
+    expect(client.listBookings).toHaveBeenCalledWith(
+      null,
+      'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+    );
+    expect(client.transitionStatus).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'confirmed',
+      'in_progress',
+      undefined,
+      undefined,
+    );
+  });
+
+  it('allows providers to start a confirmed booking within the start window', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-20T07:31:00.000Z'));
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'confirmed',
+          scheduledAt: '2026-07-20T08:00:00.000Z',
+        }),
+      ),
+      listBookings: jest.fn().mockResolvedValue([]),
+      transitionStatus: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'in_progress',
+        }),
+      ),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.transitionStatus(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        'provider-user-1',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        'confirmed',
+        'in_progress',
+      ),
+    ).resolves.toMatchObject({ status: 'in_progress' });
+
+    expect(client.transitionStatus).toHaveBeenCalledWith(
+      '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+      'provider-user-1',
+      'confirmed',
+      'in_progress',
+      undefined,
+      undefined,
+    );
+  });
+
+  it('blocks confirmed booking auto-complete before the start window', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-20T07:00:00.000Z'));
+    const client = {
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'confirmed',
+          scheduledAt: '2026-07-20T08:00:00.000Z',
+        }),
+      ),
+      listBookings: jest.fn(),
+      transitionStatus: jest.fn(),
+    } as unknown as BookingServiceClient;
+    const service = new BookingGatewayService(client, createAuthClient());
+
+    await expect(
+      service.transitionStatus(
+        '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        'provider-user-1',
+        'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        'confirmed',
+        'completed',
+      ),
+    ).rejects.toBeInstanceOf(BookingStartWindowNotOpenError);
+
+    expect(client.transitionStatus).not.toHaveBeenCalled();
+  });
+
   it('returns an already completed booking when completion is retried', async () => {
     const client = {
-      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'completed',
-      })),
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'completed',
+        }),
+      ),
       transitionStatus: jest.fn(),
     } as unknown as BookingServiceClient;
     const service = new BookingGatewayService(client, createAuthClient());
@@ -756,9 +1309,11 @@ describe('BookingGatewayService', () => {
 
   it('rejects completing an online-payment booking until the payment is paid', async () => {
     const client = {
-      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'in_progress',
-      })),
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'in_progress',
+        }),
+      ),
       transitionStatus: jest.fn(),
     } as unknown as BookingServiceClient;
     const paymentGatewayService = {
@@ -774,7 +1329,6 @@ describe('BookingGatewayService', () => {
     const service = new BookingGatewayService(
       client,
       createAuthClient(),
-      undefined,
       undefined,
       undefined,
       undefined,
@@ -798,9 +1352,11 @@ describe('BookingGatewayService', () => {
     const client = {
       findBooking: jest.fn().mockResolvedValue(createBookingSummary()),
       listBookings: jest.fn().mockResolvedValue([]),
-      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'confirmed',
-      })),
+      transitionStatus: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'confirmed',
+        }),
+      ),
     } as unknown as BookingServiceClient;
     const notificationClient = {
       createNotification: jest.fn().mockResolvedValue({ id: 'notification-1' }),
@@ -810,9 +1366,9 @@ describe('BookingGatewayService', () => {
       createAuthClient(),
       notificationClient as unknown as NotificationServiceClient,
       {
-        findProviderBusinessNameByProviderId: jest.fn().mockResolvedValue(
-          'GreenFix Home Services',
-        ),
+        findProviderBusinessNameByProviderId: jest
+          .fn()
+          .mockResolvedValue('GreenFix Home Services'),
         findProviderOwnerByProviderId: jest.fn(),
       } as unknown as CatalogServiceClient,
     );
@@ -840,12 +1396,16 @@ describe('BookingGatewayService', () => {
 
   it('allows customers to cancel their own cancellable bookings', async () => {
     const client = {
-      findBooking: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'confirmed',
-      })),
-      transitionStatus: jest.fn().mockResolvedValue(createBookingSummary({
-        status: 'cancelled',
-      })),
+      findBooking: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'confirmed',
+        }),
+      ),
+      transitionStatus: jest.fn().mockResolvedValue(
+        createBookingSummary({
+          status: 'cancelled',
+        }),
+      ),
     } as unknown as BookingServiceClient;
     const service = new BookingGatewayService(client, createAuthClient());
 
@@ -891,7 +1451,9 @@ function createBookingSummary(overrides = {}) {
     serviceId: 'service-1',
     serviceTitle: 'Deep Clean',
     serviceAddress: '123 Test St',
-    scheduledAt: '2026-05-20T08:00:00.000Z',
+    serviceLatitude: null,
+    serviceLongitude: null,
+    scheduledAt: '2026-07-20T08:00:00.000Z',
     status: 'pending',
     totalAmount: 1200,
     attachments: [],

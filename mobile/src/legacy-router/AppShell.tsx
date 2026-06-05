@@ -1,25 +1,31 @@
 import * as NavigationBar from 'expo-navigation-bar';
-import { StatusBar } from 'expo-status-bar';
+import { StatusBar, type StatusBarStyle } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { ReactNode, Suspense, useEffect } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   StyleSheet,
-  Text,
-  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { palette, radius, spacing } from '../theme/serveaseDesign';
+import { shouldShowGlobalBusyPill } from '../domain/mobileLoading';
+import { RouteLoadingSurface } from '../shared/components/LoadingStates';
+import { palette } from '../theme/serveaseDesign';
 
 type AppShellProps = {
   busyAction: string | null;
   children: ReactNode;
   backgroundColor?: string;
+  statusBarStyle?: StatusBarStyle;
 };
 
-export function AppShell({ busyAction, children, backgroundColor }: AppShellProps) {
+export function AppShell({
+  busyAction,
+  children,
+  backgroundColor,
+  statusBarStyle,
+}: AppShellProps) {
   const shellBackground = backgroundColor ?? palette.white;
+  const showGlobalBusy = shouldShowGlobalBusyPill(busyAction);
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(shellBackground).catch(() => undefined);
@@ -38,16 +44,11 @@ export function AppShell({ busyAction, children, backgroundColor }: AppShellProp
     >
       <StatusBar
         backgroundColor="transparent"
-        style={backgroundColor ? 'light' : 'dark'}
+        style={statusBarStyle ?? (backgroundColor ? 'light' : 'dark')}
         translucent
       />
       {children}
-      {busyAction ? (
-        <View style={styles.busyPill}>
-          <ActivityIndicator color={palette.white} />
-          <Text style={styles.busyText}>Loading...</Text>
-        </View>
-      ) : null}
+      {showGlobalBusy ? <RouteLoadingSurface label="Loading app state" /> : null}
     </SafeAreaView>
   );
 }
@@ -57,40 +58,12 @@ export function RouteSuspense({ children }: { children: ReactNode }) {
 }
 
 export function RouteLoading() {
-  return (
-    <View style={styles.routeLoading}>
-      <ActivityIndicator color={palette.mint} />
-    </View>
-  );
+  return <RouteLoadingSurface />;
 }
 
 const styles = StyleSheet.create({
   safeArea: {
     backgroundColor: palette.white,
     flex: 1,
-  },
-  routeLoading: {
-    alignItems: 'center',
-    backgroundColor: palette.cream,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 420,
-  },
-  busyPill: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: palette.mint,
-    borderRadius: radius.pill,
-    bottom: 112,
-    flexDirection: 'row',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-    position: 'absolute',
-  },
-  busyText: {
-    color: palette.white,
-    fontSize: 12,
-    fontWeight: '800',
   },
 });

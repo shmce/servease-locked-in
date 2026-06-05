@@ -1,20 +1,21 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Upload } from 'lucide-react-native';
-import {
-  Card,
-  Field,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
 import {
   BookingSummary,
   PaymentSummary,
 } from '../../../shared/models/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
+import { MediaUploadBox } from '../../../shared/components/ScreenLayout';
 import {
-  MediaUploadBox,
-  StickyFooter,
-} from '../../../shared/components/ScreenLayout';
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderStickyFooter,
+  ProviderTextField,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import { useProviderCompleteServiceViewModel } from '../viewModels/useProviderCompleteServiceViewModel';
 
 type ProviderCompleteServiceScreenProps = {
@@ -53,20 +54,20 @@ export function ProviderCompleteServiceScreen({
 
   return (
     <>
-      <TopBar
-        title="Complete Service"
-        subtitle={data.bookingReference}
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withStickyFooter}>
-        <View style={styles.content}>
-          <Card>
+      <ProviderScreen bottomInset={148}>
+        <ProviderContent>
+          <ProviderHeader
+            title="Complete Service"
+            subtitle={data.bookingReference}
+            onBack={onBack}
+          />
+          <ProviderCard>
             <Text style={styles.operationalTitle}>Finish and submit</Text>
             <Text style={styles.cardBody}>
               Add final notes before marking this service as completed.
             </Text>
-          </Card>
-          <Card>
+          </ProviderCard>
+          <ProviderCard>
             <Text style={styles.cardTitle}>Completion summary</Text>
             <Text style={styles.noticeText}>{data.paymentNotice}</Text>
             {data.summaryRows.map((row) => (
@@ -75,9 +76,9 @@ export function ProviderCompleteServiceScreen({
                 <Text style={styles.infoValue}>{row.value}</Text>
               </View>
             ))}
-          </Card>
-          <Card>
-            <Field
+          </ProviderCard>
+          <ProviderCard>
+            <ProviderTextField
               label="Final notes"
               value={completionNotes}
               onChangeText={onCompletionNotesChange}
@@ -86,7 +87,7 @@ export function ProviderCompleteServiceScreen({
             />
             <MediaUploadBox
               imageUri={completionPhotoUri}
-              icon={<Upload color={palette.mint} size={28} strokeWidth={2.5} />}
+              icon={<Upload color={palette.mintDeep} size={28} strokeWidth={2.5} />}
               label={data.completionPhotoActionLabel}
               onPress={onPickCompletionPhoto}
               minHeight={132}
@@ -94,11 +95,11 @@ export function ProviderCompleteServiceScreen({
             {data.completionPhotoUploaded ? (
               <Text style={styles.noticeText}>Completion photo uploaded.</Text>
             ) : null}
-          </Card>
-        </View>
-      </ScrollView>
-      <StickyFooter maxWidth={420}>
-        <PrimaryButton
+          </ProviderCard>
+        </ProviderContent>
+      </ProviderScreen>
+      <ProviderStickyFooter maxWidth={420}>
+        <ProviderButton
           label={data.submitLabel}
           onPress={() => void onCompleteService()}
           disabled={data.submitDisabled}
@@ -106,37 +107,25 @@ export function ProviderCompleteServiceScreen({
         <Text style={styles.footerLink} onPress={onBack}>
           Keep working
         </Text>
-      </StickyFooter>
+      </ProviderStickyFooter>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  withStickyFooter: {
-    backgroundColor: palette.white,
-    flexGrow: 1,
-    paddingBottom: 132,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   operationalTitle: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '600',
     letterSpacing: 0,
   },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   cardBody: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    ...providerText.body,
   },
   infoRow: {
     flexDirection: 'row',
@@ -144,32 +133,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   infoLabel: {
-    color: palette.faint,
+    color: '#6D7480',
     flex: 1,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '500',
   },
   infoValue: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1.3,
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
     textAlign: 'right',
   },
   linkText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
   },
   noticeText: {
-    color: palette.muted,
+    color: '#6D7480',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
   },
   footerLink: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
     textAlign: 'center',
   },
 });

@@ -8,6 +8,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import {
+  MotionPressable,
+  MotionView,
+  StaggeredMotionView,
+} from '../../../components/Motion';
 import { CatalogCategory, CatalogServiceItem } from '../../../shared/models/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 
@@ -49,12 +54,16 @@ export function CategorySheet({
     <Modal
       visible={category !== null}
       transparent
-      animationType="slide"
+      animationType="fade"
       onRequestClose={onClose}
     >
       <View style={styles.container}>
         <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
-        <View style={styles.sheet}>
+        <MotionView
+          motionKey={category?.id ?? 'category-sheet'}
+          style={styles.sheet}
+          variant="sheet"
+        >
           <View style={styles.dragHandle} />
 
           <View style={styles.header}>
@@ -62,15 +71,15 @@ export function CategorySheet({
               <Text style={styles.categoryName}>{category?.name}</Text>
               <Text style={styles.serviceCount}>{serviceCountLabel}</Text>
             </View>
-            <Pressable
-              style={styles.closeButton}
+            <MotionPressable
+              contentStyle={styles.closeButton}
               onPress={onClose}
               accessibilityRole="button"
               accessibilityLabel="Close"
               hitSlop={8}
             >
               <X color={palette.muted} size={20} strokeWidth={2.2} />
-            </Pressable>
+            </MotionPressable>
           </View>
 
           <View style={styles.searchBar}>
@@ -85,14 +94,14 @@ export function CategorySheet({
               autoCapitalize="none"
             />
             {searchQuery.length > 0 ? (
-              <Pressable
+              <MotionPressable
                 onPress={() => onSearchChange('')}
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel="Clear search"
               >
                 <Text style={styles.searchClear}>✕</Text>
-              </Pressable>
+              </MotionPressable>
             ) : null}
           </View>
 
@@ -102,48 +111,53 @@ export function CategorySheet({
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {serviceRows.map((row) => (
-              <Pressable
+            {serviceRows.map((row, index) => (
+              <StaggeredMotionView
                 key={row.id}
-                style={styles.serviceCard}
-                onPress={() => onSelectService(row.service)}
-                accessibilityRole="button"
-                accessibilityLabel={`Select ${row.name}`}
+                index={index}
+                variant="listItem"
               >
-                <View style={styles.serviceBody}>
-                  <Text style={styles.serviceName} numberOfLines={1}>{row.name}</Text>
-                  <Text style={styles.serviceDescription} numberOfLines={2}>
-                    {row.description}
-                  </Text>
-                </View>
-                <View style={styles.serviceRight}>
-                  <Text style={styles.priceText}>{row.priceLabel}</Text>
-                  <ChevronRight color={palette.faint} size={16} />
-                </View>
-              </Pressable>
+                <MotionPressable
+                  contentStyle={styles.serviceCard}
+                  onPress={() => onSelectService(row.service)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${row.name}`}
+                >
+                  <View style={styles.serviceBody}>
+                    <Text style={styles.serviceName} numberOfLines={1}>{row.name}</Text>
+                    <Text style={styles.serviceDescription} numberOfLines={2}>
+                      {row.description}
+                    </Text>
+                  </View>
+                  <View style={styles.serviceRight}>
+                    <Text style={styles.priceText}>{row.priceLabel}</Text>
+                    <ChevronRight color={palette.faint} size={16} />
+                  </View>
+                </MotionPressable>
+              </StaggeredMotionView>
             ))}
 
             {serviceRows.length === 0 ? (
-              <View style={styles.emptyState}>
+              <MotionView style={styles.emptyState} variant="content">
                 <Text style={styles.emptyTitle}>
                   {searchQuery ? 'No results found' : 'No services yet'}
                 </Text>
                 <Text style={styles.emptyBody}>
                   {searchQuery ? 'Try a different search term.' : 'Check back soon.'}
                 </Text>
-              </View>
+              </MotionView>
             ) : null}
           </ScrollView>
 
-          <Pressable
-            style={styles.seeAllButton}
+          <MotionPressable
+            contentStyle={styles.seeAllButton}
             onPress={onSeeAll}
             accessibilityRole="button"
           >
             <Text style={styles.seeAllText}>Browse all in {category?.name}</Text>
             <ChevronRight color={palette.white} size={16} strokeWidth={2.5} />
-          </Pressable>
-        </View>
+          </MotionPressable>
+        </MotionView>
       </View>
     </Modal>
   );

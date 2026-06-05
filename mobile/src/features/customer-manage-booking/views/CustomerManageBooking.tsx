@@ -1,6 +1,13 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
-import { TopBar } from '../../../components/DesignKit';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { BookingStatus } from '../../../shared/models/types';
 import { palette, spacing } from '../../../theme/serveaseDesign';
 import {
@@ -37,19 +44,23 @@ export function CustomerManageBookingScreen({
   };
 
   return (
-    <>
-      <TopBar title="Manage Booking" onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <Text style={styles.manageCopy}>
-            Manage support and cancellation options for this booking.
-          </Text>
-          <View style={styles.optionList}>
-            {manageBooking.data.optionRows.map((row) => (
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Manage Booking"
+          subtitle="Support and cancellation options"
+          onBack={onBack}
+        />
+
+        <CustomerSection>
+          <CustomerCard style={styles.optionList}>
+            {manageBooking.data.optionRows.map((row, index) => (
               <Pressable
                 key={row.key}
                 style={[
                   styles.optionRow,
+                  index < manageBooking.data.optionRows.length - 1 &&
+                    styles.optionRowBorder,
                   row.tone === 'danger' && styles.optionRowDanger,
                 ]}
                 onPress={actionHandlers[row.key]}
@@ -68,55 +79,43 @@ export function CustomerManageBookingScreen({
                 <ChevronRight color={palette.faint} size={20} />
               </Pressable>
             ))}
-          </View>
-        </View>
-      </ScrollView>
-    </>
+          </CustomerCard>
+        </CustomerSection>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
-  manageCopy: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
-  },
   optionList: {
-    backgroundColor: palette.white,
-    borderColor: palette.lineSoft,
-    borderRadius: 18,
-    borderWidth: 1,
+    gap: 0,
     overflow: 'hidden',
+    paddingVertical: 0,
   },
   optionRow: {
     alignItems: 'center',
-    borderBottomColor: palette.lineSoft,
-    borderBottomWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: spacing.lg,
+    minHeight: 58,
+    paddingHorizontal: spacing.base,
+  },
+  optionRowBorder: {
+    borderBottomColor: '#EEF0F2',
+    borderBottomWidth: 1,
   },
   optionRowDanger: {
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#FFF7F7',
   },
   optionLabel: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '800',
+    ...customerText.title,
+    fontSize: 14,
+    lineHeight: 19,
   },
   optionLabelDanger: {
     color: palette.red,
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 19,
   },
 });

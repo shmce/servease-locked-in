@@ -5,6 +5,45 @@ import {
   ProviderUnavailableError,
 } from './booking.errors';
 
+const bookingPriceBreakdown = {
+  currency: 'PHP' as const,
+  lineItems: [
+    {
+      code: 'service_subtotal' as const,
+      label: 'Service subtotal',
+      amount: 1500,
+      source: 'provider_rate' as const,
+    },
+    {
+      code: 'travel_fuel' as const,
+      label: 'Travel and fuel estimate',
+      amount: 120,
+      source: 'fallback' as const,
+    },
+    {
+      code: 'service_fee' as const,
+      label: 'Service fee',
+      amount: 81,
+      source: 'platform_fee' as const,
+    },
+  ],
+  serviceSubtotal: 1500,
+  travelFee: 120,
+  serviceFee: 81,
+  total: 1701,
+  fallbackUsed: true,
+  calculationSource: 'fallback' as const,
+  generatedAt: '2026-07-20T07:50:00.000Z',
+  metadata: {
+    pricingMode: 'flat' as const,
+    hoursRequired: 1,
+    serviceRate: 1500,
+    distanceKm: null,
+    durationMinutes: null,
+    fallbackReason: 'route_unavailable',
+  },
+};
+
 describe('SupabaseBookingRepository', () => {
   it('creates a booking through the booking RPC and maps the response', async () => {
     const rpc = jest.fn().mockReturnValue({
@@ -17,9 +56,15 @@ describe('SupabaseBookingRepository', () => {
           service_id: '14e09a89-b7ad-483b-bfb6-6c49d8923197',
           service_title: 'Deep Clean',
           service_address: '123 Test St',
-          scheduled_at: '2026-05-20T08:00:00.000Z',
+          service_latitude: '14.55472900',
+          service_longitude: '121.02444500',
+          scheduled_at: '2026-07-20T08:00:00.000Z',
+          hours_required: 1,
+          service_amount: '1500',
+          pricing_mode: 'flat',
           status: 'pending',
-          total_amount: '1200',
+          total_amount: '1701',
+          price_breakdown: bookingPriceBreakdown,
         },
         error: null,
       }),
@@ -35,10 +80,14 @@ describe('SupabaseBookingRepository', () => {
         serviceName: 'Deep Clean',
         serviceDescription: 'Detailed cleaning',
         serviceAddress: '123 Test St',
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        serviceLatitude: 14.554729,
+        serviceLongitude: 121.024445,
+        scheduledAt: '2026-07-20T08:00:00.000Z',
         hoursRequired: 1,
-        serviceAmount: 1200,
+        serviceAmount: 1500,
+        totalAmount: 1701,
         pricingMode: 'flat',
+        priceBreakdown: bookingPriceBreakdown,
         paymentMethod: 'cash_on_service',
         customerNotes: null,
       }),
@@ -51,16 +100,19 @@ describe('SupabaseBookingRepository', () => {
       serviceTitle: 'Deep Clean',
       serviceDescription: null,
       serviceAddress: '123 Test St',
-      scheduledAt: '2026-05-20T08:00:00.000Z',
-      hoursRequired: null,
-      serviceAmount: null,
-      pricingMode: null,
+      serviceLatitude: 14.554729,
+      serviceLongitude: 121.024445,
+      scheduledAt: '2026-07-20T08:00:00.000Z',
+      hoursRequired: 1,
+      serviceAmount: 1500,
+      pricingMode: 'flat',
       acceptedQuoteId: null,
       quoteFairnessStatus: null,
       quoteConfidence: null,
       customerNotes: null,
       status: 'pending',
-      totalAmount: 1200,
+      totalAmount: 1701,
+      priceBreakdown: bookingPriceBreakdown,
       attachments: [],
     });
     expect(rpc).toHaveBeenCalledWith('servease_create_booking', {
@@ -71,13 +123,17 @@ describe('SupabaseBookingRepository', () => {
       p_service_name: 'Deep Clean',
       p_service_description: 'Detailed cleaning',
       p_service_address: '123 Test St',
-      p_scheduled_at: '2026-05-20T08:00:00.000Z',
+      p_service_latitude: 14.554729,
+      p_service_longitude: 121.024445,
+      p_scheduled_at: '2026-07-20T08:00:00.000Z',
       p_hours_required: 1,
-      p_service_amount: 1200,
+      p_service_amount: 1500,
+      p_total_amount: 1701,
       p_pricing_mode: 'flat',
       p_accepted_quote_id: null,
       p_quote_fairness_status: null,
       p_quote_confidence: null,
+      p_price_breakdown: bookingPriceBreakdown,
       p_payment_method: 'cash_on_service',
       p_customer_notes: null,
     });
@@ -119,7 +175,7 @@ describe('SupabaseBookingRepository', () => {
         customerId: '8e96e80a-faa5-4db2-a7c9-e02c40ec5ad1',
         providerId: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
         serviceAddress: '123 Test St',
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        scheduledAt: '2026-07-20T08:00:00.000Z',
       }),
     ).rejects.toBeInstanceOf(ProviderUnavailableError);
   });
@@ -135,7 +191,9 @@ describe('SupabaseBookingRepository', () => {
           service_id: null,
           service_title: 'Deep Clean',
           service_address: '123 Test St',
-          scheduled_at: '2026-05-20T08:00:00.000Z',
+          service_latitude: null,
+          service_longitude: null,
+          scheduled_at: '2026-07-20T08:00:00.000Z',
           status: 'pending',
           total_amount: '1200',
         },
@@ -159,7 +217,9 @@ describe('SupabaseBookingRepository', () => {
         serviceTitle: 'Deep Clean',
         serviceDescription: null,
         serviceAddress: '123 Test St',
-        scheduledAt: '2026-05-20T08:00:00.000Z',
+        serviceLatitude: null,
+        serviceLongitude: null,
+        scheduledAt: '2026-07-20T08:00:00.000Z',
         hoursRequired: null,
         serviceAmount: null,
         pricingMode: null,
@@ -169,6 +229,7 @@ describe('SupabaseBookingRepository', () => {
         customerNotes: null,
         status: 'pending',
         totalAmount: 1200,
+        priceBreakdown: null,
         attachments: [],
       },
     ]);
@@ -504,20 +565,28 @@ describe('SupabaseBookingRepository', () => {
       createdAt: '2026-05-16T00:00:00.000Z',
     });
     expect(updates).toEqual([update]);
-    expect(rpc).toHaveBeenNthCalledWith(1, 'servease_add_booking_service_update', {
-      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
-      p_actor_id: 'provider-user-1',
-      p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
-      p_update_type: 'progress',
-      p_message: 'Halfway done.',
-      p_checklist: null,
-      p_attachment_id: null,
-    });
-    expect(rpc).toHaveBeenNthCalledWith(2, 'servease_list_booking_service_updates', {
-      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
-      p_customer_id: null,
-      p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
-    });
+    expect(rpc).toHaveBeenNthCalledWith(
+      1,
+      'servease_add_booking_service_update',
+      {
+        p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        p_actor_id: 'provider-user-1',
+        p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+        p_update_type: 'progress',
+        p_message: 'Halfway done.',
+        p_checklist: null,
+        p_attachment_id: null,
+      },
+    );
+    expect(rpc).toHaveBeenNthCalledWith(
+      2,
+      'servease_list_booking_service_updates',
+      {
+        p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        p_customer_id: null,
+        p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      },
+    );
     expect(timeline).toEqual([
       {
         id: 'timeline-1',
@@ -528,10 +597,14 @@ describe('SupabaseBookingRepository', () => {
         createdAt: '2026-05-16T00:00:00.000Z',
       },
     ]);
-    expect(rpc).toHaveBeenNthCalledWith(3, 'servease_list_booking_timeline_events', {
-      p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
-      p_customer_id: null,
-      p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
-    });
+    expect(rpc).toHaveBeenNthCalledWith(
+      3,
+      'servease_list_booking_timeline_events',
+      {
+        p_booking_id: '0ec2c525-63e0-4a39-9f81-60b8585f45dc',
+        p_customer_id: null,
+        p_provider_id: 'b60d73f9-a5f2-41bb-90c7-7272c6af8821',
+      },
+    );
   });
 });

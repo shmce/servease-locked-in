@@ -1,16 +1,13 @@
 import { useMemo } from 'react';
-import { timelineForStatus } from '../../../navigation/routeHelpers';
 import {
   bookingStatusChip,
   formatBookingDuration,
   formatDateTime,
   formatMoney,
   pricingModeLabel,
+  timelineForStatus,
 } from '../../../shared/utils/booking';
-import {
-  BookingSummary,
-  PaymentSummary,
-} from '../../../shared/models/types';
+import { BookingSummary, PaymentSummary } from '../../../shared/models/types';
 
 export type ProviderBookingDetailAction =
   | 'confirm'
@@ -74,6 +71,17 @@ export function buildProviderBookingDetailViewModel({
       value: booking.serviceAddress ?? 'Address unavailable',
     },
     {
+      key: 'service-pin',
+      label: 'Service pin',
+      value:
+        booking.serviceLatitude !== null &&
+        booking.serviceLatitude !== undefined &&
+        booking.serviceLongitude !== null &&
+        booking.serviceLongitude !== undefined
+          ? `Confirmed - ${booking.serviceLatitude.toFixed(5)}, ${booking.serviceLongitude.toFixed(5)}`
+          : 'Address geocoding fallback',
+    },
+    {
       key: 'service',
       label: 'Service',
       value: booking.serviceTitle ?? 'Service booking',
@@ -101,17 +109,60 @@ export function buildProviderBookingDetailViewModel({
       value: pricingModeLabel(booking.pricingMode),
     },
   ];
-  const estimatedEarningsLabel = formatMoney(
-    selectedPayment?.providerPayout ?? booking.totalAmount,
-  );
+  const providerPayoutLabel = selectedPayment
+    ? formatMoney(selectedPayment.providerPayout)
+    : 'Payout pending';
+  const storedPriceBreakdown = booking.priceBreakdown;
+  const priceBreakdownRows = storedPriceBreakdown?.lineItems.length
+    ? [
+        ...storedPriceBreakdown.lineItems.map((item) => ({
+          key: item.code,
+          label: item.label,
+          value: formatMoney(item.amount),
+        })),
+        {
+          key: 'customer-total',
+          label: 'Customer total',
+          value: formatMoney(storedPriceBreakdown.total),
+        },
+      ]
+    : [
+        {
+          key: 'stored-total',
+          label: 'Stored total',
+          value: formatMoney(booking.totalAmount),
+        },
+      ];
+  const paymentBreakdownRows = selectedPayment
+    ? [
+        {
+          key: 'payment-platform-fee',
+          label: 'Platform fee',
+          value: formatMoney(selectedPayment.platformFee),
+        },
+        {
+          key: 'provider-payout',
+          label: 'Provider payout',
+          value: formatMoney(selectedPayment.providerPayout),
+        },
+      ]
+    : [
+        {
+          key: 'provider-payout',
+          label: 'Provider payout',
+          value: 'Payout pending',
+        },
+      ];
 
   return {
     data: {
       addressLabel: booking.serviceAddress ?? 'Address unavailable',
       bookingReference: booking.bookingReference,
       customerName:
-        booking.customerFullName ?? booking.customerId.slice(0, 8).toUpperCase(),
-      estimatedEarningsLabel,
+        booking.customerFullName ??
+        booking.customerId.slice(0, 8).toUpperCase(),
+      providerPayoutLabel,
+      priceBreakdownRows: [...priceBreakdownRows, ...paymentBreakdownRows],
       serviceDetailRows,
       serviceTitle: booking.serviceTitle ?? 'Service booking',
       statusActions: buildStatusActions(
@@ -168,9 +219,12 @@ function buildStatusActions(
         },
         {
           action: 'startService',
-          disabled: hasBlockingActiveBooking,
+          disabled:
+            hasBlockingActiveBooking ||
+            busyAction === 'service-start',
           key: 'start-service',
-          label: 'Start Service',
+          label:
+            busyAction === 'service-start' ? 'Starting...' : 'Start Service',
           variant: 'secondary',
         },
         {
@@ -191,7 +245,8 @@ function buildStatusActions(
         {
           action: 'completeService',
           disabled:
-            busyAction === 'service-complete' || Boolean(completionBlockedByPayment),
+            busyAction === 'service-complete' ||
+            Boolean(completionBlockedByPayment),
           key: 'complete-service',
           label: completionBlockedByPayment
             ? 'Awaiting Payment'

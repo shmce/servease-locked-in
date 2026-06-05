@@ -1,7 +1,9 @@
 import {
   BookingPricingMode,
   BookingStatus,
+  CustomerPaymentMethodType,
   PaymentSummary,
+  PricingQuoteSummary,
   ProviderAvailabilitySchedule,
   UserRole,
 } from '../shared/models/types';
@@ -56,6 +58,24 @@ export interface CustomerBookingCalendarState {
 
 export const providerUnavailableSlotPickerCopy =
   'This slot was just taken or blocked. Please pick another.';
+export const customerPastSlotPickerCopy =
+  'Choose a future time for this booking.';
+export const customerInvalidSchedulePickerCopy =
+  'Choose a valid date and time for this booking.';
+
+export type CustomerBookingScheduleValidityReason =
+  | 'available'
+  | 'invalid'
+  | 'loading'
+  | 'past'
+  | 'provider_unavailable';
+
+export interface CustomerBookingScheduleValidity {
+  isValid: boolean;
+  reason: CustomerBookingScheduleValidityReason;
+  message: string | null;
+  scheduledAtIso: string | null;
+}
 
 export interface StatusChipModel {
   label: string;
@@ -91,6 +111,21 @@ export function bookingStatusChip(status: BookingStatus): StatusChipModel {
   }
 
   return { label: status, tone: 'warning' };
+}
+
+export function timelineForStatus(status: BookingStatus) {
+  return [
+    { label: 'Booked', completed: true },
+    {
+      label: 'On the way',
+      completed: ['confirmed', 'in_progress', 'completed'].includes(status),
+    },
+    {
+      label: 'Started',
+      completed: ['in_progress', 'completed'].includes(status),
+    },
+    { label: 'Completed', completed: status === 'completed' },
+  ];
 }
 
 export function nextBookingStatuses(
@@ -387,6 +422,108 @@ export function toManilaBookingIso(value: string): string | null {
   return date.toISOString();
 }
 
+export function isFutureManilaBookingDateTime(
+  value: string,
+  now = new Date(),
+): boolean {
+  const scheduledAtIso = toManilaBookingIso(value);
+  if (!scheduledAtIso) {
+    return false;
+  }
+
+  return isFutureBookingInstant(scheduledAtIso, now);
+}
+
+export function validateCustomerBookingScheduleSelection({
+  providerAvailability,
+  scheduledAt,
+  durationHours,
+  timeSlots,
+  now = new Date(),
+}: {
+  providerAvailability: ProviderAvailabilitySchedule | null;
+  scheduledAt: string;
+  durationHours: number;
+  timeSlots: string[];
+  now?: Date;
+}): CustomerBookingScheduleValidity {
+  const scheduledAtIso = toManilaBookingIso(scheduledAt);
+  const dateOnly = scheduledAt.slice(0, 10);
+  const timeOnly = scheduledAt.slice(11, 16);
+
+  if (!scheduledAtIso || !dateOnly || !timeOnly) {
+    return {
+      isValid: false,
+      reason: 'invalid',
+      message: customerInvalidSchedulePickerCopy,
+      scheduledAtIso: null,
+    };
+  }
+
+  if (!isFutureBookingInstant(scheduledAtIso, now)) {
+    return {
+      isValid: false,
+      reason: 'past',
+      message: customerPastSlotPickerCopy,
+      scheduledAtIso,
+    };
+  }
+
+  if (!providerAvailability) {
+    return {
+      isValid: false,
+      reason: 'loading',
+      message: 'Provider availability is loading.',
+      scheduledAtIso,
+    };
+  }
+
+  const availability = buildCustomerBookingAvailability(
+    providerAvailability,
+    durationHours,
+    timeSlots,
+    now,
+    dateOnly,
+  );
+  const selectedDateOption = availability.dateOptions.find(
+    (date) => date.value === dateOnly,
+  );
+  const selectedTimeOption = availability.timeOptions.find(
+    (slot) => slot.time === timeOnly,
+  );
+
+  if (
+    selectedDateOption?.isAvailable === true &&
+    selectedTimeOption?.isAvailable === true
+  ) {
+    return {
+      isValid: true,
+      reason: 'available',
+      message: null,
+      scheduledAtIso,
+    };
+  }
+
+  return {
+    isValid: false,
+    reason: 'provider_unavailable',
+    message:
+      selectedTimeOption?.unavailableLabel ??
+      selectedDateOption?.unavailableLabel ??
+      providerUnavailableSlotPickerCopy,
+    scheduledAtIso,
+  };
+}
+
+export function canSubmitBookingWithServerScheduleValidation(
+  validation: CustomerBookingScheduleValidity,
+): boolean {
+  return (
+    validation.isValid ||
+    (validation.reason === 'loading' && Boolean(validation.scheduledAtIso))
+  );
+}
+
 export function formatManilaDateInput(date = new Date()): string {
   const parts = new Intl.DateTimeFormat('en-PH', {
     timeZone: MANILA_TIME_ZONE,
@@ -474,10 +611,11 @@ export function buildCustomerBookingAvailability(
   durationHours: number,
   timeSlots: string[],
   startDate = new Date(),
-  selectedDateValue = formatDateInput(startDate),
+  selectedDateValue = formatManilaDateInput(startDate),
 ): CustomerBookingAvailability {
   const safeDuration = Math.max(1, Math.floor(durationHours) || 1);
-  const today = new Date(startDate);
+  const todayValue = formatManilaDateInput(startDate);
+  const today = dateFromInputValue(todayValue) ?? new Date(startDate);
   today.setHours(0, 0, 0, 0);
   const offDates = new Set(schedule?.daysOff.map((dayOff) => dayOff.offDate) ?? []);
   const unavailableLabel = 'Provider unavailable';
@@ -486,11 +624,12 @@ export function buildCustomerBookingAvailability(
     const date = new Date(today);
     date.setDate(today.getDate() + offset);
     const value = formatDateInput(date);
-    const { hasAvailableSlot } = customerDateSlotState(
+    const { hasAvailableSlot, hasPastSlot } = customerDateSlotState(
       schedule,
       value,
       safeDuration,
       timeSlots,
+      startDate,
     );
     const isAvailable = !offDates.has(value) && hasAvailableSlot;
 
@@ -502,7 +641,11 @@ export function buildCustomerBookingAvailability(
       isToday: offset === 0,
       isTomorrow: offset === 1,
       isAvailable,
-      unavailableLabel: isAvailable ? undefined : unavailableLabel,
+      unavailableLabel: isAvailable
+        ? undefined
+        : hasPastSlot
+          ? customerPastSlotPickerCopy
+          : unavailableLabel,
     };
   });
 
@@ -513,18 +656,28 @@ export function buildCustomerBookingAvailability(
     schedule?.timeOffWindows.filter((window) => window.offDate === selectedDateValue) ?? [];
   const timeOptions = timeSlots.map((time) => {
     const endTime = addHoursToTime(time, safeDuration);
+    const slotStatus = customerBookingLocalDateTimeStatus(
+      selectedDateValue,
+      time,
+      startDate,
+    );
     const fitsWindow = selectedWindows.some(
       (window) => window.startTime <= time && window.endTime >= endTime,
     );
     const overlapsTimeOff = selectedTimeOffWindows.some(
       (window) => time < window.endTime && endTime > window.startTime,
     );
-    const isAvailable = !selectedDateOff && fitsWindow && !overlapsTimeOff;
+    const isAvailable =
+      !selectedDateOff && fitsWindow && !overlapsTimeOff && slotStatus.reason === 'available';
 
     return {
       time,
       isAvailable,
-      unavailableLabel: isAvailable ? undefined : unavailableLabel,
+      unavailableLabel: isAvailable
+        ? undefined
+        : slotStatus.reason === 'past'
+          ? customerPastSlotPickerCopy
+          : unavailableLabel,
     };
   });
 
@@ -536,6 +689,7 @@ export function buildCustomerBookingCalendarState(
   durationHours: number,
   timeSlots: string[],
   month: string,
+  now = new Date(),
 ): CustomerBookingCalendarState {
   const safeDuration = Math.max(1, Math.floor(durationHours) || 1);
   const disabledDates = new Set<string>();
@@ -557,6 +711,7 @@ export function buildCustomerBookingCalendarState(
       value,
       safeDuration,
       timeSlots,
+      now,
     );
 
     if (offDates.has(value) || !hasAvailableSlot) {
@@ -581,12 +736,87 @@ export function providerUnavailableSlotPickerMessage(
 
   if (
     apiErrorCode === 'provider_unavailable' ||
-    normalizedMessage.includes('provider is unavailable')
+    apiErrorCode === 'booking_schedule_in_past' ||
+    apiErrorCode === 'invalid_booking_schedule' ||
+    normalizedMessage.includes('provider is unavailable') ||
+    normalizedMessage.includes('future time') ||
+    normalizedMessage.includes('valid date and time')
   ) {
+    if (
+      apiErrorCode === 'booking_schedule_in_past' ||
+      normalizedMessage.includes('future time')
+    ) {
+      return customerPastSlotPickerCopy;
+    }
+
+    if (
+      apiErrorCode === 'invalid_booking_schedule' ||
+      normalizedMessage.includes('valid date and time')
+    ) {
+      return customerInvalidSchedulePickerCopy;
+    }
+
     return providerUnavailableSlotPickerCopy;
   }
 
   return null;
+}
+
+export function isPricingQuoteFresh(
+  quote: PricingQuoteSummary | null,
+  now: number = Date.now(),
+  context?: {
+    providerId: string;
+    serviceId: string;
+    serviceAddress: string;
+    scheduledAt: string;
+    hoursRequired: number;
+    pricingMode: 'flat' | 'hourly' | null | undefined;
+  },
+): quote is PricingQuoteSummary {
+  if (!quote) {
+    return false;
+  }
+
+  const expiresAt = new Date(quote.expiresAt).getTime();
+  if (!Number.isFinite(expiresAt) || expiresAt <= now) {
+    return false;
+  }
+
+  if (!context) {
+    return true;
+  }
+
+  const quoteScheduledAt = quote.scheduledAt
+    ? new Date(quote.scheduledAt).getTime()
+    : NaN;
+  const contextScheduledAt = new Date(context.scheduledAt).getTime();
+  const quoteHours = Number(quote.hoursRequired);
+  const contextHours = Number(context.hoursRequired);
+
+  return (
+    quote.providerId === context.providerId &&
+    quote.serviceId === context.serviceId &&
+    normalizeQuoteAddress(quote.serviceAddress) ===
+      normalizeQuoteAddress(context.serviceAddress) &&
+    Number.isFinite(quoteScheduledAt) &&
+    Number.isFinite(contextScheduledAt) &&
+    quoteScheduledAt === contextScheduledAt &&
+    Number.isFinite(quoteHours) &&
+    Number.isFinite(contextHours) &&
+    quoteHours === contextHours &&
+    quote.pricingMode === (context.pricingMode ?? 'flat')
+  );
+}
+
+function normalizeQuoteAddress(value: string | null | undefined): string {
+  return (value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+export function canSubmitBookingAfterPricingRefresh(
+  paymentMethod: CustomerPaymentMethodType | null | undefined,
+): boolean {
+  return !paymentMethod || paymentMethod === 'cash_on_service';
 }
 
 function activeWindowsForDate(
@@ -609,10 +839,11 @@ function customerDateSlotState(
   dateValue: string,
   durationHours: number,
   timeSlots: string[],
-): { hasAvailableSlot: boolean; hasBlockedSlot: boolean } {
+  now: Date,
+): { hasAvailableSlot: boolean; hasBlockedSlot: boolean; hasPastSlot: boolean } {
   const date = dateFromInputValue(dateValue);
   if (!schedule || !date) {
-    return { hasAvailableSlot: false, hasBlockedSlot: false };
+    return { hasAvailableSlot: false, hasBlockedSlot: false, hasPastSlot: false };
   }
 
   const windows = activeWindowsForDate(schedule, date);
@@ -621,9 +852,11 @@ function customerDateSlotState(
   );
   let hasAvailableSlot = false;
   let hasBlockedSlot = false;
+  let hasPastSlot = false;
 
   for (const time of timeSlots) {
     const endTime = addHoursToTime(time, durationHours);
+    const slotStatus = customerBookingLocalDateTimeStatus(dateValue, time, now);
     const fitsWindow = windows.some(
       (window) => window.startTime <= time && window.endTime >= endTime,
     );
@@ -631,16 +864,46 @@ function customerDateSlotState(
       (window) => time < window.endTime && endTime > window.startTime,
     );
 
-    if (fitsWindow && !overlapsTimeOff) {
+    if (fitsWindow && !overlapsTimeOff && slotStatus.reason === 'available') {
       hasAvailableSlot = true;
     }
 
-    if (fitsWindow && overlapsTimeOff) {
+    if (fitsWindow && !overlapsTimeOff && slotStatus.reason === 'past') {
+      hasPastSlot = true;
+    }
+
+    if (fitsWindow && (overlapsTimeOff || slotStatus.reason === 'past')) {
       hasBlockedSlot = true;
     }
   }
 
-  return { hasAvailableSlot, hasBlockedSlot };
+  return { hasAvailableSlot, hasBlockedSlot, hasPastSlot };
+}
+
+function customerBookingLocalDateTimeStatus(
+  dateValue: string,
+  timeValue: string,
+  now: Date,
+): { reason: 'available' | 'invalid' | 'past' } {
+  const scheduledAtIso = toManilaBookingIso(`${dateValue}T${timeValue}`);
+  if (!scheduledAtIso) {
+    return { reason: 'invalid' };
+  }
+
+  return isFutureBookingInstant(scheduledAtIso, now)
+    ? { reason: 'available' }
+    : { reason: 'past' };
+}
+
+function isFutureBookingInstant(value: string, now: Date): boolean {
+  const scheduledAt = new Date(value).getTime();
+  const nowTime = now.getTime();
+
+  return (
+    Number.isFinite(scheduledAt) &&
+    Number.isFinite(nowTime) &&
+    scheduledAt >= nowTime
+  );
 }
 
 function dateFromMonthInput(value: string): Date {

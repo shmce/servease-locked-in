@@ -1,20 +1,29 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, CreditCard, Plus, Wallet } from 'lucide-react-native';
 import {
-  Card,
   Field,
-  PrimaryButton,
   SkeletonBlock,
   SkeletonLine,
-  TopBar,
 } from '../../../components/DesignKit';
+import {
+  MotionPressable,
+  MotionView,
+  StaggeredMotionView,
+} from '../../../components/Motion';
+import {
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import {
   CustomerPaymentMethodSummary,
   CustomerPaymentMethodType,
   PaymentSummary,
   PromotionValidationSummary,
 } from '../../../shared/models/types';
-import { StickyFooter } from '../../../shared/components/ScreenLayout';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerReservePaymentViewModel } from '../viewModels/useCustomerReservePaymentViewModel';
 
@@ -64,162 +73,214 @@ export function CustomerReservePaymentScreen({
   const showPaymentSkeletons =
     reservePayment.isLoading && customerPaymentMethods.length === 0;
 
+  function handleConfirm() {
+    if (
+      selectedPayment?.status === 'pending' &&
+      selectedPayment.paymentMethod !== 'cash_on_service'
+    ) {
+      void onCheckPaymentStatus();
+      return;
+    }
+
+    void onReservePayment();
+  }
+
   return (
     <>
-      <TopBar title="Payment" onBack={onBack} />
-      <ScrollView contentContainerStyle={styles.withStickyFooter}>
-        <View style={styles.content}>
+      <CustomerScreen bottomInset={148}>
+        <CustomerContent>
+          <CustomerHeader
+            title="Payment"
+            subtitle="Reserve your booking securely"
+            onBack={onBack}
+          />
 
-          {/* Notice */}
-          <View style={styles.noticeBox}>
-            <Text style={styles.noticeText}>
-              {data.statusNotice}
-            </Text>
-          </View>
+          <MotionView style={styles.noticeBox} variant="content">
+            <Text style={styles.noticeText}>{data.statusNotice}</Text>
+          </MotionView>
 
-          {/* Saved payment methods */}
-          <Card>
-            <Text style={styles.sectionLabel}>Saved payment methods</Text>
-            {showPaymentSkeletons ? (
-              <View style={styles.methodSkeletonList}>
-                {Array.from({ length: 2 }).map((_, index) => (
-                  <ReservePaymentMethodSkeleton
-                    key={`reserve-payment-method-skeleton-${index}`}
-                  />
-                ))}
-              </View>
-            ) : data.hasPaymentMethods ? (
-              data.paymentMethods.map((item, i) => (
-                <Pressable
-                  key={item.method.id}
-                  style={[
-                    styles.methodRow,
-                    i < data.paymentMethods.length - 1 && styles.methodRowBorder,
-                    item.selected && styles.methodRowSelected,
-                  ]}
-                  onPress={() => onSelectPaymentMethod(item.method.id)}
-                  accessibilityRole="button"
-                >
-                  <View style={[styles.radio, item.selected && styles.radioSelected]}>
-                    {item.selected ? <View style={styles.radioDot} /> : null}
-                  </View>
-                  <CreditCard
-                    color={item.selected ? palette.mint : palette.muted}
-                    size={20}
-                    strokeWidth={2.2}
-                  />
-                  <View style={styles.flex}>
-                    <Text style={styles.methodName}>{item.method.label}</Text>
-                    <Text style={styles.methodMeta}>{item.meta}</Text>
-                  </View>
-                </Pressable>
-              ))
-            ) : null}
-            <Pressable
-              style={styles.addCardRow}
-              onPress={() => void onSavePaymentMethod('card')}
-              accessibilityRole="button"
-            >
-              <View style={styles.addCardIcon}>
-                <Plus color={palette.mint} size={16} strokeWidth={2.4} />
-              </View>
-              <Text style={styles.addCardText}>Add new card</Text>
-            </Pressable>
-          </Card>
-
-          {/* Wallet options */}
-          <Card>
-            <Text style={styles.sectionLabel}>Wallet options</Text>
-            <Text style={styles.sectionMeta}>GCash and PayMaya use secure checkout</Text>
-            <Pressable
-              style={[styles.walletRow, styles.walletRowBorder]}
-              onPress={() => void onSavePaymentMethod('gcash')}
-              accessibilityRole="button"
-            >
-              <Wallet color={palette.mint} size={20} strokeWidth={2.2} />
-              <Text style={styles.walletName}>GCash</Text>
-              <ChevronRight color={palette.faint} size={18} strokeWidth={2.2} />
-            </Pressable>
-            <Pressable
-              style={styles.walletRow}
-              onPress={() => void onSavePaymentMethod('paymaya')}
-              accessibilityRole="button"
-            >
-              <Wallet color={palette.mint} size={20} strokeWidth={2.2} />
-              <Text style={styles.walletName}>PayMaya</Text>
-              <ChevronRight color={palette.faint} size={18} strokeWidth={2.2} />
-            </Pressable>
-          </Card>
-
-          {/* Promo code */}
-          <Card>
-            <Text style={styles.sectionLabel}>Promo code</Text>
-            <View style={styles.promoRow}>
-              <View style={styles.flex}>
-                <Field
-                  label="Code"
-                  value={data.normalizedPromoCode}
-                  onChangeText={onPromoCodeChange}
-                  placeholder="SERVEASE10"
-                />
-              </View>
-              <Pressable
-                style={[styles.applyButton, data.applyPromoDisabled && styles.applyButtonDisabled]}
-                onPress={() => void onApplyPromotionCode()}
-                disabled={data.applyPromoDisabled}
+          <CustomerSection title="Saved payment methods">
+            <CustomerCard>
+              {showPaymentSkeletons ? (
+                <View style={styles.methodSkeletonList}>
+                  {Array.from({ length: 2 }).map((_, index) => (
+                    <ReservePaymentMethodSkeleton
+                      key={`reserve-payment-method-skeleton-${index}`}
+                    />
+                  ))}
+                </View>
+              ) : data.hasPaymentMethods ? (
+                data.paymentMethods.map((item, index) => (
+                  <StaggeredMotionView
+                    key={item.method.id}
+                    index={index}
+                    variant="listItem"
+                  >
+                    <MotionPressable
+                      contentStyle={[
+                        styles.methodRow,
+                        index < data.paymentMethods.length - 1 &&
+                          styles.methodRowBorder,
+                        item.selected && styles.methodRowSelected,
+                      ]}
+                      onPress={() => onSelectPaymentMethod(item.method.id)}
+                      selected={item.selected}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: item.selected }}
+                      accessibilityLabel={`Use ${item.method.label}`}
+                    >
+                      <View style={[styles.radio, item.selected && styles.radioSelected]}>
+                        {item.selected ? <View style={styles.radioDot} /> : null}
+                      </View>
+                      <CreditCard
+                        color={item.selected ? palette.mintDeep : palette.muted}
+                        size={20}
+                        strokeWidth={2.2}
+                      />
+                      <View style={styles.flex}>
+                        <Text style={styles.methodName}>{item.method.label}</Text>
+                        <Text style={styles.methodMeta}>{item.meta}</Text>
+                      </View>
+                    </MotionPressable>
+                  </StaggeredMotionView>
+                ))
+              ) : null}
+              <MotionPressable
+                contentStyle={styles.addCardRow}
+                onPress={() => void onSavePaymentMethod('card')}
                 accessibilityRole="button"
+                accessibilityLabel="Add new card"
               >
-                <Text style={[styles.applyButtonText, data.applyPromoDisabled && styles.applyButtonTextDisabled]}>
-                  {data.applyPromoLabel}
-                </Text>
-              </Pressable>
-            </View>
-            {data.promoResult ? (
-              <View
-                style={
-                  data.promoResult.tone === 'success'
-                    ? styles.promoSuccess
-                    : styles.promoDanger
-                }
-              >
-                <Text style={[
-                  styles.promoTitle,
-                  data.promoResult.tone === 'success' ? styles.promoTitleSuccess : styles.promoTitleDanger,
-                ]}>
-                  {data.promoResult.title}
-                </Text>
-                <Text style={styles.promoMessage}>{data.promoResult.message}</Text>
-                {data.promoResult.rows.map((row, i) => (
-                  <DetailRow
-                    key={row.key}
-                    label={row.label}
-                    value={row.value}
-                    last={i === data.promoResult!.rows.length - 1}
-                  />
-                ))}
-              </View>
-            ) : null}
-          </Card>
+                <View style={styles.addCardIcon}>
+                  <Plus color={palette.mintDeep} size={16} strokeWidth={2.4} />
+                </View>
+                <Text style={styles.addCardText}>Add new card</Text>
+              </MotionPressable>
+            </CustomerCard>
+          </CustomerSection>
 
-        </View>
-      </ScrollView>
-      <StickyFooter>
-        <PrimaryButton
-          label={data.confirmLabel}
-          onPress={() => {
-            if (
-              selectedPayment?.status === 'pending' &&
-              selectedPayment.paymentMethod !== 'cash_on_service'
-            ) {
-              void onCheckPaymentStatus();
-            } else {
-              void onReservePayment();
-            }
-          }}
+          <CustomerSection title="Wallet options">
+            <CustomerCard>
+              <Text style={styles.sectionMeta}>
+                GCash and PayMaya use secure checkout
+              </Text>
+              <WalletRow
+                label="GCash"
+                onPress={() => onSavePaymentMethod('gcash')}
+                showBorder
+              />
+              <WalletRow
+                label="PayMaya"
+                onPress={() => onSavePaymentMethod('paymaya')}
+              />
+            </CustomerCard>
+          </CustomerSection>
+
+          <CustomerSection title="Promo code">
+            <CustomerCard>
+              <View style={styles.promoRow}>
+                <View style={styles.flex}>
+                  <Field
+                    label="Code"
+                    value={data.normalizedPromoCode}
+                    onChangeText={onPromoCodeChange}
+                    placeholder="SERVEASE10"
+                  />
+                </View>
+                <MotionPressable
+                  contentStyle={[
+                    styles.applyButton,
+                    data.applyPromoDisabled && styles.applyButtonDisabled,
+                  ]}
+                  onPress={() => void onApplyPromotionCode()}
+                  disabled={data.applyPromoDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={data.applyPromoLabel}
+                >
+                  <Text
+                    style={[
+                      styles.applyButtonText,
+                      data.applyPromoDisabled && styles.applyButtonTextDisabled,
+                    ]}
+                  >
+                    {data.applyPromoLabel}
+                  </Text>
+                </MotionPressable>
+              </View>
+              {data.promoResult ? (
+                <MotionView
+                  motionKey={`${data.promoResult.tone}-${data.promoResult.title}`}
+                  style={
+                    data.promoResult.tone === 'success'
+                      ? styles.promoSuccess
+                      : styles.promoDanger
+                  }
+                  variant="content"
+                >
+                  <Text
+                    style={[
+                      styles.promoTitle,
+                      data.promoResult.tone === 'success'
+                        ? styles.promoTitleSuccess
+                        : styles.promoTitleDanger,
+                    ]}
+                  >
+                    {data.promoResult.title}
+                  </Text>
+                  <Text style={styles.promoMessage}>{data.promoResult.message}</Text>
+                  {data.promoResult.rows.map((row, index) => (
+                    <DetailRow
+                      key={row.key}
+                      label={row.label}
+                      value={row.value}
+                      last={index === data.promoResult!.rows.length - 1}
+                    />
+                  ))}
+                </MotionView>
+              ) : null}
+            </CustomerCard>
+          </CustomerSection>
+        </CustomerContent>
+      </CustomerScreen>
+
+      <MotionView style={styles.stickyFooter} variant="sheet">
+        <MotionPressable
+          contentStyle={[
+            styles.footerButton,
+            data.confirmDisabled && styles.footerButtonDisabled,
+          ]}
+          onPress={handleConfirm}
           disabled={data.confirmDisabled}
-        />
-      </StickyFooter>
+          accessibilityRole="button"
+          accessibilityLabel={data.confirmLabel}
+        >
+          <Text style={styles.footerButtonText}>{data.confirmLabel}</Text>
+        </MotionPressable>
+      </MotionView>
     </>
+  );
+}
+
+function WalletRow({
+  label,
+  onPress,
+  showBorder,
+}: {
+  label: string;
+  onPress: () => Promise<void>;
+  showBorder?: boolean;
+}) {
+  return (
+    <MotionPressable
+      contentStyle={[styles.walletRow, showBorder && styles.walletRowBorder]}
+      onPress={() => void onPress()}
+      accessibilityRole="button"
+      accessibilityLabel={`Add ${label} wallet`}
+    >
+      <Wallet color={palette.mintDeep} size={20} strokeWidth={2.2} />
+      <Text style={styles.walletName}>{label}</Text>
+      <ChevronRight color={palette.faint} size={18} strokeWidth={2.2} />
+    </MotionPressable>
   );
 }
 
@@ -258,48 +319,22 @@ function DetailRow({
 }
 
 const styles = StyleSheet.create({
-  withStickyFooter: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 180,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   flex: {
     flex: 1,
+    minWidth: 0,
   },
-
-  // Notice
   noticeBox: {
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.lg,
+    backgroundColor: '#F1FAF5',
+    borderRadius: 10,
     padding: spacing.md,
   },
   noticeText: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
-
-  // Section labels
-  sectionLabel: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
+    ...customerText.body,
   },
   sectionMeta: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
+    ...customerText.meta,
     marginBottom: spacing.sm,
-    marginTop: -spacing.xs,
   },
-
-  // Payment method rows
   methodRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -307,18 +342,18 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   methodRowBorder: {
-    borderBottomColor: palette.line,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
   },
   methodRowSelected: {
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm,
+    backgroundColor: '#F1FAF5',
+    borderRadius: 10,
     marginHorizontal: -spacing.sm,
+    paddingHorizontal: spacing.sm,
   },
   radio: {
     alignItems: 'center',
-    borderColor: palette.line,
+    borderColor: '#D8DEE5',
     borderRadius: radius.pill,
     borderWidth: 2,
     height: 20,
@@ -326,23 +361,23 @@ const styles = StyleSheet.create({
     width: 20,
   },
   radioSelected: {
-    borderColor: palette.mint,
+    borderColor: palette.mintDeep,
   },
   radioDot: {
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintDeep,
     borderRadius: radius.pill,
     height: 10,
     width: 10,
   },
   methodName: {
-    color: palette.ink,
+    ...customerText.title,
     fontSize: 13,
-    fontWeight: '700',
+    lineHeight: 18,
   },
   methodMeta: {
-    color: palette.muted,
+    ...customerText.meta,
     fontSize: 11,
-    fontWeight: '500',
+    lineHeight: 16,
     marginTop: 2,
   },
   methodSkeletonList: {
@@ -351,11 +386,9 @@ const styles = StyleSheet.create({
   methodSkeletonMeta: {
     marginTop: 6,
   },
-
-  // Add card row
   addCardRow: {
     alignItems: 'center',
-    borderTopColor: palette.line,
+    borderTopColor: '#EEF0F2',
     borderTopWidth: 1,
     flexDirection: 'row',
     gap: spacing.md,
@@ -364,19 +397,18 @@ const styles = StyleSheet.create({
   },
   addCardIcon: {
     alignItems: 'center',
-    backgroundColor: palette.mintSoft,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
     height: 32,
     justifyContent: 'center',
     width: 32,
   },
   addCardText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
-
-  // Wallet rows
   walletRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -384,19 +416,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   walletRowBorder: {
-    borderBottomColor: palette.line,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
-    marginBottom: spacing.xs,
-    paddingBottom: spacing.sm + spacing.xs,
   },
   walletName: {
-    color: palette.ink,
+    ...customerText.title,
     flex: 1,
     fontSize: 13,
-    fontWeight: '700',
+    lineHeight: 18,
   },
-
-  // Promo row (inline field + button)
   promoRow: {
     alignItems: 'flex-end',
     flexDirection: 'row',
@@ -404,7 +432,7 @@ const styles = StyleSheet.create({
   },
   applyButton: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintDeep,
     borderRadius: radius.pill,
     height: 48,
     justifyContent: 'center',
@@ -416,30 +444,30 @@ const styles = StyleSheet.create({
   applyButtonText: {
     color: palette.white,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   applyButtonTextDisabled: {
     color: palette.faint,
   },
-
-  // Promo result
   promoSuccess: {
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.md,
+    backgroundColor: '#F1FAF5',
+    borderRadius: 10,
     gap: spacing.xs,
     marginTop: spacing.sm,
     padding: spacing.md,
   },
   promoDanger: {
     backgroundColor: '#FEF2F2',
-    borderRadius: radius.md,
+    borderRadius: 10,
     gap: spacing.xs,
     marginTop: spacing.sm,
     padding: spacing.md,
   },
   promoTitle: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
     marginBottom: spacing.xs,
   },
   promoTitleSuccess: {
@@ -449,13 +477,8 @@ const styles = StyleSheet.create({
     color: palette.red,
   },
   promoMessage: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 18,
+    ...customerText.meta,
   },
-
-  // Detail rows (promo breakdown)
   detailRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -463,19 +486,47 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   detailRowBorder: {
-    borderBottomColor: palette.line,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
   },
   detailLabel: {
-    color: palette.muted,
+    ...customerText.meta,
     flex: 1,
-    fontSize: 12,
-    fontWeight: '500',
   },
   detailValue: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
     textAlign: 'right',
+  },
+  stickyFooter: {
+    backgroundColor: palette.white,
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    bottom: 0,
+    left: 0,
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    position: 'absolute',
+    right: 0,
+  },
+  footerButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  footerButtonDisabled: {
+    backgroundColor: palette.line,
+  },
+  footerButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
 });

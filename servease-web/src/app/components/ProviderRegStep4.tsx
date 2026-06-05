@@ -64,6 +64,7 @@ export function ProviderRegStep4() {
         fileName: fileName,
       }));
       sessionStorage.setItem("providerRegSubmittedAt", new Date().toISOString());
+      sessionStorage.removeItem("providerRegDocumentUploadWarning");
 
       const draft = readProviderRegistrationDraft();
       await submitProviderRegistration(draft);

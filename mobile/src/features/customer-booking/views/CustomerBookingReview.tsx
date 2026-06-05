@@ -1,32 +1,37 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { ChevronRight, CreditCard, Wallet } from 'lucide-react-native';
+import { MotionPressable, MotionView } from '../../../components/Motion';
 import {
-  Card,
-  PrimaryButton,
-  Section,
-  TopBar,
-} from '../../../components/DesignKit';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import {
+  BookingPricePreviewSummary,
   CatalogServiceItem,
   CustomerPaymentMethodSummary,
   CustomerPaymentMethodType,
-  PricingQuoteSummary,
   PromotionValidationSummary,
   ProviderListing,
 } from '../../../shared/models/types';
-import { StickyFooter } from '../../../shared/components/ScreenLayout';
 import { useCustomerBookingReviewViewModel } from '../viewModels/useCustomerBookingReviewViewModel';
+import type { CustomerBookingLocationState } from '../../../domain/customerBookingLocation';
 
 type CustomerBookingReviewScreenProps = {
   provider: ProviderListing;
   selectedService: CatalogServiceItem | null;
   hoursRequired: string;
   scheduledAt: string;
+  bookingSlotError: string;
   address: string;
+  serviceLocation: CustomerBookingLocationState;
   notes: string;
   bookingReferencePhotoUrl: string | null;
-  pricingQuote: PricingQuoteSummary | null;
+  bookingPricePreview: BookingPricePreviewSummary | null;
   promotionValidation: PromotionValidationSummary | null;
   promoCode: string;
   customerPaymentMethods: CustomerPaymentMethodSummary[];
@@ -37,7 +42,7 @@ type CustomerBookingReviewScreenProps = {
   onSelectPaymentMethod: (methodId: string) => void;
   onSavePaymentMethod: (methodType: CustomerPaymentMethodType) => Promise<void>;
   onConfirm: () => void;
-  onPreviewEstimate: () => void;
+  onRefreshPrice: () => void;
   onEditBooking: () => void;
 };
 
@@ -46,10 +51,12 @@ export function CustomerBookingReviewScreen({
   selectedService,
   hoursRequired,
   scheduledAt,
+  bookingSlotError,
   address,
+  serviceLocation,
   notes,
   bookingReferencePhotoUrl,
-  pricingQuote,
+  bookingPricePreview,
   promotionValidation,
   promoCode,
   customerPaymentMethods,
@@ -60,7 +67,7 @@ export function CustomerBookingReviewScreen({
   onSelectPaymentMethod,
   onSavePaymentMethod,
   onConfirm,
-  onPreviewEstimate,
+  onRefreshPrice,
   onEditBooking,
 }: CustomerBookingReviewScreenProps) {
   const bookingReview = useCustomerBookingReviewViewModel({
@@ -68,10 +75,12 @@ export function CustomerBookingReviewScreen({
     selectedService,
     hoursRequired,
     scheduledAt,
+    bookingSlotError,
     address,
+    serviceLocation,
     notes,
     bookingReferencePhotoUrl,
-    pricingQuote,
+    bookingPricePreview,
     promotionValidation,
     promoCode,
     customerPaymentMethods,
@@ -82,16 +91,15 @@ export function CustomerBookingReviewScreen({
 
   return (
     <>
-      <TopBar
-        title="Review booking"
-        subtitle="Step 2 of 2 - Confirm and send"
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
+      <CustomerScreen bottomInset={208}>
+        <CustomerContent>
+          <CustomerHeader
+            title="Review booking"
+            subtitle="Step 2 of 2 - confirm and send"
+            onBack={onBack}
+          />
 
-          {/* Provider card */}
-          <Card>
+          <CustomerCard>
             <View style={styles.providerRow}>
               <View style={styles.providerAvatar}>
                 <Text style={styles.providerInitial}>{data.providerInitial}</Text>
@@ -99,52 +107,52 @@ export function CustomerBookingReviewScreen({
               <View style={styles.flex}>
                 <Text style={styles.providerName}>{data.providerName}</Text>
                 <Text style={styles.providerRating}>{data.providerRatingLabel}</Text>
-                <Pressable
-                  style={styles.profileLink}
+                <MotionPressable
+                  contentStyle={styles.profileLink}
                   onPress={onViewProvider}
                   accessibilityRole="button"
                   accessibilityLabel="View provider profile"
                 >
                   <Text style={styles.linkText}>View Profile</Text>
-                  <ChevronRight color={palette.mint} size={15} strokeWidth={2.2} />
-                </Pressable>
+                  <ChevronRight color={palette.mintDeep} size={15} strokeWidth={2.2} />
+                </MotionPressable>
               </View>
             </View>
-          </Card>
+          </CustomerCard>
 
-          {/* Service details */}
-          <Section title="Service details">
-            <Card>
-              {data.serviceRows.map((row, i) => (
+          <CustomerSection title="Service details">
+            <CustomerCard>
+              {data.serviceRows.map((row, index) => (
                 <ReviewRow
                   key={row.label}
                   label={row.label}
                   value={row.value}
-                  last={i === data.serviceRows.length - 1}
+                  last={index === data.serviceRows.length - 1}
                 />
               ))}
-            </Card>
-          </Section>
+            </CustomerCard>
+          </CustomerSection>
 
-          {/* Special instructions */}
-          <Section title="Special instructions">
-            <Card>
+          <CustomerSection title="Special instructions">
+            <CustomerCard>
               <Text style={styles.notesLabel}>Your notes</Text>
               <Text style={styles.notesValue}>{data.notesLabel}</Text>
-            </Card>
-          </Section>
+            </CustomerCard>
+          </CustomerSection>
 
-          <Section title="Payment method">
-            <Card>
-              {data.paymentMethodRows.map((item, i) => (
-                <Pressable
+          <CustomerSection title="Payment method">
+            <CustomerCard>
+              {data.paymentMethodRows.map((item, index) => (
+                <MotionPressable
                   key={item.method.id}
-                  style={[
+                  contentStyle={[
                     styles.paymentMethodRow,
-                    i < data.paymentMethodRows.length - 1 && styles.paymentMethodBorder,
+                    index < data.paymentMethodRows.length - 1 &&
+                      styles.paymentMethodBorder,
                     item.selected && styles.paymentMethodSelected,
                   ]}
                   onPress={() => onSelectPaymentMethod(item.method.id)}
+                  selected={item.selected}
                   accessibilityRole="button"
                   accessibilityLabel={`Use ${item.label}`}
                   accessibilityState={{ selected: item.selected }}
@@ -154,13 +162,13 @@ export function CustomerBookingReviewScreen({
                   </View>
                   {item.method.methodType === 'cash_on_service' ? (
                     <Wallet
-                      color={item.selected ? palette.mint : palette.muted}
+                      color={item.selected ? palette.mintDeep : palette.muted}
                       size={20}
                       strokeWidth={2.2}
                     />
                   ) : (
                     <CreditCard
-                      color={item.selected ? palette.mint : palette.muted}
+                      color={item.selected ? palette.mintDeep : palette.muted}
                       size={20}
                       strokeWidth={2.2}
                     />
@@ -169,38 +177,19 @@ export function CustomerBookingReviewScreen({
                     <Text style={styles.paymentMethodTitle}>{item.label}</Text>
                     <Text style={styles.paymentMethodMeta}>{item.meta}</Text>
                   </View>
-                </Pressable>
+                </MotionPressable>
               ))}
               <View style={styles.quickMethodRow}>
-                <Pressable
-                  style={styles.quickMethodButton}
-                  onPress={() => void onSavePaymentMethod('gcash')}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.quickMethodText}>GCash</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.quickMethodButton}
-                  onPress={() => void onSavePaymentMethod('paymaya')}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.quickMethodText}>Maya</Text>
-                </Pressable>
-                <Pressable
-                  style={styles.quickMethodButton}
-                  onPress={() => void onSavePaymentMethod('card')}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.quickMethodText}>Card</Text>
-                </Pressable>
+                <QuickMethodButton label="GCash" onPress={() => onSavePaymentMethod('gcash')} />
+                <QuickMethodButton label="Maya" onPress={() => onSavePaymentMethod('paymaya')} />
+                <QuickMethodButton label="Card" onPress={() => onSavePaymentMethod('card')} />
               </View>
               <Text style={styles.paymentNotice}>{data.paymentNotice}</Text>
-            </Card>
-          </Section>
+            </CustomerCard>
+          </CustomerSection>
 
-          {/* Price breakdown */}
-          <Section title="Price breakdown">
-            <Card>
+          <CustomerSection title="Price breakdown">
+            <CustomerCard>
               {data.priceBreakdownRows.map((row) => (
                 <ReviewRow
                   key={row.key}
@@ -218,30 +207,55 @@ export function CustomerBookingReviewScreen({
                 <Text style={styles.totalLabel}>{data.totalLabel}</Text>
                 <Text style={styles.totalValue}>{data.displayedTotalLabel}</Text>
               </View>
-            </Card>
-          </Section>
+            </CustomerCard>
+          </CustomerSection>
 
-          {/* Notice */}
-          <View style={styles.noticeBox}>
-            <Text style={styles.noticeText}>{data.quoteExplanation}</Text>
-          </View>
+          <MotionView style={styles.noticeBox} variant="content">
+            <Text style={styles.noticeText}>{data.priceNotice}</Text>
+          </MotionView>
+        </CustomerContent>
+      </CustomerScreen>
 
-        </View>
-      </ScrollView>
-      <StickyFooter>
-        <PrimaryButton
-          label={data.confirmLabel}
+      <MotionView style={styles.stickyFooter} variant="sheet">
+        <MotionPressable
+          contentStyle={[
+            styles.footerButton,
+            data.confirmDisabled && styles.footerButtonDisabled,
+          ]}
           onPress={onConfirm}
           disabled={data.confirmDisabled}
-        />
-        <Text style={styles.footerLink} onPress={onPreviewEstimate}>
+          accessibilityRole="button"
+          accessibilityLabel={data.confirmLabel}
+        >
+          <Text style={styles.footerButtonText}>{data.confirmLabel}</Text>
+        </MotionPressable>
+        <Text style={styles.footerLink} onPress={onRefreshPrice}>
           {data.estimateLabel}
         </Text>
         <Text style={styles.footerLink} onPress={onEditBooking}>
           Edit booking
         </Text>
-      </StickyFooter>
+      </MotionView>
     </>
+  );
+}
+
+function QuickMethodButton({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => Promise<void>;
+}) {
+  return (
+    <MotionPressable
+      contentStyle={styles.quickMethodButton}
+      onPress={() => void onPress()}
+      accessibilityRole="button"
+      accessibilityLabel={`Add ${label} payment method`}
+    >
+      <Text style={styles.quickMethodText}>{label}</Text>
+    </MotionPressable>
   );
 }
 
@@ -257,26 +271,18 @@ function ReviewRow({
   return (
     <View style={[styles.reviewRow, !last && styles.reviewRowBorder]}>
       <Text style={styles.reviewLabel}>{label}</Text>
-      <Text style={styles.reviewValue} numberOfLines={3}>{value}</Text>
+      <Text style={styles.reviewValue} numberOfLines={3}>
+        {value}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 200,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   flex: {
     flex: 1,
+    minWidth: 0,
   },
-
-  // Provider card
   providerRow: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -284,26 +290,25 @@ const styles = StyleSheet.create({
   },
   providerAvatar: {
     alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.lg,
+    backgroundColor: '#F1FAF5',
+    borderRadius: 10,
     height: 52,
     justifyContent: 'center',
     width: 52,
   },
   providerInitial: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   providerName: {
-    color: palette.ink,
+    ...customerText.title,
     fontSize: 15,
-    fontWeight: '700',
+    lineHeight: 20,
   },
   providerRating: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
+    ...customerText.meta,
     marginTop: 2,
   },
   profileLink: {
@@ -313,15 +318,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   linkText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
-
-  // Payment methods
   paymentMethodRow: {
     alignItems: 'center',
-    borderRadius: radius.md,
+    borderRadius: 10,
     flexDirection: 'row',
     gap: spacing.sm,
     minHeight: 54,
@@ -329,15 +333,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   paymentMethodBorder: {
-    borderBottomColor: palette.lineSoft,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
   },
   paymentMethodSelected: {
-    backgroundColor: palette.mintSoft,
+    backgroundColor: '#F1FAF5',
   },
   radio: {
     alignItems: 'center',
-    borderColor: palette.line,
+    borderColor: '#D8DEE5',
     borderRadius: 9,
     borderWidth: 2,
     height: 18,
@@ -345,23 +349,23 @@ const styles = StyleSheet.create({
     width: 18,
   },
   radioSelected: {
-    borderColor: palette.mint,
+    borderColor: palette.mintDeep,
   },
   radioDot: {
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintDeep,
     borderRadius: 4,
     height: 8,
     width: 8,
   },
   paymentMethodTitle: {
-    color: palette.ink,
+    ...customerText.title,
     fontSize: 13,
-    fontWeight: '800',
+    lineHeight: 18,
   },
   paymentMethodMeta: {
-    color: palette.muted,
+    ...customerText.meta,
     fontSize: 12,
-    fontWeight: '600',
+    lineHeight: 17,
     marginTop: 2,
   },
   quickMethodRow: {
@@ -371,25 +375,23 @@ const styles = StyleSheet.create({
   quickMethodButton: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
+    borderColor: '#EEF0F2',
     borderRadius: radius.pill,
     borderWidth: 1,
     flex: 1,
-    minHeight: 36,
     justifyContent: 'center',
+    minHeight: 36,
     paddingHorizontal: spacing.sm,
   },
   quickMethodText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   paymentNotice: {
-    ...type.caption,
-    color: palette.muted,
+    ...customerText.meta,
   },
-
-  // Review rows
   reviewRow: {
     alignItems: 'flex-start',
     flexDirection: 'row',
@@ -397,78 +399,96 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   reviewRowBorder: {
-    borderBottomColor: palette.line,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
   },
   reviewLabel: {
-    color: palette.muted,
+    ...customerText.meta,
     flex: 1,
-    fontSize: 12,
-    fontWeight: '500',
     paddingTop: 1,
   },
   reviewValue: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1.6,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
     textAlign: 'right',
   },
-
-  // Notes
   notesLabel: {
-    color: palette.muted,
+    ...customerText.meta,
     fontSize: 11,
-    fontWeight: '500',
+    lineHeight: 15,
     marginBottom: spacing.xs,
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
   },
   notesValue: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 20,
+    ...customerText.body,
   },
-
-  // Total
   totalRow: {
     alignItems: 'center',
-    borderTopColor: palette.line,
+    borderTopColor: '#EEF0F2',
     borderTopWidth: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingTop: spacing.md,
     marginTop: spacing.xs,
+    paddingTop: spacing.md,
   },
   totalLabel: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   totalValue: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
-
-  // Notice
   noticeBox: {
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.lg,
+    backgroundColor: '#F1FAF5',
+    borderRadius: 10,
     padding: spacing.md,
   },
   noticeText: {
-    ...type.caption,
-    color: palette.muted,
+    ...customerText.meta,
     textAlign: 'center',
   },
-
-  // Footer
+  stickyFooter: {
+    backgroundColor: palette.white,
+    borderTopColor: '#EEF0F2',
+    borderTopWidth: 1,
+    bottom: 0,
+    gap: spacing.sm,
+    left: 0,
+    paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    position: 'absolute',
+    right: 0,
+  },
+  footerButton: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  footerButtonDisabled: {
+    backgroundColor: palette.line,
+  },
+  footerButtonText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
   footerLink: {
-    ...type.caption,
-    color: palette.mint,
-    fontWeight: '700',
+    ...customerText.meta,
+    color: palette.mintDeep,
+    fontWeight: '600',
     textAlign: 'center',
   },
 });

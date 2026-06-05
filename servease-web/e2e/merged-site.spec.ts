@@ -899,6 +899,15 @@ test.describe('merged landing and provider website', () => {
       });
     });
 
+    await page.route('**/v1/me/two-factor', async (route) => {
+      await fulfillJson(route, {
+        data: {
+          enabled: false,
+          verifiedAt: null,
+        },
+      });
+    });
+
     await page.route('**/v1/notifications', async (route) => {
       await fulfillJson(route, { data: [] });
     });
@@ -1229,8 +1238,10 @@ test.describe('merged landing and provider website', () => {
     await expect(page).toHaveURL(/\/provider-registration\/step-2$/);
     await page.getByPlaceholder(/maria home cleaning/i).fill('New Provider Cleaning');
     await page.getByPlaceholder('Select a service category').fill('Domestic & Cleaning Services');
-    await page.locator('select[name="subCategory"]').selectOption('Deep Cleaning');
+    await page.getByText('Domestic & Cleaning Services', { exact: true }).last().click();
+    await page.locator('select[name="subCategory"]').selectOption({ label: 'Deep Cleaning' });
     await page.getByPlaceholder('Select years of experience').fill('3–5 years');
+    await page.getByText('3–5 years', { exact: true }).last().click();
     await page.getByRole('button', { name: /^Continue$/ }).click();
 
     await expect(page).toHaveURL(/\/provider-registration\/step-3$/);
@@ -1915,7 +1926,16 @@ test.describe('merged landing and provider website', () => {
 
     const messagesSection = page.locator('section').filter({ hasText: 'Messages' });
     await messagesSection.getByPlaceholder('Write a message to your provider').fill('Please call when you arrive.');
+    const messageRequestPromise = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return (
+        request.method() === 'POST' &&
+        url.pathname === '/api/conversations/conversation-detail-1/messages'
+      );
+    });
     await messagesSection.getByRole('button', { name: /^Send$/ }).click();
+    const messageRequest = await messageRequestPromise;
+    messageBody = messageRequest.postDataJSON();
     await expect(page.getByText('Please call when you arrive.')).toBeVisible();
     expect(messageBody).toEqual({
       content: 'Please call when you arrive.',
@@ -2021,19 +2041,18 @@ test.describe('merged landing and provider website', () => {
 
     await page.goto('/provider/calendar');
     await page.getByRole('button', { name: 'Today' }).click();
-    await page.getByRole('button', { name: 'Add personal event' }).click();
-    await page.getByPlaceholder('Event Title').fill('Dental appointment');
-    await page.locator('input[type="time"]').fill('15:30');
-    await page.getByRole('button', { name: 'Add Event' }).click();
+    await page.getByRole('button', { name: 'Block day with reason' }).click();
+    await page.getByPlaceholder('Reason for blocking this day').fill('Dental appointment');
+    await page.getByRole('button', { name: 'Block Day', exact: true }).click();
 
-    await expect(page.getByText(/Personal event added for \d{4}-\d{2}-\d{2}\./)).toBeVisible();
+    await expect(page.getByText(/Blocked \d{4}-\d{2}-\d{2}\./)).toBeVisible();
     await page.getByRole('button', { name: 'Day', exact: true }).click();
     await expect(page.getByText('This day is blocked - No bookings available')).toBeVisible();
 
     expect(captures.availabilityDayOffBodies).toHaveLength(1);
     expect(captures.availabilityDayOffBodies?.[0]).toMatchObject({
       offDate: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-      reason: 'Personal event: Dental appointment at 15:30',
+      reason: 'Blocked day: Dental appointment',
     });
     expect(errors).toEqual([]);
   });

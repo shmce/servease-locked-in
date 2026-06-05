@@ -31,7 +31,9 @@ export function buildProviderServiceCompletedViewModel({
   return {
     data: {
       bookingReference: booking.bookingReference,
-      earningsLabel: formatMoney(payment?.providerPayout ?? booking.totalAmount),
+      providerPayoutLabel: payment
+        ? formatMoney(payment.providerPayout)
+        : 'Payout pending',
       serviceTitle: booking.serviceTitle ?? 'Service booking',
     },
     isLoading: false,

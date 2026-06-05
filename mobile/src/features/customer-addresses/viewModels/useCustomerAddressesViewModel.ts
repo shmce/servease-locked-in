@@ -1,28 +1,70 @@
 import { useMemo } from 'react';
 import { CustomerAddressSummary } from '../../../shared/models/types';
 
+type CustomerAddressesViewModelInput = {
+  addresses: CustomerAddressSummary[];
+  busyAction: string | null;
+  editTargetId?: string | null;
+};
+
 export function useCustomerAddressesViewModel({
   addresses,
   busyAction,
-}: {
-  addresses: CustomerAddressSummary[];
-  busyAction: string | null;
-}) {
+  editTargetId = null,
+}: CustomerAddressesViewModelInput) {
   return useMemo(
-    () => ({
-      data: {
-        addresses: addresses.map((address) => ({
+    () =>
+      buildCustomerAddressesViewModel({
+        addresses,
+        busyAction,
+        editTargetId,
+      }),
+    [addresses, busyAction, editTargetId],
+  );
+}
+
+export function buildCustomerAddressesViewModel({
+  addresses,
+  busyAction,
+  editTargetId = null,
+}: CustomerAddressesViewModelInput) {
+  const isSavingNewAddress = busyAction === 'save-customer-address';
+  const isUpdatingEditedAddress =
+    editTargetId !== null &&
+    busyAction === `update-customer-address-${editTargetId}`;
+
+  return {
+    data: {
+      addresses: addresses.map((address) => {
+        const isPinVerified =
+          address.latitude !== null && address.longitude !== null;
+        const isPinActionBusy =
+          busyAction === `update-customer-address-${address.id}`;
+
+        return {
           ...address,
           defaultLabel: address.isDefault ? 'Default home' : 'Saved address',
-          settingDefault: busyAction === `default-address-${address.id}`,
           deleting: busyAction === `delete-address-${address.id}`,
-        })),
-        hasAddresses: addresses.length > 0,
-        saveLabel: busyAction === 'save-customer-address' ? 'Saving...' : 'Save address',
-      },
-      isLoading: false,
-      error: null,
-    }),
-    [addresses, busyAction],
-  );
+          isPinActionBusy,
+          isPinVerified,
+          pinActionLabel: isPinVerified ? 'Edit pin' : 'Verify pin',
+          pinCoordinateLabel: isPinVerified
+            ? `${address.latitude?.toFixed(5)}, ${address.longitude?.toFixed(5)}`
+            : null,
+          settingDefault: busyAction === `default-address-${address.id}`,
+          verificationLabel: isPinVerified ? 'Verified pin' : 'Needs pin',
+        };
+      }),
+      hasAddresses: addresses.length > 0,
+      isSavingAddress: isSavingNewAddress || isUpdatingEditedAddress,
+      saveLabel:
+        isSavingNewAddress || isUpdatingEditedAddress
+          ? 'Saving...'
+          : editTargetId
+            ? 'Update saved address'
+            : 'Save address',
+    },
+    isLoading: false,
+    error: null,
+  };
 }

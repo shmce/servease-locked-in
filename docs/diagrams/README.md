@@ -31,6 +31,10 @@ For the route-by-route narrative behind the sequence and activity diagrams, see
 | 16 | Review Submission Sequence | Shows completed-booking review submission. |
 | 17 | Support Ticket Sequence | Shows support ticket creation and admin handling. |
 | 18 | Domain Model | Shows the main domain classes and relationships. |
+| 19 | Customer Booking User Journey | Shows the customer path from discovery through booking, service tracking, payment, review, and history. |
+| 20 | Provider Job User Journey | Shows the provider path from onboarding and availability through job delivery, completion, and payout review. |
+| 21 | Auth and Onboarding User Journey | Shows account entry, role resolution, customer setup, provider setup, and auth recovery states. |
+| 22 | Support and Recovery User Journey | Shows how customers/providers move from issue detection through self-service, support tickets, admin handling, and resolution. |
 
 ## Regenerating Exports
 

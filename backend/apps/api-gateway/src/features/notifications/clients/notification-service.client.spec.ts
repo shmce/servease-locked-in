@@ -108,6 +108,50 @@ describe('NotificationServiceClient', () => {
       jest.restoreAllMocks();
     }
   });
+
+  it('forwards bulk read requests to the notification service', async () => {
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        data: [
+          {
+            id: 'notification-1',
+            userId: 'user-1',
+            type: 'booking_update',
+            title: 'Booking updated',
+            body: 'Your booking changed.',
+            isRead: true,
+            metadata: null,
+            createdAt: '2026-06-04T10:00:00.000Z',
+          },
+        ],
+      }),
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+    try {
+      const client = new NotificationServiceClient(configService());
+      const notifications = await client.markAllRead('user-1');
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://notification-service.test/internal/notifications/read-all',
+        {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: 'user-1',
+          }),
+        },
+      );
+      expect(notifications[0].isRead).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+      jest.restoreAllMocks();
+    }
+  });
 });
 
 function configService(): ConfigService {

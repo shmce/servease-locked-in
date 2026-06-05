@@ -16,7 +16,7 @@ interface SupabaseRpcClient {
     functionName: string,
     args: Record<
       string,
-      string | string[] | boolean | NotificationMetadata | null
+      string | string[] | number | boolean | NotificationMetadata | null
     >,
   ): PromiseLike<{
     data: Array<
@@ -111,9 +111,18 @@ export class SupabaseNotificationRepository {
   }
 
   async listNotifications(userId: string): Promise<NotificationSummary[]> {
-    const { data, error } = await this.client.rpc('servease_list_notifications', {
-      p_user_id: userId,
-    });
+    let { data, error } = await this.client.rpc(
+      'servease_list_notifications_mobile',
+      {
+        p_user_id: userId,
+        p_limit: 30,
+      },
+    );
+    if (this.isMissingRpcError(error, 'servease_list_notifications_mobile')) {
+      ({ data, error } = await this.client.rpc('servease_list_notifications', {
+        p_user_id: userId,
+      }));
+    }
 
     if (error) {
       throw new Error(`Failed to list notifications: ${error.message}`);
@@ -159,6 +168,21 @@ export class SupabaseNotificationRepository {
     }
 
     return this.mapNotification(data as NotificationRow);
+  }
+
+  async markAllRead(userId: string): Promise<NotificationSummary[]> {
+    const { data, error } = await this.client.rpc(
+      'servease_mark_all_notifications_read',
+      {
+        p_user_id: userId,
+      },
+    );
+
+    if (error) {
+      throw new Error(`Failed to mark all notifications read: ${error.message}`);
+    }
+
+    return (data ?? []).map((row) => this.mapNotification(row as NotificationRow));
   }
 
   async registerPushDevice(
@@ -252,5 +276,17 @@ export class SupabaseNotificationRepository {
       platform: row.platform,
       deviceId: row.device_id,
     };
+  }
+
+  private isMissingRpcError(
+    error: { message: string; code?: string } | null,
+    functionName: string,
+  ): boolean {
+    const message = error?.message.toLowerCase() ?? '';
+    return (
+      error?.code === '42883' ||
+      message.includes(functionName.toLowerCase()) ||
+      message.includes('does not exist')
+    );
   }
 }

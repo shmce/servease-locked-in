@@ -14,10 +14,19 @@ import {
   Wallet,
   Wrench,
 } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppScreen } from '../../../navigation/types';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { CurrentUserProfile } from '../../../shared/models/types';
+import {
+  ProviderCard,
+  ProviderContent,
+  ProviderHeader,
+  ProviderIconBlock,
+  ProviderScreen,
+  ProviderSection,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import { useProviderMoreViewModel } from '../viewModels/useProviderMoreViewModel';
 
 type ProviderMoreScreenProps = {
@@ -68,83 +77,91 @@ export function ProviderMoreScreen({
   };
 
   return (
-    <>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.content}>
-
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="More"
+          subtitle="Manage your provider workspace"
+        />
+        <ProviderCard style={styles.profileRow}>
+          <View style={styles.avatar}>
+            {data.avatarUri ? (
+              <Image
+                source={{ uri: data.avatarUri }}
+                style={styles.avatarImage}
+                accessibilityLabel="Profile photo"
+              />
+            ) : (
               <Text style={styles.avatarText}>{data.initial}</Text>
-            </View>
-            <View style={styles.flex}>
-              <Text style={styles.profileName}>{data.displayName}</Text>
-              <Text style={styles.profileEmail}>{data.displayEmail}</Text>
-            </View>
-            <Pressable
-              style={styles.editBadge}
-              onPress={() => navigate('providerProfileView', 'provider')}
-              accessibilityRole="button"
-              accessibilityLabel="Edit profile"
-            >
-              <Text style={styles.editBadgeText}>Edit</Text>
-            </Pressable>
+            )}
           </View>
-
-          {menuGroups.map((group) => {
-            const groupItems = allItems.filter((i) => group.labels.includes(i.label));
-            if (groupItems.length === 0) return null;
-            return (
-              <View key={group.title} style={styles.menuGroup}>
-                <Text style={styles.groupTitle}>{group.title}</Text>
-                <View style={styles.menuCard}>
-                  {groupItems.map((action, index) => {
-                    const Icon = itemIcon[action.label] ?? ChevronRight;
-                    return (
-                      <Pressable
-                        key={action.label}
-                        style={[
-                          styles.menuRow,
-                          index < groupItems.length - 1 && styles.menuRowDivider,
-                        ]}
-                        onPress={() => navigate(action.screen, 'provider')}
-                        accessibilityRole="button"
-                        accessibilityLabel={action.label}
-                      >
-                        <View style={styles.menuIconBg}>
-                          <Icon color={palette.mint} size={18} strokeWidth={2.2} />
-                        </View>
-                        <Text style={styles.menuLabel}>{action.label}</Text>
-                        <ActionBadge badge={action.badge} />
-                        {action.badge ? (
-                          <View style={styles.menuBadge}>
-                            <Text style={styles.menuBadgeText}>
-                              {action.badge > 99 ? '99+' : action.badge}
-                            </Text>
-                          </View>
-                        ) : null}
-                        <ChevronRight color={palette.line} size={16} />
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            );
-          })}
-
+          <View style={styles.flex}>
+            <Text style={styles.profileName}>{data.displayName}</Text>
+            <Text style={styles.profileEmail}>{data.displayEmail}</Text>
+          </View>
           <Pressable
-            style={[styles.logoutButton, !signOut && styles.logoutButtonDisabled]}
-            onPress={handleSignOut}
-            disabled={!signOut}
+            style={styles.editBadge}
+            onPress={() => navigate('providerProfileView', 'provider')}
             accessibilityRole="button"
+            accessibilityLabel="Edit profile"
           >
-            <LogOut color={palette.red} size={18} strokeWidth={2.2} />
-            <Text style={styles.logoutText}>Log out</Text>
+            <Text style={styles.editBadgeText}>Edit</Text>
           </Pressable>
+        </ProviderCard>
 
-          <Text style={styles.versionText}>ServEase v1.0.0</Text>
-        </View>
-      </ScrollView>
-    </>
+        {menuGroups.map((group) => {
+          const groupItems = allItems.filter((i) => group.labels.includes(i.label));
+          if (groupItems.length === 0) return null;
+          return (
+            <ProviderSection key={group.title} title={group.title}>
+              <ProviderCard style={styles.menuCard}>
+                {groupItems.map((action, index) => {
+                  const Icon = itemIcon[action.label] ?? ChevronRight;
+                  return (
+                    <Pressable
+                      key={action.label}
+                      style={[
+                        styles.menuRow,
+                        index < groupItems.length - 1 && styles.menuRowDivider,
+                      ]}
+                      onPress={() => navigate(action.screen, 'provider')}
+                      accessibilityRole="button"
+                      accessibilityLabel={action.label}
+                    >
+                      <ProviderIconBlock compact>
+                        <Icon color={palette.mintDeep} size={18} strokeWidth={2.2} />
+                      </ProviderIconBlock>
+                      <Text style={styles.menuLabel}>{action.label}</Text>
+                      <ActionBadge badge={action.badge} />
+                      {action.badge ? (
+                        <View style={styles.menuBadge}>
+                          <Text style={styles.menuBadgeText}>
+                            {action.badge > 99 ? '99+' : action.badge}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <ChevronRight color={palette.mintDeep} size={16} />
+                    </Pressable>
+                  );
+                })}
+              </ProviderCard>
+            </ProviderSection>
+          );
+        })}
+
+        <Pressable
+          style={[styles.logoutButton, !signOut && styles.logoutButtonDisabled]}
+          onPress={handleSignOut}
+          disabled={!signOut}
+          accessibilityRole="button"
+        >
+          <LogOut color={palette.red} size={18} strokeWidth={2.2} />
+          <Text style={styles.logoutText}>Log out</Text>
+        </Pressable>
+
+        <Text style={styles.versionText}>ServEase v1.0.0</Text>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
@@ -153,49 +170,38 @@ function ActionBadge({ badge }: { badge?: number }) {
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.base,
-    paddingTop: spacing.lg,
-  },
   flex: { flex: 1 },
 
   profileRow: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
     flexDirection: 'row',
     gap: spacing.base,
-    padding: spacing.base,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
   },
   avatar: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: palette.mintSoft,
+    borderColor: '#A7E5C2',
+    borderWidth: 1,
     borderRadius: radius.pill,
     height: 52,
     justifyContent: 'center',
+    overflow: 'hidden',
+    width: 52,
+  },
+  avatarImage: {
+    height: 52,
     width: 52,
   },
   avatarText: {
-    color: palette.white,
+    color: palette.mintDeep,
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   profileName: {
-    color: palette.ink,
-    fontSize: 16,
-    fontWeight: '700',
+    ...providerText.title,
   },
   profileEmail: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
+    ...providerText.meta,
     marginTop: 2,
   },
   editBadge: {
@@ -207,25 +213,12 @@ const styles = StyleSheet.create({
   editBadgeText: {
     color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '700',
-  },
-
-  menuGroup: {
-    gap: spacing.xs,
-  },
-  groupTitle: {
-    color: palette.faint,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    paddingHorizontal: spacing.xs,
-    textTransform: 'uppercase',
+    fontWeight: '600',
   },
   menuCard: {
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
+    gap: 0,
     overflow: 'hidden',
-    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+    padding: 0,
   },
   menuRow: {
     alignItems: 'center',
@@ -238,19 +231,11 @@ const styles = StyleSheet.create({
     borderBottomColor: palette.lineSoft,
     borderBottomWidth: 1,
   },
-  menuIconBg: {
-    alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.sm,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
   menuLabel: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   menuBadge: {
     alignItems: 'center',
@@ -270,7 +255,9 @@ const styles = StyleSheet.create({
   logoutButton: {
     alignItems: 'center',
     backgroundColor: '#FEF2F2',
+    borderColor: '#FADADA',
     borderRadius: radius.lg,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
@@ -282,12 +269,12 @@ const styles = StyleSheet.create({
   logoutText: {
     color: palette.red,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   versionText: {
-    color: palette.faint,
+    color: '#8B95A1',
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '400',
     textAlign: 'center',
   },
 });

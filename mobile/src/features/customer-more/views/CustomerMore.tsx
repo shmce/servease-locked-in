@@ -1,6 +1,5 @@
 import {
   Bell,
-  ChevronRight,
   CreditCard,
   FileText,
   Gift,
@@ -11,8 +10,18 @@ import {
   ShieldCheck,
   User,
 } from 'lucide-react-native';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppScreen } from '../../../navigation/types';
+import {
+  CustomerBadge,
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerRow,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { CurrentUserProfile } from '../../../shared/models/types';
 import { useCustomerMoreViewModel } from '../viewModels/useCustomerMoreViewModel';
@@ -53,12 +62,24 @@ export function CustomerMoreScreen({
   const allItems = data.actionRows.flat();
 
   return (
-    <ScrollView contentContainerStyle={styles.scrollContent}>
-      <View style={styles.content}>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="More"
+          subtitle="Manage your account and preferences"
+        />
 
-        <View style={styles.profileCard}>
+        <CustomerCard style={styles.profileCard}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{data.initial}</Text>
+            {data.avatarUri ? (
+              <Image
+                source={{ uri: data.avatarUri }}
+                style={styles.avatarImage}
+                accessibilityLabel="Profile photo"
+              />
+            ) : (
+              <Text style={styles.avatarText}>{data.initial}</Text>
+            )}
           </View>
           <View style={styles.flex}>
             <Text style={styles.profileName}>{data.displayName}</Text>
@@ -72,45 +93,41 @@ export function CustomerMoreScreen({
           >
             <Text style={styles.editBadgeText}>Edit</Text>
           </Pressable>
-        </View>
+        </CustomerCard>
 
         {menuGroups.map((group) => {
           const groupItems = allItems.filter((i) => group.labels.includes(i.label));
           if (groupItems.length === 0) return null;
           return (
-            <View key={group.title} style={styles.menuGroup}>
-              <Text style={styles.groupTitle}>{group.title}</Text>
-              <View style={styles.menuCard}>
+            <CustomerSection key={group.title} title={group.title}>
+              <CustomerCard style={styles.menuCard}>
                 {groupItems.map((item, index) => {
-                  const Icon = itemIcon[item.label] ?? ChevronRight;
+                  const Icon = itemIcon[item.label] ?? User;
                   return (
-                    <Pressable
+                    <View
                       key={item.label}
-                      style={[
-                        styles.menuRow,
-                        index < groupItems.length - 1 && styles.menuRowDivider,
-                      ]}
-                      onPress={() => navigate(item.screen, 'customer')}
-                      accessibilityRole="button"
-                      accessibilityLabel={item.label}
+                      style={index < groupItems.length - 1 && styles.menuRowDivider}
                     >
-                      <View style={styles.menuIconBg}>
-                        <Icon color={palette.mint} size={18} strokeWidth={2.2} />
-                      </View>
-                      <Text style={styles.menuLabel}>{item.label}</Text>
-                      {item.badge ? (
-                        <View style={styles.menuBadge}>
-                          <Text style={styles.menuBadgeText}>
-                            {item.badge > 99 ? '99+' : item.badge}
-                          </Text>
-                        </View>
-                      ) : null}
-                      <ChevronRight color={palette.line} size={16} />
-                    </Pressable>
+                      <CustomerRow
+                        icon={
+                          <Icon color={palette.mintDeep} size={18} strokeWidth={2.1} />
+                        }
+                        title={item.label}
+                        meta={
+                          item.badge ? (
+                            <CustomerBadge
+                              label={item.badge > 99 ? '99+' : String(item.badge)}
+                              tone="danger"
+                            />
+                          ) : undefined
+                        }
+                        onPress={() => navigate(item.screen, 'customer')}
+                      />
+                    </View>
                   );
                 })}
-              </View>
-            </View>
+              </CustomerCard>
+            </CustomerSection>
           );
         })}
 
@@ -124,130 +141,75 @@ export function CustomerMoreScreen({
         </Pressable>
 
         <Text style={styles.versionText}>ServEase v1.0.0</Text>
-      </View>
-    </ScrollView>
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContent: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.base,
-    paddingTop: spacing.lg,
-  },
   flex: { flex: 1 },
 
   profileCard: {
     alignItems: 'center',
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
     flexDirection: 'row',
-    gap: spacing.base,
+    gap: spacing.md,
     padding: spacing.base,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
   },
   avatar: {
     alignItems: 'center',
-    backgroundColor: palette.mint,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
-    height: 52,
+    height: 50,
     justifyContent: 'center',
-    width: 52,
+    overflow: 'hidden',
+    width: 50,
+  },
+  avatarImage: {
+    height: 50,
+    width: 50,
   },
   avatarText: {
-    color: palette.white,
-    fontSize: 22,
-    fontWeight: '700',
+    color: palette.mintDeep,
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   profileName: {
-    color: palette.ink,
+    ...customerText.title,
     fontSize: 16,
-    fontWeight: '700',
+    lineHeight: 21,
   },
   profileEmail: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
+    ...customerText.meta,
     marginTop: 2,
   },
   editBadge: {
-    backgroundColor: palette.mintSoft,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
   },
   editBadgeText: {
     color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '700',
-  },
-
-  menuGroup: {
-    gap: spacing.xs,
-  },
-  groupTitle: {
-    color: palette.faint,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    paddingHorizontal: spacing.xs,
-    textTransform: 'uppercase',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   menuCard: {
-    backgroundColor: palette.white,
-    borderRadius: radius.lg,
+    gap: 0,
     overflow: 'hidden',
-    boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
-  },
-  menuRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.base,
-    minHeight: 58,
-    paddingHorizontal: spacing.base,
   },
   menuRowDivider: {
-    borderBottomColor: palette.lineSoft,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
-  },
-  menuIconBg: {
-    alignItems: 'center',
-    backgroundColor: palette.mintSoft,
-    borderRadius: radius.sm,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  menuLabel: {
-    color: palette.ink,
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  menuBadge: {
-    alignItems: 'center',
-    backgroundColor: palette.red,
-    borderRadius: radius.pill,
-    height: 20,
-    justifyContent: 'center',
-    minWidth: 20,
-    paddingHorizontal: 4,
-  },
-  menuBadgeText: {
-    color: palette.white,
-    fontSize: 11,
-    fontWeight: '700',
   },
 
   logoutButton: {
     alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderRadius: radius.lg,
+    backgroundColor: '#FFF7F7',
+    borderColor: '#F7D9D9',
+    borderRadius: 10,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
     justifyContent: 'center',
@@ -256,12 +218,14 @@ const styles = StyleSheet.create({
   logoutText: {
     color: palette.red,
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   versionText: {
     color: palette.faint,
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '400',
+    letterSpacing: 0,
     textAlign: 'center',
   },
 });

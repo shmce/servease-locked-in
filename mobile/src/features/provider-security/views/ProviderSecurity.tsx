@@ -1,7 +1,10 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { Section, TopBar } from '../../../components/DesignKit';
+import {
+  ProviderContent,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderSection,
+} from '../../../shared/components/ProviderUI';
 import { TwoFactorSettingsCard } from '../../../shared/components/TwoFactorSettingsCard';
-import { palette, spacing } from '../../../theme/serveaseDesign';
 import { useProviderSecurityViewModel } from '../viewModels/useProviderSecurityViewModel';
 
 type ProviderSecurityScreenProps = {
@@ -30,40 +33,26 @@ export function ProviderSecurityScreen({
   const security = useProviderSecurityViewModel();
 
   return (
-    <>
-      <TopBar
-        title={security.data.pageTitle}
-        subtitle={security.data.pageSubtitle}
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <Section title={security.data.sectionTitle}>
-            <TwoFactorSettingsCard
-              busyAction={busyAction}
-              twoFactorCode={twoFactorCode}
-              twoFactorEnabled={twoFactorEnabled}
-              twoFactorSecret={twoFactorSecret}
-              onCodeChange={setTwoFactorCode}
-              startTwoFactorSetup={startTwoFactorSetup}
-              verifyTwoFactorSetup={verifyTwoFactorSetup}
-              disableTwoFactorSetup={disableTwoFactorSetup}
-            />
-          </Section>
-        </View>
-      </ScrollView>
-    </>
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title={security.data.pageTitle}
+          subtitle={security.data.pageSubtitle}
+          onBack={onBack}
+        />
+        <ProviderSection title={security.data.sectionTitle}>
+          <TwoFactorSettingsCard
+            busyAction={busyAction}
+            twoFactorCode={twoFactorCode}
+            twoFactorEnabled={twoFactorEnabled}
+            twoFactorSecret={twoFactorSecret}
+            onCodeChange={setTwoFactorCode}
+            startTwoFactorSetup={startTwoFactorSetup}
+            verifyTwoFactorSetup={verifyTwoFactorSetup}
+            disableTwoFactorSetup={disableTwoFactorSetup}
+          />
+        </ProviderSection>
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
-});

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timedGatewayFetch } from '../../observability/downstream-timing';
 import { CatalogDependencyUnavailableError } from '../catalog.errors';
 import {
   CatalogCategory,
@@ -141,13 +142,22 @@ export class CatalogServiceClient {
       'CATALOG_SERVICE_URL',
       'http://localhost:8503',
     );
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        'content-type': 'application/json',
+    const url = `${baseUrl}${path}`;
+    const response = await timedGatewayFetch(
+      {
+        method,
+        operation: path,
+        service: 'catalog-service',
+        url,
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+      {
+        method,
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+    );
 
     if (!response.ok) {
       throw new CatalogDependencyUnavailableError();

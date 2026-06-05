@@ -34,6 +34,7 @@
     "lint:check": "eslint \"{apps,libs}/**/*.ts\"",
     "env:prod": "node scripts/check-production-env.mjs",
     "check:migrations": "node scripts/check-migration-drift.mjs",
+    "perf:mobile-read-paths": "node scripts/measure-mobile-read-paths.mjs",
     "verify": "npm run lint && npm run test && npm run build && npm audit --omit=dev && npm run check:migrations && npm run smoke:all",
     "smoke:availability": "node scripts/smoke-availability.mjs",
     "smoke:apicenter": "node scripts/smoke-apicenter.mjs",

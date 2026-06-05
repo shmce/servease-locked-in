@@ -60,6 +60,12 @@ describe('gateway CORS config', () => {
     );
   });
 
+  it('allows Expo web dev origins on alternate local ports outside production', () => {
+    expect(resolveGatewayCorsOrigins({ NODE_ENV: 'development' })).toContain(
+      'http://localhost:8099',
+    );
+  });
+
   it('allows auth and json headers on gateway requests', () => {
     expect(createGatewayCorsOptions({ NODE_ENV: 'development' })).toMatchObject({
       credentials: true,

@@ -274,6 +274,10 @@ export class PricingEngineService {
       providerId: input.providerId,
       serviceId: input.serviceId,
       categoryId: input.categoryId ?? null,
+      serviceAddress: input.serviceAddress.trim(),
+      scheduledAt: input.scheduledAt,
+      hoursRequired: hours,
+      pricingMode: input.pricingMode,
       expiresAt: new Date(
         Date.now() + this.quoteTtlSeconds() * 1000,
       ).toISOString(),
@@ -299,7 +303,7 @@ export class PricingEngineService {
       !input.providerId ||
       !input.serviceId ||
       !input.serviceAddress?.trim() ||
-      !input.scheduledAt ||
+      !Number.isFinite(new Date(input.scheduledAt).getTime()) ||
       !Number.isFinite(input.providerBasePrice) ||
       input.providerBasePrice <= 0 ||
       !['flat', 'hourly'].includes(input.pricingMode) ||

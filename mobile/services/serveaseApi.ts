@@ -86,6 +86,8 @@ export interface ProviderProfileSnapshot {
     email: string;
     fullName: string | null;
     contactNumber: string | null;
+    avatarUrl?: string | null;
+    avatarStoragePath?: string | null;
     role: UserRole;
     status: UserStatus;
   };
@@ -102,6 +104,38 @@ export interface ProviderProfileSnapshot {
 
 export type BookingPricingMode = 'flat' | 'hourly';
 
+export type BookingPriceBreakdownLineItemCode =
+  | 'service_subtotal'
+  | 'travel_fuel'
+  | 'service_fee';
+
+export interface BookingPriceBreakdownLineItem {
+  code: BookingPriceBreakdownLineItemCode;
+  label: string;
+  amount: number;
+  source: 'provider_rate' | 'route' | 'fallback' | 'platform_fee';
+}
+
+export interface BookingPriceBreakdown {
+  currency: 'PHP';
+  lineItems: BookingPriceBreakdownLineItem[];
+  serviceSubtotal: number;
+  travelFee: number;
+  serviceFee: number;
+  total: number;
+  fallbackUsed: boolean;
+  calculationSource: 'route' | 'fallback';
+  generatedAt: string;
+  metadata: {
+    pricingMode: BookingPricingMode;
+    hoursRequired: number;
+    serviceRate: number;
+    distanceKm: number | null;
+    durationMinutes: number | null;
+    fallbackReason: string | null;
+  };
+}
+
 export interface BookingSummary {
   id: string;
   bookingReference: string;
@@ -114,6 +148,8 @@ export interface BookingSummary {
   serviceTitle: string | null;
   serviceDescription?: string | null;
   serviceAddress: string | null;
+  serviceLatitude?: number | null;
+  serviceLongitude?: number | null;
   scheduledAt: string;
   hoursRequired?: number | null;
   serviceAmount?: number | null;
@@ -121,6 +157,7 @@ export interface BookingSummary {
   customerNotes?: string | null;
   status: BookingStatus;
   totalAmount: number;
+  priceBreakdown?: BookingPriceBreakdown | null;
   attachments?: BookingAttachmentSummary[];
 }
 
@@ -385,7 +422,11 @@ export interface CreateReviewRequest {
   reviewText?: string | null;
 }
 
-export type SupportTicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+export type SupportTicketStatus =
+  | 'open'
+  | 'in_progress'
+  | 'resolved'
+  | 'closed';
 
 export interface SupportTicketSummary {
   id: string;
@@ -522,6 +563,8 @@ export interface CurrentUserProfile {
     email: string;
     fullName: string | null;
     contactNumber: string | null;
+    avatarUrl?: string | null;
+    avatarStoragePath?: string | null;
     role: UserRole;
     status: UserStatus;
   };
@@ -567,7 +610,8 @@ export interface CreateCustomerAddressRequest {
   isDefault?: boolean | null;
 }
 
-export type UpdateCustomerAddressRequest = Partial<CreateCustomerAddressRequest>;
+export type UpdateCustomerAddressRequest =
+  Partial<CreateCustomerAddressRequest>;
 
 export interface RegisterAccountRequest {
   role: 'customer' | 'provider';
@@ -699,6 +743,8 @@ export interface UpdateCurrentUserProfileRequest {
   contactNumber?: string | null;
   address?: string | null;
   businessName?: string | null;
+  avatarUrl?: string | null;
+  avatarStoragePath?: string | null;
 }
 
 export interface UpdateCurrentUserPasswordRequest {
@@ -736,7 +782,8 @@ export type UploadKind =
   | 'message_attachment'
   | 'provider_portfolio'
   | 'provider_progress'
-  | 'provider_document';
+  | 'provider_document'
+  | 'avatar';
 
 export interface UploadSummary {
   bucket: string;
@@ -879,18 +926,37 @@ export interface CreateBookingRequest {
   serviceName?: string | null;
   serviceDescription?: string | null;
   serviceAddress: string;
+  serviceLatitude?: number | null;
+  serviceLongitude?: number | null;
   scheduledAt: string;
   hoursRequired?: number | null;
   serviceAmount?: number | null;
+  totalAmount?: number | null;
+  previewTotalAmount?: number | null;
   pricingMode?: 'flat' | 'hourly' | null;
   acceptedQuoteId?: string | null;
+  priceBreakdown?: BookingPriceBreakdown | null;
   paymentMethod?: string | null;
   customerNotes?: string | null;
   attachments?: BookingAttachmentInput[];
 }
 
+export interface BookingPricePreviewSummary {
+  currency: 'PHP';
+  serviceAmount: number;
+  totalAmount: number;
+  pricingMode: BookingPricingMode;
+  serviceTitle: string | null;
+  serviceDescription: string | null;
+  priceBreakdown: BookingPriceBreakdown;
+  materialDriftTolerance: number;
+}
+
 export type PricingUrgency = 'standard' | 'priority' | 'emergency';
-export type PricingFairnessStatus = 'below_range' | 'within_range' | 'above_range';
+export type PricingFairnessStatus =
+  | 'below_range'
+  | 'within_range'
+  | 'above_range';
 export type PricingConfidence = 'high' | 'medium' | 'low';
 
 export interface PricingRouteLocation {
@@ -918,6 +984,13 @@ export interface PricingQuoteLineItem {
 
 export interface PricingQuoteSummary {
   quoteId: string;
+  customerId?: string;
+  providerId?: string;
+  serviceId?: string;
+  serviceAddress?: string | null;
+  scheduledAt?: string | null;
+  hoursRequired?: number | null;
+  pricingMode?: 'flat' | 'hourly' | null;
   expiresAt: string;
   currency: 'PHP';
   estimatedTotal: number;
@@ -948,6 +1021,59 @@ export interface IdempotentApiOptions extends ApiOptions {
   idempotencyKey?: string | null;
 }
 
+export class ServeaseApiError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string | null,
+    public readonly status: number,
+    public readonly details: unknown = null,
+  ) {
+    super(message);
+    this.name = 'ServeaseApiError';
+  }
+}
+
+type ReadCacheGroup =
+  | 'addresses'
+  | 'catalog'
+  | 'notifications'
+  | 'profile'
+  | 'provider-dashboard'
+  | 'provider-profile';
+
+type ReadCacheEntry = {
+  expiresAt: number;
+  group: ReadCacheGroup;
+  value: unknown;
+};
+
+const STABLE_READ_TTL_MS = 15_000;
+const DASHBOARD_READ_TTL_MS = 8_000;
+const stableReadCache = new Map<string, ReadCacheEntry>();
+const pendingStableReads = new Map<string, Promise<unknown>>();
+const fetcherIds = new WeakMap<ApiOptions['fetcher'] & object, number>();
+let fetcherIdCounter = 0;
+
+export function clearServeaseApiReadCache(group?: ReadCacheGroup): void {
+  if (!group) {
+    stableReadCache.clear();
+    pendingStableReads.clear();
+    return;
+  }
+
+  for (const [key, entry] of stableReadCache.entries()) {
+    if (entry.group === group) {
+      stableReadCache.delete(key);
+    }
+  }
+
+  for (const key of pendingStableReads.keys()) {
+    if (key.includes(`|group=${group}|`)) {
+      pendingStableReads.delete(key);
+    }
+  }
+}
+
 export interface BookingTrackingStreamHandlers {
   onSnapshot: (snapshot: BookingTrackingSnapshot) => void;
   onError?: (error: Error) => void;
@@ -972,9 +1098,10 @@ export function createProviderPayoutIdempotencyKey(): string {
 export function listCatalogCategories(
   options: ApiOptions = {},
 ): Promise<CatalogCategory[]> {
-  return request<CatalogCategory[]>('/v1/catalog/categories', {
+  return stableReadRequest<CatalogCategory[]>('/v1/catalog/categories', {
     ...options,
     method: 'GET',
+    cacheGroup: 'catalog',
   });
 }
 
@@ -985,9 +1112,10 @@ export function listCatalogServices(
   const path = categoryId
     ? `/v1/catalog/services?categoryId=${encodeURIComponent(categoryId)}`
     : '/v1/catalog/services';
-  return request<CatalogServiceItem[]>(path, {
+  return stableReadRequest<CatalogServiceItem[]>(path, {
     ...options,
     method: 'GET',
+    cacheGroup: 'catalog',
   });
 }
 
@@ -998,9 +1126,10 @@ export function listProviderListings(
   const path = serviceId
     ? `/v1/catalog/providers?serviceId=${encodeURIComponent(serviceId)}`
     : '/v1/catalog/providers';
-  return request<ProviderListing[]>(path, {
+  return stableReadRequest<ProviderListing[]>(path, {
     ...options,
     method: 'GET',
+    cacheGroup: 'catalog',
   });
 }
 
@@ -1021,11 +1150,18 @@ export function addProviderPortfolioMedia(
   body: MediaAttachmentInput,
   options: ApiOptions = {},
 ): Promise<ProviderPortfolioMediaSummary> {
-  return request<ProviderPortfolioMediaSummary>('/v1/catalog/provider/portfolio', {
-    ...options,
-    method: 'POST',
-    body,
-    requiresAuth: true,
+  return request<ProviderPortfolioMediaSummary>(
+    '/v1/catalog/provider/portfolio',
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  ).then((media) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    return media;
   });
 }
 
@@ -1040,7 +1176,11 @@ export function deleteProviderPortfolioMedia(
       method: 'DELETE',
       requiresAuth: true,
     },
-  );
+  ).then((result) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    return result;
+  });
 }
 
 export function updateProviderPortfolioMedia(
@@ -1056,38 +1196,51 @@ export function updateProviderPortfolioMedia(
       body,
       requiresAuth: true,
     },
-  );
+  ).then((media) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    return media;
+  });
 }
 
 export function reorderProviderPortfolio(
   items: ProviderPortfolioOrderItem[],
   options: ApiOptions = {},
 ): Promise<ProviderPortfolioMediaSummary[]> {
-  return request<ProviderPortfolioMediaSummary[]>('/v1/catalog/provider/portfolio/order', {
-    ...options,
-    method: 'PUT',
-    body: { items },
-    requiresAuth: true,
+  return request<ProviderPortfolioMediaSummary[]>(
+    '/v1/catalog/provider/portfolio/order',
+    {
+      ...options,
+      method: 'PUT',
+      body: { items },
+      requiresAuth: true,
+    },
+  ).then((media) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    return media;
   });
 }
 
 export function getCurrentUser(
   options: ApiOptions = {},
 ): Promise<CurrentUserProfile> {
-  return request<CurrentUserProfile>('/v1/me', {
+  return stableReadRequest<CurrentUserProfile>('/v1/me', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'profile',
   });
 }
 
 export function listCustomerAddresses(
   options: ApiOptions = {},
 ): Promise<CustomerAddressSummary[]> {
-  return request<CustomerAddressSummary[]>('/v1/me/addresses', {
+  return stableReadRequest<CustomerAddressSummary[]>('/v1/me/addresses', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'addresses',
   });
 }
 
@@ -1100,6 +1253,10 @@ export function createCustomerAddress(
     method: 'POST',
     body,
     requiresAuth: true,
+  }).then((address) => {
+    clearServeaseApiReadCache('addresses');
+    clearServeaseApiReadCache('profile');
+    return address;
   });
 }
 
@@ -1116,7 +1273,11 @@ export function updateCustomerAddress(
       body,
       requiresAuth: true,
     },
-  );
+  ).then((address) => {
+    clearServeaseApiReadCache('addresses');
+    clearServeaseApiReadCache('profile');
+    return address;
+  });
 }
 
 export function setDefaultCustomerAddress(
@@ -1130,7 +1291,11 @@ export function setDefaultCustomerAddress(
       method: 'POST',
       requiresAuth: true,
     },
-  );
+  ).then((address) => {
+    clearServeaseApiReadCache('addresses');
+    clearServeaseApiReadCache('profile');
+    return address;
+  });
 }
 
 export function deleteCustomerAddress(
@@ -1144,7 +1309,11 @@ export function deleteCustomerAddress(
       method: 'DELETE',
       requiresAuth: true,
     },
-  );
+  ).then((result) => {
+    clearServeaseApiReadCache('addresses');
+    clearServeaseApiReadCache('profile');
+    return result;
+  });
 }
 
 export function registerAccount(
@@ -1253,11 +1422,14 @@ export interface ProviderApplicationDocumentsResponse {
 export function getMyProviderApplication(
   options: ApiOptions = {},
 ): Promise<ProviderApplicationStatus> {
-  return request<ProviderApplicationStatus>('/v1/auth/provider-application/me', {
-    ...options,
-    method: 'GET',
-    requiresAuth: true,
-  });
+  return request<ProviderApplicationStatus>(
+    '/v1/auth/provider-application/me',
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
 }
 
 export function getMyProviderApplicationDocuments(
@@ -1282,6 +1454,10 @@ export function updateCurrentUserProfile(
     method: 'PATCH',
     body,
     requiresAuth: true,
+  }).then((profile) => {
+    clearServeaseApiReadCache('profile');
+    clearServeaseApiReadCache('provider-profile');
+    return profile;
   });
 }
 
@@ -1356,6 +1532,18 @@ export function createBooking(
   options: ApiOptions = {},
 ): Promise<BookingSummary> {
   return request<BookingSummary>('/v1/bookings', {
+    ...options,
+    method: 'POST',
+    body,
+    requiresAuth: true,
+  });
+}
+
+export function previewBookingPrice(
+  body: CreateBookingRequest,
+  options: ApiOptions = {},
+): Promise<BookingPricePreviewSummary> {
+  return request<BookingPricePreviewSummary>('/v1/bookings/preview', {
     ...options,
     method: 'POST',
     body,
@@ -1517,7 +1705,10 @@ export function subscribeBookingTrackingSnapshots(
     xhr = request;
     request.open('GET', streamUrl, true);
     request.setRequestHeader('accept', 'text/event-stream');
-    request.setRequestHeader('authorization', `Bearer ${options.token!.trim()}`);
+    request.setRequestHeader(
+      'authorization',
+      `Bearer ${options.token!.trim()}`,
+    );
 
     const drainEvents = () => {
       const nextChunk = request.responseText.slice(readOffset);
@@ -1617,11 +1808,14 @@ export function getBooking(
   bookingId: string,
   options: ApiOptions = {},
 ): Promise<BookingSummary> {
-  return request<BookingSummary>(`/v1/bookings/${encodeURIComponent(bookingId)}`, {
-    ...options,
-    method: 'GET',
-    requiresAuth: true,
-  });
+  return request<BookingSummary>(
+    `/v1/bookings/${encodeURIComponent(bookingId)}`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
 }
 
 export function transitionBookingStatus(
@@ -1709,7 +1903,9 @@ export function createConversationMessage(
   );
 }
 
-export function listPayments(options: ApiOptions = {}): Promise<PaymentSummary[]> {
+export function listPayments(
+  options: ApiOptions = {},
+): Promise<PaymentSummary[]> {
   return request<PaymentSummary[]>('/v1/payments', {
     ...options,
     method: 'GET',
@@ -1733,12 +1929,15 @@ export function createCheckoutSession(
   body: CreateCheckoutSessionRequest,
   options: ApiOptions = {},
 ): Promise<PaymentCheckoutSessionSummary> {
-  return request<PaymentCheckoutSessionSummary>('/v1/payments/checkout-sessions', {
-    ...options,
-    method: 'POST',
-    body,
-    requiresAuth: true,
-  });
+  return request<PaymentCheckoutSessionSummary>(
+    '/v1/payments/checkout-sessions',
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
 }
 
 export function getCheckoutStatus(
@@ -1802,7 +2001,11 @@ export function getDirections(
   body: {
     origin: GeoRouteLocation;
     destination: GeoRouteLocation;
-    profile?: 'driving-car' | 'driving-hgv' | 'cycling-regular' | 'foot-walking';
+    profile?:
+      | 'driving-car'
+      | 'driving-hgv'
+      | 'cycling-regular'
+      | 'foot-walking';
     language?: string;
   },
   options: ApiOptions = {},
@@ -1820,15 +2023,18 @@ export function validatePromotion(
   code: string,
   options: ApiOptions = {},
 ): Promise<PromotionValidationSummary> {
-  return request<PromotionValidationSummary>('/v1/payments/promotions/validate', {
-    ...options,
-    method: 'POST',
-    body: {
-      bookingId,
-      code,
+  return request<PromotionValidationSummary>(
+    '/v1/payments/promotions/validate',
+    {
+      ...options,
+      method: 'POST',
+      body: {
+        bookingId,
+        code,
+      },
+      requiresAuth: true,
     },
-    requiresAuth: true,
-  });
+  );
 }
 
 export function listCustomerPaymentMethods(
@@ -1953,12 +2159,15 @@ export function replyToReview(
   responseText: string,
   options: ApiOptions = {},
 ): Promise<ReviewResponseSummary> {
-  return request<ReviewResponseSummary>(`/v1/reviews/${encodeURIComponent(reviewId)}/reply`, {
-    ...options,
-    method: 'POST',
-    body: { responseText },
-    requiresAuth: true,
-  });
+  return request<ReviewResponseSummary>(
+    `/v1/reviews/${encodeURIComponent(reviewId)}/reply`,
+    {
+      ...options,
+      method: 'POST',
+      body: { responseText },
+      requiresAuth: true,
+    },
+  );
 }
 
 export function flagReview(
@@ -1966,12 +2175,15 @@ export function flagReview(
   reason: string,
   options: ApiOptions = {},
 ): Promise<ReviewSummary> {
-  return request<ReviewSummary>(`/v1/reviews/${encodeURIComponent(reviewId)}/flag`, {
-    ...options,
-    method: 'POST',
-    body: { reason },
-    requiresAuth: true,
-  });
+  return request<ReviewSummary>(
+    `/v1/reviews/${encodeURIComponent(reviewId)}/flag`,
+    {
+      ...options,
+      method: 'POST',
+      body: { reason },
+      requiresAuth: true,
+    },
+  );
 }
 
 export function listSupportTickets(
@@ -2000,11 +2212,14 @@ export function getSupportTicket(
   ticketId: string,
   options: ApiOptions = {},
 ): Promise<SupportTicketSummary> {
-  return request<SupportTicketSummary>(`/v1/support/tickets/${encodeURIComponent(ticketId)}`, {
-    ...options,
-    method: 'GET',
-    requiresAuth: true,
-  });
+  return request<SupportTicketSummary>(
+    `/v1/support/tickets/${encodeURIComponent(ticketId)}`,
+    {
+      ...options,
+      method: 'GET',
+      requiresAuth: true,
+    },
+  );
 }
 
 export function listSupportTicketReplies(
@@ -2040,10 +2255,11 @@ export function createSupportTicketReply(
 export function listNotifications(
   options: ApiOptions = {},
 ): Promise<NotificationSummary[]> {
-  return request<NotificationSummary[]>('/v1/notifications', {
+  return stableReadRequest<NotificationSummary[]>('/v1/notifications', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'notifications',
   });
 }
 
@@ -2090,7 +2306,23 @@ export function markNotificationRead(
       method: 'PATCH',
       requiresAuth: true,
     },
-  );
+  ).then((notification) => {
+    clearServeaseApiReadCache('notifications');
+    return notification;
+  });
+}
+
+export function markAllNotificationsRead(
+  options: ApiOptions = {},
+): Promise<NotificationSummary[]> {
+  return request<NotificationSummary[]>('/v1/notifications/read-all', {
+    ...options,
+    method: 'PATCH',
+    requiresAuth: true,
+  }).then((notifications) => {
+    clearServeaseApiReadCache('notifications');
+    return notifications;
+  });
 }
 
 export function registerPushDevice(
@@ -2102,6 +2334,9 @@ export function registerPushDevice(
     method: 'POST',
     body,
     requiresAuth: true,
+  }).then((device) => {
+    clearServeaseApiReadCache('notifications');
+    return device;
   });
 }
 
@@ -2116,26 +2351,32 @@ export function unregisterPushDevice(
       method: 'DELETE',
       requiresAuth: true,
     },
-  );
+  ).then((result) => {
+    clearServeaseApiReadCache('notifications');
+    return result;
+  });
 }
 
 export function getProviderProfile(
   options: ApiOptions = {},
 ): Promise<ProviderProfileSnapshot> {
-  return request<ProviderProfileSnapshot>('/v1/provider/profile', {
+  return stableReadRequest<ProviderProfileSnapshot>('/v1/provider/profile', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'provider-profile',
   });
 }
 
 export function getProviderDashboard(
   options: ApiOptions = {},
 ): Promise<ProviderDashboardSummary> {
-  return request<ProviderDashboardSummary>('/v1/provider/dashboard', {
+  return stableReadRequest<ProviderDashboardSummary>('/v1/provider/dashboard', {
     ...options,
     method: 'GET',
     requiresAuth: true,
+    cacheGroup: 'provider-dashboard',
+    cacheTtlMs: DASHBOARD_READ_TTL_MS,
   });
 }
 
@@ -2158,6 +2399,11 @@ export function replaceProviderServices(
     method: 'PUT',
     body: { services },
     requiresAuth: true,
+  }).then((nextServices) => {
+    clearServeaseApiReadCache('catalog');
+    clearServeaseApiReadCache('provider-profile');
+    clearServeaseApiReadCache('provider-dashboard');
+    return nextServices;
   });
 }
 
@@ -2188,24 +2434,30 @@ export function replaceProviderAvailabilityWindows(
   windows: AvailabilityWindowInput[],
   options: ApiOptions = {},
 ): Promise<ProviderAvailabilitySchedule> {
-  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/windows', {
-    ...options,
-    method: 'PUT',
-    body: { windows },
-    requiresAuth: true,
-  });
+  return request<ProviderAvailabilitySchedule>(
+    '/v1/provider/availability/windows',
+    {
+      ...options,
+      method: 'PUT',
+      body: { windows },
+      requiresAuth: true,
+    },
+  );
 }
 
 export function addProviderDayOff(
   body: { offDate: string; reason?: string | null },
   options: ApiOptions = {},
 ): Promise<ProviderAvailabilitySchedule> {
-  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/days-off', {
-    ...options,
-    method: 'POST',
-    body,
-    requiresAuth: true,
-  });
+  return request<ProviderAvailabilitySchedule>(
+    '/v1/provider/availability/days-off',
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
 }
 
 export function removeProviderDayOff(
@@ -2231,12 +2483,15 @@ export function addProviderTimeOffWindow(
   },
   options: ApiOptions = {},
 ): Promise<ProviderAvailabilitySchedule> {
-  return request<ProviderAvailabilitySchedule>('/v1/provider/availability/time-off', {
-    ...options,
-    method: 'POST',
-    body,
-    requiresAuth: true,
-  });
+  return request<ProviderAvailabilitySchedule>(
+    '/v1/provider/availability/time-off',
+    {
+      ...options,
+      method: 'POST',
+      body,
+      requiresAuth: true,
+    },
+  );
 }
 
 export function removeProviderTimeOffWindow(
@@ -2255,11 +2510,7 @@ export function removeProviderTimeOffWindow(
 
 export async function uploadMedia(
   body: UploadMediaRequest,
-  {
-    baseUrl,
-    token,
-    fetcher = fetch,
-  }: ApiOptions = {},
+  { baseUrl, token, fetcher = fetch }: ApiOptions = {},
 ): Promise<UploadSummary> {
   if (!token?.trim()) {
     throw new Error('Paste an access token before uploading files.');
@@ -2270,16 +2521,14 @@ export async function uploadMedia(
   if (body.documentType?.trim()) {
     formData.append('documentType', body.documentType.trim());
   }
-  formData.append(
-    'file',
-    {
-      uri: body.uri,
-      name: body.name?.trim() || `servease-${body.kind}.jpg`,
-      type: body.contentType?.trim() || 'image/jpeg',
-    } as unknown as Blob,
-  );
+  formData.append('file', {
+    uri: body.uri,
+    name: body.name?.trim() || `servease-${body.kind}.jpg`,
+    type: body.contentType?.trim() || 'image/jpeg',
+  } as unknown as Blob);
 
-  const resolvedBaseUrl = baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
+  const resolvedBaseUrl =
+    baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
   const response = await fetcher(`${resolvedBaseUrl}/v1/uploads`, {
     method: 'POST',
     headers: {
@@ -2299,6 +2548,42 @@ interface RequestOptions extends ApiOptions {
   idempotencyKey?: string | null;
 }
 
+async function stableReadRequest<T>(
+  path: string,
+  options: RequestOptions & {
+    cacheGroup: ReadCacheGroup;
+    cacheTtlMs?: number;
+  },
+): Promise<T> {
+  const cacheKey = buildStableReadCacheKey(path, options);
+  const now = Date.now();
+  const cached = stableReadCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.value as T;
+  }
+
+  const pending = pendingStableReads.get(cacheKey);
+  if (pending) {
+    return pending as Promise<T>;
+  }
+
+  const requestPromise = request<T>(path, options)
+    .then((value) => {
+      stableReadCache.set(cacheKey, {
+        expiresAt: Date.now() + (options.cacheTtlMs ?? STABLE_READ_TTL_MS),
+        group: options.cacheGroup,
+        value,
+      });
+      return value;
+    })
+    .finally(() => {
+      pendingStableReads.delete(cacheKey);
+    });
+
+  pendingStableReads.set(cacheKey, requestPromise);
+  return requestPromise;
+}
+
 async function request<T>(
   path: string,
   {
@@ -2315,7 +2600,8 @@ async function request<T>(
     throw new Error('Paste an access token before using booking routes.');
   }
 
-  const resolvedBaseUrl = baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
+  const resolvedBaseUrl =
+    baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
   const response = await fetcher(`${resolvedBaseUrl}${path}`, {
     method,
     headers: {
@@ -2338,7 +2624,12 @@ async function request<T>(
       payload.error?.message ??
       payload.error?.code ??
       `Gateway request failed with ${response.status}`;
-    throw new Error(message);
+    throw new ServeaseApiError(
+      message,
+      payload.error?.code ?? null,
+      response.status,
+      payload.error?.details ?? null,
+    );
   }
 
   if (!('data' in payload)) {
@@ -2346,6 +2637,55 @@ async function request<T>(
   }
 
   return payload.data as T;
+}
+
+function buildStableReadCacheKey(
+  path: string,
+  {
+    baseUrl,
+    cacheGroup,
+    fetcher = fetch,
+    token,
+  }: RequestOptions & { cacheGroup: ReadCacheGroup },
+): string {
+  const resolvedBaseUrl =
+    baseUrl?.replace(/\/$/, '') ?? resolveGatewayBaseUrl();
+  return [
+    `group=${cacheGroup}`,
+    `base=${resolvedBaseUrl}`,
+    `path=${path}`,
+    `token=${hashCacheToken(token)}`,
+    `fetcher=${resolveFetcherId(fetcher)}`,
+  ].join('|');
+}
+
+function resolveFetcherId(fetcher: NonNullable<ApiOptions['fetcher']>): string {
+  if (fetcher === fetch) {
+    return 'default';
+  }
+
+  const objectFetcher = fetcher as ApiOptions['fetcher'] & object;
+  const existingId = fetcherIds.get(objectFetcher);
+  if (existingId) {
+    return `custom-${existingId}`;
+  }
+
+  fetcherIdCounter += 1;
+  fetcherIds.set(objectFetcher, fetcherIdCounter);
+  return `custom-${fetcherIdCounter}`;
+}
+
+function hashCacheToken(token?: string): string {
+  const value = token?.trim();
+  if (!value) {
+    return 'anonymous';
+  }
+
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return `${value.length}-${hash.toString(36)}`;
 }
 
 function readTrackingStreamEvent(
@@ -2369,7 +2709,9 @@ function readTrackingStreamEvent(
   }
 
   try {
-    handlers.onSnapshot(JSON.parse(dataLines.join('\n')) as BookingTrackingSnapshot);
+    handlers.onSnapshot(
+      JSON.parse(dataLines.join('\n')) as BookingTrackingSnapshot,
+    );
   } catch {
     handlers.onError?.(new Error('Tracking stream sent invalid data.'));
   }
@@ -2383,7 +2725,12 @@ async function readGatewayResponse<T>(response: Response): Promise<T> {
       payload.error?.message ??
       payload.error?.code ??
       `Gateway request failed with ${response.status}`;
-    throw new Error(message);
+    throw new ServeaseApiError(
+      message,
+      payload.error?.code ?? null,
+      response.status,
+      payload.error?.details ?? null,
+    );
   }
 
   if (!('data' in payload)) {
@@ -2398,6 +2745,7 @@ async function readGatewayPayload<T>(response: Response): Promise<{
   error?: {
     code?: string;
     message?: string;
+    details?: unknown;
   };
 }> {
   return (await response.json()) as {
@@ -2405,6 +2753,7 @@ async function readGatewayPayload<T>(response: Response): Promise<{
     error?: {
       code?: string;
       message?: string;
+      details?: unknown;
     };
   };
 }

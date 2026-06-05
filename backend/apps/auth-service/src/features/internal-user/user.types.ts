@@ -7,6 +7,8 @@ export interface StoredUserRecord {
   passwordHash: string;
   fullName: string | null;
   contactNumber: string | null;
+  avatarUrl?: string | null;
+  avatarStoragePath?: string | null;
   role: UserRole;
   status: UserStatus;
 }
@@ -16,6 +18,8 @@ export interface InternalUserResponse {
   email: string;
   fullName: string | null;
   contactNumber: string | null;
+  avatarUrl: string | null;
+  avatarStoragePath: string | null;
   role: UserRole;
   status: UserStatus;
 }
@@ -24,6 +28,8 @@ export interface UpdateInternalUserInput {
   userId: string;
   fullName: string;
   contactNumber?: string | null;
+  avatarUrl?: string | null;
+  avatarStoragePath?: string | null;
 }
 
 export interface UserSessionRecord {

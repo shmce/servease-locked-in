@@ -18,6 +18,8 @@ describe('BookingAnalyticsPublisher', () => {
     serviceTitle: 'Deep Clean',
     serviceDescription: null,
     serviceAddress: '123 Test St',
+    serviceLatitude: null,
+    serviceLongitude: null,
     scheduledAt: '2026-05-20T08:00:00.000Z',
     hoursRequired: null,
     serviceAmount: 1200,

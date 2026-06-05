@@ -67,6 +67,7 @@ test('customer tracking exposes navigation-style route stats from provider direc
   assert.equal(model.data.distanceLabel, '4.2 km');
   assert.equal(model.data.providerLocationLabel, 'Live');
   assert.equal(model.data.routeLabel, '4.2 km - 14 min');
+  assert.equal(model.data.destinationMarkerLabel, 'Confirmed service pin');
   assert.deepEqual(model.data.navigationOrigin, tracking.providerLocation);
 });
 

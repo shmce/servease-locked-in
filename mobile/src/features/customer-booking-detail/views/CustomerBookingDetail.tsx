@@ -1,20 +1,22 @@
 import { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
-import {
-  Badge,
-  Card,
-  PrimaryButton,
-  StatusTimeline,
-  TopBar,
-} from '../../../components/DesignKit';
+import { StatusTimeline } from '../../../components/DesignKit';
 import {
   BookingSummary,
   PaymentSummary,
   ProviderListing,
   ReviewSummary,
 } from '../../../shared/models/types';
-import { ActionRow } from '../../../shared/components/ScreenLayout';
+import {
+  CustomerBadge,
+  CustomerCard,
+  CustomerContent,
+  CustomerHeader,
+  CustomerScreen,
+  CustomerSection,
+  customerText,
+} from '../../../shared/components/CustomerUI';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerBookingDetailViewModel } from '../viewModels/useCustomerBookingDetailViewModel';
 import { CustomerBookingReviewPanel } from './CustomerBookingReviewPanel';
@@ -75,45 +77,58 @@ export function CustomerBookingDetailScreen({
   const { data } = bookingDetail;
 
   return (
-    <>
-      <TopBar
-        title="Booking Information"
-        subtitle={data.addressLabel}
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
+    <CustomerScreen>
+      <CustomerContent>
+        <CustomerHeader
+          title="Booking Information"
+          subtitle={data.addressLabel}
+          onBack={onBack}
+        />
 
-          {/* Hero card */}
-          <Card>
-            <Text style={styles.bookingReference}>{data.bookingReference}</Text>
-            <Text style={styles.detailTitle}>{data.serviceTitle}</Text>
-            <Text style={styles.scheduleLabel}>{data.scheduleLabel}</Text>
-            <StatusTimeline steps={data.timelineSteps} />
-            <View style={styles.priceRow}>
-              <Text style={styles.priceText}>{data.totalAmountLabel}</Text>
-              <Badge {...data.statusChip} />
-            </View>
-          </Card>
+        <CustomerCard>
+          <Text style={styles.bookingReference}>{data.bookingReference}</Text>
+          <Text style={styles.detailTitle}>{data.serviceTitle}</Text>
+          <Text style={styles.scheduleLabel}>{data.scheduleLabel}</Text>
+          <StatusTimeline steps={data.timelineSteps} />
+          <View style={styles.priceRow}>
+            <Text style={styles.priceText}>{data.totalAmountLabel}</Text>
+            <CustomerBadge
+              label={data.statusChip.label}
+              tone={data.statusChip.tone}
+            />
+          </View>
+        </CustomerCard>
 
-          {timelineEvents}
+        {timelineEvents}
 
-          {/* Service details */}
-          <Card>
-            <Text style={styles.sectionLabel}>Service details</Text>
-            {data.serviceDetailRows.map((row, i) => (
+        <CustomerSection title="Service details">
+          <CustomerCard>
+            {data.serviceDetailRows.map((row, index) => (
               <DetailRow
                 key={row.key}
                 label={row.label}
                 value={row.value}
-                last={i === data.serviceDetailRows.length - 1}
+                last={index === data.serviceDetailRows.length - 1}
               />
             ))}
-          </Card>
+          </CustomerCard>
+        </CustomerSection>
 
-          {/* Service provider */}
-          <Card>
-            <Text style={styles.sectionLabel}>Service provider</Text>
+        <CustomerSection title="Price breakdown">
+          <CustomerCard>
+            {data.priceBreakdownRows.map((row, index) => (
+              <DetailRow
+                key={row.key}
+                label={row.label}
+                value={row.value}
+                last={index === data.priceBreakdownRows.length - 1}
+              />
+            ))}
+          </CustomerCard>
+        </CustomerSection>
+
+        <CustomerSection title="Service provider">
+          <CustomerCard>
             <View style={styles.providerRow}>
               <View style={styles.providerAvatar}>
                 <Text style={styles.providerInitial}>
@@ -133,59 +148,88 @@ export function CustomerBookingDetailScreen({
                   accessibilityLabel="View provider profile"
                 >
                   <Text style={styles.linkText}>View Profile</Text>
-                  <ChevronRight color={palette.mint} size={14} strokeWidth={2.2} />
+                  <ChevronRight
+                    color={palette.mintDeep}
+                    size={14}
+                    strokeWidth={2.2}
+                  />
                 </Pressable>
               </View>
             </View>
-          </Card>
+          </CustomerCard>
+        </CustomerSection>
 
-          {data.showTrackProvider ? (
-            <PrimaryButton label="Track provider" onPress={onTrackProvider} />
-          ) : null}
+        {data.showTrackProvider ? (
+          <Pressable
+            style={styles.primaryAction}
+            onPress={onTrackProvider}
+            accessibilityRole="button"
+          >
+            <Text style={styles.primaryActionText}>Track provider</Text>
+          </Pressable>
+        ) : null}
 
-          {bookingMedia}
-          {serviceUpdates}
+        {bookingMedia}
+        {serviceUpdates}
 
-          <ActionRow>
-            <PrimaryButton label="Manage booking" onPress={onManageBooking} />
-            <PrimaryButton label="Message" variant="secondary" onPress={onMessage} />
-          </ActionRow>
+        <View style={styles.actionRow}>
+          <Pressable
+            style={styles.primaryAction}
+            onPress={onManageBooking}
+            accessibilityRole="button"
+          >
+            <Text style={styles.primaryActionText}>Manage booking</Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryAction}
+            onPress={onMessage}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryActionText}>Message</Text>
+          </Pressable>
+        </View>
 
-          {data.showReservePayment ? (
-            <PrimaryButton
-              label={data.reservePaymentLabel}
-              variant="secondary"
-              onPress={onReservePayment}
-              disabled={data.reservePaymentDisabled}
-            />
-          ) : null}
+        {data.showReservePayment ? (
+          <Pressable
+            style={[
+              styles.secondaryAction,
+              data.reservePaymentDisabled && styles.actionDisabled,
+            ]}
+            onPress={onReservePayment}
+            disabled={data.reservePaymentDisabled}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryActionText}>
+              {data.reservePaymentLabel}
+            </Text>
+          </Pressable>
+        ) : null}
 
-          {data.showPaymentSummary && data.paymentSummary ? (
-            <Card>
-              <Text style={styles.sectionLabel}>Payment</Text>
+        {data.showPaymentSummary && data.paymentSummary ? (
+          <CustomerSection title="Payment">
+            <CustomerCard>
               <DetailRow
                 label={data.paymentSummary.label}
                 value={data.paymentSummary.value}
                 last
               />
-            </Card>
-          ) : null}
+            </CustomerCard>
+          </CustomerSection>
+        ) : null}
 
-          {data.showReviewPanel ? (
-            <CustomerBookingReviewPanel
-              selectedReview={selectedReview}
-              rating={rating}
-              reviewText={reviewText}
-              busyAction={busyAction}
-              onRatingChange={onRatingChange}
-              onReviewTextChange={onReviewTextChange}
-              onSubmitReview={onSubmitReview}
-            />
-          ) : null}
-
-        </View>
-      </ScrollView>
-    </>
+        {data.showReviewPanel ? (
+          <CustomerBookingReviewPanel
+            selectedReview={selectedReview}
+            rating={rating}
+            reviewText={reviewText}
+            busyAction={busyAction}
+            onRatingChange={onRatingChange}
+            onReviewTextChange={onReviewTextChange}
+            onSubmitReview={onSubmitReview}
+          />
+        ) : null}
+      </CustomerContent>
+    </CustomerScreen>
   );
 }
 
@@ -201,45 +245,35 @@ function DetailRow({
   return (
     <View style={[styles.detailRow, !last && styles.detailRowBorder]}>
       <Text style={styles.detailLabel}>{label}</Text>
-      <Text style={styles.detailValue} numberOfLines={3}>{value}</Text>
+      <Text style={styles.detailValue} numberOfLines={3}>
+        {value}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   flex: {
     flex: 1,
+    minWidth: 0,
   },
-
-  // Hero card
   bookingReference: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
   detailTitle: {
-    color: palette.ink,
+    ...customerText.title,
     fontSize: 20,
-    fontWeight: '700',
+    lineHeight: 26,
     marginTop: spacing.xs,
   },
   scheduleLabel: {
-    color: palette.muted,
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: spacing.xs,
+    ...customerText.meta,
     marginBottom: spacing.sm,
+    marginTop: spacing.xs,
   },
   priceRow: {
     alignItems: 'center',
@@ -248,20 +282,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   priceText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
-
-  // Section label
-  sectionLabel: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '700',
-    marginBottom: spacing.xs,
-  },
-
-  // Detail rows
   detailRow: {
     alignItems: 'flex-start',
     flexDirection: 'row',
@@ -269,48 +294,46 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   detailRowBorder: {
-    borderBottomColor: palette.line,
+    borderBottomColor: '#EEF0F2',
     borderBottomWidth: 1,
   },
   detailLabel: {
-    color: palette.muted,
+    ...customerText.meta,
     flex: 1,
-    fontSize: 12,
-    fontWeight: '500',
     paddingTop: 1,
   },
   detailValue: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1.6,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
+    lineHeight: 18,
     textAlign: 'right',
   },
-
-  // Provider card
   providerRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: spacing.md,
-    marginTop: spacing.xs,
   },
   providerAvatar: {
     alignItems: 'center',
-    backgroundColor: palette.mintSoft,
+    backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
     height: 44,
     justifyContent: 'center',
     width: 44,
   },
   providerInitial: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
   },
   providerName: {
-    color: palette.ink,
+    ...customerText.title,
     fontSize: 14,
-    fontWeight: '700',
+    lineHeight: 19,
   },
   profileLinkRow: {
     alignItems: 'center',
@@ -319,8 +342,44 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   linkText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  primaryAction: {
+    alignItems: 'center',
+    backgroundColor: palette.mintDeep,
+    borderRadius: radius.pill,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  primaryActionText: {
+    color: palette.white,
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+  secondaryAction: {
+    alignItems: 'center',
+    backgroundColor: '#F1FAF5',
+    borderRadius: radius.pill,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  secondaryActionText: {
+    color: palette.mintDeep,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+  actionDisabled: {
+    opacity: 0.55,
   },
 });

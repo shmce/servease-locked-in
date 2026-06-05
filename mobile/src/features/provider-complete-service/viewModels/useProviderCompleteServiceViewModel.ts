@@ -50,6 +50,10 @@ export function buildProviderCompleteServiceViewModel({
         ? 'Paid'
         : `Payment ${payment.status}`
     : 'No payment record';
+  const providerPayoutLabel = payment
+    ? formatMoney(payment.providerPayout)
+    : 'Payout pending';
+  const platformFeeLabel = payment ? formatMoney(payment.platformFee) : 'Pending';
   const paymentNotice = isOnlinePaymentBlocked
     ? 'Customer online payment is still pending. Refresh the booking after the customer completes checkout.'
     : isCashPayment && payment?.status === 'pending'
@@ -89,7 +93,12 @@ export function buildProviderCompleteServiceViewModel({
         {
           key: 'provider-payout',
           label: 'Provider payout',
-          value: formatMoney(payment?.providerPayout ?? booking.totalAmount),
+          value: providerPayoutLabel,
+        },
+        {
+          key: 'platform-fee',
+          label: 'Platform fee',
+          value: platformFeeLabel,
         },
         {
           key: 'payment-status',

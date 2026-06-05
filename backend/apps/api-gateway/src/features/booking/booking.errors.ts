@@ -16,6 +16,36 @@ export class InvalidBookingTransitionError extends Error {
   }
 }
 
+export class InvalidBookingScheduleError extends Error {
+  constructor() {
+    super('invalid_booking_schedule');
+  }
+}
+
+export class BookingScheduleInPastError extends Error {
+  constructor() {
+    super('booking_schedule_in_past');
+  }
+}
+
+export class BookingStartWindowNotOpenError extends Error {
+  constructor() {
+    super('booking_start_window_not_open');
+  }
+}
+
+export class PricingQuoteContextMismatchError extends Error {
+  constructor() {
+    super('pricing_quote_context_mismatch');
+  }
+}
+
+export class BookingPriceChangedError extends Error {
+  constructor(public readonly details: unknown) {
+    super('booking_price_changed');
+  }
+}
+
 export class BookingNotFoundError extends Error {
   constructor() {
     super('booking_not_found');

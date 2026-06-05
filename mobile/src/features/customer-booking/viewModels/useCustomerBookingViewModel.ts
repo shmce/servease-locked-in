@@ -58,13 +58,12 @@ export function buildCustomerBookingViewModel({
   const dateOnly = scheduledAt.slice(0, 10);
   const timeOnly = scheduledAt.slice(11, 16);
   const customerCalendarMinDate = formatManilaDateInput(now);
-  const today = new Date(`${customerCalendarMinDate}T00:00:00`);
   const duration = Number(hoursRequired) || 1;
   const customerAvailability = buildCustomerBookingAvailability(
     providerAvailability,
     duration,
     timeSlots,
-    today,
+    now,
     dateOnly,
   );
   const selectedDateOption = customerAvailability.dateOptions.find(
@@ -88,12 +87,13 @@ export function buildCustomerBookingViewModel({
 
   for (let offset = 0; offset < 12; offset += 1) {
     const calendarMonth = addMonthsToInputMonth(calendarStartMonth, offset);
-    const calendarState = buildCustomerBookingCalendarState(
-      providerAvailability,
-      duration,
-      timeSlots,
-      calendarMonth,
-    );
+      const calendarState = buildCustomerBookingCalendarState(
+        providerAvailability,
+        duration,
+        timeSlots,
+        calendarMonth,
+        now,
+      );
     calendarState.disabledDates.forEach((date) => calendarDisabledDates.add(date));
     Object.assign(calendarMarkers, calendarState.markers);
   }

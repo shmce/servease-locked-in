@@ -6,6 +6,8 @@ export function presentInternalUser(user: StoredUserRecord): InternalUserRespons
     email: user.email,
     fullName: user.fullName,
     contactNumber: user.contactNumber,
+    avatarUrl: user.avatarUrl ?? null,
+    avatarStoragePath: user.avatarStoragePath ?? null,
     role: user.role,
     status: user.status,
   };

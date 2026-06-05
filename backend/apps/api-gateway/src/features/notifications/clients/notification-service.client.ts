@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timedGatewayFetch } from '../../observability/downstream-timing';
 import { NotificationDependencyUnavailableError } from '../notification.errors';
 import {
   CreateNotificationRequest,
@@ -28,6 +29,16 @@ export class NotificationServiceClient {
   ): Promise<NotificationSummary> {
     return this.request<NotificationSummary>(
       `/internal/notifications/${notificationId}/read`,
+      'PATCH',
+      {
+        userId,
+      },
+    );
+  }
+
+  markAllRead(userId: string): Promise<NotificationSummary[]> {
+    return this.request<NotificationSummary[]>(
+      '/internal/notifications/read-all',
       'PATCH',
       {
         userId,
@@ -91,13 +102,22 @@ export class NotificationServiceClient {
       'NOTIFICATION_SERVICE_URL',
       'http://localhost:8509',
     );
-    const response = await fetch(`${baseUrl}${path}`, {
-      method,
-      headers: {
-        'content-type': 'application/json',
+    const url = `${baseUrl}${path}`;
+    const response = await timedGatewayFetch(
+      {
+        method,
+        operation: path,
+        service: 'notification-service',
+        url,
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+      {
+        method,
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+    );
 
     if (!response.ok) {
       throw new NotificationDependencyUnavailableError();

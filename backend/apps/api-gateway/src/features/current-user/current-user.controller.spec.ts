@@ -108,7 +108,53 @@ describe('CurrentUserController', () => {
         serviceDescription: null,
         serviceArea: null,
         yearsExperience: null,
+        avatarUrl: null,
+        avatarStoragePath: null,
       },
+    );
+  });
+
+  it('forwards avatar metadata when updating the current user profile', async () => {
+    const currentUserService = {
+      updateCurrentUser: jest.fn().mockResolvedValue({
+        user: {
+          id: '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+          email: 'customer@example.com',
+          fullName: 'Updated Customer',
+          contactNumber: '+639000000001',
+          avatarUrl: 'https://storage.test/avatar.jpg',
+          avatarStoragePath: 'avatar/user-1/avatar.jpg',
+          role: 'customer',
+          status: 'active',
+        },
+        customerProfile: null,
+        customerAddresses: [],
+        providerProfile: null,
+      }),
+    } as unknown as CurrentUserService;
+    const authTokenService = {
+      authenticate: jest
+        .fn()
+        .mockResolvedValue('9b6ed52b-8a97-4b89-b6a8-364c65f8736b'),
+    } as unknown as AuthTokenService;
+    const controller = new CurrentUserController(
+      currentUserService,
+      authTokenService,
+    );
+
+    await controller.update('Bearer valid-token', {
+      fullName: 'Updated Customer',
+      contactNumber: '+639000000001',
+      avatarUrl: ' https://storage.test/avatar.jpg ',
+      avatarStoragePath: ' avatar/user-1/avatar.jpg ',
+    });
+
+    expect(currentUserService.updateCurrentUser).toHaveBeenCalledWith(
+      '9b6ed52b-8a97-4b89-b6a8-364c65f8736b',
+      expect.objectContaining({
+        avatarUrl: 'https://storage.test/avatar.jpg',
+        avatarStoragePath: 'avatar/user-1/avatar.jpg',
+      }),
     );
   });
 

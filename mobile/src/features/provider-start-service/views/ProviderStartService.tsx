@@ -1,17 +1,19 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Camera, CheckCircle } from 'lucide-react-native';
-import {
-  Card,
-  Field,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
+import { MotionPressable } from '../../../components/Motion';
 import { BookingSummary } from '../../../shared/models/types';
-import { palette, radius, spacing, type } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import { MediaUploadBox } from '../../../shared/components/ScreenLayout';
 import {
-  MediaUploadBox,
-  StickyFooter,
-} from '../../../shared/components/ScreenLayout';
+  ProviderButton,
+  ProviderCard,
+  ProviderContent,
+  ProviderHeader,
+  ProviderScreen,
+  ProviderStickyFooter,
+  ProviderTextField,
+  providerText,
+} from '../../../shared/components/ProviderUI';
 import {
   ProviderStartChecklistKey,
   ProviderStartChecklistState,
@@ -56,25 +58,28 @@ export function ProviderStartServiceScreen({
 
   return (
     <>
-      <TopBar
-        title="Start Service"
-        subtitle={data.bookingReference}
-        onBack={onBack}
-      />
-      <ScrollView contentContainerStyle={styles.withStickyFooter}>
-        <View style={styles.content}>
-          <Card>
+      <ProviderScreen bottomInset={148}>
+        <ProviderContent>
+          <ProviderHeader
+            title="Start Service"
+            subtitle={data.bookingReference}
+            onBack={onBack}
+          />
+          <ProviderCard>
             <Text style={styles.operationalTitle}>Ready to Start Service?</Text>
             <Text style={styles.cardBody}>
               Confirm the scope and document the starting condition before beginning work.
             </Text>
-          </Card>
-          <Card>
+          </ProviderCard>
+          <ProviderCard>
             <Text style={styles.cardTitle}>{data.serviceTitle}</Text>
             <Text style={styles.cardMeta}>{data.scheduleLabel}</Text>
             <Text style={styles.cardBody}>{data.addressLabel}</Text>
-          </Card>
-          <Card>
+            {data.servicePinLabel ? (
+              <Text style={styles.cardMeta}>{data.servicePinLabel}</Text>
+            ) : null}
+          </ProviderCard>
+          <ProviderCard>
             <Text style={styles.cardTitle}>Pre-service checklist</Text>
             {data.checklistRows.map((row) => (
               <ChecklistRow
@@ -84,12 +89,12 @@ export function ProviderStartServiceScreen({
                 onPress={() => onToggleChecklist(row.key)}
               />
             ))}
-          </Card>
-          <Card>
+          </ProviderCard>
+          <ProviderCard>
             <Text style={styles.cardTitle}>Before photo</Text>
             <MediaUploadBox
               imageUri={beforePhotoUri}
-              icon={<Camera color={palette.mint} size={28} strokeWidth={2.5} />}
+              icon={<Camera color={palette.mintDeep} size={28} strokeWidth={2.5} />}
               label={data.beforePhotoActionLabel}
               onPress={onPickBeforePhoto}
               minHeight={132}
@@ -98,25 +103,28 @@ export function ProviderStartServiceScreen({
             {data.startingConditionUploaded ? (
               <Text style={styles.noticeText}>Starting condition photo uploaded.</Text>
             ) : null}
-            <Field
+            <ProviderTextField
               label="Photo note"
               value={photoCaption}
               onChangeText={onPhotoCaptionChange}
               placeholder="Example: Kitchen sink before repair"
             />
-          </Card>
-        </View>
-      </ScrollView>
-      <StickyFooter>
-        <PrimaryButton
-          label="Start Service"
+          </ProviderCard>
+        </ProviderContent>
+      </ProviderScreen>
+      <ProviderStickyFooter>
+        <ProviderButton
+          label={data.startLabel}
           onPress={() => void onStartService()}
           disabled={data.startDisabled}
         />
+        {data.startHelperLabel ? (
+          <Text style={styles.footerHelper}>{data.startHelperLabel}</Text>
+        ) : null}
         <Text style={styles.footerLink} onPress={onBack}>
           Back to booking
         </Text>
-      </StickyFooter>
+      </ProviderStickyFooter>
     </>
   );
 }
@@ -131,35 +139,40 @@ function ChecklistRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable style={styles.checklistRow} onPress={onPress} accessibilityRole="button">
+    <MotionPressable
+      contentStyle={styles.checklistRow}
+      onPress={onPress}
+      selected={checked}
+      accessibilityRole="button"
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+    >
       <View style={[styles.checkboxBox, checked && styles.checkboxBoxChecked]}>
         {checked ? <CheckCircle color={palette.white} size={16} strokeWidth={3} /> : null}
       </View>
       <Text style={styles.radioLabel}>{label}</Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 
 const styles = StyleSheet.create({
-  withStickyFooter: {
-    backgroundColor: palette.white,
-    flexGrow: 1,
-    paddingBottom: 132,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   footerLink: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  footerHelper: {
+    color: '#6D7480',
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 17,
     textAlign: 'center',
   },
   operationalTitle: {
-    color: palette.ink,
+    color: '#202733',
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '600',
     lineHeight: 30,
   },
   checklistRow: {
@@ -180,38 +193,34 @@ const styles = StyleSheet.create({
     width: 24,
   },
   checkboxBoxChecked: {
-    backgroundColor: palette.mint,
-    borderColor: palette.mint,
+    backgroundColor: palette.mintDeep,
+    borderColor: palette.mintDeep,
   },
   cardTitle: {
-    color: palette.ink,
-    fontSize: 13,
-    fontWeight: '900',
+    ...providerText.title,
+    fontSize: 15,
+    lineHeight: 20,
   },
   cardMeta: {
-    ...type.caption,
-    color: palette.muted,
+    ...providerText.meta,
   },
   cardBody: {
-    color: palette.muted,
-    fontSize: 13,
-    fontWeight: '500',
-    lineHeight: 18,
+    ...providerText.body,
   },
   radioLabel: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '500',
   },
   linkText: {
-    color: palette.mint,
+    color: palette.mintDeep,
     fontSize: 13,
-    fontWeight: '900',
+    fontWeight: '600',
   },
   noticeText: {
-    color: palette.muted,
+    color: '#6D7480',
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
   },
 });

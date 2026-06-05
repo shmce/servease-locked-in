@@ -12,7 +12,7 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          animation: 'slide_from_right',
+          animation: 'fade',
           contentStyle: { backgroundColor: palette.white },
           headerShown: false,
         }}

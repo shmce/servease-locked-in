@@ -1,15 +1,18 @@
 import { Dispatch, SetStateAction } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 import { Search } from 'lucide-react-native';
 import {
-  EmptyState,
-  Pill,
-  PrimaryButton,
-  TopBar,
-} from '../../../components/DesignKit';
+  ProviderButton,
+  ProviderContent,
+  ProviderEmptyState,
+  ProviderHeader,
+  ProviderPill,
+  ProviderScreen,
+} from '../../../shared/components/ProviderUI';
+import { InlineRefreshHint } from '../../../shared/components/LoadingStates';
 import { BookingCard, BookingCardSkeleton } from '../../../components/AppDisplay';
 import { providerBookingTabs, ProviderBookingTab } from '../../../constants/appContent';
-import { palette, spacing } from '../../../theme/serveaseDesign';
+import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { BookingSummary } from '../../../shared/models/types';
 import { useProviderBookingsViewModel } from '../viewModels/useProviderBookingsViewModel';
 
@@ -40,77 +43,69 @@ export function ProviderBookingsScreen({
     providerSearchQuery,
   });
   const showSkeletons = isLoading && bookings.length === 0;
+  const isRefreshing = isLoading && bookings.length > 0;
 
   return (
-    <>
-      <TopBar
-        title="Bookings"
-        subtitle="Review requests and update booking status"
-        right={
-          <PrimaryButton
-            label="Refresh"
-            variant="secondary"
-            onPress={() => void refreshWorkspace()}
+    <ProviderScreen>
+      <ProviderContent>
+        <ProviderHeader
+          title="Bookings"
+          subtitle="Review requests and update booking status"
+          right={
+            <ProviderButton
+              label={isLoading ? 'Refreshing' : 'Refresh'}
+              variant="secondary"
+              onPress={() => void refreshWorkspace()}
+              disabled={isLoading}
+            />
+          }
+        />
+        <View style={styles.segmentRow}>
+          {providerBookingTabs.map((tab) => (
+            <ProviderPill
+              key={tab.key}
+              label={tab.label}
+              selected={providerBookingTab === tab.key}
+              onPress={() => setProviderBookingTab(tab.key)}
+            />
+          ))}
+        </View>
+        <View style={styles.searchInputShell}>
+          <Search color="#87919D" size={20} strokeWidth={2.1} />
+          <TextInput
+            style={styles.searchInput}
+            value={providerSearchQuery}
+            onChangeText={setProviderSearchQuery}
+            placeholder="Search bookings"
+            placeholderTextColor="#A0A7B2"
+            accessibilityLabel="Search provider bookings"
           />
-        }
-      />
-      <ScrollView contentContainerStyle={styles.withBottomNav}>
-        <View style={styles.content}>
-          <View style={styles.segmentRow}>
-            {providerBookingTabs.map((tab) => (
-              <Pill
-                key={tab.key}
-                label={tab.label}
-                selected={providerBookingTab === tab.key}
-                onPress={() => setProviderBookingTab(tab.key)}
+        </View>
+        {isRefreshing ? <InlineRefreshHint label="Refreshing bookings" /> : null}
+        {showSkeletons
+          ? Array.from({ length: 3 }).map((_, index) => (
+              <BookingCardSkeleton key={`provider-booking-skeleton-${index}`} />
+            ))
+          : providerBookings.data.map((booking) => (
+              <BookingCard
+                key={booking.id}
+                booking={booking}
+                role="provider"
+                onPress={() => openBooking(booking)}
               />
             ))}
-          </View>
-          <View style={styles.searchInputShell}>
-            <Search color={palette.faint} size={18} strokeWidth={2.2} />
-            <TextInput
-              style={styles.searchInput}
-              value={providerSearchQuery}
-              onChangeText={setProviderSearchQuery}
-              placeholder="Search bookings"
-              placeholderTextColor={palette.faint}
-              accessibilityLabel="Search provider bookings"
-            />
-          </View>
-          {showSkeletons
-            ? Array.from({ length: 3 }).map((_, index) => (
-                <BookingCardSkeleton key={`provider-booking-skeleton-${index}`} />
-              ))
-            : providerBookings.data.map((booking) => (
-                <BookingCard
-                  key={booking.id}
-                  booking={booking}
-                  role="provider"
-                  onPress={() => openBooking(booking)}
-                />
-              ))}
-          {!showSkeletons && !providerBookings.data.length ? (
-            <EmptyState
-              title="No bookings found"
-              body="Try changing tabs or adjusting your search."
-            />
-          ) : null}
-        </View>
-      </ScrollView>
-    </>
+        {!showSkeletons && !providerBookings.data.length ? (
+          <ProviderEmptyState
+            title="No bookings found"
+            body="Try changing tabs or adjusting your search."
+          />
+        ) : null}
+      </ProviderContent>
+    </ProviderScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  withBottomNav: {
-    backgroundColor: palette.cream,
-    flexGrow: 1,
-    paddingBottom: 108,
-  },
-  content: {
-    gap: spacing.md,
-    padding: spacing.md,
-  },
   segmentRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -119,20 +114,20 @@ const styles = StyleSheet.create({
   searchInputShell: {
     alignItems: 'center',
     backgroundColor: palette.white,
-    borderColor: palette.line,
-    borderRadius: 12,
+    borderColor: '#EEF0F2',
+    borderRadius: radius.lg,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: 48,
-    paddingHorizontal: spacing.md,
-    boxShadow: '0 2px 6px rgba(0,0,0,0.04)',
+    gap: spacing.md,
+    minHeight: 58,
+    paddingHorizontal: spacing.base,
   },
   searchInput: {
-    color: palette.ink,
+    color: '#202733',
     flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '400',
+    letterSpacing: 0,
     paddingVertical: spacing.sm,
   },
 });

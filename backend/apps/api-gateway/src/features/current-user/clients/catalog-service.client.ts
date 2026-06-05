@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timedGatewayFetch } from '../../observability/downstream-timing';
 import { ProfileDependencyUnavailableError } from '../current-user.errors';
 import {
   ProviderOwnerSummary,
@@ -40,8 +41,8 @@ export class CatalogServiceClient {
   async findProviderProfileByUserId(
     userId: string,
   ): Promise<ProviderProfileSummary | null> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/providers/by-user/${userId}`,
+    const response = await this.fetchCatalogService(
+      `/internal/providers/by-user/${userId}`,
     );
 
     if (response.status === 404) {
@@ -62,7 +63,7 @@ export class CatalogServiceClient {
     userId: string,
     input: RegisterAccountRequest,
   ): Promise<ProviderProfileSummary> {
-    const response = await fetch(`${this.baseUrl()}/internal/providers`, {
+    const response = await this.fetchCatalogService('/internal/providers', {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -89,8 +90,8 @@ export class CatalogServiceClient {
     userId: string,
     services: ProviderOwnedServiceInput[],
   ): Promise<ProviderOwnedServiceSummary[]> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/providers/by-user/${encodeURIComponent(
+    const response = await this.fetchCatalogService(
+      `/internal/providers/by-user/${encodeURIComponent(
         userId,
       )}/services`,
       {
@@ -115,8 +116,8 @@ export class CatalogServiceClient {
   async findProviderOwnerByProviderId(
     providerId: string,
   ): Promise<ProviderOwnerSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/providers/applications/${encodeURIComponent(
+    const response = await this.fetchCatalogService(
+      `/internal/providers/applications/${encodeURIComponent(
         providerId,
       )}`,
     );
@@ -137,8 +138,8 @@ export class CatalogServiceClient {
   async findProviderBusinessNameByProviderId(
     providerId: string,
   ): Promise<string | null> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/catalog/providers?providerId=${encodeURIComponent(
+    const response = await this.fetchCatalogService(
+      `/internal/catalog/providers?providerId=${encodeURIComponent(
         providerId,
       )}`,
     );
@@ -157,8 +158,8 @@ export class CatalogServiceClient {
   async getProviderApplicationByUserId(
     userId: string,
   ): Promise<ProviderApplicationWithDocuments | null> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/providers/applications/by-user/${userId}`,
+    const response = await this.fetchCatalogService(
+      `/internal/providers/applications/by-user/${userId}`,
     );
 
     if (response.status === 404) {
@@ -185,7 +186,7 @@ export class CatalogServiceClient {
       yearsExperience?: number | null;
     },
   ): Promise<ProviderProfileSummary> {
-    const response = await fetch(`${this.baseUrl()}/internal/providers/by-user/${userId}`, {
+    const response = await this.fetchCatalogService(`/internal/providers/by-user/${userId}`, {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
@@ -211,8 +212,8 @@ export class CatalogServiceClient {
       storagePath?: string | null;
     },
   ): Promise<ProviderApplicationDocumentSummary> {
-    const response = await fetch(
-      `${this.baseUrl()}/internal/providers/applications/documents`,
+    const response = await this.fetchCatalogService(
+      '/internal/providers/applications/documents',
       {
         method: 'POST',
         headers: {
@@ -241,6 +242,22 @@ export class CatalogServiceClient {
     return this.configService.get<string>(
       'CATALOG_SERVICE_URL',
       'http://localhost:8503',
+    );
+  }
+
+  private fetchCatalogService(
+    path: string,
+    init?: RequestInit,
+  ): Promise<Response> {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    return timedGatewayFetch(
+      {
+        method,
+        operation: path,
+        service: 'catalog-service',
+        url: `${this.baseUrl()}${path}`,
+      },
+      init,
     );
   }
 }

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ProviderRegistrationDraft } from '../src/app/lib/provider-registration';
 
 process.env.SERVEASE_API_BASE_URL = 'http://gateway.test';
@@ -135,6 +137,19 @@ const underageResponse = await registrationRoute.POST(
   }),
 );
 assert.equal(underageResponse.status, 400);
+
+const step4Source = readFileSync(
+  join(process.cwd(), 'src/app/components/ProviderRegStep4.tsx'),
+  'utf8',
+);
+const successSource = readFileSync(
+  join(process.cwd(), 'src/app/components/ProviderRegSuccess.tsx'),
+  'utf8',
+);
+assert.match(step4Source, /removeItem\("providerRegDocumentUploadWarning"\)/);
+assert.match(successSource, /Document Upload:/);
+assert.match(successSource, /Needs follow-up/);
+assert.match(successSource, /Received for review/);
 
 function jsonResponse(status: number, payload: unknown): Response {
   return {

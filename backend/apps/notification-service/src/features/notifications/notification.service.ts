@@ -78,6 +78,14 @@ export class NotificationService {
     return this.notificationRepository.markRead(notificationId, userId);
   }
 
+  async markAllRead(userId: string): Promise<NotificationSummary[]> {
+    if (!userId) {
+      throw new InvalidNotificationRequestError();
+    }
+
+    return this.notificationRepository.markAllRead(userId);
+  }
+
   async registerPushDevice(
     input: RegisterPushDeviceInput,
   ): Promise<PushDeviceSummary> {

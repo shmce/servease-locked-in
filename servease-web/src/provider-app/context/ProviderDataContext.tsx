@@ -5,7 +5,9 @@ import {
   getProviderProfile,
   removeProviderDayOff,
   replaceProviderAvailabilityWindows,
+  updateCurrentUserProfile,
   type AvailabilityWindowInput,
+  type CurrentUserProfile,
   type DayOfWeek,
   type ProviderAvailabilitySchedule,
   type ProviderProfileSnapshot,
@@ -72,7 +74,7 @@ interface ProviderDataContextType {
   services: Service[];
   setServices: (services: Service[]) => void;
   profile: ProviderProfile;
-  updateProfile: (updates: Partial<ProviderProfile>) => void;
+  updateProfile: (updates: Partial<ProviderProfile>) => Promise<void>;
 }
 
 const ProviderDataContext = createContext<ProviderDataContextType | undefined>(undefined);
@@ -253,8 +255,34 @@ function applyProviderProfileSnapshot(
   };
 }
 
+function providerProfileFromCurrentUser(
+  fallback: ProviderProfile,
+  profile: CurrentUserProfile,
+): ProviderProfile {
+  return {
+    businessName:
+      profile.providerProfile?.businessName ||
+      profile.user.fullName ||
+      fallback.businessName,
+    bio:
+      profile.providerProfile?.bio ||
+      profile.providerProfile?.serviceDescription ||
+      fallback.bio,
+    serviceAreas: profile.providerProfile?.serviceArea || fallback.serviceAreas,
+    yearsExperience:
+      profile.providerProfile?.yearsExperience === null ||
+      profile.providerProfile?.yearsExperience === undefined
+        ? fallback.yearsExperience
+        : String(profile.providerProfile.yearsExperience),
+  };
+}
+
 export function ProviderDataProvider({ children }: { children: ReactNode }) {
-  const { accessToken, isLoading: isAuthLoading } = useProviderAuth();
+  const {
+    accessToken,
+    isLoading: isAuthLoading,
+    profile: authProfile,
+  } = useProviderAuth();
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
@@ -407,11 +435,57 @@ export function ProviderDataProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const updateProfile = (updates: Partial<ProviderProfile>) => {
-    setProviderData((prev) => ({
-      ...prev,
-      profile: { ...prev.profile, ...updates },
-    }));
+  const updateProfile = async (updates: Partial<ProviderProfile>) => {
+    const nextProfile = {
+      ...providerData.profile,
+      ...updates,
+    };
+    const yearsExperience =
+      nextProfile.yearsExperience.trim() === ""
+        ? null
+        : Number(nextProfile.yearsExperience);
+
+    if (yearsExperience !== null && !Number.isFinite(yearsExperience)) {
+      const message = "Years of experience must be a valid number.";
+      setProfileError(message);
+      throw new Error(message);
+    }
+
+    if (!accessToken) {
+      const message = "Sign in to sync provider profile changes with the backend.";
+      setProfileError(message);
+      throw new Error(message);
+    }
+
+    setIsProfileLoading(true);
+    setProfileError(null);
+
+    try {
+      const updatedProfile = await updateCurrentUserProfile(accessToken, {
+        fullName:
+          authProfile?.user.fullName?.trim() ||
+          nextProfile.businessName.trim() ||
+          "Provider",
+        contactNumber: authProfile?.user.contactNumber ?? null,
+        businessName: nextProfile.businessName.trim() || null,
+        bio: nextProfile.bio.trim() || null,
+        serviceDescription: nextProfile.bio.trim() || null,
+        serviceArea: nextProfile.serviceAreas.trim() || null,
+        yearsExperience,
+      });
+
+      setProviderData((prev) => ({
+        ...prev,
+        profile: providerProfileFromCurrentUser(nextProfile, updatedProfile),
+      }));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to save provider profile.";
+      setProfileError(message);
+      throw error;
+    } finally {
+      setIsProfileLoading(false);
+    }
   };
 
   return (

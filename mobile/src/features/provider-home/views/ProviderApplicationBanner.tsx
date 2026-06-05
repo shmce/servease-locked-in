@@ -1,10 +1,15 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { Badge, Card, PrimaryButton } from '../../../components/DesignKit';
 import type {
   CurrentUserProfile,
   ProviderApplicationStatus,
 } from '../../../shared/models/types';
-import { spacing, type } from '../../../theme/serveaseDesign';
+import {
+  ProviderBadge,
+  ProviderButton,
+  ProviderCard,
+  providerText,
+} from '../../../shared/components/ProviderUI';
+import { spacing } from '../../../theme/serveaseDesign';
 import { useProviderApplicationBannerViewModel } from '../viewModels/useProviderApplicationBannerViewModel';
 
 type ProviderApplicationBannerProps = {
@@ -34,7 +39,7 @@ export function ProviderApplicationBanner({
   }
 
   return (
-    <Card>
+    <ProviderCard>
       <View style={styles.headerRow}>
         <View style={styles.copy}>
           <Text style={styles.title}>{data.title}</Text>
@@ -43,21 +48,21 @@ export function ProviderApplicationBanner({
             <Text style={styles.meta}>{data.latestDecisionAtLabel}</Text>
           ) : null}
         </View>
-        <Badge label={data.applicationStatus ?? 'pending'} tone={data.tone} />
+        <ProviderBadge label={data.applicationStatus ?? 'pending'} tone={data.tone} />
       </View>
-      <PrimaryButton
+      <ProviderButton
         label="Refresh Status"
         variant="secondary"
         onPress={onRefreshStatus}
         disabled={data.refreshDisabled}
       />
-      <PrimaryButton
+      <ProviderButton
         label="Application Documents"
         variant="secondary"
         onPress={onOpenApplicationDocuments}
         disabled={data.uploadDisabled}
       />
-    </Card>
+    </ProviderCard>
   );
 }
 
@@ -73,12 +78,12 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   title: {
-    ...type.section,
+    ...providerText.title,
   },
   body: {
-    ...type.body,
+    ...providerText.body,
   },
   meta: {
-    ...type.caption,
+    ...providerText.meta,
   },
 });

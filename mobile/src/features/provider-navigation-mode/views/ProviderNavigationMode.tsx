@@ -171,9 +171,9 @@ export function ProviderNavigationModeScreen({
           tracking={data.tracking}
           mode="navigation"
           title="Head to the service location"
-          subtitle={data.routeLabel}
+          subtitle={data.navigationMapSubtitle}
           directions={directions}
-          destinationMarkerLabel="Service address"
+          destinationMarkerLabel={data.destinationMarkerLabel}
           navigationOrigin={data.navigationOrigin}
           providerMarkerLabel="You"
         />
@@ -213,7 +213,10 @@ export function ProviderNavigationModeScreen({
                 {data.addressLabel}
               </Text>
               <InfoRow label="Route" value={data.routeLabel} />
-              <InfoRow label="Live location" value={data.liveLocationLabel} />
+              <InfoRow
+                label="Current location"
+                value={data.originStateDescription}
+              />
             </>
           ) : null}
           {data.routeInstructionRows.length ? (
@@ -348,7 +351,7 @@ function ProviderNavigationDriveStats({
         <Text style={styles.providerDriveStatValue} numberOfLines={1}>
           {liveLocationLabel}
         </Text>
-        <Text style={styles.providerDriveStatLabel}>Live GPS</Text>
+        <Text style={styles.providerDriveStatLabel}>Location</Text>
       </View>
     </View>
   );
