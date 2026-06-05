@@ -28,6 +28,7 @@ type CustomerBookingFormViewModelInput = {
   bookingReferencePhotoUrl: string | null;
   busyAction: string | null;
   pinAddressStatus: PinAddressStatus;
+  isAddressComposerOpen?: boolean;
   now?: Date;
 };
 
@@ -45,6 +46,7 @@ export function useCustomerBookingFormViewModel({
   bookingReferencePhotoUrl,
   busyAction,
   pinAddressStatus,
+  isAddressComposerOpen = false,
   now,
 }: CustomerBookingFormViewModelInput) {
   return useMemo(
@@ -63,6 +65,7 @@ export function useCustomerBookingFormViewModel({
         bookingReferencePhotoUrl,
         busyAction,
         pinAddressStatus,
+        isAddressComposerOpen,
         now,
       }),
     [
@@ -79,6 +82,7 @@ export function useCustomerBookingFormViewModel({
       selectedSavedAddressId,
       scheduledAt,
       timeSlots,
+      isAddressComposerOpen,
       now,
     ],
   );
@@ -98,6 +102,7 @@ export function buildCustomerBookingFormViewModel({
   bookingReferencePhotoUrl,
   busyAction,
   pinAddressStatus,
+  isAddressComposerOpen = false,
   now,
 }: CustomerBookingFormViewModelInput) {
   const bookingSchedule = buildCustomerBookingViewModel({
@@ -226,6 +231,7 @@ export function buildCustomerBookingFormViewModel({
       referencePhotoLabel: bookingReferencePhotoUrl
         ? 'Photo attached - tap to replace'
         : 'Attach a photo',
+      isAddressComposerOpen,
     },
     isLoading: false,
     error: null,

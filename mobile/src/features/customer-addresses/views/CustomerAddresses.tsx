@@ -21,6 +21,7 @@ import { useCustomerAddressesViewModel } from '../viewModels/useCustomerAddresse
 
 type CustomerAddressesScreenProps = {
   addresses: CustomerAddressSummary[];
+  isComposerOpen: boolean;
   draftLabel: string;
   draftAddress: string;
   editTargetId: string | null;
@@ -32,6 +33,7 @@ type CustomerAddressesScreenProps = {
   serviceLocation: CustomerBookingLocationState;
   busyAction: string | null;
   onBack: () => void;
+  onStartAddressComposer: () => void;
   onCancelDraft: () => void;
   onCloseMapPicker: () => void;
   onConfirmMapPin: () => void;
@@ -80,6 +82,7 @@ function AddressField({
 
 export function CustomerAddressesScreen({
   addresses,
+  isComposerOpen,
   draftLabel,
   draftAddress,
   editTargetId,
@@ -91,6 +94,7 @@ export function CustomerAddressesScreen({
   serviceLocation,
   busyAction,
   onBack,
+  onStartAddressComposer,
   onCancelDraft,
   onCloseMapPicker,
   onConfirmMapPin,
@@ -111,6 +115,7 @@ export function CustomerAddressesScreen({
     addresses,
     busyAction,
     editTargetId,
+    isComposerOpen,
   });
   const confirmedDraftPin = serviceLocation.confirmedPin;
   const draftCoordinateLabel = confirmedDraftPin
@@ -135,169 +140,178 @@ export function CustomerAddressesScreen({
             onBack={onBack}
           />
 
-          <CustomerSection title="Your locations">
-            {addressBook.data.hasAddresses ? (
-              <View style={styles.addressList}>
-                {addressBook.data.addresses.map((address) => (
-                  <CustomerCard
-                    key={address.id}
-                    selected={address.isDefault}
-                    style={styles.addressCard}
-                  >
-                    <View style={styles.addressRow}>
-                      <CustomerIconBlock compact>
-                        {address.isDefault ? (
-                          <Home
-                            color={palette.mintDeep}
-                            size={18}
-                            strokeWidth={2.2}
-                          />
-                        ) : (
-                          <MapPin
-                            color={palette.mintDeep}
-                            size={18}
-                            strokeWidth={2.2}
-                          />
-                        )}
-                      </CustomerIconBlock>
-                      <View style={styles.flex}>
-                        <View style={styles.addressTitleRow}>
-                          <Text style={styles.addressLabel} numberOfLines={1}>
-                            {address.label}
+          {!isComposerOpen ? (
+            <CustomerSection title="Your locations">
+              {addressBook.data.hasAddresses ? (
+                <View style={styles.addressList}>
+                  {addressBook.data.addresses.map((address) => (
+                    <CustomerCard
+                      key={address.id}
+                      selected={address.isDefault}
+                      style={styles.addressCard}
+                    >
+                      <View style={styles.addressRow}>
+                        <CustomerIconBlock compact>
+                          {address.isDefault ? (
+                            <Home
+                              color={palette.mintDeep}
+                              size={18}
+                              strokeWidth={2.2}
+                            />
+                          ) : (
+                            <MapPin
+                              color={palette.mintDeep}
+                              size={18}
+                              strokeWidth={2.2}
+                            />
+                          )}
+                        </CustomerIconBlock>
+                        <View style={styles.flex}>
+                          <View style={styles.addressTitleRow}>
+                            <Text style={styles.addressLabel} numberOfLines={1}>
+                              {address.label}
+                            </Text>
+                            <VerificationBadge
+                              isVerified={address.isPinVerified}
+                              label={address.verificationLabel}
+                            />
+                          </View>
+                          <Text style={styles.addressMeta}>
+                            {address.defaultLabel}
                           </Text>
-                          <VerificationBadge
-                            isVerified={address.isPinVerified}
-                            label={address.verificationLabel}
-                          />
+                          <Text style={styles.addressText} numberOfLines={2}>
+                            {address.address}
+                          </Text>
+                          {address.pinCoordinateLabel ? (
+                            <Text style={styles.coordinateText}>
+                              {address.pinCoordinateLabel}
+                            </Text>
+                          ) : null}
                         </View>
-                        <Text style={styles.addressMeta}>
-                          {address.defaultLabel}
-                        </Text>
-                        <Text style={styles.addressText} numberOfLines={2}>
-                          {address.address}
-                        </Text>
-                        {address.pinCoordinateLabel ? (
-                          <Text style={styles.coordinateText}>
-                            {address.pinCoordinateLabel}
-                          </Text>
-                        ) : null}
                       </View>
-                    </View>
-                    <View style={styles.addressActions}>
-                      <Pressable
-                        style={[
-                          styles.pinButton,
-                          address.isPinActionBusy && styles.actionDisabled,
-                        ]}
-                        onPress={() => onEditAddressPin(address)}
-                        disabled={address.isPinActionBusy}
-                        accessibilityRole="button"
-                        accessibilityLabel={`${address.pinActionLabel} for ${address.label}`}
-                      >
-                        <MapPin
-                          color={palette.mintDeep}
-                          size={15}
-                          strokeWidth={2.4}
-                        />
-                        <Text style={styles.pinButtonText}>
-                          {address.isPinActionBusy
-                            ? 'Saving...'
-                            : address.pinActionLabel}
-                        </Text>
-                      </Pressable>
-                      {!address.isDefault ? (
+                      <View style={styles.addressActions}>
                         <Pressable
                           style={[
-                            styles.homeButton,
-                            address.settingDefault && styles.actionDisabled,
+                            styles.pinButton,
+                            address.isPinActionBusy && styles.actionDisabled,
                           ]}
-                          onPress={() => onSetDefault(address.id)}
-                          disabled={address.settingDefault}
+                          onPress={() => onEditAddressPin(address)}
+                          disabled={address.isPinActionBusy}
                           accessibilityRole="button"
-                          accessibilityLabel={`Set ${address.label} as home`}
+                          accessibilityLabel={`${address.pinActionLabel} for ${address.label}`}
                         >
-                          <Text style={styles.homeButtonText}>Set home</Text>
+                          <MapPin
+                            color={palette.mintDeep}
+                            size={15}
+                            strokeWidth={2.4}
+                          />
+                          <Text style={styles.pinButtonText}>
+                            {address.isPinActionBusy
+                              ? 'Saving...'
+                              : address.pinActionLabel}
+                          </Text>
                         </Pressable>
-                      ) : (
-                        <View style={styles.defaultBadge}>
-                          <Text style={styles.defaultBadgeText}>Default</Text>
-                        </View>
-                      )}
-                      <Pressable
-                        style={[
-                          styles.deleteButton,
-                          address.deleting && styles.actionDisabled,
-                        ]}
-                        onPress={() => onDeleteAddress(address.id)}
-                        disabled={address.deleting}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Delete ${address.label}`}
-                      >
-                        <Trash2 color={palette.red} size={16} strokeWidth={2.2} />
-                      </Pressable>
-                    </View>
-                  </CustomerCard>
-                ))}
-              </View>
-            ) : (
-              <CustomerEmptyState
-                title="No saved addresses"
-                body="Add Home or another service location with a verified map pin."
-              />
-            )}
-          </CustomerSection>
+                        {!address.isDefault ? (
+                          <Pressable
+                            style={[
+                              styles.homeButton,
+                              address.settingDefault && styles.actionDisabled,
+                            ]}
+                            onPress={() => onSetDefault(address.id)}
+                            disabled={address.settingDefault}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Set ${address.label} as home`}
+                          >
+                            <Text style={styles.homeButtonText}>Set home</Text>
+                          </Pressable>
+                        ) : (
+                          <View style={styles.defaultBadge}>
+                            <Text style={styles.defaultBadgeText}>Default</Text>
+                          </View>
+                        )}
+                        <Pressable
+                          style={[
+                            styles.deleteButton,
+                            address.deleting && styles.actionDisabled,
+                          ]}
+                          onPress={() => onDeleteAddress(address.id)}
+                          disabled={address.deleting}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Delete ${address.label}`}
+                        >
+                          <Trash2 color={palette.red} size={16} strokeWidth={2.2} />
+                        </Pressable>
+                      </View>
+                    </CustomerCard>
+                  ))}
+                </View>
+              ) : (
+                <CustomerEmptyState
+                  title="No saved addresses"
+                  body="Add Home or another service location with a verified map pin."
+                />
+              )}
 
-          <CustomerSection
-            title={editTargetId ? 'Update address pin' : 'Add address'}
-          >
-            <CustomerCard style={styles.formCard}>
-              <AddressField
-                label="Label"
-                value={draftLabel}
-                onChangeText={onDraftLabelChange}
-                placeholder="Home, Work, Condo"
-              />
               <Pressable
-                style={[
-                  styles.pinStatusCard,
-                  confirmedDraftPin && styles.pinStatusCardConfirmed,
-                ]}
-                onPress={onOpenMapPicker}
+                style={styles.newAddressButton}
+                onPress={onStartAddressComposer}
                 accessibilityRole="button"
-                accessibilityLabel="Choose saved address map pin"
+                accessibilityLabel="Add a saved address"
               >
-                <View style={styles.pinStatusIcon}>
-                  {confirmedDraftPin ? (
-                    <CheckCircle
-                      color={palette.mintDeep}
-                      size={18}
-                      strokeWidth={2.5}
-                    />
-                  ) : (
-                    <MapPin
-                      color={palette.mintDeep}
-                      size={18}
-                      strokeWidth={2.5}
-                    />
-                  )}
-                </View>
-                <View style={styles.flex}>
-                  <Text style={styles.pinStatusTitle}>{draftTitle}</Text>
-                  <Text style={styles.pinStatusMeta} numberOfLines={2}>
-                    {draftBody}
-                  </Text>
-                  {draftCoordinateLabel ? (
-                    <Text style={styles.coordinateText}>
-                      {draftCoordinateLabel}
-                    </Text>
-                  ) : null}
-                </View>
-                <Text style={styles.pinStatusAction}>
-                  {confirmedDraftPin ? 'Change' : 'Choose'}
-                </Text>
+                <Text style={styles.newAddressButtonText}>Add address</Text>
               </Pressable>
-              <View style={styles.formActions}>
-                {editTargetId ? (
+            </CustomerSection>
+          ) : (
+            <CustomerSection
+              title={editTargetId ? 'Update address pin' : 'Add address'}
+            >
+              <CustomerCard style={styles.formCard}>
+                <AddressField
+                  label="Label"
+                  value={draftLabel}
+                  onChangeText={onDraftLabelChange}
+                  placeholder="Home, Work, Condo"
+                />
+                <Pressable
+                  style={[
+                    styles.pinStatusCard,
+                    confirmedDraftPin && styles.pinStatusCardConfirmed,
+                  ]}
+                  onPress={onOpenMapPicker}
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose saved address map pin"
+                >
+                  <View style={styles.pinStatusIcon}>
+                    {confirmedDraftPin ? (
+                      <CheckCircle
+                        color={palette.mintDeep}
+                        size={18}
+                        strokeWidth={2.5}
+                      />
+                    ) : (
+                      <MapPin
+                        color={palette.mintDeep}
+                        size={18}
+                        strokeWidth={2.5}
+                      />
+                    )}
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={styles.pinStatusTitle}>{draftTitle}</Text>
+                    <Text style={styles.pinStatusMeta} numberOfLines={2}>
+                      {draftBody}
+                    </Text>
+                    {draftCoordinateLabel ? (
+                      <Text style={styles.coordinateText}>
+                        {draftCoordinateLabel}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.pinStatusAction}>
+                    {confirmedDraftPin ? 'Change' : 'Choose'}
+                  </Text>
+                </Pressable>
+                <View style={styles.formActions}>
                   <Pressable
                     style={styles.cancelButton}
                     onPress={onCancelDraft}
@@ -305,43 +319,45 @@ export function CustomerAddressesScreen({
                   >
                     <Text style={styles.cancelButtonText}>Cancel</Text>
                   </Pressable>
-                ) : null}
-                <Pressable
-                  style={[
-                    styles.saveButton,
-                    isSaveDisabled && styles.saveButtonDisabled,
-                  ]}
-                  onPress={onSaveAddress}
-                  disabled={isSaveDisabled}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.saveButtonText}>
-                    {addressBook.data.saveLabel}
-                  </Text>
-                </Pressable>
-              </View>
-            </CustomerCard>
-          </CustomerSection>
+                  <Pressable
+                    style={[
+                      styles.saveButton,
+                      isSaveDisabled && styles.saveButtonDisabled,
+                    ]}
+                    onPress={onSaveAddress}
+                    disabled={isSaveDisabled}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.saveButtonText}>
+                      {addressBook.data.saveLabel}
+                    </Text>
+                  </Pressable>
+                </View>
+              </CustomerCard>
+            </CustomerSection>
+          )}
         </CustomerContent>
       </CustomerScreen>
-      <CustomerMapPinPickerModal
-        currentLocationBusy={busyAction === 'customer-address-current-location'}
-        mapSearchBusy={mapSearchBusy}
-        mapSearchError={mapSearchError}
-        mapSearchQuery={mapSearchQuery}
-        pinAddressStatus={pinAddressStatus}
-        refreshAddressBusy={busyAction === 'customer-address-reverse-pin'}
-        serviceLocation={serviceLocation}
-        visible={mapPickerVisible}
-        onClose={onCloseMapPicker}
-        onConfirm={onConfirmMapPin}
-        onMapSearchQueryChange={onMapSearchQueryChange}
-        onManualDetailsChange={onManualDetailsChange}
-        onMovePin={onMapPinMove}
-        onRefreshAddress={onRefreshAddress}
-        onSearchMapPin={onSearchMapPin}
-        onUseCurrentLocation={onUseCurrentLocation}
-      />
+      {isComposerOpen ? (
+        <CustomerMapPinPickerModal
+          currentLocationBusy={busyAction === 'customer-address-current-location'}
+          mapSearchBusy={mapSearchBusy}
+          mapSearchError={mapSearchError}
+          mapSearchQuery={mapSearchQuery}
+          pinAddressStatus={pinAddressStatus}
+          refreshAddressBusy={busyAction === 'customer-address-reverse-pin'}
+          serviceLocation={serviceLocation}
+          visible={mapPickerVisible}
+          onClose={onCloseMapPicker}
+          onConfirm={onConfirmMapPin}
+          onMapSearchQueryChange={onMapSearchQueryChange}
+          onManualDetailsChange={onManualDetailsChange}
+          onMovePin={onMapPinMove}
+          onRefreshAddress={onRefreshAddress}
+          onSearchMapPin={onSearchMapPin}
+          onUseCurrentLocation={onUseCurrentLocation}
+        />
+      ) : null}
     </>
   );
 }

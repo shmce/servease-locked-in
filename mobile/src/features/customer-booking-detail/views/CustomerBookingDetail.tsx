@@ -20,6 +20,7 @@ import {
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
 import { useCustomerBookingDetailViewModel } from '../viewModels/useCustomerBookingDetailViewModel';
 import { CustomerBookingReviewPanel } from './CustomerBookingReviewPanel';
+import { CustomerBookingReviewSheet } from './CustomerBookingReviewSheet';
 
 type CustomerBookingDetailScreenProps = {
   booking: BookingSummary;
@@ -43,6 +44,9 @@ type CustomerBookingDetailScreenProps = {
   onRatingChange: (value: string) => void;
   onReviewTextChange: (value: string) => void;
   onSubmitReview: () => void;
+  onOpenReview: () => void;
+  onCloseReview: () => void;
+  isReviewSheetVisible: boolean;
 };
 
 export function CustomerBookingDetailScreen({
@@ -67,12 +71,16 @@ export function CustomerBookingDetailScreen({
   onRatingChange,
   onReviewTextChange,
   onSubmitReview,
+  onOpenReview,
+  onCloseReview,
+  isReviewSheetVisible,
 }: CustomerBookingDetailScreenProps) {
   const bookingDetail = useCustomerBookingDetailViewModel({
     booking,
     selectedProvider,
     selectedPayment,
     showReservePaymentAction,
+    selectedReview,
   });
   const { data } = bookingDetail;
 
@@ -218,17 +226,48 @@ export function CustomerBookingDetailScreen({
         ) : null}
 
         {data.showReviewPanel ? (
-          <CustomerBookingReviewPanel
-            selectedReview={selectedReview}
-            rating={rating}
-            reviewText={reviewText}
-            busyAction={busyAction}
-            onRatingChange={onRatingChange}
-            onReviewTextChange={onReviewTextChange}
-            onSubmitReview={onSubmitReview}
-          />
+          selectedReview ? (
+            <CustomerBookingReviewPanel
+              selectedReview={selectedReview}
+              rating={rating}
+              reviewText={reviewText}
+              busyAction={busyAction}
+              onRatingChange={onRatingChange}
+              onReviewTextChange={onReviewTextChange}
+              onSubmitReview={onSubmitReview}
+            />
+          ) : (
+            <CustomerSection title="Your review">
+              <Pressable
+                style={styles.reviewActionCard}
+                onPress={onOpenReview}
+                accessibilityRole="button"
+                accessibilityLabel="Open review flow"
+              >
+                <Text style={styles.reviewActionTitle}>Rate this booking</Text>
+                <Text style={styles.reviewActionMeta}>
+                  Share your feedback to help improve service quality.
+                </Text>
+                <Text style={styles.reviewActionLink}>
+                  {data.reviewActionLabel}
+                </Text>
+              </Pressable>
+            </CustomerSection>
+          )
         ) : null}
       </CustomerContent>
+      <CustomerBookingReviewSheet
+        providerName={data.providerName}
+        visible={isReviewSheetVisible}
+        selectedReview={selectedReview}
+        rating={rating}
+        reviewText={reviewText}
+        busyAction={busyAction}
+        onClose={onCloseReview}
+        onRatingChange={onRatingChange}
+        onReviewTextChange={onReviewTextChange}
+        onSubmitReview={onSubmitReview}
+      />
     </CustomerScreen>
   );
 }
@@ -375,6 +414,30 @@ const styles = StyleSheet.create({
   },
   secondaryActionText: {
     color: palette.mintDeep,
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0,
+  },
+  reviewActionCard: {
+    alignItems: 'stretch',
+    backgroundColor: '#FFF7ED',
+    borderColor: '#FED7AA',
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  reviewActionLink: {
+    color: palette.mintDeep,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
+  reviewActionMeta: {
+    ...customerText.meta,
+  },
+  reviewActionTitle: {
+    color: '#202733',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0,

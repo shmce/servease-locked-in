@@ -74,6 +74,9 @@ type CustomerBookingFormScreenProps = {
   onReverseGeocodePin: () => void;
   onConfirmMapPin: () => void;
   onManualDetailsChange: (value: string) => void;
+  isAddressComposerOpen: boolean;
+  onOpenAddressComposer: () => void;
+  onCloseAddressComposer: () => void;
   onHoursRequiredChange: (value: string) => void;
   onNotesChange: (value: string) => void;
   onUploadReferencePhoto: () => void;
@@ -119,6 +122,9 @@ export function CustomerBookingFormScreen({
   onReverseGeocodePin,
   onConfirmMapPin,
   onManualDetailsChange,
+  isAddressComposerOpen,
+  onOpenAddressComposer,
+  onCloseAddressComposer,
   onHoursRequiredChange,
   onNotesChange,
   onUploadReferencePhoto,
@@ -139,8 +145,19 @@ export function CustomerBookingFormScreen({
     bookingReferencePhotoUrl,
     busyAction,
     pinAddressStatus,
+    isAddressComposerOpen,
   });
   const { data } = bookingForm;
+  const composerActionLabel = isAddressComposerOpen
+    ? data.locationStatusActionLabel
+    : 'Verify service pin';
+  const openAddressComposer = () => {
+    onOpenAddressComposer();
+  };
+  const closeAddressComposer = () => {
+    onCloseMapPicker();
+    onCloseAddressComposer();
+  };
 
   return (
     <>
@@ -206,16 +223,27 @@ export function CustomerBookingFormScreen({
                 contentStyle={[
                   styles.addressActionButton,
                   styles.addressMapAction,
-                  data.verifyAddressDisabled && styles.faded,
                 ]}
-                onPress={onOpenMapPicker}
-                disabled={data.verifyAddressDisabled}
+                onPress={
+                  isAddressComposerOpen ? onOpenMapPicker : openAddressComposer
+                }
+                disabled={
+                  isAddressComposerOpen
+                    ? data.verifyAddressDisabled
+                    : false
+                }
                 accessibilityRole="button"
-                accessibilityLabel="Choose service address on map"
+                accessibilityLabel={
+                  isAddressComposerOpen
+                    ? 'Choose service address on map'
+                    : 'Open service address composer'
+                }
               >
                 <MapPin color={palette.white} size={15} strokeWidth={2.5} />
                 <Text style={styles.addressMapActionText} numberOfLines={1}>
-                  {data.verifyAddressLabel}
+                  {isAddressComposerOpen
+                    ? data.verifyAddressLabel
+                    : composerActionLabel}
                 </Text>
               </MotionPressable>
             </View>
@@ -300,31 +328,47 @@ export function CustomerBookingFormScreen({
               multiline
             />
             <LocationStatusCard
-              actionLabel={data.locationStatusActionLabel}
+              actionLabel={isAddressComposerOpen ? data.locationStatusActionLabel : 'Open'}
               coordinateLabel={data.locationCoordinateLabel}
               isConfirmed={data.locationStatusConfirmed}
               notice={data.locationNotice}
               statusLabel={data.locationStatusLabel}
-              onEdit={onOpenMapPicker}
+              onEdit={
+                isAddressComposerOpen ? onOpenMapPicker : openAddressComposer
+              }
             />
-            {addressGeoResult && !serviceLocation.confirmedPin ? (
-              <AddressVerificationPreview result={addressGeoResult} />
+            {isAddressComposerOpen ? (
+              <>
+                {addressGeoResult && !serviceLocation.confirmedPin ? (
+                  <AddressVerificationPreview result={addressGeoResult} />
+                ) : null}
+                <MotionPressable
+                  contentStyle={[
+                    styles.saveHomeButton,
+                    data.saveAddressDisabled && styles.faded,
+                  ]}
+                  onPress={onSaveAddressAsHome}
+                  disabled={data.saveAddressDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save service address as home"
+                >
+                  <Home color={palette.mintDeep} size={15} strokeWidth={2.4} />
+                  <Text style={styles.smallActionText}>
+                    {data.saveAddressLabel}
+                  </Text>
+                </MotionPressable>
+                <MotionPressable
+                  contentStyle={styles.addressComposerCloseButton}
+                  onPress={closeAddressComposer}
+                  accessibilityRole="button"
+                  accessibilityLabel="Done with service address composer"
+                >
+                  <Text style={styles.addressComposerCloseText}>
+                    Done with address
+                  </Text>
+                </MotionPressable>
+              </>
             ) : null}
-            <MotionPressable
-              contentStyle={[
-                styles.saveHomeButton,
-                data.saveAddressDisabled && styles.faded,
-              ]}
-              onPress={onSaveAddressAsHome}
-              disabled={data.saveAddressDisabled}
-              accessibilityRole="button"
-              accessibilityLabel="Save service address as home"
-            >
-              <Home color={palette.mintDeep} size={15} strokeWidth={2.4} />
-              <Text style={styles.smallActionText}>
-                {data.saveAddressLabel}
-              </Text>
-            </MotionPressable>
           </CustomerSection>
 
           <CustomerSection title="Add details (optional)">
@@ -383,24 +427,26 @@ export function CustomerBookingFormScreen({
           Back to provider
         </Text>
       </MotionView>
-      <CustomerMapPinPickerModal
-        currentLocationBusy={busyAction === 'geo-current-location'}
-        mapSearchBusy={mapSearchBusy}
-        mapSearchError={mapSearchError}
-        mapSearchQuery={mapSearchQuery}
-        pinAddressStatus={pinAddressStatus}
-        refreshAddressBusy={busyAction === 'geo-reverse-pin'}
-        serviceLocation={serviceLocation}
-        visible={mapPickerVisible}
-        onClose={onCloseMapPicker}
-        onConfirm={onConfirmMapPin}
-        onMapSearchQueryChange={onMapSearchQueryChange}
-        onSearchMapPin={onSearchMapPin}
-        onManualDetailsChange={onManualDetailsChange}
-        onMovePin={onMapPinMove}
-        onRefreshAddress={onReverseGeocodePin}
-        onUseCurrentLocation={onUseCurrentLocation}
-      />
+      {isAddressComposerOpen ? (
+        <CustomerMapPinPickerModal
+          currentLocationBusy={busyAction === 'geo-current-location'}
+          mapSearchBusy={mapSearchBusy}
+          mapSearchError={mapSearchError}
+          mapSearchQuery={mapSearchQuery}
+          pinAddressStatus={pinAddressStatus}
+          refreshAddressBusy={busyAction === 'geo-reverse-pin'}
+          serviceLocation={serviceLocation}
+          visible={mapPickerVisible}
+          onClose={onCloseMapPicker}
+          onConfirm={onConfirmMapPin}
+          onMapSearchQueryChange={onMapSearchQueryChange}
+          onSearchMapPin={onSearchMapPin}
+          onManualDetailsChange={onManualDetailsChange}
+          onMovePin={onMapPinMove}
+          onRefreshAddress={onReverseGeocodePin}
+          onUseCurrentLocation={onUseCurrentLocation}
+        />
+      ) : null}
     </>
   );
 }
@@ -516,6 +562,23 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 12,
     fontWeight: '600',
+    letterSpacing: 0,
+  },
+  addressComposerCloseButton: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#F8FAFC',
+    borderColor: palette.line,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    minHeight: 36,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  addressComposerCloseText: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: '700',
     letterSpacing: 0,
   },
   faded: {

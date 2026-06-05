@@ -5,12 +5,14 @@ type CustomerAddressesViewModelInput = {
   addresses: CustomerAddressSummary[];
   busyAction: string | null;
   editTargetId?: string | null;
+  isComposerOpen?: boolean;
 };
 
 export function useCustomerAddressesViewModel({
   addresses,
   busyAction,
   editTargetId = null,
+  isComposerOpen = false,
 }: CustomerAddressesViewModelInput) {
   return useMemo(
     () =>
@@ -18,8 +20,9 @@ export function useCustomerAddressesViewModel({
         addresses,
         busyAction,
         editTargetId,
+        isComposerOpen,
       }),
-    [addresses, busyAction, editTargetId],
+    [addresses, busyAction, editTargetId, isComposerOpen],
   );
 }
 
@@ -27,6 +30,7 @@ export function buildCustomerAddressesViewModel({
   addresses,
   busyAction,
   editTargetId = null,
+  isComposerOpen = false,
 }: CustomerAddressesViewModelInput) {
   const isSavingNewAddress = busyAction === 'save-customer-address';
   const isUpdatingEditedAddress =
@@ -56,6 +60,7 @@ export function buildCustomerAddressesViewModel({
         };
       }),
       hasAddresses: addresses.length > 0,
+      isComposerOpen,
       isSavingAddress: isSavingNewAddress || isUpdatingEditedAddress,
       saveLabel:
         isSavingNewAddress || isUpdatingEditedAddress

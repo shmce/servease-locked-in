@@ -646,7 +646,13 @@ export default function App({ initialRoute = null }: AppProps) {
   const [customerGuideStep, setCustomerGuideStep] = useState(0);
   const [customerGuideDismissed, setCustomerGuideDismissed] = useState(false);
   const [reviewText, setReviewText] = useState('');
-  const [rating, setRating] = useState('5');
+  const [rating, setRating] = useState('');
+  const [isCustomerBookingReviewSheetVisible, setIsCustomerBookingReviewSheetVisible] =
+    useState(false);
+  const [
+    isCustomerBookingAddressComposerOpen,
+    setIsCustomerBookingAddressComposerOpen,
+  ] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [providerBookingTab, setProviderBookingTab] =
     useState<ProviderBookingTab>('upcoming');
@@ -806,6 +812,14 @@ export default function App({ initialRoute = null }: AppProps) {
   useEffect(() => {
     routeRef.current = route;
   }, [route]);
+
+  useEffect(() => {
+    setIsCustomerBookingReviewSheetVisible(false);
+  }, [selectedBookingId]);
+
+  useEffect(() => {
+    setIsCustomerBookingAddressComposerOpen(false);
+  }, [selectedProviderId]);
 
   useEffect(() => {
     goBackRef.current = () => goBack();
@@ -2855,13 +2869,21 @@ export default function App({ initialRoute = null }: AppProps) {
       setNotice('Select a completed booking first.');
       return;
     }
+    if (selectedReview) {
+      setNotice('This booking already has a review.');
+      return;
+    }
+    const normalizedRating = Number(rating);
+    if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
+      setNotice('Choose a rating before submitting.');
+      return;
+    }
 
     return runExclusiveNetworkAction(
       `customer:review:${selectedBooking.id}`,
       async () => {
         setBusyAction('review');
         try {
-          const normalizedRating = Math.min(5, Math.max(1, Number(rating) || 5));
           const review = await createReview(
             {
               bookingId: selectedBooking.id,
@@ -2875,6 +2897,8 @@ export default function App({ initialRoute = null }: AppProps) {
             ...current.filter((item) => item.id !== review.id),
           ]);
           setReviewText('');
+          setRating('');
+          setIsCustomerBookingReviewSheetVisible(false);
           setNotice('Review submitted.');
         } catch (error) {
           setNotice(readError(error));
@@ -3539,12 +3563,16 @@ export default function App({ initialRoute = null }: AppProps) {
         goBack({ role: 'customer', screen: 'customerTopProviders' }),
       );
     }
+    const closeCustomerBookingAddressComposer = () => {
+      setIsCustomerBookingAddressComposerOpen(false);
+      customerBookingFlow.actions.closeServiceLocationPicker();
+    };
 
     return (
-      <CustomerBookingFormScreen
-        provider={selectedProvider}
-        providerAvailability={selectedProviderAvailability}
-        scheduledAt={customerBookingFlow.data.scheduledAt}
+        <CustomerBookingFormScreen
+          provider={selectedProvider}
+          providerAvailability={selectedProviderAvailability}
+          scheduledAt={customerBookingFlow.data.scheduledAt}
         hoursRequired={customerBookingFlow.data.hoursRequired}
         timeSlots={bookingTimeSlots}
         bookingSlotError={customerBookingFlow.data.bookingSlotError}
@@ -3563,17 +3591,24 @@ export default function App({ initialRoute = null }: AppProps) {
         bookingReferencePhotoUri={customerBookingFlow.data.bookingReferencePhotoUri}
         bookingReferencePhotoUrl={customerBookingFlow.data.bookingReferencePhotoUrl}
         busyAction={busyAction}
-        onBack={() => goBack({ role: 'customer', screen: 'customerProviderProfile' })}
+        onBack={() => {
+          closeCustomerBookingAddressComposer();
+          goBack({ role: 'customer', screen: 'customerProviderProfile' });
+        }}
         onContinue={() => {
           void (async () => {
             const canReview =
               await customerBookingFlow.actions.prepareBookingReview();
             if (canReview) {
+              closeCustomerBookingAddressComposer();
               navigate('customerBookingReview', 'customer');
             }
           })();
         }}
-        onBackToProvider={() => navigate('customerProviderProfile', 'customer')}
+        onBackToProvider={() => {
+          closeCustomerBookingAddressComposer();
+          navigate('customerProviderProfile', 'customer');
+        }}
         onScheduledAtChange={customerBookingFlow.actions.setScheduledAt}
         onBookingSlotErrorChange={customerBookingFlow.actions.setBookingSlotError}
         onUnavailableSlotPress={() =>
@@ -3593,23 +3628,30 @@ export default function App({ initialRoute = null }: AppProps) {
           void customerBookingFlow.actions.openServiceLocationPicker()
         }
         onCloseMapPicker={customerBookingFlow.actions.closeServiceLocationPicker}
-        onMapSearchQueryChange={customerBookingFlow.actions.setMapSearchQuery}
-        onSearchMapPin={() =>
-          void customerBookingFlow.actions.searchServiceLocationPin()
-        }
+          onMapSearchQueryChange={customerBookingFlow.actions.setMapSearchQuery}
+          onSearchMapPin={() =>
+            void customerBookingFlow.actions.searchServiceLocationPin()
+          }
         onMapPinMove={customerBookingFlow.actions.moveServiceLocationPin}
-        onReverseGeocodePin={() =>
-          void customerBookingFlow.actions.reverseGeocodeServiceLocationPin()
-        }
-        onConfirmMapPin={customerBookingFlow.actions.confirmServiceLocationPin}
-        onManualDetailsChange={
-          customerBookingFlow.actions.setServiceLocationManualDetails
-        }
-        onUploadReferencePhoto={() =>
-          void pickAndUploadImage('booking_reference', (uri, uploaded) => {
-            customerBookingFlow.actions.setBookingReferenceUploadResult(
-              uri,
-              uploaded,
+          onReverseGeocodePin={() =>
+            void customerBookingFlow.actions.reverseGeocodeServiceLocationPin()
+          }
+          onConfirmMapPin={customerBookingFlow.actions.confirmServiceLocationPin}
+          onManualDetailsChange={
+            customerBookingFlow.actions.setServiceLocationManualDetails
+          }
+          isAddressComposerOpen={isCustomerBookingAddressComposerOpen}
+          onOpenAddressComposer={() =>
+            setIsCustomerBookingAddressComposerOpen(true)
+          }
+          onCloseAddressComposer={() =>
+            closeCustomerBookingAddressComposer()
+          }
+          onUploadReferencePhoto={() =>
+            void pickAndUploadImage('booking_reference', (uri, uploaded) => {
+              customerBookingFlow.actions.setBookingReferenceUploadResult(
+                uri,
+                uploaded,
             );
           })
         }
@@ -3756,6 +3798,15 @@ export default function App({ initialRoute = null }: AppProps) {
         onRatingChange={setRating}
         onReviewTextChange={setReviewText}
         onSubmitReview={() => void submitReview()}
+        onOpenReview={() => {
+          if (selectedReview) {
+            setNotice('This booking already has a review.');
+            return;
+          }
+          setIsCustomerBookingReviewSheetVisible(true);
+        }}
+        onCloseReview={() => setIsCustomerBookingReviewSheetVisible(false)}
+        isReviewSheetVisible={isCustomerBookingReviewSheetVisible}
       />
     );
   }
@@ -3909,6 +3960,7 @@ export default function App({ initialRoute = null }: AppProps) {
     return (
       <CustomerAddressesScreen
         addresses={profile?.customerAddresses ?? []}
+        isComposerOpen={customerAddressPinFlow.data.isComposerOpen}
         draftLabel={customerAddressPinFlow.data.draftLabel}
         draftAddress={customerAddressPinFlow.data.draftAddress}
         editTargetId={customerAddressPinFlow.data.editTargetId}
@@ -3920,6 +3972,7 @@ export default function App({ initialRoute = null }: AppProps) {
         serviceLocation={customerAddressPinFlow.data.serviceLocation}
         busyAction={busyAction}
         onBack={() => goBack({ role: 'customer', screen: 'more' })}
+        onStartAddressComposer={customerAddressPinFlow.actions.openAddressComposer}
         onCancelDraft={customerAddressPinFlow.actions.resetDraft}
         onCloseMapPicker={customerAddressPinFlow.actions.closeMapPicker}
         onConfirmMapPin={customerAddressPinFlow.actions.confirmPin}

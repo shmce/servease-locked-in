@@ -11,6 +11,7 @@ import {
   BookingSummary,
   PaymentSummary,
   ProviderListing,
+  ReviewSummary,
 } from '../../../shared/models/types';
 
 type CustomerBookingDetailViewModelInput = {
@@ -18,6 +19,7 @@ type CustomerBookingDetailViewModelInput = {
   selectedProvider: ProviderListing | null;
   selectedPayment: PaymentSummary | null;
   showReservePaymentAction?: boolean;
+  selectedReview: ReviewSummary | null;
 };
 
 export function useCustomerBookingDetailViewModel({
@@ -25,6 +27,7 @@ export function useCustomerBookingDetailViewModel({
   selectedProvider,
   selectedPayment,
   showReservePaymentAction,
+  selectedReview,
 }: CustomerBookingDetailViewModelInput) {
   return useMemo(
     () =>
@@ -33,8 +36,9 @@ export function useCustomerBookingDetailViewModel({
         selectedProvider,
         selectedPayment,
         showReservePaymentAction,
+        selectedReview,
       }),
-    [booking, selectedPayment, selectedProvider, showReservePaymentAction],
+    [booking, selectedPayment, selectedReview, selectedProvider, showReservePaymentAction],
   );
 }
 
@@ -43,6 +47,7 @@ export function buildCustomerBookingDetailViewModel({
   selectedProvider,
   selectedPayment,
   showReservePaymentAction = true,
+  selectedReview,
 }: CustomerBookingDetailViewModelInput) {
   const serviceDetailRows = [
     {
@@ -136,6 +141,9 @@ export function buildCustomerBookingDetailViewModel({
       showReservePayment:
         showReservePaymentAction && booking.status !== 'completed',
       showReviewPanel: booking.status === 'completed',
+      showReviewSummary: Boolean(selectedReview),
+      canReview: booking.status === 'completed' && !selectedReview,
+      reviewActionLabel: selectedReview ? 'Review submitted' : 'Leave review',
       showTrackProvider: ['confirmed', 'in_progress'].includes(booking.status),
       statusChip: bookingStatusChip(booking.status),
       timelineSteps: timelineForStatus(booking.status),

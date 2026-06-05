@@ -54,6 +54,7 @@ export function useCustomerAddressPinFlow({
       createCustomerBookingLocationState(''),
     );
   const [editTargetId, setEditTargetId] = useState<string | null>(null);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [mapPickerVisible, setMapPickerVisible] = useState(false);
   const [mapSearchQuery, setMapSearchQuery] = useState('');
   const [mapSearchError, setMapSearchError] = useState<string | null>(null);
@@ -172,6 +173,7 @@ export function useCustomerAddressPinFlow({
     setDraftLabel(defaultAddressLabel);
     setServiceLocation(createCustomerBookingLocationState(''));
     setEditTargetId(null);
+    setIsComposerOpen(false);
     setMapPickerVisible(false);
     setMapSearchQuery('');
     setMapSearchError(null);
@@ -183,12 +185,14 @@ export function useCustomerAddressPinFlow({
   function openNewAddressPinPicker() {
     setMapSearchError(null);
     setMapPickerVisible(true);
+    setIsComposerOpen(true);
   }
 
   function openExistingAddressPinPicker(address: CustomerAddressSummary) {
     const nextLocation = customerBookingLocationFromSavedAddress(address);
     setDraftLabel(address.label || defaultAddressLabel);
     setEditTargetId(address.id);
+    setIsComposerOpen(true);
     setServiceLocation(nextLocation);
     setMapSearchQuery(address.address);
     setMapSearchError(null);
@@ -413,6 +417,7 @@ export function useCustomerAddressPinFlow({
       draftAddress: serviceLocation.addressText,
       draftLabel,
       editTargetId,
+      isComposerOpen,
       isEditing: Boolean(editTargetId),
       mapPickerVisible,
       mapSearchBusy,
@@ -422,6 +427,21 @@ export function useCustomerAddressPinFlow({
       serviceLocation,
     },
     actions: {
+      openAddressComposer() {
+        setDraftLabel(defaultAddressLabel);
+        setEditTargetId(null);
+        setServiceLocation(createCustomerBookingLocationState(''));
+        setIsComposerOpen(true);
+        setMapPickerVisible(false);
+        setMapSearchQuery('');
+        setMapSearchError(null);
+        setMapSearchBusy(false);
+        setPinAddressStatus('idle');
+        setLastResolvedPin(null);
+      },
+      closeComposer() {
+        resetDraft();
+      },
       closeMapPicker,
       confirmPin,
       movePin,

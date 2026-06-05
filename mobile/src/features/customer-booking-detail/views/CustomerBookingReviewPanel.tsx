@@ -1,11 +1,11 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Star } from 'lucide-react-native';
 import { Field } from '../../../components/DesignKit';
 import {
   CustomerCard,
   CustomerSection,
   customerText,
 } from '../../../shared/components/CustomerUI';
+import { RatingStarsInput } from '../../../components/RatingStarsInput';
 import { ReviewSummary } from '../../../shared/models/types';
 import { palette, radius } from '../../../theme/serveaseDesign';
 import { useCustomerBookingReviewPanelViewModel } from '../viewModels/useCustomerBookingReviewPanelViewModel';
@@ -32,9 +32,10 @@ export function CustomerBookingReviewPanel({
   const reviewPanel = useCustomerBookingReviewPanelViewModel({
     selectedReview,
     busyAction,
+    rating,
   });
   const { data } = reviewPanel;
-  const selectedRating = Math.min(5, Math.max(1, Number(rating) || 5));
+  const selectedRating = Number(rating);
 
   if (data.hasExistingReview) {
     return (
@@ -52,32 +53,14 @@ export function CustomerBookingReviewPanel({
       <View style={styles.ratingField}>
         <Text style={styles.ratingLabel}>Rating</Text>
         <View style={styles.ratingScale}>
-          {[1, 2, 3, 4, 5].map((value) => {
-            const isSelected = selectedRating === value;
-            const isFilled = selectedRating >= value;
-            const label = `${value} out of 5 stars`;
-
-            return (
-              <Pressable
-                key={value}
-                style={[styles.starButton, isSelected && styles.starButtonSelected]}
-                onPress={() => onRatingChange(String(value))}
-                accessibilityRole="button"
-                accessibilityLabel={`Rate ${label}`}
-                accessibilityHint="Double-tap to set this rating"
-                accessibilityState={{ selected: isSelected }}
-              >
-                <Star
-                  color={isFilled ? '#FFC107' : '#E5E7EB'}
-                  fill={isFilled ? '#FFC107' : 'transparent'}
-                  size={22}
-                  strokeWidth={2.4}
-                />
-              </Pressable>
-            );
-          })}
+          <RatingStarsInput
+            rating={Number.isFinite(selectedRating) ? selectedRating : 0}
+            onChange={(value) => onRatingChange(String(value))}
+          />
         </View>
-        <Text style={styles.ratingHint}>{selectedRating}/5 stars</Text>
+        <Text style={styles.ratingHint}>
+          {Number.isFinite(selectedRating) ? selectedRating : 0}/5 stars
+        </Text>
       </View>
       <Field
         label="Review"
@@ -110,23 +93,6 @@ const styles = StyleSheet.create({
   ratingScale: {
     flexDirection: 'row',
     gap: 12,
-  },
-  starButton: {
-    alignItems: 'center',
-    backgroundColor: 'transparent',
-    borderColor: 'transparent',
-    borderRadius: 0,
-    borderWidth: 0,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 54,
-    minWidth: 44,
-    maxWidth: 56,
-    paddingVertical: 12,
-  },
-  starButtonSelected: {
-    backgroundColor: 'transparent',
-    borderColor: 'transparent',
   },
   ratingHint: {
     ...customerText.meta,
