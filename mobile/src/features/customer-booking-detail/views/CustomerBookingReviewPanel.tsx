@@ -55,25 +55,24 @@ export function CustomerBookingReviewPanel({
           {[1, 2, 3, 4, 5].map((value) => {
             const isSelected = selectedRating === value;
             const isFilled = selectedRating >= value;
+            const label = `${value} out of 5 stars`;
 
             return (
               <Pressable
                 key={value}
-                style={[styles.ratingStep, isSelected && styles.ratingStepSelected]}
+                style={[styles.starButton, isSelected && styles.starButtonSelected]}
                 onPress={() => onRatingChange(String(value))}
                 accessibilityRole="button"
-                accessibilityLabel={`Give ${value} out of 5 stars`}
+                accessibilityLabel={`Rate ${label}`}
+                accessibilityHint="Double-tap to set this rating"
                 accessibilityState={{ selected: isSelected }}
               >
                 <Star
-                  color={isFilled ? palette.mint : palette.faint}
-                  fill={isFilled ? palette.mint : 'transparent'}
+                  color={isFilled ? '#FFC107' : '#E5E7EB'}
+                  fill={isFilled ? '#FFC107' : 'transparent'}
                   size={22}
                   strokeWidth={2.4}
                 />
-                <Text style={[styles.ratingStepText, isSelected && styles.ratingStepTextSelected]}>
-                  {value}
-                </Text>
               </Pressable>
             );
           })}
@@ -110,36 +109,29 @@ const styles = StyleSheet.create({
   },
   ratingScale: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
   },
-  ratingStep: {
+  starButton: {
     alignItems: 'center',
-    backgroundColor: '#F8FAFB',
+    backgroundColor: 'transparent',
     borderColor: 'transparent',
-    borderRadius: 10,
-    borderWidth: 1,
+    borderRadius: 0,
+    borderWidth: 0,
     flex: 1,
-    gap: 4,
-    minHeight: 58,
     justifyContent: 'center',
-    paddingVertical: 8,
+    minHeight: 54,
+    minWidth: 44,
+    maxWidth: 56,
+    paddingVertical: 12,
   },
-  ratingStepSelected: {
-    backgroundColor: '#F1FAF5',
-    borderColor: '#BDE8D0',
-  },
-  ratingStepText: {
-    color: palette.muted,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0,
-  },
-  ratingStepTextSelected: {
-    color: palette.mintDeep,
+  starButtonSelected: {
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
   },
   ratingHint: {
     ...customerText.meta,
   },
+
   cardTitle: {
     color: '#202733',
     fontSize: 13,
@@ -151,14 +143,16 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#F1FAF5',
     borderRadius: radius.pill,
-    justifyContent: 'center',
     minHeight: 46,
   },
+
   submitButtonDisabled: {
     opacity: 0.55,
   },
+
   submitButtonText: {
     color: palette.mintDeep,
     fontSize: 14,
