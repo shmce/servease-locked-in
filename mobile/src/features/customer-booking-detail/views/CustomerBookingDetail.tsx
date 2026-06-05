@@ -7,6 +7,8 @@ import {
   PaymentSummary,
   ProviderListing,
   ReviewSummary,
+  BookingStatus,
+  BookingTimelineEventSummary,
 } from '../../../shared/models/types';
 import {
   CustomerBadge,
@@ -18,6 +20,7 @@ import {
   customerText,
 } from '../../../shared/components/CustomerUI';
 import { palette, radius, spacing } from '../../../theme/serveaseDesign';
+import { formatDateTime, timelineEventLabel } from '../../../domain/booking';
 import { useCustomerBookingDetailViewModel } from '../viewModels/useCustomerBookingDetailViewModel';
 import { CustomerBookingReviewPanel } from './CustomerBookingReviewPanel';
 import { CustomerBookingReviewSheet } from './CustomerBookingReviewSheet';
@@ -26,7 +29,7 @@ type CustomerBookingDetailScreenProps = {
   booking: BookingSummary;
   selectedProvider: ProviderListing | null;
   selectedPayment: PaymentSummary | null;
-  timelineEvents: ReactNode;
+  timelineEvents: BookingTimelineEventSummary[];
   hasTimelineEvents?: boolean;
   bookingMedia: ReactNode;
   serviceUpdates: ReactNode;
@@ -48,6 +51,29 @@ type CustomerBookingDetailScreenProps = {
   onOpenReview: () => void;
   onCloseReview: () => void;
   isReviewSheetVisible: boolean;
+};
+
+type TimelinePinState = 'completed' | 'current' | 'upcoming';
+
+type PinTimelineEntry = BookingTimelineEventSummary & {
+  state: TimelinePinState;
+  resolvedLabel: string;
+  resolvedTime: string;
+};
+
+const timelineStatusRanks: Record<BookingStatus, number> = {
+  pending: 0,
+  confirmed: 1,
+  in_progress: 2,
+  completed: 3,
+  cancelled: 3,
+  rejected: 3,
+};
+
+const pinStateLabel: Record<TimelinePinState, string> = {
+  completed: 'completed',
+  current: 'current',
+  upcoming: 'upcoming',
 };
 
 const bookingDetailTabs = [
@@ -105,9 +131,20 @@ export function CustomerBookingDetailScreen({
     : totalPriceRow
       ? [totalPriceRow]
       : [];
+  const timelinePinEvents = buildPinTimelineEvents(timelineEvents, booking.status);
 
   const timelineTabContent = hasTimelineEvents ? (
-    timelineEvents
+    <CustomerSection title="Booking Timeline">
+      <CustomerCard>
+        {timelinePinEvents.map((event, index) => (
+          <BookingTimelinePinRow
+            key={event.id}
+            isLast={index === timelinePinEvents.length - 1}
+            entry={event}
+          />
+        ))}
+      </CustomerCard>
+    </CustomerSection>
   ) : (
     <CustomerSection title="Booking Timeline">
       <CustomerCard>
@@ -364,6 +401,45 @@ export function CustomerBookingDetailScreen({
   );
 }
 
+function BookingTimelinePinRow({
+  entry,
+  isLast,
+}: {
+  entry: PinTimelineEntry;
+  isLast: boolean;
+}) {
+  return (
+    <View
+      style={styles.timelineRow}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={`${entry.resolvedLabel}, ${pinStateLabel[entry.state]} event, ${entry.resolvedTime}`}
+    >
+      <View style={styles.timelineMarkerColumn}>
+        <View
+          style={[
+            styles.timelinePin,
+            entry.state === 'completed' && styles.timelinePinCompleted,
+            entry.state === 'current' && styles.timelinePinCurrent,
+            entry.state === 'upcoming' && styles.timelinePinUpcoming,
+          ]}
+        >
+          {entry.state === 'current' ? <View style={styles.timelinePinCore} /> : null}
+        </View>
+        {!isLast ? <View style={styles.timelineConnector} /> : null}
+      </View>
+
+      <View style={styles.timelineContent}>
+        <Text style={styles.timelineTitle}>{entry.resolvedLabel}</Text>
+        <Text style={styles.timelineMeta}>{entry.resolvedTime}</Text>
+        {entry.state === 'current' ? (
+          <Text style={styles.timelineStatusText}>Tracking progress</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 function DetailRow({
   label,
   value,
@@ -380,6 +456,114 @@ function DetailRow({
         {value}
       </Text>
     </View>
+  );
+}
+
+function buildPinTimelineEvents(
+  events: BookingTimelineEventSummary[],
+  bookingStatus: BookingStatus,
+): PinTimelineEntry[] {
+  const timelineRank = timelineStatusRanks[bookingStatus];
+  const eventRanks = events.map((event) => getTimelineEventRank(event));
+
+  let pivotIndex = -1;
+  for (let index = 0; index < events.length; index += 1) {
+    const eventRank = eventRanks[index];
+
+    if (eventRank !== null && eventRank <= timelineRank) {
+      pivotIndex = index;
+    }
+  }
+
+  if (pivotIndex < 0 && events.length > 0) {
+    pivotIndex = 0;
+  }
+
+  return events.map((event, index) => {
+    const eventRank = eventRanks[index];
+    const state: TimelinePinState =
+      eventRank !== null
+        ? eventRank < timelineRank
+          ? 'completed'
+          : eventRank === timelineRank
+            ? 'current'
+            : 'upcoming'
+        : index < pivotIndex
+          ? 'completed'
+          : index === pivotIndex
+            ? 'current'
+            : 'upcoming';
+
+    return {
+      ...event,
+      state,
+      resolvedLabel: timelineEventLabel(event),
+      resolvedTime: formatDateTime(event.createdAt),
+    };
+  });
+}
+
+function getTimelineEventRank(event: BookingTimelineEventSummary): number | null {
+  const status = inferTimelineStatus(event);
+
+  if (status === null) {
+    return null;
+  }
+
+  return timelineStatusRanks[status];
+}
+
+function inferTimelineStatus(event: BookingTimelineEventSummary): BookingStatus | null {
+  const label = event.label ? event.label.trim().toLowerCase() : '';
+  const eventType = event.eventType ? event.eventType.trim().toLowerCase() : '';
+
+  const statusMatch = label.match(/booking status changed to ([a-z_]+)/i);
+  if (statusMatch) {
+    const rawStatus = statusMatch[1]?.toLowerCase() ?? '';
+    if (isBookingStatus(rawStatus)) {
+      return rawStatus;
+    }
+  }
+
+  if (
+    eventType === 'created' ||
+    label === 'booking requested' ||
+    label === 'booking created'
+  ) {
+    return 'pending';
+  }
+
+  if (eventType === 'confirmed') {
+    return 'confirmed';
+  }
+
+  if (eventType === 'provider_started' || eventType === 'provider-started') {
+    return 'in_progress';
+  }
+
+  if (eventType === 'completed') {
+    return 'completed';
+  }
+
+  if (eventType === 'cancelled' || eventType === 'rejected' || label.includes('cancel')) {
+    return 'cancelled';
+  }
+
+  if (eventType === 'rejected' || label.includes('rejected')) {
+    return 'rejected';
+  }
+
+  return null;
+}
+
+function isBookingStatus(value: string): value is BookingStatus {
+  return (
+    value === 'pending' ||
+    value === 'confirmed' ||
+    value === 'in_progress' ||
+    value === 'completed' ||
+    value === 'cancelled' ||
+    value === 'rejected'
   );
 }
 
@@ -578,5 +762,72 @@ const styles = StyleSheet.create({
   emptyMetaText: {
     ...customerText.meta,
     textAlign: 'center',
+  },
+  timelineRow: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  timelineMarkerColumn: {
+    alignItems: 'center',
+    paddingTop: 2,
+    width: 20,
+  },
+  timelinePin: {
+    alignItems: 'center',
+    borderRadius: 999,
+    height: 16,
+    justifyContent: 'center',
+    width: 16,
+  },
+  timelinePinCompleted: {
+    backgroundColor: palette.mintDeep,
+    borderColor: palette.mintDeep,
+    borderWidth: 1.5,
+  },
+  timelinePinCurrent: {
+    backgroundColor: palette.white,
+    borderColor: palette.mintDeep,
+    borderWidth: 2,
+  },
+  timelinePinUpcoming: {
+    backgroundColor: '#F3F5F7',
+    borderColor: '#D9DEE3',
+    borderWidth: 1.5,
+  },
+  timelinePinCore: {
+    backgroundColor: palette.mintDeep,
+    borderRadius: 999,
+    height: 6,
+    width: 6,
+  },
+  timelineConnector: {
+    backgroundColor: '#D9DEE3',
+    flex: 1,
+    marginTop: 4,
+    width: 1,
+  },
+  timelineContent: {
+    flex: 1,
+    gap: 3,
+    minWidth: 0,
+    paddingBottom: spacing.sm,
+  },
+  timelineTitle: {
+    ...customerText.title,
+    fontSize: 14,
+    lineHeight: 19,
+  },
+  timelineMeta: {
+    ...customerText.meta,
+    fontSize: 11,
+    letterSpacing: 0,
+  },
+  timelineStatusText: {
+    color: palette.mintDeep,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0,
   },
 });

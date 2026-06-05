@@ -3757,9 +3757,7 @@ export default function App({ initialRoute = null }: AppProps) {
         booking={selectedBooking}
         selectedProvider={selectedProvider ?? null}
         selectedPayment={selectedPayment ?? null}
-        timelineEvents={
-          <BookingTimelineEventsSection events={selectedBookingTimelineEvents} />
-        }
+        timelineEvents={selectedBookingTimelineEvents}
         hasTimelineEvents={selectedBookingTimelineEvents.length > 0}
         bookingMedia={
           <BookingMediaSection
