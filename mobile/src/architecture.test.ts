@@ -1123,6 +1123,10 @@ test('customer explore follows feature-level MVVM boundaries', () => {
   );
   assert.match(viewSource, /SearchFilterRow/);
   assert.doesNotMatch(viewSource, /CategoryFilterSheet|setCategoryFilter/);
+  assert.match(viewSource, /sheetCategoryId: sheetCategory\?\.id \?\? null/);
+  assert.match(viewSource, /categoryTileActive/);
+  assert.match(viewSource, /feedback=\{isDisabled \? 'none' : 'compactScale'\}/);
+  assert.doesNotMatch(viewSource, /selected=\{row\.isSelected\}/);
   assert.match(viewSource, /onLocationPress=\{props\.onOpenSavedAddresses\}/);
   assert.match(viewModelSource, /completedRebookOptions/);
   assert.match(viewModelSource, /guideSteps/);
@@ -1130,6 +1134,7 @@ test('customer explore follows feature-level MVVM boundaries', () => {
   assert.match(viewModelSource, /locationStatusLabel/);
   assert.match(viewModelSource, /needs_verification/);
   assert.doesNotMatch(viewModelSource, /categoryFilterLabel|CategoryFilter/);
+  assert.match(viewModelSource, /activeCategoryId: sheetCategoryId \?\? null/);
   assert.match(viewModelSource, /bookAgainRows/);
   assert.match(viewModelSource, /serviceRows/);
   assert.match(viewModelSource, /providerRows/);

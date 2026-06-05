@@ -333,8 +333,8 @@ export function buildCustomerExploreViewModel({
         : null,
       quickCategoryRows,
       referenceCategoryRows: buildReferenceCategoryRows({
+        activeCategoryId: sheetCategoryId ?? null,
         categories,
-        selectedCategoryId,
       }),
       referenceTrustRows: REFERENCE_TRUST_VALUE_ROWS,
       upcomingBookingCard: buildUpcomingBookingCard(presentBooking),
@@ -370,11 +370,11 @@ export function buildCustomerExploreViewModel({
 }
 
 function buildReferenceCategoryRows({
+  activeCategoryId,
   categories,
-  selectedCategoryId,
 }: {
+  activeCategoryId: string | null;
   categories: CatalogCategory[];
-  selectedCategoryId: string | null;
 }) {
   const usedCategoryIds = new Set<string>();
 
@@ -389,7 +389,7 @@ function buildReferenceCategoryRows({
       iconKey: config.key,
       id: category?.id ?? config.key,
       isAvailable: Boolean(category),
-      isSelected: category?.id === selectedCategoryId,
+      isSelected: category?.id === activeCategoryId,
       label: config.label,
       sortIndex: index,
     };

@@ -440,18 +440,25 @@ function CategoryTile({
 }) {
   const Icon = categoryIconFor(row.iconKey);
   const isDisabled = !row.isAvailable;
+  let iconColor = palette.mintDeep;
+  if (row.isSelected) {
+    iconColor = '#008F5B';
+  }
+  if (isDisabled) {
+    iconColor = '#A9B0B8';
+  }
 
   return (
     <MotionPressable
       contentStyle={[
         styles.categoryTile,
         { width: tileWidth },
-        row.isSelected && styles.categoryTileSelected,
+        row.isSelected && styles.categoryTileActive,
         isDisabled && styles.categoryTileDisabled,
       ]}
+      feedback={isDisabled ? 'none' : 'compactScale'}
       onPress={onPress}
       disabled={isDisabled}
-      selected={row.isSelected}
       accessibilityRole="button"
       accessibilityLabel={
         isDisabled
@@ -461,12 +468,16 @@ function CategoryTile({
       accessibilityState={{ disabled: isDisabled, selected: row.isSelected }}
     >
       <Icon
-        color={isDisabled ? '#A9B0B8' : palette.mintDeep}
+        color={iconColor}
         size={21}
         strokeWidth={2.05}
       />
       <Text
-        style={[styles.categoryLabel, isDisabled && styles.categoryLabelDisabled]}
+        style={[
+          styles.categoryLabel,
+          row.isSelected && styles.categoryLabelActive,
+          isDisabled && styles.categoryLabelDisabled,
+        ]}
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.82}
@@ -899,6 +910,8 @@ const styles = StyleSheet.create({
   },
   categoryRow: {
     gap: spacing.sm,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
   },
   catalogLoadingGroup: {
     gap: spacing.md,
@@ -914,9 +927,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 0,
   },
-  categoryTileSelected: {
-    backgroundColor: palette.white,
-    borderColor: '#CDEEDD',
+  categoryTileActive: {
+    backgroundColor: '#F4FBF7',
+    borderColor: '#8AD9B6',
   },
   categoryTileDisabled: {
     backgroundColor: '#F5F6F7',
@@ -933,6 +946,10 @@ const styles = StyleSheet.create({
   },
   categoryLabelDisabled: {
     color: '#7D8791',
+  },
+  categoryLabelActive: {
+    color: '#057A4D',
+    fontWeight: '600',
   },
   categoryStatus: {
     color: '#8A95A1',

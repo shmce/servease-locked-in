@@ -1198,7 +1198,7 @@ export default function App({ initialRoute = null }: AppProps) {
         setCategories(nextCategories);
         setServices(nextServices);
         setCatalogProviders(nextCatalogProviders);
-        setSelectedCategoryId(firstCategoryId);
+        setSelectedCategoryId(null);
         setSelectedServiceId(firstServiceId);
         setProviders(firstProviders);
         setSelectedProviderId(firstProviders[0]?.providerId ?? null);

@@ -31,9 +31,16 @@ test('motion press feedback is disabled-safe and selected-state aware', () => {
   const pressableSource = source.slice(pressableStart, pressableEnd);
 
   assert.match(pressableSource, /const isDisabled = Boolean\(disabled\)/);
-  assert.match(pressableSource, /usePressScale\(isDisabled \|\| feedback === 'none'\)/);
+  assert.match(source, /feedback\?: 'compactScale' \| 'none' \| 'scale'/);
+  assert.match(source, /compactPress: 0\.985/);
+  assert.match(pressableSource, /feedback === 'compactScale'/);
+  assert.match(
+    pressableSource,
+    /usePressScale\(isDisabled \|\| feedback === 'none', pressedScale\)/,
+  );
   assert.match(pressableSource, /useSelectedMotion\(Boolean\(selected\), isDisabled\)/);
   assert.match(pressableSource, /disabled=\{isDisabled\}/);
+  assert.match(source, /onPressIn: \(\) => animate\(pressedScale\)/);
   assert.match(source, /scale\.setValue\(1\)/);
   assert.match(source, /if \(isDisabled\) \{/);
 });

@@ -318,7 +318,7 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
           icon: null,
         },
       ],
-      selectedCategoryId: 'electrical',
+      sheetCategoryId: 'electrical',
     });
 
     assert.deepEqual(
@@ -331,6 +331,42 @@ describe('buildCustomerExploreViewModel dashboard state', () => {
     assert.equal(explore.data.referenceCategoryRows[1]?.isAvailable, false);
     assert.equal(explore.data.referenceCategoryRows[3]?.category?.id, 'electrical');
     assert.equal(explore.data.referenceCategoryRows[3]?.isSelected, true);
+  });
+
+  it('keeps reference category tiles unselected without an open sheet context', () => {
+    const availableCategories = [
+      {
+        id: 'cleaning',
+        name: 'Home Cleaning',
+        description: null,
+        icon: null,
+      },
+      {
+        id: 'electrical',
+        name: 'Electrical Repairs',
+        description: null,
+        icon: null,
+      },
+    ];
+    const initialExplore = buildCustomerExploreViewModel({
+      ...baseInput(),
+      categories: availableCategories,
+      selectedCategoryId: null,
+    });
+    const categoryRouteExplore = buildCustomerExploreViewModel({
+      ...baseInput(),
+      categories: availableCategories,
+      selectedCategoryId: 'electrical',
+    });
+
+    assert.equal(
+      initialExplore.data.referenceCategoryRows.some((row) => row.isSelected),
+      false,
+    );
+    assert.equal(
+      categoryRouteExplore.data.referenceCategoryRows.some((row) => row.isSelected),
+      false,
+    );
   });
 
   it('keeps the visible reference category rail in default order', () => {

@@ -65,7 +65,7 @@ type ContentTransitionProps = ViewProps & {
 type MotionPressableProps = Omit<PressableProps, 'children'> & {
   children: ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
-  feedback?: 'none' | 'scale';
+  feedback?: 'compactScale' | 'none' | 'scale';
   selected?: boolean;
 };
 
@@ -100,6 +100,7 @@ export const motionTokens = {
     success: 6,
   },
   scale: {
+    compactPress: 0.985,
     press: 0.97,
     selected: 1.08,
     successPeak: 1.04,
@@ -382,7 +383,11 @@ export function MotionPressable({
   ...pressableProps
 }: MotionPressableProps) {
   const isDisabled = Boolean(disabled);
-  const press = usePressScale(isDisabled || feedback === 'none');
+  const pressedScale =
+    feedback === 'compactScale'
+      ? motionTokens.scale.compactPress
+      : motionTokens.scale.press;
+  const press = usePressScale(isDisabled || feedback === 'none', pressedScale);
   const selectedMotion = useSelectedMotion(Boolean(selected), isDisabled);
 
   return (
@@ -480,7 +485,10 @@ export function useEntranceMotion(options: EntranceMotionOptions | number = {}) 
   };
 }
 
-export function usePressScale(disabled?: boolean) {
+export function usePressScale(
+  disabled?: boolean,
+  pressedScale: number = motionTokens.scale.press,
+) {
   const reduceMotion = useReducedMotion();
   const scale = useRef(new Animated.Value(1)).current;
   const isDisabled = Boolean(disabled || reduceMotion);
@@ -509,7 +517,7 @@ export function usePressScale(disabled?: boolean) {
       transform: [{ scale }],
     },
     scale,
-    onPressIn: () => animate(motionTokens.scale.press),
+    onPressIn: () => animate(pressedScale),
     onPressOut: () => animate(1),
   };
 }
