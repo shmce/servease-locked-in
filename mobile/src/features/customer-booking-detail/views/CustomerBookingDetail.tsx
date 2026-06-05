@@ -131,7 +131,10 @@ export function CustomerBookingDetailScreen({
     : totalPriceRow
       ? [totalPriceRow]
       : [];
-  const timelinePinEvents = buildPinTimelineEvents(timelineEvents, booking.status);
+  const timelinePinEvents = buildPinTimelineEvents(
+    [...timelineEvents].reverse(),
+    booking.status,
+  );
 
   const timelineTabContent = hasTimelineEvents ? (
     <CustomerSection title="Booking Timeline">
