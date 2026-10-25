@@ -1,68 +1,119 @@
 # ServEase
 
-ServEase is a service marketplace with an HTTP-only NestJS microservices backend, an Expo mobile app, a Next.js admin panel, and a merged Next.js public/provider app in `servease-web/`.
+<p align="center">
+  <img src=".github/assets/servease-cover.svg" alt="ServEase: a connected marketplace for local services" width="100%" />
+</p>
 
-## Active Apps
+<p align="center"><strong>A full-stack marketplace for finding, booking, and managing home, personal, and local services.</strong></p>
 
-| Path | Purpose | Primary commands |
-| --- | --- | --- |
-| `backend/` | API Gateway and internal NestJS services | `npm run dev`, `npm run test`, `npm run build`, `npm run verify` |
-| `mobile/` | Expo customer/provider app | `npm start`, `npm run web`, `npm run typecheck`, `npm test` |
-| `admin/` | Next.js admin dashboard | `npm run dev`, `npm run typecheck`, `npm test`, `npm run build` |
-| `servease-web/` | Next.js public site, browser account flows, and provider dashboard under `/provider/*` | `npm run dev`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`, `npm run e2e` |
-| `packages/servease-sdk/` | Typed public API client package | `npm run typecheck`, `npm test`, `npm run build` |
+ServEase brings customer discovery, provider tools, and platform operations into one connected product. This repository contains the mobile app, public and provider web experience, admin dashboard, typed API package, and a service-oriented backend.
 
-## Documentation
+## Product areas
 
-- [AGENTS.md](AGENTS.md): repository rules and agent operating constraints.
-- [DESIGN.md](DESIGN.md): product experience and UI design source of truth.
-- [docs/README.md](docs/README.md): canonical documentation index.
-- [docs/architecture.md](docs/architecture.md): runtime topology and service boundaries.
-- [docs/api-contracts.md](docs/api-contracts.md): public and internal API contract rules.
-- [docs/call-flows.md](docs/call-flows.md): end-to-end request flows.
-- [docs/internal-service-contracts.md](docs/internal-service-contracts.md): internal service route inventory.
-- [docs/app-surface-contracts.md](docs/app-surface-contracts.md): app-to-Gateway usage map.
-- [docs/testing.md](docs/testing.md): verification commands by app.
-- [docs/documentation-status.md](docs/documentation-status.md): current source-of-truth and historical docs map.
-- [docs/github-packages.md](docs/github-packages.md): GitHub Packages setup for private npm packages.
+- **Customer experience:** Browse service categories and provider listings, request a booking, follow its progress, message a provider, and manage related payments or support.
+- **Provider experience:** Maintain a service profile, manage availability, respond to booking requests, update job progress, and review earnings and payouts.
+- **Platform operations:** Review provider applications, manage bookings and payments, and handle support, disputes, and moderation from an admin workspace.
 
-## Local Setup
+These are the product areas represented across the app surfaces and API contracts. Local use of external services depends on your own development credentials and configuration.
 
-Install dependencies inside each app you work on:
+## Architecture
 
-```sh
-cd backend && npm install
-cd ../mobile && npm install
-cd ../admin && npm install
-cd ../servease-web && npm install
+The API Gateway is the public backend boundary. It routes requests to independently owned NestJS services over HTTP; services own their data and do not read one another's database tables directly.
+
+```mermaid
+flowchart LR
+  mobile["Expo mobile app"] --> gateway["NestJS API Gateway"]
+  web["Next.js public and provider web"] --> gateway
+  admin["Next.js admin dashboard"] --> gateway
+  sdk["Typed TypeScript SDK"] --> gateway
+  gateway --> services["NestJS HTTP services"]
+  services --> data["Supabase\nservice-owned data and Storage"]
 ```
 
-The backend depends on the internal GitHub Packages package `@implementsprint/sdk`. Configure GitHub Packages before running `npm install` in `backend/`:
+### Engineering highlights
+
+- One API Gateway separates public client contracts from internal service routes.
+- Backend services communicate over HTTP and own their persistence boundaries.
+- Customer and provider workflows share a mobile app, while provider tools are also available on the web.
+- The TypeScript SDK exposes approved public API contracts without exposing internal service URLs or database access.
+- Public client keys and backend-only credentials are configured separately.
+
+## Technology
+
+| Area | Stack |
+| --- | --- |
+| Backend | NestJS, TypeScript, HTTP services |
+| Mobile | Expo, React Native |
+| Web and admin | Next.js, React, TypeScript |
+| Auth, data, and uploads | Supabase |
+| Shared API client | TypeScript package in `packages/servease-sdk/` |
+| Quality tooling | Jest, Vitest, Playwright, Detox, and k6 scripts |
+
+## Repository map
+
+| Path | Purpose |
+| --- | --- |
+| `backend/` | API Gateway and 11 backend services |
+| `mobile/` | Expo customer and provider app |
+| `servease-web/` | Public site, account flows, and provider dashboard |
+| `admin/` | Admin dashboard for platform operations |
+| `packages/servease-sdk/` | Typed client for approved public API routes |
+| `docs/` | Architecture, contracts, development guidance, and operational runbooks |
+
+## Run locally
+
+Each app runs as its own workspace. You will need Node.js 20 or newer, npm, and development credentials for the services you want to use. The backend also installs `@implementsprint/sdk` from GitHub Packages, which requires an account with `read:packages` access.
+
+Authenticate to GitHub Packages before installing the backend dependencies:
 
 ```sh
 gh auth refresh -h github.com -s read:packages
-export GITHUB_TOKEN="$(gh auth token)"
 ```
 
-See [docs/github-packages.md](docs/github-packages.md) for full setup and troubleshooting.
-
-## Backend Runtime
-
-The API Gateway runs on port `5001`. Internal services run on ports `8501` through `8511` and communicate only through HTTP using environment-defined URLs. Copy `backend/.env.example` to `backend/.env` for local development.
+Then expose the token to npm for the current terminal session:
 
 ```sh
-cd backend
-npm run dev
+# macOS / Linux
+export GITHUB_TOKEN="$(gh auth token)"
+
+# Windows PowerShell
+$env:GITHUB_TOKEN = gh auth token
 ```
 
-## Demo Accounts
+Install the workspaces you plan to run:
 
-Seed demo accounts with `cd backend && npm run seed:demo` after backend environment variables are configured.
+```sh
+npm --prefix backend ci
+npm --prefix mobile ci
+npm --prefix servease-web ci
+npm --prefix admin ci
+```
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Customer | `customer.demo@servease.test` | `ServEaseDemo#2026` |
-| Provider | `provider.demo@servease.test` | `ServEaseDemo#2026` |
-| Admin | `admin.demo@servease.test` | `ServEaseDemo#2026` |
+Create each app's local environment file from its example where provided, then fill in your own development values. The [backend](backend/README.md), [mobile](mobile/README.md), and [admin](admin/README.md) guides cover their environment files; the [web guide](servease-web/README.md) lists its required values. Never commit real credentials.
 
-These accounts are for local and shared development only.
+Start the required surfaces in separate terminals:
+
+```sh
+npm --prefix backend run dev
+npm --prefix mobile start
+npm --prefix servease-web run dev
+npm --prefix admin run dev
+```
+
+For workspace-specific verification commands, see [docs/testing.md](docs/testing.md).
+
+## Project documentation
+
+- [Architecture](docs/architecture.md)
+- [Client-to-API map](docs/app-surface-contracts.md)
+- [API contracts](docs/api-contracts.md)
+- [Testing and verification](docs/testing.md)
+- [Complete documentation index](docs/README.md)
+
+## Project status
+
+This is a development portfolio project. No public live demo is linked in this repository; running the full product requires app configuration and external service credentials. Demo data can be seeded into a development environment with `npm --prefix backend run seed:demo`.
+
+## License
+
+No license file is currently included in this repository.

@@ -117,18 +117,10 @@ Seed local/shared demo users and data:
 npm run seed:demo
 ```
 
-The demo catalog includes ranking examples: Home Cleaning has the highest
-catalog-side volume for `Popular`, Repairs has the strongest Bayesian rating
-for `Top Rated`, and Specialty Assembly has a single 5.0 review to show how
-low sample sizes are dampened.
-
-Demo credentials default to:
-
-| Role | Email | Password |
-| --- | --- | --- |
-| Customer | `customer.demo@servease.test` | `ServEaseDemo#2026` |
-| Provider | `provider.demo@servease.test` | `ServEaseDemo#2026` |
-| Admin | `admin.demo@servease.test` | `ServEaseDemo#2026` |
+The seed script creates sample catalog, booking, and account data for local
+development. Run it only against a non-production Supabase project. Keep demo
+login details in your local development setup; credentials are not published
+in this guide.
 
 ## Rules
 

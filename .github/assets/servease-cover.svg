@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" fill="none">
+  <defs>
+    <linearGradient id="surface" x1="58" y1="30" x2="1120" y2="392" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5FAF6"/>
+      <stop offset="1" stop-color="#E6F3EA"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="90" y1="300" x2="1100" y2="110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45A66F"/>
+      <stop offset="1" stop-color="#8BD3A5"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="420" rx="28" fill="url(#surface)"/>
+  <circle cx="1100" cy="20" r="200" fill="#D7EEDD" opacity=".65"/>
+  <circle cx="20" cy="410" r="160" fill="#D7EEDD" opacity=".6"/>
+  <path d="M0 330C190 275 330 398 530 352s368-166 670-132v200H0V330Z" fill="#DDF0E3" opacity=".78"/>
+  <g fill="#94CBA5" opacity=".6">
+    <circle cx="837" cy="76" r="4"/><circle cx="871" cy="76" r="4"/><circle cx="905" cy="76" r="4"/>
+    <circle cx="837" cy="110" r="4"/><circle cx="871" cy="110" r="4"/><circle cx="905" cy="110" r="4"/>
+    <circle cx="837" cy="144" r="4"/><circle cx="871" cy="144" r="4"/><circle cx="905" cy="144" r="4"/>
+  </g>
+  <g font-family="Inter, Segoe UI, Arial, sans-serif">
+    <text x="76" y="105" fill="#256B47" font-size="18" font-weight="700" letter-spacing="3.2">A CONNECTED MARKETPLACE FOR LOCAL SERVICES</text>
+    <text x="72" y="190" fill="#173B30" font-size="76" font-weight="750" letter-spacing="-3">ServEase</text>
+    <text x="78" y="239" fill="#38564A" font-size="24" font-weight="450">Discover services. Book with confidence. Keep every detail in view.</text>
+    <text x="78" y="337" fill="#256B47" font-size="16" font-weight="700" letter-spacing="1.2">CUSTOMER</text>
+    <text x="254" y="337" fill="#256B47" font-size="16" font-weight="700" letter-spacing="1.2">PROVIDER</text>
+    <text x="421" y="337" fill="#256B47" font-size="16" font-weight="700" letter-spacing="1.2">OPERATIONS</text>
+    <circle cx="68" cy="331" r="4" fill="url(#accent)"/>
+    <circle cx="238" cy="331" r="4" fill="url(#accent)"/>
+    <circle cx="407" cy="331" r="4" fill="url(#accent)"/>
+  </g>
+  <g transform="translate(748 57)">
+    <rect width="374" height="260" rx="24" fill="#FFFFFF" stroke="#D6E8DA" stroke-width="2"/>
+    <rect x="22" y="22" width="48" height="48" rx="16" fill="#E9F6ED"/>
+    <path d="M37 45h18m-9-9v18" stroke="#328956" stroke-width="3" stroke-linecap="round"/>
+    <text x="86" y="42" fill="#769083" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="600">YOUR NEXT SERVICE</text>
+    <text x="86" y="62" fill="#173B30" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">One simple journey</text>
+    <rect x="22" y="94" width="330" height="58" rx="16" fill="#F5FAF6"/>
+    <circle cx="51" cy="123" r="15" fill="#DDF0E3"/>
+    <path d="M45 123h12m-6-6v12" stroke="#328956" stroke-width="2.5" stroke-linecap="round"/>
+    <text x="78" y="118" fill="#173B30" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">Find a local professional</text>
+    <text x="78" y="137" fill="#6B8175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12">Browse categories and service listings</text>
+    <rect x="22" y="164" width="330" height="58" rx="16" fill="#F5FAF6"/>
+    <circle cx="51" cy="193" r="15" fill="#DDF0E3"/>
+    <path d="m45 193 4 4 8-9" stroke="#328956" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="78" y="188" fill="#173B30" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">Follow the booking</text>
+    <text x="78" y="207" fill="#6B8175" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="12">Stay connected from request to completion</text>
+  </g>
+</svg>

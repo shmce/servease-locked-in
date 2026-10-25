@@ -1,6 +1,6 @@
 # Mobile UX Audit — 2026-05-18
 
-Inspected via Expo Web (`expo start --web`, viewport 390×844, iOS UA) using Playwright DOM/snapshot inspection against demo accounts (`customer.demo@servease.test` / `provider.demo@servease.test`, password `ServEaseDemo#2026`). Backend gateway live; demo seed verified via `npm run smoke:demo-api`.
+Inspected via Expo Web (`expo start --web`, viewport 390×844, iOS UA) using Playwright DOM/snapshot inspection against development demo accounts (credentials omitted). Backend gateway live; demo seed verified via `npm run smoke:demo-api`.
 
 Severity legend
 - **P0** — Blocks or breaks core flow / data-correctness bug.
