@@ -1,8 +1,8 @@
 # ServEase Admin Panel
 
-The ServEase admin dashboard. Sign in with an admin-role account against the
-shared Supabase project; the gateway validates the bearer token on every
-`/v1/admin/...` request.
+The ServEase admin dashboard for platform operations. Sign in with an
+admin-role account from your configured development environment; the gateway
+validates the bearer token on every `/v1/admin/...` request.
 
 ## Running the app
 
@@ -26,36 +26,20 @@ npm run build
 
 ## Required environment
 
-Create `.env.local` in this folder with:
+Create a local environment file from `.env.example` and provide development
+values for the API Gateway and Supabase:
 
 ```
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5001
-NEXT_PUBLIC_SUPABASE_URL=https://bwubdvjyjssywfjyhrxj.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable key from Supabase project>
-ADMIN_SMOKE_EMAIL=admin.demo@servease.test
-ADMIN_SMOKE_PASSWORD=<demo admin password>
+NEXT_PUBLIC_SUPABASE_URL=<your Supabase project URL>
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your publishable key>
+ADMIN_SMOKE_EMAIL=<non-production admin email>
+ADMIN_SMOKE_PASSWORD=<non-production admin password>
 ```
 
-## Demo admin account
-
-Use this account to sign in for local testing. It is seeded by
-`backend/scripts/seed-demo-data.mjs` and lives in the shared dev Supabase
-project.
-
-| Field    | Value                          |
-| -------- | ------------------------------ |
-| Email    | `admin.demo@servease.test`     |
-| Password | `ServEaseDemo#2026`            |
-| Role     | `admin`                        |
-| Status   | `active`                       |
-
-If sign-in ever fails with `invalid_grant`, the password has drifted — re-run
-the seed script or reset it from Supabase. The seed script also creates a
-matching `customer.demo@servease.test` and `provider.demo@servease.test` (same
-password) you can use to exercise the mobile app against the same data.
-
-> Treat this account as **non-production**. Never reuse `ServEaseDemo#2026`
-> in any deployed environment.
+Use an admin account provisioned for your own non-production environment. Demo
+account credentials are intentionally omitted from the public repository
+documentation.
 
 ## What you can do once signed in
 
